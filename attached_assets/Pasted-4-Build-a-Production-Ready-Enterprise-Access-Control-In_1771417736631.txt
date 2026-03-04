@@ -1,0 +1,347 @@
+4
+Build a Production-Ready Enterprise Access Control Intelligence System.
+
+PROJECT NAME:
+ZIN Unified Access Intelligence Platform (ZUAIP)
+
+OBJECTIVE:
+We already have database access credentials for:
+
+1) ESL_DB (eTimeTracker Database)
+2) CONTROLLER_DB (Access Controller Database)
+
+The system must directly fetch data from these databases
+and build a centralized dashboard system with rule intelligence.
+
+--------------------------------------------------------
+TECH STACK REQUIREMENTS
+--------------------------------------------------------
+
+Backend:
+- Python FastAPI
+- SQLAlchemy (Multiple DB Connections)
+- Alembic Migration
+- APScheduler (Background Sync)
+- JWT Authentication
+- Role-Based Access Control (RBAC)
+- WebSocket support for Live Monitor
+- Pydantic validation
+- Structured Logging
+
+Frontend:
+- React.js (Vite)
+- TailwindCSS
+- Axios
+- React Table
+- Recharts
+- WebSocket integration for live logs
+
+Database:
+- MySQL multi-connection support
+- One Central Application Database
+
+Deployment:
+- .env support
+- Dockerfile
+- docker-compose
+- Nginx config
+- Production-ready setup
+
+--------------------------------------------------------
+DATABASE CONNECTION LOGIC
+--------------------------------------------------------
+
+System should support dynamic DB configuration.
+
+Create SETTINGS module where admin can:
+
+- Add ESL_DB credentials
+    - host
+    - port
+    - db_name
+    - username
+    - password
+- Add CONTROLLER_DB credentials
+    - host
+    - port
+    - db_name
+    - username
+    - password
+
+Encrypt credentials before storing.
+Test connection button required.
+
+--------------------------------------------------------
+DATA FETCHING REQUIREMENTS
+--------------------------------------------------------
+
+We already have DB access.
+System must:
+
+- Fetch attendance logs from ESL_DB
+- Fetch employee master from ESL_DB
+- Fetch access logs from CONTROLLER_DB
+- Fetch users from CONTROLLER_DB
+- Fetch Access Control Rules from CONTROLLER_DB
+- Fetch Devices and Door list from CONTROLLER_DB
+- Fetch Site information if available
+
+No duplicate storage.
+Maintain last_synced_timestamp.
+
+--------------------------------------------------------
+CORE MODULES
+--------------------------------------------------------
+
+1) DASHBOARD
+
+Dashboard must show:
+
+- Total People
+- Total Visitors
+- Today Attendance Count
+- Today Access Entries
+- Unauthorized Access Attempts
+- Active Devices
+- Total Sites
+- Alerts count
+- Recent 20 live logs
+
+Charts:
+- Attendance Trend
+- Entry by Site
+- Entry by Device
+- Hourly Heatmap
+
+--------------------------------------------------------
+
+2) LIVE MONITOR (REAL-TIME)
+
+- WebSocket-based real-time log streaming
+- Show:
+    - User Name
+    - Card No
+    - Device Name
+    - Site
+    - Access Status (Granted/Denied)
+    - Timestamp
+- Color coded entries
+- Auto-refresh without page reload
+
+--------------------------------------------------------
+
+3) PEOPLE MODULE
+
+- List employees from ESL_DB + CONTROLLER_DB
+- Unified user mapping
+- Show:
+    - Name
+    - Employee ID
+    - Card Number
+    - Department
+    - Assigned Access Rules
+    - Status
+- Search and filter
+
+--------------------------------------------------------
+
+4) VISITORS MODULE
+
+If controller supports visitor table:
+
+- Fetch visitors
+Else:
+- Create local Visitor management:
+    - Add Visitor
+    - Assign temporary card
+    - Assign Site
+    - Validity period
+    - Auto-expiry access
+
+--------------------------------------------------------
+
+5) ATTENDANCE MODULE
+
+- Attendance summary
+- Late entries detection
+- Missing punch detection
+- Attendance by department
+- Export to Excel
+
+--------------------------------------------------------
+
+6) DEVICES MODULE
+
+Fetch from CONTROLLER_DB:
+
+- Device Name
+- IP Address
+- Site
+- Status (Active/Offline)
+- Last Sync Time
+
+Show device-wise log count.
+
+--------------------------------------------------------
+
+7) SITES MODULE
+
+If site data exists:
+- Show site list
+- Site-wise entry analytics
+- Device count per site
+
+--------------------------------------------------------
+
+8) ACCESS CONTROL RULES MODULE
+
+Fetch existing Access Rules from CONTROLLER_DB.
+
+Display:
+- Rule Name
+- Assigned Users
+- Time Zone
+- Allowed Doors
+- Denied Doors
+- Validity
+
+If possible:
+Allow rule preview only (read-only from controller DB).
+
+--------------------------------------------------------
+
+9) ALERTS MODULE
+
+Create alerts for:
+
+- Unauthorized access attempts
+- Multiple denied attempts
+- Device offline
+- Suspicious behavior pattern
+
+Store alerts in central DB.
+Allow filtering and acknowledgement.
+
+--------------------------------------------------------
+
+10) REPORTS MODULE
+
+Generate reports:
+
+- Attendance Report
+- Access Log Report
+- Visitor Report
+- Device Activity Report
+- Site-wise Report
+
+Export formats:
+- Excel
+- CSV
+- PDF
+
+--------------------------------------------------------
+
+11) USER MANAGEMENT MODULE (Application Users)
+
+This is for managing users of THIS application.
+
+Create Role-Based Access Control:
+
+Roles:
+- SuperAdmin
+- Admin
+- HR
+- Security
+- Viewer
+
+Permissions:
+- Dashboard View
+- Live Monitor
+- People Management
+- Visitor Management
+- Attendance View
+- Device View
+- Site View
+- Rule View
+- Alert Management
+- Report Download
+- Settings Access
+
+Use RBAC middleware.
+
+--------------------------------------------------------
+
+12) SETTINGS MODULE
+
+Admin can:
+
+- Add / Update ESL_DB credentials
+- Add / Update CONTROLLER_DB credentials
+- Test DB connection
+- Configure sync interval
+- Configure alert thresholds
+- Enable / Disable modules
+
+All credentials encrypted.
+Only SuperAdmin can access settings.
+
+--------------------------------------------------------
+
+PERFORMANCE REQUIREMENTS
+
+- Use async DB queries
+- Add indexing
+- Pagination for logs
+- Efficient filtering
+- Optimized queries for 5000+ users
+- Designed for 50+ devices
+
+--------------------------------------------------------
+
+SECURITY REQUIREMENTS
+
+- JWT authentication
+- Password hashing using bcrypt
+- API rate limiting
+- Audit logs for every admin action
+- Role-based endpoint protection
+
+--------------------------------------------------------
+
+FILE STRUCTURE
+
+backend/
+    app/
+        models/
+        schemas/
+        routes/
+        services/
+        core/
+        scheduler/
+        websocket/
+    main.py
+    requirements.txt
+
+frontend/
+    src/
+        pages/
+        components/
+        services/
+        hooks/
+
+--------------------------------------------------------
+
+GENERATE:
+
+- Complete backend code
+- React frontend structure
+- SQL schema
+- WebSocket implementation
+- Docker setup
+- Setup instructions
+- Example .env
+- Example encrypted credentials logic
+- Example sync service
+- Sample RBAC implementation
+
+Make the system scalable, secure, modular, and enterprise-grade.

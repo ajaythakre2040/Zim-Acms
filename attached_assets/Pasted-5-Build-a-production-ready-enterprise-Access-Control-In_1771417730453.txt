@@ -1,0 +1,262 @@
+5 Build a production-ready enterprise Access Control Integration System.
+
+PROJECT NAME:
+Unified Access Intelligence Platform (UAIP)
+
+OBJECTIVE:
+Integrate and normalize data from:
+1) ESL eTimeTracker database (Attendance logs)
+2) Door Access Controller database (Door entry logs)
+3) ZIN Access Control Management System database
+
+The system should unify, analyze, and visualize logs in real-time with rule-based automation.
+
+---------------------------------------------------
+TECH STACK REQUIREMENTS
+---------------------------------------------------
+
+Backend:
+- Python FastAPI
+- SQLAlchemy ORM
+- Alembic migrations
+- Pydantic validation
+- Background Scheduler (APScheduler)
+- JWT Authentication
+- Role-Based Access Control (RBAC)
+
+Frontend:
+- React.js (Vite)
+- TailwindCSS
+- Axios for API
+- Recharts for graphs
+- React Table for logs
+
+Database:
+- MySQL (multi-database connections)
+- One unified central database
+
+Deployment Ready:
+- .env configuration
+- Dockerfile
+- docker-compose.yml
+- Nginx reverse proxy config
+- Production logging enabled
+
+---------------------------------------------------
+DATABASE ARCHITECTURE
+---------------------------------------------------
+
+Support multiple external DB connections:
+
+1) ESL_DB connection
+   - employees
+   - attendance_logs
+   - devices
+
+2) CONTROLLER_DB connection
+   - users
+   - access_logs
+   - doors
+
+3) ZIN_DB (Central Unified Database)
+   - unified_users
+   - unified_logs
+   - access_rules
+   - role_permissions
+   - audit_logs
+   - blocked_access
+   - system_settings
+
+---------------------------------------------------
+CORE FEATURES
+---------------------------------------------------
+
+1) USER NORMALIZATION ENGINE
+
+Create a mapping system that:
+- Matches employee_id
+- Matches card_number
+- Matches mobile/email
+- Handles duplicate detection
+- Creates unified_user_id
+
+---------------------------------------------------
+
+2) DATA SYNC ENGINE
+
+Background scheduler:
+- Sync ESL logs every 2 minutes
+- Sync Controller logs every 2 minutes
+- Avoid duplicate imports
+- Maintain last_synced_timestamp
+- Log sync activity in audit_logs
+
+---------------------------------------------------
+
+3) RULE ENGINE (IMPORTANT)
+
+Create dynamic rule engine stored in DB.
+
+Example Rule:
+IF user enters "A Section"
+THEN block access to "Restricted Room"
+FOR 24 hours
+
+Features:
+- Time-based restrictions
+- Zone-based restrictions
+- User-based exceptions
+- Department-based rules
+- Auto-expiry blocking
+
+Store rule logic in structured JSON format.
+
+---------------------------------------------------
+
+4) SECURITY MODULE
+
+- JWT login
+- Password hashing using bcrypt
+- Roles:
+    - SuperAdmin
+    - Admin
+    - HR
+    - Security
+- Endpoint protection using role decorator
+- API rate limiting
+- Encrypted DB credentials
+
+---------------------------------------------------
+
+5) REAL-TIME DASHBOARD
+
+Create dashboard showing:
+
+- Live entry logs
+- Attendance summary
+- Late entries detection
+- Unauthorized access detection
+- Blocked users list
+- Department-wise analytics
+- Entry heatmap by time
+- Export to Excel
+
+---------------------------------------------------
+
+6) ALERT SYSTEM
+
+- If unauthorized access attempt detected:
+    → store in alert_logs
+- If repeated access attempts:
+    → flag suspicious user
+- If attendance mismatch:
+    → show warning
+
+---------------------------------------------------
+
+7) API ENDPOINT STRUCTURE
+
+Auth:
+- POST /auth/login
+- POST /auth/register
+
+Sync:
+- POST /sync/esl
+- POST /sync/controller
+
+Users:
+- GET /users
+- POST /users
+- PUT /users/{id}
+
+Logs:
+- GET /logs
+- GET /logs/filter
+
+Rules:
+- GET /rules
+- POST /rules
+- PUT /rules/{id}
+
+Dashboard:
+- GET /dashboard/summary
+- GET /dashboard/analytics
+
+---------------------------------------------------
+
+8) FRONTEND PAGES
+
+- Login Page
+- Dashboard Page
+- Logs Page
+- User Management
+- Rule Configuration
+- Reports Page
+- Settings Page
+
+Use clean professional UI.
+
+---------------------------------------------------
+
+9) SYSTEM PERFORMANCE
+
+- Index important DB fields
+- Pagination for logs
+- Async DB calls
+- Proper error handling
+- Structured logging
+
+---------------------------------------------------
+
+10) FILE STRUCTURE
+
+backend/
+    app/
+        models/
+        schemas/
+        services/
+        routes/
+        core/
+        scheduler/
+    main.py
+    requirements.txt
+
+frontend/
+    src/
+        pages/
+        components/
+        services/
+    package.json
+
+---------------------------------------------------
+
+11) BONUS FEATURES
+
+- AI-based anomaly detection
+- CSV import for bulk users
+- Manual log correction option
+- Audit trail for every action
+- Health check endpoint
+- API documentation (Swagger auto)
+
+---------------------------------------------------
+
+Generate:
+
+- Complete backend code
+- React frontend structure
+- SQL schema
+- Docker setup
+- Setup instructions
+- Example .env file
+- Sample rule JSON
+
+Ensure code is modular, secure, and scalable.
+Make it suitable for 5000+ users and 50+ controllers.
+  Make architecture microservice-based:
+- Sync Service
+- Rule Engine Service
+- Analytics Service
+- Auth Service
+Use Redis for caching.
+Add WebSocket for real-time updates.

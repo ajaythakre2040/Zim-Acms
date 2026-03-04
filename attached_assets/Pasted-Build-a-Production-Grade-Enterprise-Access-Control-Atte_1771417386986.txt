@@ -1,0 +1,301 @@
+Build a Production-Grade Enterprise Access Control & Attendance Intelligence Platform.
+
+IMPORTANT SYSTEM RULES:
+
+1) A PostgreSQL schema is already defined and must be used.
+2) DO NOT create unnecessary tables.
+3) Use existing tables wherever possible.
+4) Fetch maximum possible data from:
+    - ESSL eTimeTrack DB
+    - ZKTeco C3-400 Controller DB
+    - BIOS Server DB (Biometric Server)
+5) Only minimal schema alteration allowed if absolutely required for external ID mapping.
+6) Avoid data duplication.
+7) Maintain high performance for large log volumes.
+
+--------------------------------------------------------
+OBJECTIVE
+--------------------------------------------------------
+
+We already have DB access credentials for:
+
+1) ESSL_DB
+2) CONTROLLER_DB (C3-400)
+3) BIOS_SERVER_DB
+
+System must fetch, normalize, and map data into the existing PostgreSQL schema only.
+
+--------------------------------------------------------
+TECH STACK
+--------------------------------------------------------
+
+Backend:
+- Python FastAPI
+- SQLAlchemy (multi-database support)
+- Async support
+- APScheduler (sync jobs)
+- WebSocket (real-time logs)
+- JWT Authentication
+- RBAC middleware
+
+Database:
+- PostgreSQL (Main application DB - existing schema)
+- MySQL or MSSQL (ESSL_DB, CONTROLLER_DB, BIOS_DB)
+
+--------------------------------------------------------
+DATA EXTRACTION REQUIREMENTS
+--------------------------------------------------------
+
+1️⃣ FROM ESSL eTimeTrack DB
+
+Fetch maximum available data:
+
+- Employee master full profile
+- Card numbers
+- Department
+- Designation
+- Shift info
+- Overtime eligibility
+- Attendance logs (raw punches)
+- Device details
+- Holidays
+- Leave type if available
+- Attendance correction data
+- Biometric verification mode
+- Temperature logs (if supported)
+- Raw device log ID
+
+Map into:
+- people
+- employee_master
+- attendance
+- shifts
+- departments
+- holidays
+
+--------------------------------------------------------
+
+2️⃣ FROM ZKTeco C3-400 Controller DB
+
+Fetch complete configuration:
+
+- User list
+- Card numbers
+- PIN codes
+- Access levels
+- Access groups
+- Door access mapping
+- Time zones
+- Door configuration
+- Device configuration
+- Door status
+- Anti-passback settings
+- Alarm logs
+- Historical access logs
+- Real-time logs
+- Unlock schedules
+
+Map into:
+- people
+- credentials
+- access_logs
+- devices
+- doors
+- zones
+- access_levels
+- access_rules
+- person_access
+
+DO NOT recreate these tables.
+Use existing schema strictly.
+
+--------------------------------------------------------
+
+3️⃣ FROM BIOS SERVER DB (Biometric Server)
+
+Fetch advanced biometric-level data:
+
+- Raw biometric logs
+- Face recognition logs
+- Fingerprint logs
+- Biometric device mapping
+- Biometric verification method
+- Biometric template ID reference
+- Temperature data
+- Mask detection flag (if supported)
+- Spoof detection result
+- Authentication confidence score
+- Biometric device heartbeat
+- Biometric failure reasons
+
+Map into:
+
+- access_events
+- access_logs
+- credentials (for biometric type)
+- devices (biometric devices)
+- alerts (if spoof detection / suspicious)
+
+If needed:
+Store biometric-specific metadata inside:
+- access_events.reason
+- access_events.snapshot_url
+- access_events.temperature
+- credentials.kind
+- access_logs.access_method
+
+Do NOT create separate biometric tables unless absolutely required.
+
+--------------------------------------------------------
+SYNC STRATEGY
+--------------------------------------------------------
+
+- Store last sync timestamp in system_settings
+- Separate sync timestamp for:
+    - ESSL
+    - Controller
+    - BIOS
+
+- Fetch only new logs
+- Use bulk insert
+- Avoid duplicates
+- Use external IDs for safe mapping
+- Map external user ID to internal UUID
+
+If required, only add:
+    external_id column in people
+    source_system column in logs
+
+Do NOT redesign schema.
+
+--------------------------------------------------------
+LIVE MONITOR (REAL-TIME)
+
+Use WebSocket to stream:
+
+- Controller live logs
+- BIOS live biometric logs
+
+Display:
+
+- Person Name
+- Card or Biometric Method
+- Door
+- Device
+- Site
+- Result (Allow / Deny)
+- Temperature (if available)
+- Spoof detection
+- Risk Tier
+
+Color-coded alerts for:
+- High-risk zones
+- Denied access
+- Spoof attempts
+- Repeated failures
+
+--------------------------------------------------------
+DASHBOARD
+
+Use only existing schema tables.
+
+Show:
+
+- Total Employees
+- Total Visitors
+- Total Active Credentials
+- Active Devices
+- Online Biometric Devices
+- Today Attendance
+- Today Entries
+- Denied Attempts
+- High-Risk Zone Activity
+- Biometric Failure Rate
+- Device Health Status
+
+Charts:
+- Site-wise entry
+- Device-wise entry
+- Hourly heatmap
+- Attendance trend
+- Biometric method distribution
+
+--------------------------------------------------------
+ALERT ENGINE
+
+Generate alerts using existing alerts table:
+
+Trigger alerts for:
+
+- Unauthorized access
+- Repeated denied attempts
+- Spoof detection
+- High temperature
+- Device offline
+- Anti-passback violation
+- Visitor overstay
+- High-risk zone breach
+
+--------------------------------------------------------
+SETTINGS MODULE
+
+Use system_settings only.
+
+Store encrypted JSON for:
+
+- ESL_DB config
+- CONTROLLER_DB config
+- BIOS_DB config
+- Sync interval
+- Alert thresholds
+- Feature toggles
+
+Add:
+POST /settings/test-connection
+
+Only SUPER_ADMIN can modify.
+
+--------------------------------------------------------
+PERFORMANCE REQUIREMENTS
+
+System must support:
+
+- 5000+ users
+- 50+ doors
+- 20+ biometric devices
+- 200,000+ logs/day
+
+Use:
+
+- Bulk inserts
+- Async queries
+- Indexed timestamp fields
+- Pagination for logs
+- Avoid heavy joins in live monitor
+
+--------------------------------------------------------
+SECURITY REQUIREMENTS
+
+- JWT authentication
+- bcrypt password hashing
+- Role-based route guards
+- Encrypted DB credentials
+- Secure WebSocket authentication
+- No raw password storage
+- Audit using existing tables
+
+--------------------------------------------------------
+GENERATE
+
+- Full FastAPI backend aligned to existing schema
+- Multi-DB connection manager
+- Sync services for:
+    ESL
+    C3-400
+    BIOS
+- WebSocket implementation
+- RBAC implementation
+- React frontend
+- Docker setup
+- Setup guide
+- Example .env

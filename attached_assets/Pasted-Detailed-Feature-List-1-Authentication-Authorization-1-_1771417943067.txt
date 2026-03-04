@@ -1,0 +1,391 @@
+Detailed Feature List
+1. Authentication & Authorization
+1.1 User Authentication
+
+Email/password-based login using Supabase Auth
+Session management with automatic token refresh
+Secure logout functionality
+Protected routes requiring authentication
+1.2 Role-Based Access Control (RBAC)
+
+7 user roles: Super Admin, Staff, Security Admin, Worker, Employee, Reception, Gate Security
+Role-specific navigation menus and dashboard access
+Permission-based feature visibility
+User profile linking with person records
+2. Dashboard & Monitoring
+2.1 Admin Dashboard
+
+Real-time statistics display:
+Total sites count
+Active alerts count
+Total registered people
+Active visitors on premises
+Device status (online/total)
+Today's attendance count
+Recent activity feed showing latest access events
+Active alerts panel with severity indicators
+Auto-refresh every 30 seconds
+2.2 Role-Specific Dashboards
+
+User Dashboard (for Employee/Worker roles)
+Reception Dashboard (for Reception role)
+Gate Security Dashboard (for Gate Security role)
+2.3 Live Monitor
+
+Real-time access event monitoring interface
+Live feed of entry/exit events
+3. People Management
+3.1 Person Registry
+
+Add, edit, delete person records
+Person attributes:
+Name, email, phone
+Employee ID
+Department and designation
+Photo URL
+Address
+Date of joining
+Emergency contact information
+Blood group
+Person type (Employee, Contractor, Visitor, Intern, Consultant)
+Risk tier classification (1-5)
+Status management (Active, Inactive, Suspended)
+Search and filter capabilities
+3.2 Employee Master (Extended)
+
+Comprehensive employee information:
+Personal details (DOB, gender, father's name)
+Multiple addresses (permanent, local)
+Government IDs (Aadhaar, PAN)
+Educational qualification and experience
+Bank details (account, IFSC, bank name)
+Statutory numbers (PF, ESI)
+Employment details (joining date, resignation date, status)
+Overtime settings and hourly rate
+Shift type configuration (Fixed, Rotational, Flexible)
+4. Visitor Management
+4.1 Visitor Registry
+
+Register new visitors with:
+Name, email, phone
+Company affiliation
+ID proof type and number (Passport, License, National ID, Other)
+Photo URL
+Address
+Blacklist management with reason tracking
+Search visitors by name, email, phone, or company
+4.2 Visit Management
+
+Schedule visits with:
+Visitor selection
+Site assignment
+Host person selection
+Purpose description
+Visit status tracking:
+Scheduled
+Checked In
+Checked Out
+Cancelled
+No Show
+Badge number and QR code generation
+Check-in/check-out time tracking
+Visit access permissions to specific doors
+5. Access Control
+5.1 Access Rules
+
+Create granular access rules:
+Rule name and description
+Person assignment
+Site and zone restrictions
+Access type (Permanent, Temporary, Scheduled)
+Validity period (from/to dates)
+Time window restrictions (daily time from/to)
+Day of week restrictions
+Active/inactive status toggle
+Search and filter rules
+5.2 Access Levels
+
+Define access level tiers:
+Name, code, description
+Priority ranking
+Rules configuration (JSON)
+Person-to-access-level assignments
+Door-to-access-level mappings with time schedules
+5.3 Credentials Management
+
+Multiple credential types:
+RFID cards
+PIN codes
+Biometric data
+Mobile credentials
+Face recognition
+QR codes
+Card number and facility code tracking
+Credential status (Active, Suspended, Blacklisted, Inactive, Lost, Expired)
+Issue date and expiration tracking
+5.4 Access Cards
+
+Card registry with:
+Unique card numbers
+Card types (Employee, Visitor, Contractor, Temporary)
+Person assignment
+Status tracking (Active, Inactive, Lost, Expired, Blocked)
+Issue and expiry dates
+Last usage tracking
+6. Infrastructure Management
+6.1 Site Management
+
+Multi-site support with:
+Site name and code
+Full address (address, city, state, country)
+Timezone configuration
+Active/inactive status
+6.2 Building Management
+
+Buildings per site:
+Building name and code
+Address
+Floor count
+6.3 Floor Management
+
+Floor registry per building:
+Floor name and number
+Description
+Active status
+6.4 Zone Management
+
+Zones within sites:
+Zone name and code
+Building and floor assignment
+Security level (1-5)
+High-risk designation
+Parent zone hierarchy
+Description
+6.5 Door Management
+
+Door configuration:
+Door name and code
+Zone assignment
+Door type (Standard, Turnstile, Barrier, Gate, Emergency)
+High-risk and 2FA requirements
+Reader assignments (in/out readers, controller)
+Status (Normal, Locked, Unlocked, Alarm, Maintenance)
+7. Device Management
+7.1 Device Registry
+
+Comprehensive device management:
+Device name and code
+Device type (Reader, Turnstile, Gate, Barrier)
+Site and zone assignment
+Network details (IP address, MAC address)
+Status monitoring (Online, Offline, Error, Maintenance)
+Last heartbeat tracking
+Firmware version
+Device health indicators
+8. Attendance Management
+8.1 Attendance Tracking
+
+Daily attendance records:
+Person identification
+Site assignment
+Date tracking
+Clock in/out times
+Clock in/out device tracking
+Working hours calculation
+Overtime hours tracking
+First in/last out times
+Total hours calculation
+Status classification:
+Present
+Absent
+Late
+Half Day
+On Leave
+Shift assignment per attendance record
+8.2 Attendance Dashboard
+
+Date-based filtering
+Site-based filtering
+Statistics summary (total, present, absent, late)
+Search by employee name or ID
+9. Shift Management
+9.1 Shift Configuration
+
+Define work shifts:
+Shift name and code
+Start and end times
+Break duration
+Grace period for late arrivals
+Night shift indicator
+Half-day and full-day hour thresholds
+Late threshold minutes
+Early out threshold minutes
+9.2 Shift Assignments
+
+Assign shifts to employees:
+Employee selection
+Shift selection
+Effective date range
+Days of week selection
+Active status
+9.3 Person Shifts
+
+Link people to default shifts
+Effective date management
+10. Master Data Management
+10.1 Category Master
+
+Employee/visitor category definitions
+Category name and description
+Active status management
+10.2 Department Master
+
+Department registry:
+Department name and code
+Description
+Manager assignment
+Hierarchical structure support
+10.3 Designation Master
+
+Job designation definitions:
+Designation name and code
+Description
+Level/rank
+Department linkage
+10.4 Vendor Master
+
+Contractor/vendor management:
+Vendor name and code
+Contact person details
+Communication (phone, email)
+Full address (address, city, state, pin code)
+Tax identifiers (GST, PAN)
+11. Alerts & Notifications
+11.1 Alert Management
+
+Alert types:
+Security alerts
+Device alerts
+System alerts
+Visitor alerts
+Attendance alerts
+Severity levels (Low, Medium, High, Critical)
+Alert attributes:
+Title and message
+Related person/visitor/device/site
+Read/unread status
+Resolution tracking (resolved by, resolved at)
+Color-coded severity indicators
+12. Access Logs & Events
+12.1 Access Logs
+
+Comprehensive access logging:
+Person/visitor identification
+Device and location (site, zone)
+Event type (Entry, Exit, Denied, Tailgate, Forced)
+Access method (Card, Face, Fingerprint, QR, PIN, Manual)
+Authorization status
+Denial reasons
+Timestamp tracking
+12.2 Access Events (Detailed)
+
+Extended event logging:
+Door-level tracking
+Credential used
+Direction (IN/OUT)
+Result (Allow/Deny)
+Reason code
+Snapshot URL capture
+Temperature reading
+13. Exception Management
+13.1 Attendance Exceptions
+
+Exception request types:
+Missing punch
+Device down
+Manual correction
+Regularization
+Leave
+Work from home
+On duty
+Approval workflow:
+Requested by tracking
+Approval status (Pending, Approved, Rejected)
+Approved by and approval timestamp
+Rejection reason
+Time correction (old/new clock in/out)
+14. Holidays
+14.1 Holiday Calendar
+
+Holiday definitions:
+Holiday name and date
+Holiday type (National, State, Company, Optional)
+Site-specific holidays
+Description
+15. User Management
+15.1 User Administration
+
+Create new users with:
+Email and password
+Name
+Role assignment
+Employee ID, department, designation, phone
+Edit existing users
+Activate/deactivate users
+Statistics dashboard:
+Total users
+Active users
+Recent logins (last 7 days)
+Admin count
+Search and filter by:
+Name, email, employee ID
+Role
+Status
+16. Reports & Analytics
+16.1 Reports Module
+
+Report generation interface (placeholder)
+Analytics dashboard (placeholder)
+17. System Settings
+17.1 Configuration
+
+System settings storage (key-value with JSON support)
+Settings descriptions
+Update tracking (updated by, timestamp)
+18. Technical Features
+18.1 Database
+
+PostgreSQL via Supabase
+Row Level Security (RLS) enabled on all tables
+UUID primary keys
+Comprehensive foreign key relationships
+Audit timestamps (created_at, updated_at)
+18.2 Security
+
+JWT-based authentication
+Role-based access policies
+Secure credential storage
+Activity logging
+18.3 UI/UX
+
+Responsive design (mobile and desktop)
+Collapsible sidebar navigation
+Loading states and spinners
+Toast notifications for user feedback
+Modal dialogs for forms
+Search and filter on all list views
+Status badges with color coding
+19. Data Relationships
+Key Entity Relationships:
+
+Sites contain Buildings, Zones, and Devices
+Buildings contain Floors
+Zones can be nested (parent-child) and linked to Buildings/Floors
+Zones contain Doors
+Doors have In/Out readers and Controllers (Devices)
+People belong to Departments and have Designations
+People have Credentials, Access Cards, and Shift assignments
+Visitors have Visits linked to Sites and Hosts
+Visits can have Access permissions to specific Doors
+Attendance records link People, Sites, Shifts, and Devices
+Access Logs/Events track People, Visitors, Devices, Sites, Zones, and Doors

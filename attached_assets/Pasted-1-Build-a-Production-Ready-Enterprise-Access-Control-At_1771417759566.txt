@@ -1,0 +1,270 @@
+1
+Build a Production-Ready Enterprise Access Control & Attendance Platform.
+
+IMPORTANT ARCHITECTURE RULES:
+
+1) We already have a PostgreSQL schema (provided separately).
+2) DO NOT create new unnecessary tables.
+3) Use existing tables wherever possible.
+4) Fetch maximum available data from:
+    - ESSL eTimeTrack Database
+    - ZKTeco C3-400 Controller Database
+5) Only create additional table if absolutely required for sync tracking.
+6) Do not duplicate data already available in Controller or ESSL DB.
+
+---------------------------------------------------------
+OBJECTIVE
+---------------------------------------------------------
+
+We already have DB access credentials for:
+
+1) ESSL_DB (Attendance System)
+2) CONTROLLER_DB (ZKTeco C3-400)
+
+System must:
+
+- Fetch full employee data from ESSL
+- Fetch full attendance logs from ESSL
+- Fetch full user list from C3-400
+- Fetch full access logs from C3-400
+- Fetch full device list
+- Fetch door configuration
+- Fetch access levels
+- Fetch access rules
+- Fetch time zones
+- Fetch card numbers
+- Fetch controller site information
+
+Map all data into existing PostgreSQL schema only.
+
+---------------------------------------------------------
+TECH STACK
+---------------------------------------------------------
+
+Backend:
+- FastAPI
+- SQLAlchemy (multi-DB)
+- Async support
+- WebSocket (live logs)
+- JWT auth
+- RBAC middleware
+- APScheduler (sync jobs)
+
+Database:
+- PostgreSQL (Main app DB using provided schema)
+- MySQL / MSSQL (ESSL & Controller)
+
+---------------------------------------------------------
+DATA FETCH REQUIREMENTS
+---------------------------------------------------------
+
+1) FROM ESSL eTimeTrack
+
+Fetch maximum fields including:
+
+- Employee master:
+    emp_code
+    name
+    department
+    designation
+    shift_type
+    joining_date
+    resign_date
+    mobile
+    email
+    card_number
+    employee_status
+    site mapping
+    overtime eligibility
+    attendance policy data
+
+- Attendance logs:
+    punch_time
+    device_id
+    in/out flag
+    verification mode
+    temperature (if supported)
+    raw log id
+
+- Shifts
+- Holidays
+- Departments
+
+Map to:
+    people
+    employee_master
+    attendance
+    shifts
+    departments
+    holidays
+
+---------------------------------------------------------
+
+2) FROM ZKTeco C3-400 Controller
+
+Fetch maximum available configuration:
+
+- User list
+- Card numbers
+- PIN codes (if stored)
+- Access levels
+- Door assignments
+- Time zones
+- Access groups
+- Door configuration
+- Device list
+- Door status
+- Controller status
+- Real-time logs
+- Historical logs
+- Alarm logs
+- Anti-passback settings
+- Door unlock schedules
+
+Map to:
+    people
+    credentials
+    access_logs
+    devices
+    doors
+    zones
+    access_levels
+    access_rules
+    person_access
+
+Do NOT recreate:
+    devices table
+    doors table
+    zones table
+    sites table
+    access_rules table
+    attendance table
+
+Use existing schema strictly.
+
+---------------------------------------------------------
+SYNC STRATEGY
+---------------------------------------------------------
+
+- Maintain last sync timestamp inside system_settings
+- Only fetch new logs after last sync
+- Prevent duplicate entries
+- Map external IDs to internal UUID
+- Store external ID inside:
+    people.external_id (if missing, add only this column)
+    attendance.notes or dedicated external reference column
+    access_logs.denial_reason or add minimal external_ref column if required
+
+---------------------------------------------------------
+LIVE MONITOR
+---------------------------------------------------------
+
+Use WebSocket.
+
+Stream:
+
+- Real-time access logs from C3-400
+- Insert into access_logs
+- Broadcast instantly
+
+No additional log tables.
+
+---------------------------------------------------------
+DASHBOARD
+---------------------------------------------------------
+
+Use only existing schema tables:
+
+- people
+- visitors
+- attendance
+- access_logs
+- devices
+- alerts
+- sites
+- zones
+
+Show:
+
+- Total employees
+- Total active cards
+- Online devices
+- Today entries
+- Denied attempts
+- High risk zone alerts
+- Site-wise stats
+- Device-wise stats
+- Shift-based attendance
+
+---------------------------------------------------------
+USER MANAGEMENT (APPLICATION USERS)
+
+Use:
+- auth.users
+- user_profiles
+
+Implement RBAC using:
+    user_profiles.role
+    user_profiles.permissions
+
+Roles:
+- SUPER_ADMIN
+- ADMIN
+- HR
+- SECURITY_ADMIN
+- VIEWER
+
+---------------------------------------------------------
+SETTINGS MODULE
+
+Use:
+- system_settings table only
+
+Store:
+
+- ESL DB config (encrypted JSON)
+- Controller DB config (encrypted JSON)
+- Sync interval
+- Alert thresholds
+
+Do NOT create new config tables.
+
+---------------------------------------------------------
+PERFORMANCE REQUIREMENTS
+
+- Add indexes only if missing
+- Use bulk insert for log sync
+- Use async DB calls
+- Paginate access_logs
+- Avoid heavy joins in live monitor
+
+System must support:
+- 5000+ users
+- 100,000+ logs per day
+- 50+ doors
+
+---------------------------------------------------------
+SECURITY REQUIREMENTS
+
+- JWT auth
+- Password hashing bcrypt
+- Encrypted DB credentials
+- Role-based route guards
+- Audit trail using existing tables (no new audit table)
+
+---------------------------------------------------------
+GENERATE
+
+- Backend code aligned strictly to existing schema
+- SQLAlchemy models mapped to provided schema
+- Sync service for ESSL
+- Sync service for C3-400
+- WebSocket live stream
+- React frontend
+- Docker setup
+- Setup guide
+
+STRICT RULE:
+DO NOT create redundant tables.
+USE existing schema wherever possible.
+Only minimal schema alteration allowed if absolutely required for external ID mapping.

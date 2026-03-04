@@ -1,0 +1,368 @@
+3
+Build a Production-Grade Enterprise Access Control & Attendance Intelligence System.
+
+PROJECT NAME:
+ZIN Unified Security & Attendance Platform (ZUSAP)
+
+IMPORTANT:
+A PostgreSQL schema is already defined (provided separately).
+DO NOT redesign database.
+USE the provided schema as the central application database.
+
+This schema includes:
+- people
+- visitors
+- visits
+- access_logs
+- access_events
+- attendance
+- devices
+- doors
+- zones
+- sites
+- access_rules
+- access_levels
+- person_access
+- alerts
+- shifts
+- departments
+- designations
+- user_profiles
+- system_settings
+and related tables.
+
+-------------------------------------------------------
+OBJECTIVE
+-------------------------------------------------------
+
+We already have DB access to:
+
+1) ESL_DB (Attendance system)
+2) CONTROLLER_DB (Door Access system)
+
+The system must:
+
+- Fetch data directly from ESL_DB
+- Fetch data directly from CONTROLLER_DB
+- Normalize and store into central PostgreSQL schema
+- Provide real-time dashboard & analytics
+- Use existing access_rules from controller DB
+- Support full RBAC user management
+
+-------------------------------------------------------
+TECH STACK
+-------------------------------------------------------
+
+Backend:
+- Python FastAPI
+- SQLAlchemy (PostgreSQL + Multi-DB connection support)
+- AsyncPG for PostgreSQL
+- APScheduler (sync jobs)
+- WebSockets (live monitor)
+- JWT authentication
+- RBAC middleware
+- Alembic migrations (only for future schema changes)
+
+Frontend:
+- React (Vite)
+- TailwindCSS
+- Axios
+- React Table
+- Recharts
+- WebSocket client
+
+Database:
+- PostgreSQL (Main App DB using provided schema)
+- MySQL or MSSQL (External ESL_DB & CONTROLLER_DB)
+
+-------------------------------------------------------
+DATABASE INTEGRATION LOGIC
+-------------------------------------------------------
+
+1) ESL_DB Sync Mapping
+
+Map:
+- employee master → people / employee_master
+- attendance logs → attendance
+- shifts → shifts
+- departments → departments
+
+Ensure:
+- No duplicate person records
+- Use employee_id or emp_code for mapping
+- Maintain last_synced_timestamp in system_settings
+
+-------------------------------------------------------
+
+2) CONTROLLER_DB Sync Mapping
+
+Map:
+- users → people
+- access logs → access_logs
+- devices → devices
+- doors → doors
+- zones → zones
+- access levels → access_levels
+- access rules → access_rules
+- person access → person_access
+
+Ensure:
+- Door & device relationship preserved
+- Zone hierarchy maintained
+- Site mapping handled properly
+
+-------------------------------------------------------
+
+3) SETTINGS MODULE (Dynamic DB Credentials)
+
+Use system_settings table to store:
+
+- ESL_DB connection config (encrypted)
+- CONTROLLER_DB connection config (encrypted)
+- Sync interval
+- Alert thresholds
+- Feature toggles
+
+Create API:
+
+POST /settings/db-config
+GET /settings/db-config
+POST /settings/test-connection
+
+Only SUPER_ADMIN role can access.
+
+-------------------------------------------------------
+
+4) DASHBOARD MODULE
+
+Use:
+
+- people
+- visitors
+- attendance
+- access_logs
+- devices
+- alerts
+- sites
+
+Show:
+
+- Total People
+- Total Visitors
+- Active Devices
+- Today Attendance
+- Unauthorized Access Count
+- High Risk Zone Activity
+- Site-wise entries
+- Device-wise entries
+- Hourly Heatmap
+
+-------------------------------------------------------
+
+5) LIVE MONITOR (WebSocket)
+
+Stream from access_logs table.
+
+Show:
+
+- Person Name
+- Card Number
+- Door
+- Zone
+- Site
+- Result (Allow/Deny)
+- Time
+- Risk Tier
+
+Auto-refresh without reload.
+
+-------------------------------------------------------
+
+6) PEOPLE MODULE
+
+Use:
+- people
+- employee_master
+- person_access
+- person_shifts
+
+Allow:
+- View unified profile
+- See access levels
+- See assigned zones
+- View attendance summary
+- Risk tier management
+
+-------------------------------------------------------
+
+7) VISITOR MODULE
+
+Use:
+- visitors
+- visits
+- visit_access
+
+Allow:
+- Add visitor
+- Schedule visit
+- Assign door access
+- Generate QR code
+- Check-in / Check-out
+- Blacklist visitor
+
+-------------------------------------------------------
+
+8) ATTENDANCE MODULE
+
+Use:
+- attendance
+- shifts
+- exceptions
+- holidays
+
+Features:
+- Late detection (using shift grace_period)
+- Overtime calculation
+- Missing punch detection
+- Attendance correction workflow
+
+-------------------------------------------------------
+
+9) DEVICES & SITES MODULE
+
+Use:
+- devices
+- doors
+- zones
+- sites
+- buildings
+- floors
+
+Show:
+- Device heartbeat
+- Offline alerts
+- Site hierarchy
+- Zone hierarchy
+- High-risk zones
+
+-------------------------------------------------------
+
+10) ACCESS RULES MODULE
+
+Use:
+- access_rules
+- access_levels
+- door_access_levels
+- person_access
+
+Display rules fetched from controller DB.
+
+Allow:
+- Rule preview
+- Validity timeline
+- Assigned users
+- Assigned doors
+- Time schedules
+
+-------------------------------------------------------
+
+11) ALERTS MODULE
+
+Use:
+- alerts
+
+Generate alerts when:
+- Unauthorized access
+- Device offline
+- Tailgate detected
+- High risk zone breach
+- Visitor overstay
+- Repeated denied attempts
+
+Allow acknowledge & resolve.
+
+-------------------------------------------------------
+
+12) USER MANAGEMENT (Application Users)
+
+Use:
+- auth.users
+- user_profiles
+
+Roles:
+- SUPER_ADMIN
+- ADMIN
+- HR
+- SECURITY_ADMIN
+- VIEWER
+
+Permissions stored in user_profiles.permissions (JSONB).
+
+Implement RBAC middleware to restrict routes.
+
+-------------------------------------------------------
+
+13) SECURITY REQUIREMENTS
+
+- JWT auth
+- bcrypt password hashing
+- Role-based route guards
+- Encrypted DB credentials
+- Audit log for admin actions
+- API rate limiting
+- Secure WebSocket auth
+
+-------------------------------------------------------
+
+14) PERFORMANCE REQUIREMENTS
+
+- Index:
+    - access_logs.timestamp
+    - attendance.date
+    - people.employee_id
+    - devices.status
+- Pagination for logs
+- Async queries
+- Optimized joins
+
+Support:
+- 5000+ users
+- 50+ devices
+- 10+ sites
+
+-------------------------------------------------------
+
+15) FILE STRUCTURE
+
+backend/
+    app/
+        models/ (matching provided schema)
+        schemas/
+        services/
+        routes/
+        websocket/
+        scheduler/
+        core/
+    main.py
+
+frontend/
+    src/
+        pages/
+        components/
+        services/
+        hooks/
+
+-------------------------------------------------------
+
+GENERATE:
+
+- Complete backend implementation aligned to provided schema
+- SQLAlchemy models based on schema
+- Sync services for ESL_DB & CONTROLLER_DB
+- WebSocket live monitor
+- Full RBAC implementation
+- Settings module with encrypted DB credentials
+- React frontend
+- Docker setup
+- Setup instructions
+- Example .env

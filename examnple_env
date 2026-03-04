@@ -1,0 +1,26 @@
+# ============================================================
+# ZIM-ACMS Environment Configuration
+# ============================================================
+# Copy this file to .env and fill in your values:
+#   cp .env.example .env
+# ============================================================
+
+# PostgreSQL Database Connection
+# Format: postgresql://username:password@host:port/database
+DATABASE_URL=postgresql://postgres:root@localhost:5432/zim_acms
+
+# Session Secret (change this to a random string for security)
+SESSION_SECRET=your-secret-key-change-this-to-something-random
+
+# Server Port (default: 5000)
+PORT=5000
+NODE_ENV=development
+
+# --- MS SQL Database (Biometric/Bios) ---
+MSSQL_USER=bio
+MSSQL_PASSWORD=1234
+MSSQL_SERVER=192.168.10.179
+MSSQL_DB=bzi_bios
+MSSQL_INSTANCE=ZIM_LAB
+MSSQL_ENCRYPT=false
+MSSQL_TRUST_CERT=true
