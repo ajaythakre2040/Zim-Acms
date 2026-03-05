@@ -34,16 +34,17 @@ export const DeviceAdapter = {
         name: String(row.DeviceName || "Unnamed Device"),
         deviceDirection: row.DeviceDirection || "in",
         serialNumber: row.SerialNumber || null,
-        // MS SQL 'TransactionStamp' ya 'OpStamp' ko map karein
         opstamp: row.OpStamp || row.TransactionStamp || "0",
         lastPing: row.LastPing ? new Date(row.LastPing) : null,
         lastreset: row.LastReset ? new Date(row.LastReset) : null,
         activationCode: row.ActivationCode || null,
         isAttendanceDevice: (row.IsAttendanceDevice === "1" || row.IsAttendanceDevice === 1) ? 1 : 0,
         deviceType: String(row.DeviceType || "reader").toLowerCase(),
-        siteId: row.LocationId || 1, // LocationId map ho gaya siteId mein
+        locationId: row.LocationId || 1,
         zoneId: null,
         ipAddress: null,
+        // ADD THIS LINE BELOW TO FIX THE ERROR
+        lastHeartbeat: row.LastHeartbeat ? new Date(row.LastHeartbeat) : null,
         status: "offline",
         isActive: true,
         createdAt: new Date()
@@ -54,7 +55,7 @@ export const DeviceAdapter = {
         if (pg.name !== undefined) row.DeviceName = pg.name;
         if (pg.deviceDirection !== undefined) row.DeviceDirection = pg.deviceDirection;
         if (pg.serialNumber !== undefined) row.SerialNumber = pg.serialNumber;
-        if (pg.siteId !== undefined) row.LocationId = pg.siteId;
+        if (pg.locationId !== undefined) row.LocationId = pg.locationId;
         if (pg.deviceType !== undefined) row.DeviceType = pg.deviceType;
         if (pg.opstamp !== undefined) row.OpStamp = pg.opstamp;
         if (pg.isAttendanceDevice !== undefined) {
@@ -63,21 +64,52 @@ export const DeviceAdapter = {
         return row;
     }
 };
+// export const PersonAdapter = {
+//     toPostgres: (row: any): Person => {
+//         // Sabse important fix: MS SQL kisi bhi case mein ID bhej sakta hai
+//         const remoteId = row.EmployeeId ?? row.employeeid ?? row.Id ?? row.id;
+//         const fullName = (row.EmployeeName || row.employeename || "Unnamed").trim();
+//         const nameParts = fullName.split(" ");
+
+//         return {
+//             id: 0,
+//             msId: remoteId ? Number(remoteId) : null,
+//             firstName: nameParts[0],
+//             lastName: nameParts.slice(1).join(" ") || "",
+//             employeeId: remoteId ? String(remoteId) : null,
+//             employeeCode: row.EmployeeCode || row.employeecode || null,
+//             locationId: row.AttendanceLocationId || row.attendancelocationid || 1,
+//             address: row.Location || row.location || null,
+//             overtimeEligible: row.OverTimeApplicable == "1" || row.overtimeapplicable == "1",
+//             personType: "employee",
+//             status: "active",
+//             sourceSystem: "mssql_bio",
+//             externalId: remoteId ? String(remoteId) : null,
+//             updatedAt: new Date(),
+//             createdAt: new Date(),
+//         } as Person;
+//     },
+
+//     toMsSql: (pg: any) => ({
+//         EmployeeName: `${pg.firstName || ''} ${pg.lastName || ''}`.trim(),
+//         EmployeeCode: pg.employeeCode,
+//         Location: pg.address,
+//         AttendanceLocationId: pg.locationId
+//     })
+// };
 export const PersonAdapter = {
-    toPostgres: (row: any): Person => {
-        // Sabse important fix: MS SQL kisi bhi case mein ID bhej sakta hai
+    toPostgres: (row: any): Partial<Person> => {
+        // MS SQL Case Sensitivity Handling
         const remoteId = row.EmployeeId ?? row.employeeid ?? row.Id ?? row.id;
         const fullName = (row.EmployeeName || row.employeename || "Unnamed").trim();
-        const nameParts = fullName.split(" ");
 
         return {
-            id: 0,
             msId: remoteId ? Number(remoteId) : null,
-            firstName: nameParts[0],
-            lastName: nameParts.slice(1).join(" ") || "",
-            employeeId: remoteId ? String(remoteId) : null,
+            // firstName/lastName ki jagah ab seedha employeeName
+            employeeName: fullName,
             employeeCode: row.EmployeeCode || row.employeecode || null,
-            siteId: row.AttendanceLocationId || row.attendancelocationid || 1,
+            // locationId ki jagah locationId
+            locationId: row.AttendanceLocationId || row.attendancelocationid || row.locationId || 1,
             address: row.Location || row.location || null,
             overtimeEligible: row.OverTimeApplicable == "1" || row.overtimeapplicable == "1",
             personType: "employee",
@@ -86,13 +118,14 @@ export const PersonAdapter = {
             externalId: remoteId ? String(remoteId) : null,
             updatedAt: new Date(),
             createdAt: new Date(),
-        } as Person;
+        };
     },
 
     toMsSql: (pg: any) => ({
-        EmployeeName: `${pg.firstName || ''} ${pg.lastName || ''}`.trim(),
+        // Yahan pg.employeeName use hoga
+        EmployeeName: pg.employeeName,
         EmployeeCode: pg.employeeCode,
         Location: pg.address,
-        AttendanceLocationId: pg.siteId
+        AttendanceLocationId: pg.locationId // pg.locationId ki jagah
     })
 };

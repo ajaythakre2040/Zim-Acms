@@ -33,7 +33,7 @@ export default function SitesPage() {
   const buildingFields: FieldConfig[] = [
     { key: "name", label: "Building Name", required: true },
     { key: "code", label: "Code" },
-    { key: "siteId", label: "Site", type: "select", required: true, options: siteCrud.data.map((s) => ({ value: String(s.id), label: s.name })) },
+    { key: "locationId", label: "Site", type: "select", required: true, options: siteCrud.data.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "address", label: "Address", type: "textarea" },
     { key: "floorCount", label: "Floor Count", type: "number", defaultValue: 1 },
     { key: "isActive", label: "Active", type: "switch", defaultValue: true },
@@ -55,7 +55,7 @@ export default function SitesPage() {
   const buildingColumns = [
     { key: "name", label: "Building", render: (b: Building) => <span className="font-medium">{b.name}</span> },
     { key: "code", label: "Code", hideOnMobile: true },
-    { key: "site", label: "Site", render: (b: Building) => siteCrud.data.find((s) => s.id === b.siteId)?.name || "-" },
+    { key: "site", label: "Site", render: (b: Building) => siteCrud.data.find((s) => s.id === b.locationId)?.name || "-" },
     { key: "floorCount", label: "Floors", hideOnMobile: true },
     { key: "isActive", label: "Status", render: (b: Building) => b.isActive ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge> },
     { key: "actions", label: "", render: (b: Building) => (
@@ -86,8 +86,8 @@ export default function SitesPage() {
       <CrudDialog open={siteDialog} onClose={() => { setSiteDialog(false); setEditingSite(null); }} title={editingSite ? "Edit Site" : "Add Site"} fields={siteFields} initialData={editingSite || undefined}
         onSubmit={(data) => { editingSite ? siteCrud.update({ id: editingSite.id, data }) : siteCrud.create(data); setSiteDialog(false); setEditingSite(null); }} isPending={siteCrud.isCreating || siteCrud.isUpdating} />
       <CrudDialog open={buildingDialog} onClose={() => { setBuildingDialog(false); setEditingBuilding(null); }} title={editingBuilding ? "Edit Building" : "Add Building"} fields={buildingFields}
-        initialData={editingBuilding ? { ...editingBuilding, siteId: String(editingBuilding.siteId) } : undefined}
-        onSubmit={(data) => { data.siteId = Number(data.siteId); editingBuilding ? buildingCrud.update({ id: editingBuilding.id, data }) : buildingCrud.create(data); setBuildingDialog(false); setEditingBuilding(null); }} isPending={buildingCrud.isCreating || buildingCrud.isUpdating} />
+        initialData={editingBuilding ? { ...editingBuilding, locationId: String(editingBuilding.locationId) } : undefined}
+        onSubmit={(data) => { data.locationId = Number(data.locationId); editingBuilding ? buildingCrud.update({ id: editingBuilding.id, data }) : buildingCrud.create(data); setBuildingDialog(false); setEditingBuilding(null); }} isPending={buildingCrud.isCreating || buildingCrud.isUpdating} />
     </div>
   );
 }

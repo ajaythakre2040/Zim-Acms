@@ -32,7 +32,7 @@ export default function DevicesPage() {
     { key: "name", label: "Device Name", required: true },
     { key: "code", label: "Code" },
     { key: "deviceType", label: "Type", type: "select", options: [{ value: "reader", label: "Reader" }, { value: "turnstile", label: "Turnstile" }, { value: "gate", label: "Gate" }, { value: "barrier", label: "Barrier" }, { value: "controller", label: "Controller" }, { value: "biometric", label: "Biometric" }], defaultValue: "reader" },
-    { key: "siteId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
+    { key: "locationId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "zoneId", label: "Zone", type: "select", options: zones.map((z) => ({ value: String(z.id), label: z.name })) },
     { key: "ipAddress", label: "IP Address" },
     { key: "macAddress", label: "MAC Address" },
@@ -50,7 +50,7 @@ export default function DevicesPage() {
       </div>
     )},
     { key: "deviceType", label: "Type", render: (d: Device) => <Badge variant="secondary">{d.deviceType}</Badge> },
-    { key: "site", label: "Site", hideOnMobile: true, render: (d: Device) => sites.find((s) => s.id === d.siteId)?.name || "-" },
+    { key: "site", label: "Site", hideOnMobile: true, render: (d: Device) => sites.find((s) => s.id === d.locationId)?.name || "-" },
     { key: "status", label: "Status", render: (d: Device) => {
       const cfg = statusConfig[d.status || "offline"];
       return <Badge variant={cfg.color as any}>{d.status}</Badge>;
@@ -74,8 +74,8 @@ export default function DevicesPage() {
       </div>
       <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={["name", "code", "ipAddress", "serialNumber"]} emptyMessage="No devices registered" />
       <CrudDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditing(null); }} title={editing ? "Edit Device" : "Add Device"} fields={fields}
-        initialData={editing ? { ...editing, siteId: editing.siteId ? String(editing.siteId) : "", zoneId: editing.zoneId ? String(editing.zoneId) : "" } : undefined}
-        onSubmit={(data) => { if (data.siteId) data.siteId = Number(data.siteId); if (data.zoneId) data.zoneId = Number(data.zoneId); editing ? update({ id: editing.id, data }) : create(data); setDialogOpen(false); setEditing(null); }} isPending={isCreating || isUpdating} />
+        initialData={editing ? { ...editing, locationId: editing.locationId ? String(editing.locationId) : "", zoneId: editing.zoneId ? String(editing.zoneId) : "" } : undefined}
+        onSubmit={(data) => { if (data.locationId) data.locationId = Number(data.locationId); if (data.zoneId) data.zoneId = Number(data.zoneId); editing ? update({ id: editing.id, data }) : create(data); setDialogOpen(false); setEditing(null); }} isPending={isCreating || isUpdating} />
     </div>
   );
 }

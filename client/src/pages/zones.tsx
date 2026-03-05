@@ -23,7 +23,7 @@ export default function ZonesDoorsPage() {
   const zoneFields: FieldConfig[] = [
     { key: "name", label: "Zone Name", required: true },
     { key: "code", label: "Code" },
-    { key: "siteId", label: "Site", type: "select", required: true, options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
+    { key: "locationId", label: "Site", type: "select", required: true, options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "securityLevel", label: "Security Level (1-5)", type: "number", defaultValue: 1 },
     { key: "isHighRisk", label: "High Risk Zone", type: "switch" },
     { key: "description", label: "Description", type: "textarea" },
@@ -33,7 +33,7 @@ export default function ZonesDoorsPage() {
   const doorFields: FieldConfig[] = [
     { key: "name", label: "Door Name", required: true },
     { key: "code", label: "Code" },
-    { key: "siteId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
+    { key: "locationId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "zoneId", label: "Zone", type: "select", options: zoneCrud.data.map((z) => ({ value: String(z.id), label: z.name })) },
     { key: "doorType", label: "Type", type: "select", options: [{ value: "standard", label: "Standard" }, { value: "turnstile", label: "Turnstile" }, { value: "barrier", label: "Barrier" }, { value: "gate", label: "Gate" }, { value: "emergency", label: "Emergency" }], defaultValue: "standard" },
     { key: "requires2FA", label: "Requires 2FA", type: "switch" },
@@ -47,7 +47,7 @@ export default function ZonesDoorsPage() {
   const zoneColumns = [
     { key: "name", label: "Zone", render: (z: Zone) => <span className="font-medium">{z.name}</span> },
     { key: "code", label: "Code", hideOnMobile: true },
-    { key: "site", label: "Site", hideOnMobile: true, render: (z: Zone) => sites.find((s) => s.id === z.siteId)?.name || "-" },
+    { key: "site", label: "Site", hideOnMobile: true, render: (z: Zone) => sites.find((s) => s.id === z.locationId)?.name || "-" },
     { key: "securityLevel", label: "Level", render: (z: Zone) => <Badge variant={secLevelColors[z.securityLevel || 1] as any}>L{z.securityLevel}</Badge> },
     { key: "isHighRisk", label: "Risk", render: (z: Zone) => z.isHighRisk ? <Badge variant="destructive">High Risk</Badge> : null },
     { key: "actions", label: "", render: (z: Zone) => (
@@ -92,11 +92,11 @@ export default function ZonesDoorsPage() {
         </TabsContent>
       </Tabs>
       <CrudDialog open={zoneDialog} onClose={() => { setZoneDialog(false); setEditingZone(null); }} title={editingZone ? "Edit Zone" : "Add Zone"} fields={zoneFields}
-        initialData={editingZone ? { ...editingZone, siteId: String(editingZone.siteId) } : undefined}
-        onSubmit={(data) => { data.siteId = Number(data.siteId); editingZone ? zoneCrud.update({ id: editingZone.id, data }) : zoneCrud.create(data); setZoneDialog(false); setEditingZone(null); }} isPending={zoneCrud.isCreating || zoneCrud.isUpdating} />
+        initialData={editingZone ? { ...editingZone, locationId: String(editingZone.locationId) } : undefined}
+        onSubmit={(data) => { data.locationId = Number(data.locationId); editingZone ? zoneCrud.update({ id: editingZone.id, data }) : zoneCrud.create(data); setZoneDialog(false); setEditingZone(null); }} isPending={zoneCrud.isCreating || zoneCrud.isUpdating} />
       <CrudDialog open={doorDialog} onClose={() => { setDoorDialog(false); setEditingDoor(null); }} title={editingDoor ? "Edit Door" : "Add Door"} fields={doorFields}
-        initialData={editingDoor ? { ...editingDoor, siteId: editingDoor.siteId ? String(editingDoor.siteId) : "", zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "" } : undefined}
-        onSubmit={(data) => { if (data.siteId) data.siteId = Number(data.siteId); if (data.zoneId) data.zoneId = Number(data.zoneId); editingDoor ? doorCrud.update({ id: editingDoor.id, data }) : doorCrud.create(data); setDoorDialog(false); setEditingDoor(null); }} isPending={doorCrud.isCreating || doorCrud.isUpdating} />
+        initialData={editingDoor ? { ...editingDoor, locationId: editingDoor.locationId ? String(editingDoor.locationId) : "", zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "" } : undefined}
+        onSubmit={(data) => { if (data.locationId) data.locationId = Number(data.locationId); if (data.zoneId) data.zoneId = Number(data.zoneId); editingDoor ? doorCrud.update({ id: editingDoor.id, data }) : doorCrud.create(data); setDoorDialog(false); setEditingDoor(null); }} isPending={doorCrud.isCreating || doorCrud.isUpdating} />
     </div>
   );
 }

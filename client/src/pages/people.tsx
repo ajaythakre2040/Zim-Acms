@@ -8,7 +8,7 @@ import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, RefreshCw, Pencil } from "lucide-react";
 import type { Person, Department, Designation, Company, Category, Site } from "@shared/schema";
 
 const statusColors: Record<string, string> = {
@@ -30,7 +30,8 @@ export default function PeoplePage() {
   const [editing, setEditing] = useState<Person | null>(null);
   const { toast } = useToast();
 
-  const { data: people = [], isLoading } = useQuery<Person[]>({ queryKey: ["/api/people"] });
+  // const { data: people = [], isLoading } = useQuery<Person[]>({ queryKey: ["/api/people"] });
+  const { data: people = [], isLoading, refetch, isFetching } = useQuery<Person[]>({ queryKey: ["/api/people"] });
   const { data: departments = [] } = useQuery<Department[]>({ queryKey: ["/api/departments"] });
   const { data: designations = [] } = useQuery<Designation[]>({ queryKey: ["/api/designations"] });
   const { data: companies = [] } = useQuery<Company[]>({ queryKey: ["/api/companies"] });
@@ -50,44 +51,55 @@ export default function PeoplePage() {
   });
 
   const fields: FieldConfig[] = [
-    { key: "firstName", label: "First Name", required: true },
-    { key: "lastName", label: "Last Name" },
+    // { key: "firstName", label: "First Name", required: true },
+    // { key: "lastName", label: "Last Name" },
+    { key: "employeeName", label: "Employee Name", required: true },
     { key: "email", label: "Email", type: "email" },
     { key: "phone", label: "Phone" },
-    { key: "employeeId", label: "Employee ID" },
+    // { key: "employeeId", label: "Employee ID" },
     { key: "employeeCode", label: "Employee Code" },
     { key: "personType", label: "Type", type: "select", options: Object.entries(personTypeLabels).map(([v, l]) => ({ value: v, label: l })), defaultValue: "employee" },
     { key: "gender", label: "Gender", type: "select", options: [{ value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }] },
     { key: "departmentId", label: "Department", type: "select", options: departments.map((d) => ({ value: String(d.id), label: d.name })) },
     { key: "designationId", label: "Designation", type: "select", options: designations.map((d) => ({ value: String(d.id), label: d.name })) },
     { key: "companyId", label: "Company", type: "select", options: companies.map((c) => ({ value: String(c.id), label: c.name })) },
-    { key: "categoryId", label: "Category", type: "select", options: categories.map((c) => ({ value: String(c.id), label: c.name })) },
-    { key: "siteId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
-    { key: "dateOfJoining", label: "Date of Joining", type: "date" },
+    // { key: "categoryId", label: "Category", type: "select", options: categories.map((c) => ({ value: String(c.id), label: c.name })) },
+    { key: "locationId", label: "Location", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },    { key: "dateOfJoining", label: "Date of Joining", type: "date" },
     { key: "status", label: "Status", type: "select", options: [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }, { value: "suspended", label: "Suspended" }], defaultValue: "active" },
     { key: "riskTier", label: "Risk Tier (1-5)", type: "number" },
   ];
 
+  // const columns = [
+  //   {
+  //     key: "name", label: "Name",
+  //     render: (p: Person) => (
+  //       <div className="flex items-center gap-2">
+  //         <Avatar className="w-8 h-8">
+  //           <AvatarFallback className="text-xs">{(p.firstName || "?")[0]}{(p.lastName || "")[0]}</AvatarFallback>
+  //         </Avatar>
+  //         <div className="min-w-0">
+  //           <p className="text-sm font-medium truncate">{p.firstName} {p.lastName || ""}</p>
+  //           <p className="text-xs text-muted-foreground truncate">{p.email || p.employeeId || ""}</p>
+  //         </div>
+  //       </div>
+  //     ),
+  //   },
   const columns = [
     {
-      key: "name", label: "Name",
+      key: "employeeName", label: "Name",
       render: (p: Person) => (
         <div className="flex items-center gap-2">
           <Avatar className="w-8 h-8">
-            <AvatarFallback className="text-xs">{(p.firstName || "?")[0]}{(p.lastName || "")[0]}</AvatarFallback>
+            <AvatarFallback className="text-xs">{(p.employeeName || "?")[0]}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="text-sm font-medium truncate">{p.firstName} {p.lastName || ""}</p>
-            <p className="text-xs text-muted-foreground truncate">{p.email || p.employeeId || ""}</p>
+            <p className="text-sm font-medium truncate">{p.employeeName}</p>
+            <p className="text-xs text-muted-foreground truncate">{p.employeeCode || p.email || ""}</p>
           </div>
         </div>
       ),
     },
-    { key: "employeeId", label: "Emp ID", hideOnMobile: true },
-    {
-      key: "personType", label: "Type", hideOnMobile: true,
-      render: (p: Person) => <Badge variant="secondary">{personTypeLabels[p.personType || "employee"]}</Badge>,
-    },
+    { key: "employeeCode", label: "Emp Code", hideOnMobile: true },
     {
       key: "departmentId", label: "Department", hideOnMobile: true,
       render: (p: Person) => departments.find((d) => d.id === p.departmentId)?.name || "-",
@@ -111,9 +123,38 @@ export default function PeoplePage() {
       <PageHeader
         title="People"
         description="Manage employees, contractors, and personnel"
+        // action={
+        //   <Button onClick={() => { setEditing(null); setDialogOpen(true); }} data-testid="button-add-person">
+        //     <Plus className="w-4 h-4 mr-1" /> Add Person
+        //   </Button>
+        // }
         action={
-          <Button onClick={() => { setEditing(null); setDialogOpen(true); }} data-testid="button-add-person">
-            <Plus className="w-4 h-4 mr-1" /> Add Person
+          <Button
+            onClick={async () => {
+              try {
+                // 1. Refetch function call karein
+                await refetch();
+
+                // 2. Success toast dikhayein
+                toast({
+                  title: "Data Synced",
+                  description: "The people list has been refreshed successfully."
+                });
+              } catch (error) {
+                // 3. Error handle karein agar API fail ho
+                toast({
+                  title: "Sync Failed",
+                  description: "Could not refresh data. Please try again.",
+                  variant: "destructive"
+                });
+              }
+            }}
+            // Jab tak fetching ho rahi ho, button disable rakhein
+            disabled={isFetching}
+            data-testid="button-sync-person"
+          >
+            <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Syncing..." : "Sync"}
           </Button>
         }
       />
@@ -125,18 +166,44 @@ export default function PeoplePage() {
         searchKeys={["firstName", "lastName", "email", "employeeId"]}
         emptyMessage="No people registered yet"
       />
-      <CrudDialog
+      {/* <CrudDialog
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null); }}
         title={editing ? "Edit Person" : "Add Person"}
         fields={fields}
-        initialData={editing ? { ...editing, departmentId: editing.departmentId ? String(editing.departmentId) : "", designationId: editing.designationId ? String(editing.designationId) : "", companyId: editing.companyId ? String(editing.companyId) : "", categoryId: editing.categoryId ? String(editing.categoryId) : "", siteId: editing.siteId ? String(editing.siteId) : "", riskTier: editing.riskTier ?? 1 } : undefined}
+        initialData={editing ? { ...editing, departmentId: editing.departmentId ? String(editing.departmentId) : "", designationId: editing.designationId ? String(editing.designationId) : "", companyId: editing.companyId ? String(editing.companyId) : "", categoryId: editing.categoryId ? String(editing.categoryId) : "", locationId: editing.locationId ? String(editing.locationId) : "", riskTier: editing.riskTier ?? 1 } : undefined}
         onSubmit={(data) => {
           if (data.departmentId) data.departmentId = Number(data.departmentId);
           if (data.designationId) data.designationId = Number(data.designationId);
           if (data.companyId) data.companyId = Number(data.companyId);
           if (data.categoryId) data.categoryId = Number(data.categoryId);
-          if (data.siteId) data.siteId = Number(data.siteId);
+          if (data.locationId) data.locationId = Number(data.locationId);
+          editing ? updateMut.mutate({ id: editing.id, data }) : createMut.mutate(data);
+        }}
+        isPending={createMut.isPending || updateMut.isPending}
+      /> */}
+      <CrudDialog
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEditing(null); }}
+        title={editing ? "Edit Person" : "Add Person"}
+        fields={fields}
+        initialData={editing ? {
+          ...editing,
+          departmentId: editing.departmentId ? String(editing.departmentId) : "",
+          designationId: editing.designationId ? String(editing.designationId) : "",
+          companyId: editing.companyId ? String(editing.companyId) : "",
+          locationId: editing.locationId ? String(editing.locationId) : "", // Updated
+          riskTier: editing.riskTier ?? 1
+        } : {
+          companyId: String(companies.find(c => c.name.toLowerCase().includes("zim"))?.id || ""),
+          status: "active",
+          personType: "employee"
+        }}
+        onSubmit={(data) => {
+          // String to Number conversion for IDs
+          const numericFields = ["departmentId", "designationId", "companyId", "locationId", "riskTier"];
+          numericFields.forEach(k => { if (data[k]) data[k] = Number(data[k]); });
+
           editing ? updateMut.mutate({ id: editing.id, data }) : createMut.mutate(data);
         }}
         isPending={createMut.isPending || updateMut.isPending}

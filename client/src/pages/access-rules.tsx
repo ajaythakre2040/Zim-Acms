@@ -20,8 +20,7 @@ export default function AccessRulesPage() {
   const fields: FieldConfig[] = [
     { key: "name", label: "Rule Name", required: true },
     { key: "description", label: "Description", type: "textarea" },
-    { key: "personId", label: "Person", type: "select", options: people.map((p) => ({ value: String(p.id), label: `${p.firstName} ${p.lastName || ""}` })) },
-    { key: "siteId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
+    { key: "personId", label: "Person", type: "select", options: people.map((p) => ({ value: String(p.id), label: p.employeeName })) },    { key: "locationId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "zoneId", label: "Zone", type: "select", options: zones.map((z) => ({ value: String(z.id), label: z.name })) },
     { key: "accessType", label: "Access Type", type: "select", options: [{ value: "permanent", label: "Permanent" }, { value: "temporary", label: "Temporary" }, { value: "scheduled", label: "Scheduled" }], defaultValue: "permanent" },
     { key: "validFrom", label: "Valid From", type: "date" },
@@ -34,9 +33,7 @@ export default function AccessRulesPage() {
   const columns = [
     { key: "name", label: "Rule Name", render: (r: AccessRule) => <span className="font-medium">{r.name}</span> },
     { key: "accessType", label: "Type", render: (r: AccessRule) => <Badge variant="secondary">{r.accessType}</Badge> },
-    { key: "person", label: "Person", hideOnMobile: true, render: (r: AccessRule) => { const p = people.find((x) => x.id === r.personId); return p ? `${p.firstName} ${p.lastName || ""}` : "All"; }},
-    { key: "site", label: "Site", hideOnMobile: true, render: (r: AccessRule) => sites.find((s) => s.id === r.siteId)?.name || "All" },
-    { key: "isActive", label: "Status", render: (r: AccessRule) => r.isActive ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge> },
+    { key: "person", label: "Person", hideOnMobile: true, render: (r: AccessRule) => { const p = people.find((x) => x.id === r.personId); return p ? p.employeeName : "All"; } },    { key: "isActive", label: "Status", render: (r: AccessRule) => r.isActive ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge> },
     { key: "actions", label: "", render: (r: AccessRule) => (
       <div className="flex gap-1">
         <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(r); setDialogOpen(true); }} data-testid={`button-edit-rule-${r.id}`}><Pencil className="w-4 h-4" /></Button>
@@ -50,10 +47,10 @@ export default function AccessRulesPage() {
       <PageHeader title="Access Rules" description="Define who can access what and when" action={<Button onClick={() => { setEditing(null); setDialogOpen(true); }} data-testid="button-add-rule"><Plus className="w-4 h-4 mr-1" /> Add Rule</Button>} />
       <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={["name", "accessType"]} emptyMessage="No access rules defined" />
       <CrudDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditing(null); }} title={editing ? "Edit Access Rule" : "Add Access Rule"} fields={fields}
-        initialData={editing ? { ...editing, personId: editing.personId ? String(editing.personId) : "", siteId: editing.siteId ? String(editing.siteId) : "", zoneId: editing.zoneId ? String(editing.zoneId) : "" } : undefined}
+        initialData={editing ? { ...editing, personId: editing.personId ? String(editing.personId) : "", locationId: editing.locationId ? String(editing.locationId) : "", zoneId: editing.zoneId ? String(editing.zoneId) : "" } : undefined}
         onSubmit={(data) => {
           if (data.personId) data.personId = Number(data.personId);
-          if (data.siteId) data.siteId = Number(data.siteId);
+          if (data.locationId) data.locationId = Number(data.locationId);
           if (data.zoneId) data.zoneId = Number(data.zoneId);
           editing ? update({ id: editing.id, data }) : create(data);
           setDialogOpen(false); setEditing(null);

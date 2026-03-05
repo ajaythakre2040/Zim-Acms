@@ -20,15 +20,13 @@ export default function AccessCardsPage() {
   const fields: FieldConfig[] = [
     { key: "cardNumber", label: "Card Number", required: true },
     { key: "cardType", label: "Card Type", type: "select", options: [{ value: "employee", label: "Employee" }, { value: "visitor", label: "Visitor" }, { value: "contractor", label: "Contractor" }, { value: "temporary", label: "Temporary" }], defaultValue: "employee" },
-    { key: "personId", label: "Assigned To", type: "select", options: people.map((p) => ({ value: String(p.id), label: `${p.firstName} ${p.lastName || ""}` })) },
-    { key: "status", label: "Status", type: "select", options: [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }, { value: "lost", label: "Lost" }, { value: "expired", label: "Expired" }, { value: "blocked", label: "Blocked" }], defaultValue: "active" },
+    { key: "personId", label: "Assigned To", type: "select", options: people.map((p) => ({ value: String(p.id), label: p.employeeName })) },    { key: "status", label: "Status", type: "select", options: [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }, { value: "lost", label: "Lost" }, { value: "expired", label: "Expired" }, { value: "blocked", label: "Blocked" }], defaultValue: "active" },
   ];
 
   const columns = [
     { key: "cardNumber", label: "Card Number", render: (c: AccessCard) => <span className="font-mono font-medium">{c.cardNumber}</span> },
     { key: "cardType", label: "Type", render: (c: AccessCard) => <Badge variant="secondary">{c.cardType}</Badge> },
-    { key: "person", label: "Assigned To", hideOnMobile: true, render: (c: AccessCard) => { const p = people.find((x) => x.id === c.personId); return p ? `${p.firstName} ${p.lastName || ""}` : "Unassigned"; }},
-    { key: "status", label: "Status", render: (c: AccessCard) => <Badge variant={statusColors[c.status || ""] as any}>{c.status}</Badge> },
+    { key: "person", label: "Assigned To", hideOnMobile: true, render: (c: AccessCard) => { const p = people.find((x) => x.id === c.personId); return p ? p.employeeName : "Unassigned"; } },    { key: "status", label: "Status", render: (c: AccessCard) => <Badge variant={statusColors[c.status || ""] as any}>{c.status}</Badge> },
     { key: "actions", label: "", render: (c: AccessCard) => (
       <div className="flex gap-1">
         <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(c); setDialogOpen(true); }}><Pencil className="w-4 h-4" /></Button>

@@ -66,8 +66,7 @@ export default function VisitorsPage() {
 
   const visitFields: FieldConfig[] = [
     { key: "visitorId", label: "Visitor", type: "select", required: true, options: visitors.map((v) => ({ value: String(v.id), label: `${v.firstName} ${v.lastName || ""}` })) },
-    { key: "hostPersonId", label: "Host", type: "select", options: people.map((p) => ({ value: String(p.id), label: `${p.firstName} ${p.lastName || ""}` })) },
-    { key: "siteId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
+    { key: "hostPersonId", label: "Host", type: "select", options: people.map((p) => ({ value: String(p.id), label: p.employeeName })) },    { key: "locationId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "purpose", label: "Purpose" },
     { key: "badgeNumber", label: "Badge Number" },
   ];
@@ -94,8 +93,7 @@ export default function VisitorsPage() {
 
   const visitColumns = [
     { key: "visitor", label: "Visitor", render: (v: Visit) => { const vis = visitors.find((x) => x.id === v.visitorId); return vis ? `${vis.firstName} ${vis.lastName || ""}` : "-"; }},
-    { key: "host", label: "Host", hideOnMobile: true, render: (v: Visit) => { const h = people.find((x) => x.id === v.hostPersonId); return h ? `${h.firstName} ${h.lastName || ""}` : "-"; }},
-    { key: "purpose", label: "Purpose", hideOnMobile: true },
+    { key: "host", label: "Host", hideOnMobile: true, render: (v: Visit) => { const h = people.find((x) => x.id === v.hostPersonId); return h ? h.employeeName : "-"; } },    { key: "purpose", label: "Purpose", hideOnMobile: true },
     { key: "status", label: "Status", render: (v: Visit) => <Badge variant={visitStatusColors[v.status || ""] as any}>{(v.status || "").replace("_", " ")}</Badge> },
     { key: "actions", label: "", render: (v: Visit) => (
       <div className="flex gap-1">
@@ -156,7 +154,7 @@ export default function VisitorsPage() {
         onSubmit={(data) => {
           if (data.visitorId) data.visitorId = Number(data.visitorId);
           if (data.hostPersonId) data.hostPersonId = Number(data.hostPersonId);
-          if (data.siteId) data.siteId = Number(data.siteId);
+          if (data.locationId) data.locationId = Number(data.locationId);
           createVisit.mutate(data);
         }}
         isPending={createVisit.isPending}

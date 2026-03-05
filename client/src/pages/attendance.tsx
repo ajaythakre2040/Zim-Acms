@@ -37,10 +37,9 @@ export default function AttendancePage() {
   });
 
   const fields: FieldConfig[] = [
-    { key: "personId", label: "Person", type: "select", required: true, options: people.map((p) => ({ value: String(p.id), label: `${p.firstName} ${p.lastName || ""} ${p.employeeId ? `(${p.employeeId})` : ""}` })) },
-    { key: "date", label: "Date", type: "date", required: true, defaultValue: date },
+    { key: "personId", label: "Person", type: "select", required: true, options: people.map((p) => ({ value: String(p.id), label: `${p.employeeName} ${p.employeeCode ? `(${p.employeeCode})` : ""}` })) },    { key: "date", label: "Date", type: "date", required: true, defaultValue: date },
     { key: "status", label: "Status", type: "select", options: [{ value: "present", label: "Present" }, { value: "absent", label: "Absent" }, { value: "late", label: "Late" }, { value: "half_day", label: "Half Day" }, { value: "on_leave", label: "On Leave" }], defaultValue: "present" },
-    { key: "siteId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
+    { key: "locationId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "workingHours", label: "Working Hours", type: "number" },
     { key: "overtimeHours", label: "Overtime Hours", type: "number" },
     { key: "lateByMins", label: "Late By (mins)", type: "number" },
@@ -56,8 +55,7 @@ export default function AttendancePage() {
 
   const columns = [
     // { key: "person", label: "Person", render: (a: Attendance) => { const p = people.find((x) => x.id === a.personId); return p ? `${p.firstName} ${p.lastName || ""}` : `#${a.personId}`; }},
-    { key: "person",label: "Person",render: (a: any) => {if (a.firstName) return a.firstName;const p = people.find((x) => x.id === a.personId || x.msId === a.personId);return p ? `${p.firstName} ${p.lastName || ""}` : `#${a.employeeCode || a.personId}`; }},
-    { key: "status", label: "Status", render: (a: Attendance) => <Badge variant={statusColors[a.status || ""] as any}>{(a.status || "").replace("_", " ")}</Badge> },
+    { key: "person", label: "Person", render: (a: any) => { const p = people.find((x) => x.id === a.personId || x.msId === a.personId); return p ? p.employeeName : `#${a.employeeCode || a.personId}`; } },    { key: "status", label: "Status", render: (a: Attendance) => <Badge variant={statusColors[a.status || ""] as any}>{(a.status || "").replace("_", " ")}</Badge> },
     { key: "clockIn", label: "Clock In", hideOnMobile: true, render: (a: Attendance) => a.clockIn ? new Date(a.clockIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-" },
     { key: "clockOut", label: "Clock Out", hideOnMobile: true, render: (a: Attendance) => a.clockOut ? new Date(a.clockOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-" },
     { key: "workingHours", label: "Hours", render: (a: Attendance) => a.workingHours ? `${a.workingHours}h` : "-" },
@@ -102,7 +100,7 @@ export default function AttendancePage() {
         fields={fields}
         onSubmit={(data) => {
           if (data.personId) data.personId = Number(data.personId);
-          if (data.siteId) data.siteId = Number(data.siteId);
+          if (data.locationId) data.locationId = Number(data.locationId);
           createMut.mutate(data);
         }}
         isPending={createMut.isPending}

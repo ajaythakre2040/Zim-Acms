@@ -21,7 +21,7 @@ export default function HolidaysPage() {
     { key: "name", label: "Holiday Name", required: true },
     { key: "date", label: "Date", type: "date", required: true },
     { key: "holidayType", label: "Type", type: "select", options: [{ value: "national", label: "National" }, { value: "state", label: "State" }, { value: "company", label: "Company" }, { value: "optional", label: "Optional" }], defaultValue: "company" },
-    { key: "siteId", label: "Site (optional)", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
+    { key: "locationId", label: "Site (optional)", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "description", label: "Description", type: "textarea" },
   ];
 
@@ -29,8 +29,7 @@ export default function HolidaysPage() {
     { key: "name", label: "Holiday", render: (h: Holiday) => <span className="font-medium">{h.name}</span> },
     { key: "date", label: "Date" },
     { key: "holidayType", label: "Type", render: (h: Holiday) => <Badge variant={typeColors[h.holidayType || ""] as any}>{h.holidayType}</Badge> },
-    { key: "site", label: "Site", hideOnMobile: true, render: (h: Holiday) => sites.find((s) => s.id === h.siteId)?.name || "All sites" },
-    { key: "actions", label: "", render: (h: Holiday) => (
+    { key: "site", label: "Site", hideOnMobile: true, render: (h: any) => sites.find((s) => s.id === h.locationid)?.name || "All sites" },    { key: "actions", label: "", render: (h: Holiday) => (
       <div className="flex gap-1">
         <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(h); setDialogOpen(true); }}><Pencil className="w-4 h-4" /></Button>
         <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); remove(h.id); }}><Trash2 className="w-4 h-4" /></Button>
@@ -43,8 +42,8 @@ export default function HolidaysPage() {
       <PageHeader title="Holidays" description="Manage holiday calendar" action={<Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Holiday</Button>} />
       <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={["name"]} emptyMessage="No holidays configured" />
       <CrudDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditing(null); }} title={editing ? "Edit Holiday" : "Add Holiday"} fields={fields}
-        initialData={editing ? { ...editing, siteId: editing.siteId ? String(editing.siteId) : "" } : undefined}
-        onSubmit={(data) => { if (data.siteId) data.siteId = Number(data.siteId); editing ? update({ id: editing.id, data }) : create(data); setDialogOpen(false); setEditing(null); }} isPending={isCreating || isUpdating} />
+      initialData={editing ? { ...editing, locationId: editing.locationid ? String(editing.locationid) : "" } : undefined}   
+      onSubmit={(data) => { if (data.locationId) data.locationId = Number(data.locationId); editing ? update({ id: editing.id, data }) : create(data); setDialogOpen(false); setEditing(null); }} isPending={isCreating || isUpdating} />
     </div>
   );
 }

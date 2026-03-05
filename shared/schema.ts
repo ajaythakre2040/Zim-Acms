@@ -104,7 +104,7 @@ export const buildings = pgTable("buildings", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code"),
-  siteId: integer("site_id").notNull(),
+  locationId: integer("site_id").notNull(),
   address: text("address"),
   floorCount: integer("floor_count").default(1),
   isActive: boolean("is_active").default(true),
@@ -127,7 +127,7 @@ export const zones = pgTable("zones", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code"),
-  siteId: integer("site_id").notNull(),
+  locationId: integer("site_id").notNull(),
   buildingId: integer("building_id"),
   floorId: integer("floor_id"),
   parentZoneId: integer("parent_zone_id"),
@@ -144,7 +144,7 @@ export const doors = pgTable("doors", {
   name: text("name").notNull(),
   code: text("code"),
   zoneId: integer("zone_id"),
-  siteId: integer("site_id"),
+  locationId: integer("site_id"),
   doorType: text("door_type", { enum: ["standard", "turnstile", "barrier", "gate", "emergency"] }).default("standard"),
   isHighRisk: boolean("is_high_risk").default(false),
   requires2FA: boolean("requires_2fa").default(false),
@@ -169,10 +169,11 @@ export const devices = pgTable("devices", {
   activationCode: text("activation_code"),
   isAttendanceDevice: integer("is_attendance_device"),
   deviceType: text("device_type").default("reader"),
-  siteId: integer("site_id"), // LocationId yahan aayega
+  locationId: integer("site_id"), // LocationId yahan aayega
   // Baki fields
   zoneId: integer("zone_id"),
   ipAddress: text("ip_address"),
+  lastHeartbeat: timestamp("last_heartbeat"),
   status: text("status").default("offline"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -182,7 +183,7 @@ export const devices = pgTable("devices", {
 //   name: text("name").notNull(),
 //   code: text("code"),
 //   deviceType: text("device_type", { enum: ["reader", "turnstile", "gate", "barrier", "controller", "biometric"] }).default("reader"),
-//   siteId: integer("site_id"),
+//   locationId: integer("site_id"),
 //   zoneId: integer("zone_id"),
 //   ipAddress: text("ip_address"),
 //   macAddress: text("mac_address"),
@@ -193,22 +194,17 @@ export const devices = pgTable("devices", {
 //   isActive: boolean("is_active").default(true),
 //   createdAt: timestamp("created_at").defaultNow(),
 // });
-
-// ==================== PEOPLE ====================
 export const people = pgTable("people", {
   id: serial("id").primaryKey(),
   msId: integer("ms_id"),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name"),
+  employeeName: text("employee_name").notNull(),
   email: text("email"),
   phone: text("phone"),
-  employeeId: text("employee_id").unique(),
   employeeCode: text("employee_code"),
   departmentId: integer("department_id"),
   designationId: integer("designation_id"),
   companyId: integer("company_id"),
-  categoryId: integer("category_id"),
-  siteId: integer("site_id"),
+  locationId: integer("location_id"),
   photoUrl: text("photo_url"),
   personType: text("person_type", { enum: ["employee", "contractor", "visitor", "intern", "consultant"] }).default("employee"),
   riskTier: integer("risk_tier").default(1),
@@ -240,6 +236,53 @@ export const people = pgTable("people", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+// ==================== PEOPLE ====================
+// export const people = pgTable("people", {
+//   id: serial("id").primaryKey(),
+//   msId: integer("ms_id"),
+//   firstName: text("first_name").notNull(),
+//   lastName: text("last_name"),
+//   email: text("email"),
+//   phone: text("phone"),
+//   employeeId: text("employee_id").unique(),
+//   employeeCode: text("employee_code"),
+//   departmentId: integer("department_id"),
+//   designationId: integer("designation_id"),
+//   companyId: integer("company_id"),
+//   categoryId: integer("category_id"),
+//   locationId: integer("site_id"),
+//   photoUrl: text("photo_url"),
+//   personType: text("person_type", { enum: ["employee", "contractor", "visitor", "intern", "consultant"] }).default("employee"),
+//   riskTier: integer("risk_tier").default(1),
+//   status: text("status", { enum: ["active", "inactive", "suspended"] }).default("active"),
+//   gender: text("gender"),
+//   dateOfBirth: text("date_of_birth"),
+//   dateOfJoining: text("date_of_joining"),
+//   dateOfResignation: text("date_of_resignation"),
+//   fatherName: text("father_name"),
+//   address: text("address"),
+//   permanentAddress: text("permanent_address"),
+//   emergencyContact: text("emergency_contact"),
+//   bloodGroup: text("blood_group"),
+//   aadhaarNumber: text("aadhaar_number"),
+//   panNumber: text("pan_number"),
+//   passportNumber: text("passport_number"),
+//   qualification: text("qualification"),
+//   experience: text("experience"),
+//   bankAccountNo: text("bank_account_no"),
+//   bankIfsc: text("bank_ifsc"),
+//   bankName: text("bank_name"),
+//   pfNumber: text("pf_number"),
+//   esiNumber: text("esi_number"),
+//   overtimeEligible: boolean("overtime_eligible").default(false),
+//   overtimeRate: real("overtime_rate"),
+//   shiftType: text("shift_type", { enum: ["fixed", "rotational", "flexible"] }).default("fixed"),
+//   externalId: text("external_id"),
+//   sourceSystem: text("source_system"),
+//   createdAt: timestamp("created_at").defaultNow(),
+//   updatedAt: timestamp("updated_at").defaultNow(),
+// });
+
 
 // ==================== CREDENTIALS ====================
 export const credentials = pgTable("credentials", {
@@ -329,7 +372,7 @@ export const accessRules = pgTable("access_rules", {
   name: text("name").notNull(),
   description: text("description"),
   personId: integer("person_id"),
-  siteId: integer("site_id"),
+  locationId: integer("site_id"),
   zoneId: integer("zone_id"),
   accessType: text("access_type", { enum: ["permanent", "temporary", "scheduled"] }).default("permanent"),
   validFrom: text("valid_from"),
@@ -383,7 +426,7 @@ export const visitors = pgTable("visitors", {
 export const visits = pgTable("visits", {
   id: serial("id").primaryKey(),
   visitorId: integer("visitor_id").notNull(),
-  siteId: integer("site_id"),
+  locationId: integer("site_id"),
   hostPersonId: integer("host_person_id"),
   purpose: text("purpose"),
   badgeNumber: text("badge_number"),
@@ -407,7 +450,7 @@ export const visitAccess = pgTable("visit_access", {
 export const attendance = pgTable("attendance", {
   id: serial("id").primaryKey(),
   personId: integer("person_id").notNull(),
-  siteId: integer("site_id"),
+  locationId: integer("site_id"),
   date: text("date").notNull(),
   clockIn: timestamp("clock_in"),
   clockOut: timestamp("clock_out"),
@@ -434,7 +477,7 @@ export const accessLogs = pgTable("access_logs", {
   visitorId: integer("visitor_id"),
   deviceId: integer("device_id"),
   doorId: integer("door_id"),
-  siteId: integer("site_id"),
+  locationId: integer("location_id"),
   zoneId: integer("zone_id"),
   eventType: text("event_type", { enum: ["entry", "exit", "denied", "tailgate", "forced"] }).default("entry"),
   accessMethod: text("access_method", { enum: ["card", "face", "fingerprint", "qr", "pin", "manual"] }).default("card"),
@@ -470,7 +513,7 @@ export const alerts = pgTable("alerts", {
   personId: integer("person_id"),
   visitorId: integer("visitor_id"),
   deviceId: integer("device_id"),
-  siteId: integer("site_id"),
+  locationId: integer("site_id"),
   doorId: integer("door_id"),
   isRead: boolean("is_read").default(false),
   isResolved: boolean("is_resolved").default(false),
@@ -515,7 +558,7 @@ export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
 }));
 
 export const buildingsRelations = relations(buildings, ({ one }) => ({
-  site: one(sites, { fields: [buildings.siteId], references: [sites.id] }),
+  site: one(sites, { fields: [buildings.locationId], references: [sites.id] }),
 }));
 
 export const floorsRelations = relations(floors, ({ one }) => ({
@@ -523,7 +566,7 @@ export const floorsRelations = relations(floors, ({ one }) => ({
 }));
 
 export const zonesRelations = relations(zones, ({ one }) => ({
-  site: one(sites, { fields: [zones.siteId], references: [sites.id] }),
+  site: one(sites, { fields: [zones.locationId], references: [sites.id] }),
   building: one(buildings, { fields: [zones.buildingId], references: [buildings.id] }),
   floor: one(floors, { fields: [zones.floorId], references: [floors.id] }),
   parentZone: one(zones, { fields: [zones.parentZoneId], references: [zones.id] }),
@@ -531,11 +574,11 @@ export const zonesRelations = relations(zones, ({ one }) => ({
 
 export const doorsRelations = relations(doors, ({ one }) => ({
   zone: one(zones, { fields: [doors.zoneId], references: [zones.id] }),
-  site: one(sites, { fields: [doors.siteId], references: [sites.id] }),
+  site: one(sites, { fields: [doors.locationId], references: [sites.id] }),
 }));
 
 export const devicesRelations = relations(devices, ({ one }) => ({
-  site: one(sites, { fields: [devices.siteId], references: [sites.id] }),
+  site: one(sites, { fields: [devices.locationId], references: [sites.id] }),
   zone: one(zones, { fields: [devices.zoneId], references: [zones.id] }),
 }));
 
@@ -543,8 +586,8 @@ export const peopleRelations = relations(people, ({ one }) => ({
   department: one(departments, { fields: [people.departmentId], references: [departments.id] }),
   designation: one(designations, { fields: [people.designationId], references: [designations.id] }),
   company: one(companies, { fields: [people.companyId], references: [companies.id] }),
-  category: one(categories, { fields: [people.categoryId], references: [categories.id] }),
-  site: one(sites, { fields: [people.siteId], references: [sites.id] }),
+  // category: one(categories, { fields: [people.categoryId], references: [categories.id] }),
+  site: one(sites, { fields: [people.locationId], references: [sites.id] }),
 }));
 
 export const credentialsRelations = relations(credentials, ({ one }) => ({
@@ -557,13 +600,13 @@ export const accessCardsRelations = relations(accessCards, ({ one }) => ({
 
 export const visitsRelations = relations(visits, ({ one }) => ({
   visitor: one(visitors, { fields: [visits.visitorId], references: [visitors.id] }),
-  site: one(sites, { fields: [visits.siteId], references: [sites.id] }),
+  site: one(sites, { fields: [visits.locationId], references: [sites.id] }),
   host: one(people, { fields: [visits.hostPersonId], references: [people.id] }),
 }));
 
 export const attendanceRelations = relations(attendance, ({ one }) => ({
   person: one(people, { fields: [attendance.personId], references: [people.id] }),
-  site: one(sites, { fields: [attendance.siteId], references: [sites.id] }),
+  site: one(sites, { fields: [attendance.locationId], references: [sites.id] }),
   shift: one(shifts, { fields: [attendance.shiftId], references: [shifts.id] }),
 }));
 
@@ -572,7 +615,7 @@ export const accessLogsRelations = relations(accessLogs, ({ one }) => ({
   visitor: one(visitors, { fields: [accessLogs.visitorId], references: [visitors.id] }),
   device: one(devices, { fields: [accessLogs.deviceId], references: [devices.id] }),
   door: one(doors, { fields: [accessLogs.doorId], references: [doors.id] }),
-  site: one(sites, { fields: [accessLogs.siteId], references: [sites.id] }),
+  site: one(sites, { fields: [accessLogs.locationId], references: [sites.id] }),
   zone: one(zones, { fields: [accessLogs.zoneId], references: [zones.id] }),
 }));
 
@@ -580,7 +623,7 @@ export const alertsRelations = relations(alerts, ({ one }) => ({
   person: one(people, { fields: [alerts.personId], references: [people.id] }),
   visitor: one(visitors, { fields: [alerts.visitorId], references: [visitors.id] }),
   device: one(devices, { fields: [alerts.deviceId], references: [devices.id] }),
-  site: one(sites, { fields: [alerts.siteId], references: [sites.id] }),
+  site: one(sites, { fields: [alerts.locationId], references: [sites.id] }),
 }));
 
 // ==================== INSERT SCHEMAS ====================

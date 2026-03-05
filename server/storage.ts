@@ -80,7 +80,7 @@ export interface IStorage {
   updateSite(id: number, data: Partial<InsertSite>): Promise<Site>;
   deleteSite(id: number): Promise<void>;
 
-  getBuildings(siteId?: number): Promise<Building[]>;
+  getBuildings(locationId?: number): Promise<Building[]>;
   createBuilding(data: InsertBuilding): Promise<Building>;
   updateBuilding(id: number, data: Partial<InsertBuilding>): Promise<Building>;
   deleteBuilding(id: number): Promise<void>;
@@ -90,7 +90,7 @@ export interface IStorage {
   updateFloor(id: number, data: Partial<InsertFloor>): Promise<Floor>;
   deleteFloor(id: number): Promise<void>;
 
-  getZones(siteId?: number, buildingId?: number): Promise<Zone[]>;
+  getZones(locationId?: number, buildingId?: number): Promise<Zone[]>;
   createZone(data: InsertZone): Promise<Zone>;
   updateZone(id: number, data: Partial<InsertZone>): Promise<Zone>;
   deleteZone(id: number): Promise<void>;
@@ -160,11 +160,11 @@ export interface IStorage {
   createVisit(data: InsertVisit): Promise<Visit>;
   updateVisit(id: number, data: Partial<InsertVisit>): Promise<Visit>;
 
-  getAttendance(date?: string, siteId?: number, personId?: number): Promise<Attendance[]>;
+  getAttendance(date?: string, locationId?: number, personId?: number): Promise<Attendance[]>;
   createAttendance(data: InsertAttendance): Promise<Attendance>;
   updateAttendance(id: number, data: Partial<InsertAttendance>): Promise<Attendance>;
 
-  getAccessLogs(limit?: number, siteId?: number): Promise<AccessLog[]>;
+  getAccessLogs(limit?: number, locationId?: number): Promise<AccessLog[]>;
   createAccessLog(data: InsertAccessLog): Promise<AccessLog>;
 
   getAlerts(isResolved?: boolean): Promise<Alert[]>;
@@ -178,8 +178,8 @@ export interface IStorage {
   getSystemSettings(): Promise<SystemSetting[]>;
   upsertSystemSetting(data: InsertSystemSetting): Promise<SystemSetting>;
 
-  getAttendanceReport(filters: { dateFrom?: string; dateTo?: string; status?: string; departmentId?: number; personId?: number; siteId?: number }): Promise<any[]>;
-  getAccessLogReport(filters: { dateFrom?: string; dateTo?: string; eventType?: string; personId?: number; siteId?: number; doorId?: number }): Promise<any[]>;
+  getAttendanceReport(filters: { dateFrom?: string; dateTo?: string; status?: string; departmentId?: number; personId?: number; locationId?: number }): Promise<any[]>;
+  getAccessLogReport(filters: { dateFrom?: string; dateTo?: string; eventType?: string; personId?: number; locationId?: number; doorId?: number }): Promise<any[]>;
   getVisitorReport(filters: { dateFrom?: string; dateTo?: string; status?: string }): Promise<any[]>;
   getEmployeeSummaryReport(filters: { departmentId?: number; status?: string; personType?: string }): Promise<any[]>;
 
@@ -304,9 +304,9 @@ export class DatabaseStorage implements IStorage {
     await db.delete(sites).where(eq(sites.id, id));
   }
 
-  async getBuildings(siteId?: number): Promise<Building[]> {
-    if (siteId) {
-      return await db.select().from(buildings).where(eq(buildings.siteId, siteId));
+  async getBuildings(locationId?: number): Promise<Building[]> {
+    if (locationId) {
+      return await db.select().from(buildings).where(eq(buildings.locationId, locationId));
     }
     return await db.select().from(buildings);
   }
@@ -340,9 +340,9 @@ export class DatabaseStorage implements IStorage {
     await db.delete(floors).where(eq(floors.id, id));
   }
 
-  async getZones(siteId?: number, buildingId?: number): Promise<Zone[]> {
+  async getZones(locationId?: number, buildingId?: number): Promise<Zone[]> {
     const conditions = [];
-    if (siteId) conditions.push(eq(zones.siteId, siteId));
+    if (locationId) conditions.push(eq(zones.locationId, locationId));
     if (buildingId) conditions.push(eq(zones.buildingId, buildingId));
     if (conditions.length > 0) {
       return await db.select().from(zones).where(and(...conditions));
@@ -402,7 +402,7 @@ export class DatabaseStorage implements IStorage {
   //           activationCode: mapped.activationCode,
   //           isAttendanceDevice: mapped.isAttendanceDevice,
   //           deviceType: mapped.deviceType,
-  //           siteId: mapped.siteId,
+  //           locationId: mapped.locationId,
   //           status: "offline",
   //           isActive: true
   //         }).returning();
@@ -488,28 +488,22 @@ export class DatabaseStorage implements IStorage {
   // }
   // --- GET ALL PEOPLE WITH AUTO-SYNC ---
   async getPeople(search?: string): Promise<Person[]> {
-    // 1. Parallel fetch from both DBs
     const [pgData, msDataRaw] = await Promise.all([
       db.select().from(people),
       dbMsSql.select().from({ dbName: 'Employees' }).execute()
     ]);
 
-    // 2. Auto-Sync Loop
     for (const msRow of (msDataRaw || [])) {
       const mapped = PersonAdapter.toPostgres(msRow);
-
-      // Check if record exists in Postgres based on msId
       const exists = pgData.find(p => p.msId === mapped.msId);
 
       if (mapped.msId && !exists) {
         try {
           const [newRec] = await db.insert(people).values({
             msId: mapped.msId,
-            firstName: mapped.firstName,
-            lastName: mapped.lastName,
-            employeeId: mapped.employeeId,
+            employeeName: mapped.employeeName ?? "Unknown",
             employeeCode: mapped.employeeCode,
-            siteId: mapped.siteId,
+            locationId: mapped.locationId,
             address: mapped.address,
             overtimeEligible: mapped.overtimeEligible,
             personType: "employee",
@@ -519,7 +513,6 @@ export class DatabaseStorage implements IStorage {
             updatedAt: new Date(),
             createdAt: new Date(),
           }).returning();
-
           pgData.push(newRec);
         } catch (e) {
           console.error("People Sync Error:", e);
@@ -527,21 +520,74 @@ export class DatabaseStorage implements IStorage {
       }
     }
 
-    // 3. Search and Duplicate Handling
     let results = pgData;
     if (search) {
       const term = search.toLowerCase();
       results = pgData.filter(p =>
-        p.firstName.toLowerCase().includes(term) ||
-        (p.lastName && p.lastName.toLowerCase().includes(term)) ||
+        p.employeeName.toLowerCase().includes(term) ||
         (p.employeeCode && p.employeeCode.toLowerCase().includes(term))
       );
     }
 
     return Array.from(
-      new Map(results.map(p => [`${p.msId || p.employeeId || p.id}`, p])).values()
+      new Map(results.map(p => [`${p.msId || p.employeeCode || p.id}`, p])).values()
     );
   }
+  // async getPeople(search?: string): Promise<Person[]> {
+  //   // 1. Parallel fetch from both DBs
+  //   const [pgData, msDataRaw] = await Promise.all([
+  //     db.select().from(people),
+  //     dbMsSql.select().from({ dbName: 'Employees' }).execute()
+  //   ]);
+
+  //   // 2. Auto-Sync Loop
+  //   for (const msRow of (msDataRaw || [])) {
+  //     const mapped = PersonAdapter.toPostgres(msRow);
+
+  //     // Check if record exists in Postgres based on msId
+  //     const exists = pgData.find(p => p.msId === mapped.msId);
+
+  //     if (mapped.msId && !exists) {
+  //       try {
+  //         const [newRec] = await db.insert(people).values({
+  //           msId: mapped.msId,
+  //           firstName: mapped.firstName,
+  //           lastName: mapped.lastName,
+  //           employeeId: mapped.employeeId,
+  //           employeeCode: mapped.employeeCode,
+  //           locationId: mapped.locationId,
+  //           address: mapped.address,
+  //           overtimeEligible: mapped.overtimeEligible,
+  //           personType: "employee",
+  //           status: "active",
+  //           sourceSystem: "mssql_bio",
+  //           externalId: mapped.externalId,
+  //           updatedAt: new Date(),
+  //           createdAt: new Date(),
+  //         }).returning();
+
+  //         pgData.push(newRec);
+  //       } catch (e) {
+  //         console.error("People Sync Error:", e);
+  //       }
+  //     }
+  //   }
+
+  //   // 3. Search and Duplicate Handling
+  //   let results = pgData;
+  //   if (search) {
+  //     const term = search.toLowerCase();
+  //     results = pgData.filter(p =>
+  //       p.firstName.toLowerCase().includes(term) ||
+  //       (p.lastName && p.lastName.toLowerCase().includes(term)) ||
+  //       (p.employeeCode && p.employeeCode.toLowerCase().includes(term))
+  //     );
+  //   }
+
+  //   return Array.from(
+  //     new Map(results.map(p => [`${p.msId || p.employeeId || p.id}`, p])).values()
+  //   );
+  // }
   // --- GET SINGLE PERSON ---
   async getPerson(id: number): Promise<Person | undefined> {
     const [person] = await db.select().from(people).where(eq(people.id, id));
@@ -873,17 +919,17 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  // async getAttendance(date?: string, siteId?: number, personId?: number): Promise<Attendance[]> {
+  // async getAttendance(date?: string, locationId?: number, personId?: number): Promise<Attendance[]> {
   //   const conditions = [];
   //   if (date) conditions.push(eq(attendance.date, date));
-  //   if (siteId) conditions.push(eq(attendance.siteId, siteId));
+  //   if (locationId) conditions.push(eq(attendance.locationId, locationId));
   //   if (personId) conditions.push(eq(attendance.personId, personId));
   //   if (conditions.length > 0) {
   //     return await db.select().from(attendance).where(and(...conditions));
   //   }
   //   return await db.select().from(attendance);
   // }
-  async getAttendance(date?: string, siteId?: number, personId?: number): Promise<any[]> {
+  async getAttendance(date?: string, locationId?: number, personId?: number): Promise<any[]> {
   // 1. MS SQL se logs aur employees fetch karein
   const [msLogs, msEmployees] = await Promise.all([
     dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute(),
@@ -931,7 +977,7 @@ export class DatabaseStorage implements IStorage {
     return {
       id: emp.EmployeeId,
       personId: emp.EmployeeId,
-      siteId: emp.SiteId || emp.siteid,
+      locationId: emp.locationId || emp.locationId,
       employeeCode: emp.EmployeeCode,
       firstName: emp.EmployeeName || `${emp.FirstName || ''} ${emp.LastName || ''}`.trim() || "Unknown",
       date: targetDate,
@@ -945,7 +991,7 @@ export class DatabaseStorage implements IStorage {
   // Filters apply karein (Site aur Person)
   return attendanceList.filter(row => {
     const matchesPerson = !personId || Number(row.personId) === Number(personId);
-    const matchesSite = !siteId || Number(row.siteId) === Number(siteId);
+    const matchesSite = !locationId || Number(row.locationId) === Number(locationId);
     return matchesPerson && matchesSite;
   });
 }
@@ -958,9 +1004,9 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getAccessLogs(limit?: number, siteId?: number): Promise<AccessLog[]> {
-    if (siteId) {
-      return await db.select().from(accessLogs).where(eq(accessLogs.siteId, siteId)).orderBy(desc(accessLogs.timestamp)).limit(limit || 100);
+  async getAccessLogs(limit?: number, locationId?: number): Promise<AccessLog[]> {
+    if (locationId) {
+      return await db.select().from(accessLogs).where(eq(accessLogs.locationId, locationId)).orderBy(desc(accessLogs.timestamp)).limit(limit || 100);
     }
     return await db.select().from(accessLogs).orderBy(desc(accessLogs.timestamp)).limit(limit || 100);
   }
@@ -1243,39 +1289,66 @@ async getAttendanceReport(filters: {
 //     return matchesDate && matchesDevice && matchesStatus && matchesPerson;
 //   }).sort((a, b) => b.date.localeCompare(a.date));
 // }
-  
-  async getAccessLogReport(filters: { dateFrom?: string; dateTo?: string; eventType?: string; personId?: number; siteId?: number; doorId?: number }): Promise<any[]> {
-    const conditions = [];
-    if (filters.dateFrom) conditions.push(sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`);
-    if (filters.dateTo) conditions.push(sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`);
-    if (filters.eventType) conditions.push(eq(accessLogs.eventType, filters.eventType as any));
-    if (filters.personId) conditions.push(eq(accessLogs.personId, filters.personId));
-    if (filters.siteId) conditions.push(eq(accessLogs.siteId, filters.siteId));
-    if (filters.doorId) conditions.push(eq(accessLogs.doorId, filters.doorId));
+  // --- ACCESS LOGS & REPORTS ---
+  // --- Access Log Report (Reduced Format) ---
+  async getAccessLogReport(filters: any): Promise<any[]> {
+    const conditions = [
+      filters.dateFrom && sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+      filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
+      filters.eventType && eq(accessLogs.eventType, filters.eventType),
+      filters.personId && eq(accessLogs.personId, filters.personId),
+      filters.locationId && eq(accessLogs.locationId, filters.locationId),
+      filters.doorId && eq(accessLogs.doorId, filters.doorId)
+    ].filter(Boolean);
 
     const query = db
       .select({
         id: accessLogs.id,
-        personId: accessLogs.personId,
-        firstName: people.firstName,
-        lastName: people.lastName,
-        employeeId: people.employeeId,
+        employeeName: people.employeeName,
+        employeeCode: people.employeeCode,
         eventType: accessLogs.eventType,
-        accessMethod: accessLogs.accessMethod,
         isAuthorized: accessLogs.isAuthorized,
-        denialReason: accessLogs.denialReason,
-        doorId: accessLogs.doorId,
-        siteId: accessLogs.siteId,
         timestamp: accessLogs.timestamp,
+        locationId: accessLogs.locationId
       })
       .from(accessLogs)
-      .leftJoin(people, eq(accessLogs.personId, people.id));
+      .leftJoin(people, eq(accessLogs.personId, people.id))
+      .orderBy(desc(accessLogs.timestamp));
 
-    if (conditions.length > 0) {
-      return await query.where(and(...conditions)).orderBy(desc(accessLogs.timestamp));
-    }
-    return await query.orderBy(desc(accessLogs.timestamp)).limit(500);
+    return conditions.length ? await query.where(and(...conditions)) : await query.limit(500);
   }
+  // async getAccessLogReport(filters: { dateFrom?: string; dateTo?: string; eventType?: string; personId?: number; locationId?: number; doorId?: number }): Promise<any[]> {
+  //   const conditions = [];
+  //   if (filters.dateFrom) conditions.push(sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`);
+  //   if (filters.dateTo) conditions.push(sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`);
+  //   if (filters.eventType) conditions.push(eq(accessLogs.eventType, filters.eventType as any));
+  //   if (filters.personId) conditions.push(eq(accessLogs.personId, filters.personId));
+  //   if (filters.locationId) conditions.push(eq(accessLogs.locationId, filters.locationId));
+  //   if (filters.doorId) conditions.push(eq(accessLogs.doorId, filters.doorId));
+
+  //   const query = db
+  //     .select({
+  //       id: accessLogs.id,
+  //       personId: accessLogs.personId,
+  //       firstName: people.firstName,
+  //       lastName: people.lastName,
+  //       employeeId: people.employeeId,
+  //       eventType: accessLogs.eventType,
+  //       accessMethod: accessLogs.accessMethod,
+  //       isAuthorized: accessLogs.isAuthorized,
+  //       denialReason: accessLogs.denialReason,
+  //       doorId: accessLogs.doorId,
+  //       locationId: accessLogs.locationId,
+  //       timestamp: accessLogs.timestamp,
+  //     })
+  //     .from(accessLogs)
+  //     .leftJoin(people, eq(accessLogs.personId, people.id));
+
+  //   if (conditions.length > 0) {
+  //     return await query.where(and(...conditions)).orderBy(desc(accessLogs.timestamp));
+  //   }
+  //   return await query.orderBy(desc(accessLogs.timestamp)).limit(500);
+  // }
 
   async getVisitorReport(filters: { dateFrom?: string; dateTo?: string; status?: string }): Promise<any[]> {
     const conditions = [];
@@ -1296,7 +1369,7 @@ async getAttendanceReport(filters: {
         checkInAt: visits.checkInAt,
         checkOutAt: visits.checkOutAt,
         scheduledAt: visits.scheduledAt,
-        siteId: visits.siteId,
+        locationId: visits.locationId,
       })
       .from(visits)
       .leftJoin(visitors, eq(visits.visitorId, visitors.id));
@@ -1307,20 +1380,51 @@ async getAttendanceReport(filters: {
     return await query.orderBy(desc(visits.createdAt)).limit(500);
   }
 
+  // async getEmployeeSummaryReport(filters: { departmentId?: number; status?: string; personType?: string }): Promise<any[]> {
+  //   const conditions = [];
+  //   if (filters.departmentId) conditions.push(eq(people.departmentId, filters.departmentId));
+  //   if (filters.status) conditions.push(eq(people.status, filters.status as any));
+  //   if (filters.personType) conditions.push(eq(people.personType, filters.personType as any));
+
+  //   const query = db
+  //     .select({
+  //       id: people.id,
+  //       firstName: people.firstName,
+  //       lastName: people.lastName,
+  //       email: people.email,
+  //       phone: people.phone,
+  //       employeeId: people.employeeId,
+  //       employeeCode: people.employeeCode,
+  //       departmentId: people.departmentId,
+  //       designationId: people.designationId,
+  //       companyId: people.companyId,
+  //       personType: people.personType,
+  //       status: people.status,
+  //       gender: people.gender,
+  //       dateOfJoining: people.dateOfJoining,
+  //       locationId: people.locationId,
+  //     })
+  //     .from(people);
+
+  //   if (conditions.length > 0) {
+  //     return await query.where(and(...conditions)).orderBy(people.firstName);
+  //   }
+  //   return await query.orderBy(people.firstName).limit(500);
+  // }
   async getEmployeeSummaryReport(filters: { departmentId?: number; status?: string; personType?: string }): Promise<any[]> {
-    const conditions = [];
-    if (filters.departmentId) conditions.push(eq(people.departmentId, filters.departmentId));
-    if (filters.status) conditions.push(eq(people.status, filters.status as any));
-    if (filters.personType) conditions.push(eq(people.personType, filters.personType as any));
+    // 1. Properly typed conditions array
+    const conditions = [
+      filters.departmentId ? eq(people.departmentId, filters.departmentId) : undefined,
+      filters.status ? eq(people.status, filters.status as any) : undefined,
+      filters.personType ? eq(people.personType, filters.personType as any) : undefined
+    ].filter(Boolean) as any[]; // 'as any[]' ya 'as SQL[]' casting se error chala jayega
 
     const query = db
       .select({
         id: people.id,
-        firstName: people.firstName,
-        lastName: people.lastName,
+        employeeName: people.employeeName,
         email: people.email,
         phone: people.phone,
-        employeeId: people.employeeId,
         employeeCode: people.employeeCode,
         departmentId: people.departmentId,
         designationId: people.designationId,
@@ -1329,16 +1433,18 @@ async getAttendanceReport(filters: {
         status: people.status,
         gender: people.gender,
         dateOfJoining: people.dateOfJoining,
-        siteId: people.siteId,
+        locationId: people.locationId,
       })
-      .from(people);
+      .from(people)
+      .orderBy(people.employeeName);
 
+    // 2. Fixed logic for conditional WHERE
     if (conditions.length > 0) {
-      return await query.where(and(...conditions)).orderBy(people.firstName);
+      return await query.where(and(...conditions));
     }
-    return await query.orderBy(people.firstName).limit(500);
-  }
 
+    return await query.limit(500);
+  }
   async getDashboardStats(): Promise<object> {
     const today = new Date().toISOString().split("T")[0];
 

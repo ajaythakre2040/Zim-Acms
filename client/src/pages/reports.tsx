@@ -193,7 +193,9 @@ function ReportFilters({
           )}
           {showPerson && (
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Employee</Label>
+              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Employee
+              </Label>
               <Select
                 value={filters.personId || "all"}
                 onValueChange={(v) => setFilters({ ...filters, personId: v === "all" ? "" : v })}
@@ -204,11 +206,13 @@ function ReportFilters({
                 <SelectContent>
                   <SelectItem value="all">All Employees</SelectItem>
                   {people.map((p) => {
-                    // Hum preference 'employeeCode' ko denge kyunki logs wahi use karte hain
-                    const codeValue = String(p.employeeCode || p.employeeId || p.id).trim();
+                    // Hum preference 'employeeCode' ko denge kyunki filtering/logs isi se hote hain
+                    const codeValue = String(p.employeeCode || p.id).trim();
+
                     return (
                       <SelectItem key={p.id} value={codeValue}>
-                        {p.firstName} {p.lastName || ""} {p.employeeCode ? `(${p.employeeCode})` : ""}
+                        {/* FIXED: firstName + lastName ki jagah employeeName use kiya */}
+                        {p.employeeName} {p.employeeCode ? `(${p.employeeCode})` : ""}
                       </SelectItem>
                     );
                   })}
@@ -219,7 +223,7 @@ function ReportFilters({
           {showSite && (
             <div className="space-y-1">
               <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">Site</Label>
-              <Select value={filters.siteId || "all"} onValueChange={(v) => setFilters({ ...filters, siteId: v === "all" ? "" : v })}>
+              <Select value={filters.locationId || "all"} onValueChange={(v) => setFilters({ ...filters, locationId: v === "all" ? "" : v })}>
                 <SelectTrigger data-testid="select-filter-site">
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
@@ -349,7 +353,7 @@ function AttendanceTable({ data }: { data: any[] }) {
         <thead>
           <tr className="border-b bg-muted/30">
             <th className="text-left p-2 font-medium">Employee</th>
-            <th className="text-left p-2 font-medium">ID</th>
+            <th className="text-left p-2 font-medium">Emp Code</th>
             <th className="text-left p-2 font-medium">Date</th>
             <th className="text-left p-2 font-medium">Clock In</th>
             <th className="text-left p-2 font-medium">Clock Out</th>
@@ -458,7 +462,7 @@ function EmployeeTable({ data }: { data: any[] }) {
         <thead>
           <tr className="border-b bg-muted/30">
             <th className="text-left p-2 font-medium">Name</th>
-            <th className="text-left p-2 font-medium">Emp ID</th>
+            <th className="text-left p-2 font-medium">Emp Code</th>
             <th className="text-left p-2 font-medium">Email</th>
             <th className="text-left p-2 font-medium">Phone</th>
             <th className="text-left p-2 font-medium">Type</th>
@@ -596,26 +600,32 @@ export default function ReportsPage() {
   //   },
   // });
 // Replace your existing useQuery for reportData with this:
-const { data: reportData = [], isLoading, refetch } = useQuery<any[]>({
-  // appliedFilters ko as an object pass karne se React Query deep comparison kar pata hai
-  queryKey: ["reports", activeReport, appliedFilters], 
-  queryFn: async () => {
-    // Query string yahan generate karein taaki hamesha fresh filters use hon
-    const params = new URLSearchParams();
-    Object.entries(appliedFilters).forEach(([k, v]) => {
-      // _refresh key ko URL mein bhejne ki zaroorat nahi hai
-      if (v && k !== "_refresh") params.set(k, v); 
-    });
-    const finalQs = params.toString();
-    
-    const url = `/api/reports/${activeReport}${finalQs ? `?${finalQs}` : ""}`;
-    const res = await fetch(url, { credentials: "include" });
-    if (!res.ok) throw new Error("Failed to fetch report");
-    return res.json();
-  },
-  // Jab filter same ho, tab bhi force fetch ke liye:
-  stateTime: 0,
-});
+  // 1. Generic mein <any[], Error> specify karein
+  // 2. queryFn ke return type ko Promise<any[]> banayein
+  const { data: reportData = [], isLoading, refetch } = useQuery<any[], Error>({
+    queryKey: ["reports", activeReport, appliedFilters],
+    queryFn: async (): Promise<any[]> => { // <-- Return type yahan define karein
+      const params = new URLSearchParams();
+
+      // Type casting: String(v) zaroori hai URLSearchParams ke liye
+      Object.entries(appliedFilters).forEach(([k, v]) => {
+        if (v && k !== "_refresh") params.set(k, String(v));
+      });
+
+      const finalQs = params.toString();
+      const url = `/api/reports/${activeReport}${finalQs ? `?${finalQs}` : ""}`;
+
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch report");
+
+      const result = await res.json();
+
+      // Final Safety Check: Ensure karein ki result hamesha array ho
+      return Array.isArray(result) ? result : [];
+    },
+    // FIXED TYPO: 'stateTime' nahi, 'staleTime' hota hai
+    staleTime: 0,
+  });
   // const handleApply = () => setAppliedFilters({ ...filters });
 const handleApply = () => {
   setAppliedFilters({ 
