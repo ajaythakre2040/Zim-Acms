@@ -57,7 +57,14 @@ export default function PeoplePage() {
     { key: "email", label: "Email", type: "email" },
     { key: "phone", label: "Phone" },
     // { key: "employeeId", label: "Employee ID" },
-    { key: "employeeCode", label: "Employee Code" },
+    {
+      key: "employeeCode",
+      label: "Employee Code",
+      // Agar editing mein data hai, toh readOnly true ho jayega
+      readOnly: !!editing,
+      // Visual feedback ke liye placeholder badal sakte hain
+      placeholder: editing ? "Cannot change code during edit" : "Enter unique employee code"
+    } as any,
     { key: "personType", label: "Type", type: "select", options: Object.entries(personTypeLabels).map(([v, l]) => ({ value: v, label: l })), defaultValue: "employee" },
     { key: "gender", label: "Gender", type: "select", options: [{ value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "other", label: "Other" }] },
     { key: "departmentId", label: "Department", type: "select", options: departments.map((d) => ({ value: String(d.id), label: d.name })) },
@@ -163,7 +170,7 @@ export default function PeoplePage() {
         data={people}
         isLoading={isLoading}
         searchable
-        searchKeys={["firstName", "lastName", "email", "employeeId"]}
+        searchKeys={["employeeName", "employeeCode", "email"]} // Updated keys
         emptyMessage="No people registered yet"
       />
       {/* <CrudDialog

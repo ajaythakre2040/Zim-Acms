@@ -15,6 +15,7 @@ export interface FieldConfig {
   required?: boolean;
   placeholder?: string;
   defaultValue?: any;
+  readOnly?: boolean;
 }
 
 interface CrudDialogProps {
@@ -106,6 +107,7 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                   onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
                   required={f.required}
                   placeholder={f.placeholder}
+                  readOnly={f.readOnly}
                   data-testid={`input-${f.key}`}
                 />
               )}
