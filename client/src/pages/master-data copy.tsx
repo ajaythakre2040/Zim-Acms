@@ -14,10 +14,17 @@ import type { Device } from "@shared/schema";
 function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: string; label: string; fields: FieldConfig[]; nameKey?: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const { toast } = useToast();
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const { toast } = useToast();
+
   const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(endpoint, label);
   const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
+
+  const handleClose = () => {
+    setDialogOpen(false);
+    setEditing(null);
+    setFormErrors({});
+  };
 
   const dynamicFields = fields.map(f => {
     if (f.key === "deviceIds") {
@@ -25,6 +32,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
         ...f,
         type: "multi-select",
         options: [
+          { value: "all", label: "All Devices" },
           ...devices.map((d: Device) => ({ value: String(d.id), label: d.name }))
         ]
       } as any;
@@ -62,11 +70,11 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       key: "actions",
       label: "",
       render: (item: any) => (
-        <div className="flex gap-1">
+        <div className="flex gap-1 justify-end">
           <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(item); setDialogOpen(true); }}>
             <Pencil className="w-4 h-4" />
           </Button>
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); remove(item.id); }}>
+          <Button size="icon" variant="ghost" className="hover:text-destructive" onClick={(e) => { e.stopPropagation(); remove(item.id); }}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -75,6 +83,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
   ];
 
   const handleSubmit = async (formData: any) => {
+    setFormErrors({});
     const finalData = { ...formData };
 
     if (Array.isArray(formData.deviceIds)) {
@@ -83,7 +92,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       } else {
         finalData.deviceIds = formData.deviceIds
           .map((id: string) => Number(id))
-          .filter((id: number) => !isNaN(id)); // Fixed TypeScript implicit 'any' error
+          .filter((id: number) => !isNaN(id));
       }
     }
 
@@ -95,66 +104,46 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
         await create(finalData);
         toast({ title: "Success", description: `${label} created successfully.` });
       }
-      setDialogOpen(false);
-      setEditing(null);
+      handleClose();
     } catch (error: any) {
-      console.log("Original Error:", error);
+      const errorBody = error.response?.data;
+      const rawMessage = (typeof errorBody === 'string' ? errorBody : errorBody?.message || error.message || "").toLowerCase();
 
-      let errorData;
-
-      // 1. Check karein agar error message ke andar JSON chhupa hai
-      // Screenshots mein toast '400: {JSON}' dikha raha hai, iska matlab message string hai
-      if (typeof error.message === 'string' && error.message.includes('{')) {
-        try {
-          // JSON nikalne ke liye string ko split karein (400: {..} -> {..})
-          const jsonPart = error.message.substring(error.message.indexOf('{'));
-          errorData = JSON.parse(jsonPart);
-        } catch (e) {
-          errorData = error.response?.data || error;
-        }
-      } else {
-        errorData = error.response?.data || error;
-      }
-
-      // 2. Extract Clean Message
-      const finalMessage = errorData?.message || error.message || "An error occurred";
-
-      if (errorData?.isDuplicate) {
-        // Check karein galti 'code' mein hai ya 'name' mein
-        const msg = finalMessage.toLowerCase();
-        const fieldKey = msg.includes("code") ? "code" : "name";
-
-        // Popup ke andar laal error text dikhayye
-        setFormErrors({ [fieldKey]: finalMessage });
-
-        // Toast ko clean banayein (JSON nahi dikhega)
-        toast({
-          variant: "destructive",
-          title: "Duplicate Entry",
-          description: finalMessage,
-        });
+      // Check specifically for duplicate Role Code or Name
+      if (rawMessage.includes("code") && (rawMessage.includes("unique") || rawMessage.includes("already exists"))) {
+        setFormErrors({ code: "This code is already in use. Please use a unique one." });
+      } else if (rawMessage.includes("name") && (rawMessage.includes("unique") || rawMessage.includes("already exists"))) {
+        setFormErrors({ name: "This name already exists." });
       } else {
         toast({
           variant: "destructive",
           title: "Error",
-          description: finalMessage,
+          description: "Database error. Please check if all fields are valid.",
         });
       }
     }
-  }
+  };
+
   return (
-    <div>
-      <div className="mb-4">
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
-          <Plus className="w-4 h-4 mr-1" /> Add {label}
+          <Plus className="w-4 h-4 mr-2" /> Add {label}
         </Button>
       </div>
 
-      <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={[nameKey]} emptyMessage={`No ${label.toLowerCase()}s`} />
+      <DataTable
+        columns={columns}
+        data={data || []}
+        isLoading={isLoading}
+        searchable
+        searchKeys={[nameKey]}
+        emptyMessage={`No ${label.toLowerCase()}s found`}
+      />
 
       <CrudDialog
         open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditing(null); setFormErrors({}); }}
+        onClose={handleClose}
         title={editing ? `Edit ${label}` : `Add ${label}`}
         fields={dynamicFields as any}
         initialData={editing || undefined}
@@ -169,9 +158,10 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
 export default function MasterDataPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, vendors,  and roles" />
-      <Tabs defaultValue="departments" className="space-y-4">
-        <TabsList className="flex-wrap">
+      <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, and vendors" />
+
+      <Tabs defaultValue="departments" className="mt-6 space-y-4">
+        <TabsList className="flex-wrap h-auto p-1">
           <TabsTrigger value="departments">Departments</TabsTrigger>
           <TabsTrigger value="designations">Designations</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
@@ -243,9 +233,9 @@ export default function MasterDataPage() {
               {
                 key: "deviceIds",
                 label: "Assign Devices",
-                type: "select",
+                type: "multi-select",
                 options: [],
-                placeholder: "Select Device or All"
+                placeholder: "Select Devices"
               }
             ]}
           />

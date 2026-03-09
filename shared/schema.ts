@@ -626,6 +626,13 @@ export const alertsRelations = relations(alerts, ({ one }) => ({
   site: one(sites, { fields: [alerts.locationId], references: [sites.id] }),
 }));
 
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  code: text("code").notNull().unique(),
+  deviceIds: jsonb("device_ids").$type<number[]>().default([]), // Devices store karne ke liye
+  isActive: boolean("is_active").default(true),
+});
 // ==================== INSERT SCHEMAS ====================
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
@@ -658,6 +665,7 @@ export const insertAccessEventSchema = createInsertSchema(accessEvents).omit({ i
 export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true, createdAt: true });
 export const insertExceptionSchema = createInsertSchema(exceptions).omit({ id: true, createdAt: true });
 export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({ id: true, createdAt: true });
+export const insertRoleSchema = createInsertSchema(roles).omit({id: true});
 
 // ==================== TYPES ====================
 export type UserProfile = typeof userProfiles.$inferSelect;
@@ -722,3 +730,5 @@ export type Exception = typeof exceptions.$inferSelect;
 export type InsertException = z.infer<typeof insertExceptionSchema>;
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;

@@ -33,6 +33,9 @@ import {
   type Alert, type InsertAlert,
   type Exception, type InsertException,
   type SystemSetting, type InsertSystemSetting,
+  InsertRole,
+  Role,
+  roles,
 } from "@shared/schema";
 import { db, dbMsSql } from "./db";
 import { eq, desc, and, count, sql, ilike } from "drizzle-orm";
@@ -182,6 +185,12 @@ export interface IStorage {
   getAccessLogReport(filters: { dateFrom?: string; dateTo?: string; eventType?: string; personId?: number; locationId?: number; doorId?: number }): Promise<any[]>;
   getVisitorReport(filters: { dateFrom?: string; dateTo?: string; status?: string }): Promise<any[]>;
   getEmployeeSummaryReport(filters: { departmentId?: number; status?: string; personType?: string }): Promise<any[]>;
+
+  getRoles(): Promise<Role[]>;
+  getRole(id: number): Promise<Role | undefined>;
+  createRole(data: InsertRole): Promise<Role>;
+  updateRole(id: number, data: Partial<InsertRole>): Promise<Role>;
+  deleteRole(id: number): Promise<void>;
 
   getDashboardStats(): Promise<object>;
 }
@@ -418,16 +427,20 @@ export class DatabaseStorage implements IStorage {
   //   );
   // }
   async getDevices(): Promise<any[]> {
-    // Direct MS SQL se devices table uthayenge
     const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
-
     if (!msDataRaw) return [];
 
-    // Hum direct wahi names use karenge jo SQL table mein hain
     return msDataRaw.map((d: any) => ({
-      DeviceId: String(d.DeviceId || d.DeviceID), // Original Machine ID (3, 4, 5, 6)
-      DeviceName: d.DeviceName,
-      SerialNumber: d.SerialNumber || d.serialno
+      // Frontend 'id' aur 'name' dhoond raha hai
+      id: d.DeviceId || d.DeviceID,
+      msId: d.DeviceId || d.DeviceID,
+      name: d.DeviceName || "Unnamed Device", // 'DeviceName' ko 'name' mein convert karein
+      activationCode: d.ActivationCode || "",
+      deviceType: String(d.DeviceType || " ").toLowerCase(),
+      serialNumber: d.SerialNumber || d.serialno,
+      status: d.Status || "offline",
+      lastHeartbeat: d.LastHeartbeat || d.LastPing || null,
+      locationId: d.LocationId || null
     }));
   }
   async createDevice(data: InsertDevice): Promise<Device> {
@@ -930,71 +943,71 @@ export class DatabaseStorage implements IStorage {
   //   return await db.select().from(attendance);
   // }
   async getAttendance(date?: string, locationId?: number, personId?: number): Promise<any[]> {
-  // 1. MS SQL se logs aur employees fetch karein
-  const [msLogs, msEmployees] = await Promise.all([
-    dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute(),
-    dbMsSql.select().from({ dbName: 'Employees' }).execute()
-  ]);
+    // 1. MS SQL se logs aur employees fetch karein
+    const [msLogs, msEmployees] = await Promise.all([
+      dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute(),
+      dbMsSql.select().from({ dbName: 'Employees' }).execute()
+    ]);
 
-  // Frontend date ko handle karein (Expected: "2026-03-02")
-  const targetDate = date || new Date().toISOString().split('T')[0];
-  console.log("Backend filtering for exact date:", targetDate);
+    // Frontend date ko handle karein (Expected: "2026-03-02")
+    const targetDate = date || new Date().toISOString().split('T')[0];
+    console.log("Backend filtering for exact date:", targetDate);
 
-  const dailyLogsMap = new Map<string, Date[]>();
+    const dailyLogsMap = new Map<string, Date[]>();
 
-  (msLogs || []).forEach(log => {
-    const rawVal = log.LogDate || log.logdate;
-    if (!rawVal) return;
+    (msLogs || []).forEach(log => {
+      const rawVal = log.LogDate || log.logdate;
+      if (!rawVal) return;
 
-    const d = new Date(rawVal);
-    
-    // Date comparison fix: Local date string match karna sabse safe hai
-    // Format: YYYY-MM-DD
-    const logYear = d.getFullYear();
-    const logMonth = String(d.getMonth() + 1).padStart(2, '0');
-    const logDay = String(d.getDate()).padStart(2, '0');
-    const logDateStr = `${logYear}-${logMonth}-${logDay}`;
+      const d = new Date(rawVal);
 
-    if (logDateStr === targetDate) {
-      const empId = String(log.EmployeeId || log.employeeid).trim();
-      if (!dailyLogsMap.has(empId)) dailyLogsMap.set(empId, []);
-      dailyLogsMap.get(empId)!.push(d);
-    }
-  });
+      // Date comparison fix: Local date string match karna sabse safe hai
+      // Format: YYYY-MM-DD
+      const logYear = d.getFullYear();
+      const logMonth = String(d.getMonth() + 1).padStart(2, '0');
+      const logDay = String(d.getDate()).padStart(2, '0');
+      const logDateStr = `${logYear}-${logMonth}-${logDay}`;
 
-  const attendanceList = msEmployees.map(emp => {
-    const empId = String(emp.EmployeeId).trim();
-    const logs = dailyLogsMap.get(empId) || [];
-    const sorted = logs.sort((a, b) => a.getTime() - b.getTime());
+      if (logDateStr === targetDate) {
+        const empId = String(log.EmployeeId || log.employeeid).trim();
+        if (!dailyLogsMap.has(empId)) dailyLogsMap.set(empId, []);
+        dailyLogsMap.get(empId)!.push(d);
+      }
+    });
 
-    const clockIn = sorted.length > 0 ? sorted[0].toISOString() : null;
-    const clockOut = sorted.length > 1 ? sorted[sorted.length - 1].toISOString() : null;
+    const attendanceList = msEmployees.map(emp => {
+      const empId = String(emp.EmployeeId).trim();
+      const logs = dailyLogsMap.get(empId) || [];
+      const sorted = logs.sort((a, b) => a.getTime() - b.getTime());
 
-    // Status logic: Agar logs mile hain toh 'present', warna 'absent'
-    let status = "absent";
-    if (logs.length > 0) status = "present";
+      const clockIn = sorted.length > 0 ? sorted[0].toISOString() : null;
+      const clockOut = sorted.length > 1 ? sorted[sorted.length - 1].toISOString() : null;
 
-    return {
-      id: emp.EmployeeId,
-      personId: emp.EmployeeId,
-      locationId: emp.locationId || emp.locationId,
-      employeeCode: emp.EmployeeCode,
-      firstName: emp.EmployeeName || `${emp.FirstName || ''} ${emp.LastName || ''}`.trim() || "Unknown",
-      date: targetDate,
-      clockIn,
-      clockOut,
-      status: status,
-      workingHours: logs.length > 1 ? ((sorted[sorted.length - 1].getTime() - sorted[0].getTime()) / 3600000).toFixed(2) : "0.00"
-    };
-  });
+      // Status logic: Agar logs mile hain toh 'present', warna 'absent'
+      let status = "absent";
+      if (logs.length > 0) status = "present";
 
-  // Filters apply karein (Site aur Person)
-  return attendanceList.filter(row => {
-    const matchesPerson = !personId || Number(row.personId) === Number(personId);
-    const matchesSite = !locationId || Number(row.locationId) === Number(locationId);
-    return matchesPerson && matchesSite;
-  });
-}
+      return {
+        id: emp.EmployeeId,
+        personId: emp.EmployeeId,
+        locationId: emp.locationId || emp.locationId,
+        employeeCode: emp.EmployeeCode,
+        firstName: emp.EmployeeName || `${emp.FirstName || ''} ${emp.LastName || ''}`.trim() || "Unknown",
+        date: targetDate,
+        clockIn,
+        clockOut,
+        status: status,
+        workingHours: logs.length > 1 ? ((sorted[sorted.length - 1].getTime() - sorted[0].getTime()) / 3600000).toFixed(2) : "0.00"
+      };
+    });
+
+    // Filters apply karein (Site aur Person)
+    return attendanceList.filter(row => {
+      const matchesPerson = !personId || Number(row.personId) === Number(personId);
+      const matchesSite = !locationId || Number(row.locationId) === Number(locationId);
+      return matchesPerson && matchesSite;
+    });
+  }
   async createAttendance(data: InsertAttendance): Promise<Attendance> {
     const [created] = await db.insert(attendance).values(data).returning();
     return created;
@@ -1059,236 +1072,236 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return setting;
   }
-async getAttendanceReport(filters: {
-  dateFrom?: string;
-  dateTo?: string;
-  status?: string;
-  deviceId?: string | number;
-  personId?: string | number;
-}): Promise<any[]> {
-  // 1. Data Fetching
-  const rawLogs = await dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute();
-  const msSqlEmployees = await dbMsSql.select().from({ dbName: 'Employees' }).execute();
-  const msSqlDevices = await dbMsSql.select().from({ dbName: 'devices' }).execute();
+  async getAttendanceReport(filters: {
+    dateFrom?: string;
+    dateTo?: string;
+    status?: string;
+    deviceId?: string | number;
+    personId?: string | number;
+  }): Promise<any[]> {
+    // 1. Data Fetching
+    const rawLogs = await dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute();
+    const msSqlEmployees = await dbMsSql.select().from({ dbName: 'Employees' }).execute();
+    const msSqlDevices = await dbMsSql.select().from({ dbName: 'devices' }).execute();
 
-  // 2. Logs Grouping (EmpCode_Date)
-  const attendanceMap = new Map<string, { time: Date, devId: string }[]>();
-  rawLogs.forEach((log: any) => {
-    const empCode = String(log.EmployeeCode || log.employeecode || "").trim();
-    const timestamp = new Date(log.LogDate || log.logdate);
-    if (isNaN(timestamp.getTime())) return;
-    
-    const dateStr = timestamp.toISOString().split('T')[0];
-    const key = `${empCode}_${dateStr}`;
+    // 2. Logs Grouping (EmpCode_Date)
+    const attendanceMap = new Map<string, { time: Date, devId: string }[]>();
+    rawLogs.forEach((log: any) => {
+      const empCode = String(log.EmployeeCode || log.employeecode || "").trim();
+      const timestamp = new Date(log.LogDate || log.logdate);
+      if (isNaN(timestamp.getTime())) return;
 
-    if (!attendanceMap.has(key)) attendanceMap.set(key, []);
-    attendanceMap.get(key)!.push({ 
-      time: timestamp, 
-      devId: String(log.deviceid || log.DeviceId || "").trim() 
-    });
-  });
-
-  // 3. Date Range Generation
-  const reportDates: string[] = [];
-  let startDate = filters.dateFrom ? new Date(filters.dateFrom) : new Date();
-  const endDate = filters.dateTo ? new Date(filters.dateTo) : new Date();
-  let tempDate = new Date(startDate);
-  while (tempDate <= endDate) {
-    reportDates.push(tempDate.toISOString().split('T')[0]);
-    tempDate.setDate(tempDate.getDate() + 1);
-  }
-
-  const finalReport: any[] = [];
-
-  // 4. Processing logic for all conditions
-  msSqlEmployees.forEach((emp: any) => {
-    const empCode = String(emp.EmployeeCode).trim();
-    
-    // Person Filter
-    if (filters.personId && filters.personId !== "all" && empCode !== String(filters.personId)) return;
-
-    reportDates.forEach((dateStr) => {
+      const dateStr = timestamp.toISOString().split('T')[0];
       const key = `${empCode}_${dateStr}`;
-      const logs = attendanceMap.get(key) || [];
-      const dayOfWeek = new Date(dateStr).getDay(); // 0 = Sunday
 
-      let rowData: any = {
-        id: `${empCode}-${dateStr}`,
-        employeeCode: empCode,
-        firstName: emp.EmployeeName || "Unknown",
-        date: dateStr,
-        clockIn: null,
-        clockOut: null,
-        workingHours: "0.00",
-        lateByMins: 0,
-        earlyByMins: 0,
-        status: "",
-        deviceId: "N/A",
-        deviceName: "—"
-      };
+      if (!attendanceMap.has(key)) attendanceMap.set(key, []);
+      attendanceMap.get(key)!.push({
+        time: timestamp,
+        devId: String(log.deviceid || log.DeviceId || "").trim()
+      });
+    });
 
-      // --- CONDITION 1: NO PUNCH (ABSENT OR WEEKLY OFF) ---
-      if (logs.length === 0) {
-        rowData.status = (dayOfWeek === 0) ? "weekly_off" : ATTENDANCE_STATUS.ABSENT;
-      } 
-      else {
-        const sortedLogs = logs.sort((a, b) => a.time.getTime() - b.time.getTime());
-        const firstIn = sortedLogs[0];
-        const lastOut = sortedLogs.length > 1 ? sortedLogs[sortedLogs.length - 1] : null;
-        const isValidOut = lastOut && (lastOut.time.getTime() - firstIn.time.getTime()) > 60000;
+    // 3. Date Range Generation
+    const reportDates: string[] = [];
+    let startDate = filters.dateFrom ? new Date(filters.dateFrom) : new Date();
+    const endDate = filters.dateTo ? new Date(filters.dateTo) : new Date();
+    let tempDate = new Date(startDate);
+    while (tempDate <= endDate) {
+      reportDates.push(tempDate.toISOString().split('T')[0]);
+      tempDate.setDate(tempDate.getDate() + 1);
+    }
 
-        rowData.clockIn = firstIn.time.toISOString();
-        rowData.deviceId = firstIn.devId;
-        const deviceDetail = msSqlDevices.find(d => String(d.DeviceId || d.DeviceID) === firstIn.devId);
-        rowData.deviceName = deviceDetail?.DeviceName || `Device ${firstIn.devId}`;
+    const finalReport: any[] = [];
 
-        // --- CONDITION 2: SINGLE PUNCH ---
-        if (!isValidOut) {
-          rowData.status = ATTENDANCE_STATUS.SINGLE_PUNCH;
-        } 
+    // 4. Processing logic for all conditions
+    msSqlEmployees.forEach((emp: any) => {
+      const empCode = String(emp.EmployeeCode).trim();
+
+      // Person Filter
+      if (filters.personId && filters.personId !== "all" && empCode !== String(filters.personId)) return;
+
+      reportDates.forEach((dateStr) => {
+        const key = `${empCode}_${dateStr}`;
+        const logs = attendanceMap.get(key) || [];
+        const dayOfWeek = new Date(dateStr).getDay(); // 0 = Sunday
+
+        let rowData: any = {
+          id: `${empCode}-${dateStr}`,
+          employeeCode: empCode,
+          firstName: emp.EmployeeName || "Unknown",
+          date: dateStr,
+          clockIn: null,
+          clockOut: null,
+          workingHours: "0.00",
+          lateByMins: 0,
+          earlyByMins: 0,
+          status: "",
+          deviceId: "N/A",
+          deviceName: "—"
+        };
+
+        // --- CONDITION 1: NO PUNCH (ABSENT OR WEEKLY OFF) ---
+        if (logs.length === 0) {
+          rowData.status = (dayOfWeek === 0) ? "weekly_off" : ATTENDANCE_STATUS.ABSENT;
+        }
         else {
-          rowData.clockOut = lastOut!.time.toISOString();
-          const workMs = lastOut!.time.getTime() - firstIn.time.getTime();
-          rowData.workingHours = (workMs / 3600000).toFixed(2);
-          
-          const shiftStart = new Date(`${dateStr}T${SHIFT_START}`);
-          const shiftEnd = new Date(`${dateStr}T${SHIFT_END}`);
-          
-          rowData.lateByMins = firstIn.time > shiftStart ? Math.round((firstIn.time.getTime() - shiftStart.getTime()) / 60000) : 0;
-          rowData.earlyByMins = lastOut!.time < shiftEnd ? Math.round((shiftEnd.getTime() - lastOut!.time.getTime()) / 60000) : 0;
+          const sortedLogs = logs.sort((a, b) => a.time.getTime() - b.time.getTime());
+          const firstIn = sortedLogs[0];
+          const lastOut = sortedLogs.length > 1 ? sortedLogs[sortedLogs.length - 1] : null;
+          const isValidOut = lastOut && (lastOut.time.getTime() - firstIn.time.getTime()) > 60000;
 
-          // --- STATUS PRIORITY HIERARCHY ---
-          if (parseFloat(rowData.workingHours) < (EXPECTED_WORKING_HRS / 2)) {
-            rowData.status = ATTENDANCE_STATUS.HALF_DAY; // Condition 3: Half Day
-          } else if (rowData.lateByMins > 0 && rowData.earlyByMins > 0) {
-            rowData.status = "late_early"; // Condition 4: Late & Early Exit
-          } else if (rowData.lateByMins > 0) {
-            rowData.status = ATTENDANCE_STATUS.LATE; // Condition 5: Late Only
-          } else if (rowData.earlyByMins > 0) {
-            rowData.status = "early_going"; // Condition 6: Early Exit Only
-          } else {
-            rowData.status = ATTENDANCE_STATUS.PRESENT; // Condition 7: Perfect Attendance
+          rowData.clockIn = firstIn.time.toISOString();
+          rowData.deviceId = firstIn.devId;
+          const deviceDetail = msSqlDevices.find(d => String(d.DeviceId || d.DeviceID) === firstIn.devId);
+          rowData.deviceName = deviceDetail?.DeviceName || `Device ${firstIn.devId}`;
+
+          // --- CONDITION 2: SINGLE PUNCH ---
+          if (!isValidOut) {
+            rowData.status = ATTENDANCE_STATUS.SINGLE_PUNCH;
+          }
+          else {
+            rowData.clockOut = lastOut!.time.toISOString();
+            const workMs = lastOut!.time.getTime() - firstIn.time.getTime();
+            rowData.workingHours = (workMs / 3600000).toFixed(2);
+
+            const shiftStart = new Date(`${dateStr}T${SHIFT_START}`);
+            const shiftEnd = new Date(`${dateStr}T${SHIFT_END}`);
+
+            rowData.lateByMins = firstIn.time > shiftStart ? Math.round((firstIn.time.getTime() - shiftStart.getTime()) / 60000) : 0;
+            rowData.earlyByMins = lastOut!.time < shiftEnd ? Math.round((shiftEnd.getTime() - lastOut!.time.getTime()) / 60000) : 0;
+
+            // --- STATUS PRIORITY HIERARCHY ---
+            if (parseFloat(rowData.workingHours) < (EXPECTED_WORKING_HRS / 2)) {
+              rowData.status = ATTENDANCE_STATUS.HALF_DAY; // Condition 3: Half Day
+            } else if (rowData.lateByMins > 0 && rowData.earlyByMins > 0) {
+              rowData.status = "late_early"; // Condition 4: Late & Early Exit
+            } else if (rowData.lateByMins > 0) {
+              rowData.status = ATTENDANCE_STATUS.LATE; // Condition 5: Late Only
+            } else if (rowData.earlyByMins > 0) {
+              rowData.status = "early_going"; // Condition 6: Early Exit Only
+            } else {
+              rowData.status = ATTENDANCE_STATUS.PRESENT; // Condition 7: Perfect Attendance
+            }
           }
         }
-      }
-      finalReport.push(rowData);
+        finalReport.push(rowData);
+      });
     });
-  });
 
-  // 5. Final Filtering
-  return finalReport.filter(row => {
-    // Status Filter
-    const matchesStatus = (!filters.status || filters.status === "all") ? true : row.status === filters.status;
-    
-    // Device Filter (Absent rows ignore device filter unless "all" is selected)
-    const matchesDevice = (!filters.deviceId || filters.deviceId === "all") 
-      ? true 
-      : (row.deviceId === String(filters.deviceId));
+    // 5. Final Filtering
+    return finalReport.filter(row => {
+      // Status Filter
+      const matchesStatus = (!filters.status || filters.status === "all") ? true : row.status === filters.status;
 
-    return matchesStatus && matchesDevice;
-  }).sort((a, b) => b.date.localeCompare(a.date));
-}
+      // Device Filter (Absent rows ignore device filter unless "all" is selected)
+      const matchesDevice = (!filters.deviceId || filters.deviceId === "all")
+        ? true
+        : (row.deviceId === String(filters.deviceId));
+
+      return matchesStatus && matchesDevice;
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }
   // working code
-// async getAttendanceReport(filters: {
-//   dateFrom?: string;
-//   dateTo?: string;
-//   status?: string; // e.g., "present", "late", "single_punch"
-//   deviceId?: string | number;
-//   personId?: string | number;
-// }): Promise<any[]> {
-//   const rawLogs = await dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute();
-//   const msSqlEmployees = await dbMsSql.select().from({ dbName: 'Employees' }).execute();
-//   const msSqlDevices = await dbMsSql.select().from({ dbName: 'devices' }).execute();
+  // async getAttendanceReport(filters: {
+  //   dateFrom?: string;
+  //   dateTo?: string;
+  //   status?: string; // e.g., "present", "late", "single_punch"
+  //   deviceId?: string | number;
+  //   personId?: string | number;
+  // }): Promise<any[]> {
+  //   const rawLogs = await dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute();
+  //   const msSqlEmployees = await dbMsSql.select().from({ dbName: 'Employees' }).execute();
+  //   const msSqlDevices = await dbMsSql.select().from({ dbName: 'devices' }).execute();
 
-//   const reportMap = new Map<string, { empCode: string; date: string; logs: { time: Date, devId: string }[] }>();
-//   console.log("--- BACKEND DEBUG START ---");
-//   console.log("Incoming Filters from Frontend:", filters);
-//   // 1. Grouping Data
-//   rawLogs.forEach((log: any) => {
-//     const logDevId = String(log.deviceid || log.DeviceId || "").trim();
-//     const logEmpCode = String(log.EmployeeCode || log.employeecode || "").trim();
-//     const timestamp = new Date(log.LogDate || log.logdate);
-//     if (isNaN(timestamp.getTime())) return;
+  //   const reportMap = new Map<string, { empCode: string; date: string; logs: { time: Date, devId: string }[] }>();
+  //   console.log("--- BACKEND DEBUG START ---");
+  //   console.log("Incoming Filters from Frontend:", filters);
+  //   // 1. Grouping Data
+  //   rawLogs.forEach((log: any) => {
+  //     const logDevId = String(log.deviceid || log.DeviceId || "").trim();
+  //     const logEmpCode = String(log.EmployeeCode || log.employeecode || "").trim();
+  //     const timestamp = new Date(log.LogDate || log.logdate);
+  //     if (isNaN(timestamp.getTime())) return;
 
-//     const dateStr = timestamp.toISOString().split('T')[0];
-//     const key = `${logEmpCode}_${dateStr}`;
-    
-//     if (!reportMap.has(key)) {
-//       reportMap.set(key, { empCode: logEmpCode, date: dateStr, logs: [] });
-//     }
-//     reportMap.get(key)!.logs.push({ time: timestamp, devId: logDevId });
-//   });
+  //     const dateStr = timestamp.toISOString().split('T')[0];
+  //     const key = `${logEmpCode}_${dateStr}`;
 
-//   // 2. Processing & Status Calculation
-//   const allRows = Array.from(reportMap.values()).map(item => {
-//     const emp = msSqlEmployees.find(e => String(e.EmployeeCode) === String(item.empCode));
-//     const sortedLogs = item.logs.sort((a, b) => a.time.getTime() - b.time.getTime());
-    
-//     const firstIn = sortedLogs[0];
-//     const lastOut = sortedLogs.length > 1 ? sortedLogs[sortedLogs.length - 1] : null;
-//     const isValidOut = lastOut && (lastOut.time.getTime() - firstIn.time.getTime()) > 60000;
+  //     if (!reportMap.has(key)) {
+  //       reportMap.set(key, { empCode: logEmpCode, date: dateStr, logs: [] });
+  //     }
+  //     reportMap.get(key)!.logs.push({ time: timestamp, devId: logDevId });
+  //   });
 
-//     // Calculations
-//     const workMs = isValidOut ? (lastOut!.time.getTime() - firstIn.time.getTime()) : 0;
-//     const workingHours = (workMs / 3600000).toFixed(2);
-//     const shiftStart = new Date(`${item.date}T${SHIFT_START}`);
-//     const lateByMins = firstIn.time > shiftStart ? Math.round((firstIn.time.getTime() - shiftStart.getTime()) / 60000) : 0;
+  //   // 2. Processing & Status Calculation
+  //   const allRows = Array.from(reportMap.values()).map(item => {
+  //     const emp = msSqlEmployees.find(e => String(e.EmployeeCode) === String(item.empCode));
+  //     const sortedLogs = item.logs.sort((a, b) => a.time.getTime() - b.time.getTime());
 
-//     // --- STATUS MATCHING FRONTEND VALUES ---
-//     let currentStatus = "absent"; 
-//     if (firstIn && !isValidOut) {
-//       currentStatus = "single_punch"; 
-//     } else if (isValidOut) {
-//       if (parseFloat(workingHours) < (EXPECTED_WORKING_HRS / 2)) {
-//         currentStatus = "half_day";
-//       } else if (lateByMins > 0) {
-//         currentStatus = "late";
-//       } else {
-//         currentStatus = "present";
-//       }
-//     }
+  //     const firstIn = sortedLogs[0];
+  //     const lastOut = sortedLogs.length > 1 ? sortedLogs[sortedLogs.length - 1] : null;
+  //     const isValidOut = lastOut && (lastOut.time.getTime() - firstIn.time.getTime()) > 60000;
 
-//     const deviceDetail = msSqlDevices.find(d => String(d.DeviceId || d.DeviceID) === String(firstIn.devId));
+  //     // Calculations
+  //     const workMs = isValidOut ? (lastOut!.time.getTime() - firstIn.time.getTime()) : 0;
+  //     const workingHours = (workMs / 3600000).toFixed(2);
+  //     const shiftStart = new Date(`${item.date}T${SHIFT_START}`);
+  //     const lateByMins = firstIn.time > shiftStart ? Math.round((firstIn.time.getTime() - shiftStart.getTime()) / 60000) : 0;
 
-//     return {
-//       id: emp?.EmployeeId || `temp-${item.empCode}-${item.date}`,
-//       employeeCode: item.empCode,
-//       firstName: emp?.EmployeeName || "Unknown",
-//       date: item.date,
-//       clockIn: firstIn.time.toISOString(),
-//       clockOut: isValidOut ? lastOut!.time.toISOString() : null,
-//       workingHours,
-//       lateByMins,
-//       status: currentStatus, // Matches dropdown: present, late, single_punch, half_day
-//       deviceId: String(firstIn.devId), // Device Filter ke liye zaroori field
-//       deviceName: deviceDetail?.DeviceName || `Device ${firstIn.devId}`
-//     };
-//   });
+  //     // --- STATUS MATCHING FRONTEND VALUES ---
+  //     let currentStatus = "absent"; 
+  //     if (firstIn && !isValidOut) {
+  //       currentStatus = "single_punch"; 
+  //     } else if (isValidOut) {
+  //       if (parseFloat(workingHours) < (EXPECTED_WORKING_HRS / 2)) {
+  //         currentStatus = "half_day";
+  //       } else if (lateByMins > 0) {
+  //         currentStatus = "late";
+  //       } else {
+  //         currentStatus = "present";
+  //       }
+  //     }
 
-//   // 3. APPLY FILTERS (The Core Fix)
-//   return allRows.filter(row => {
-//     // A. Date Filters
-//     const matchesDate = (!filters.dateFrom || row.date >= filters.dateFrom) && 
-//                        (!filters.dateTo || row.date <= filters.dateTo);
+  //     const deviceDetail = msSqlDevices.find(d => String(d.DeviceId || d.DeviceID) === String(firstIn.devId));
 
-//     // B. Device Filter
-//     const matchesDevice = (!filters.deviceId || filters.deviceId === "all") 
-//       ? true 
-//       : row.deviceId === String(filters.deviceId);
+  //     return {
+  //       id: emp?.EmployeeId || `temp-${item.empCode}-${item.date}`,
+  //       employeeCode: item.empCode,
+  //       firstName: emp?.EmployeeName || "Unknown",
+  //       date: item.date,
+  //       clockIn: firstIn.time.toISOString(),
+  //       clockOut: isValidOut ? lastOut!.time.toISOString() : null,
+  //       workingHours,
+  //       lateByMins,
+  //       status: currentStatus, // Matches dropdown: present, late, single_punch, half_day
+  //       deviceId: String(firstIn.devId), // Device Filter ke liye zaroori field
+  //       deviceName: deviceDetail?.DeviceName || `Device ${firstIn.devId}`
+  //     };
+  //   });
 
-//     // C. Status Filter (MATCHING FRONTEND DROPDOWN)
-//     const matchesStatus = (!filters.status || filters.status === "all") 
-//       ? true 
-//       : row.status === filters.status;
+  //   // 3. APPLY FILTERS (The Core Fix)
+  //   return allRows.filter(row => {
+  //     // A. Date Filters
+  //     const matchesDate = (!filters.dateFrom || row.date >= filters.dateFrom) && 
+  //                        (!filters.dateTo || row.date <= filters.dateTo);
 
-//     // D. Person Filter
-//     const matchesPerson = (!filters.personId || filters.personId === "all")
-//       ? true
-//       : row.employeeCode === String(filters.personId);
+  //     // B. Device Filter
+  //     const matchesDevice = (!filters.deviceId || filters.deviceId === "all") 
+  //       ? true 
+  //       : row.deviceId === String(filters.deviceId);
 
-//     return matchesDate && matchesDevice && matchesStatus && matchesPerson;
-//   }).sort((a, b) => b.date.localeCompare(a.date));
-// }
+  //     // C. Status Filter (MATCHING FRONTEND DROPDOWN)
+  //     const matchesStatus = (!filters.status || filters.status === "all") 
+  //       ? true 
+  //       : row.status === filters.status;
+
+  //     // D. Person Filter
+  //     const matchesPerson = (!filters.personId || filters.personId === "all")
+  //       ? true
+  //       : row.employeeCode === String(filters.personId);
+
+  //     return matchesDate && matchesDevice && matchesStatus && matchesPerson;
+  //   }).sort((a, b) => b.date.localeCompare(a.date));
+  // }
   // --- ACCESS LOGS & REPORTS ---
   // --- Access Log Report (Reduced Format) ---
   async getAccessLogReport(filters: any): Promise<any[]> {
@@ -1464,6 +1477,65 @@ async getAttendanceReport(filters: {
       todayAccessLogs: accessLogsCount.count,
     };
   }
-}
 
+  // async getRoles(): Promise<Role[]> {
+  //   return await db.select().from(roles).orderBy(desc(roles.id));
+  // }
+  async getRoles(): Promise<any[]> {
+    const allRoles = await db.select().from(roles).orderBy(desc(roles.id));
+    const msDevicesRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
+
+    const deviceLookup = new Map<number, string>();
+    if (msDevicesRaw) {
+      msDevicesRaw.forEach((d: any) => {
+        const id = Number(d.DeviceId || d.DeviceID);
+        deviceLookup.set(id, d.DeviceName || "Unnamed");
+      });
+    }
+
+    return allRoles.map((role) => {
+      // Schema ke mutabiq deviceIds ya to array hai ya null
+      const rawIds = role.deviceIds || [];
+
+      // Ensure karein ki humare paas hamesha number array ho
+      const idsArray = Array.isArray(rawIds) ? rawIds : [];
+
+      // Names nikalne ke liye mapping
+      const names = idsArray
+        .map(id => deviceLookup.get(Number(id)))
+        .filter((name): name is string => Boolean(name));
+
+      return {
+        ...role,
+        // Frontend checkboxes string values expect karte hain ("3")
+        deviceIds: idsArray.map(id => String(id)),
+        assignedDeviceNames: names.join(", ")
+      };
+    });
+  }
+  async getRole(id: number): Promise<Role | undefined> {
+    const [role] = await db.select().from(roles).where(eq(roles.id, id));
+    return role;
+  }
+
+  async createRole(data: InsertRole): Promise<Role> {
+    const [created] = await db.insert(roles).values(data).returning();
+    return created;
+  }
+
+  async updateRole(id: number, data: Partial<InsertRole>): Promise<Role> {
+    const [updated] = await db
+      .update(roles)
+      .set(data)
+      .where(eq(roles.id, id))
+      .returning();
+
+    if (!updated) throw new Error("Role not found");
+    return updated;
+  }
+
+  async deleteRole(id: number): Promise<void> {
+    await db.delete(roles).where(eq(roles.id, id));
+  }
+}
 export const storage = new DatabaseStorage();

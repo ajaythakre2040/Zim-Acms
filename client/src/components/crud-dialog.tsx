@@ -10,9 +10,9 @@ import { useState, useEffect } from "react";
 export interface FieldConfig {
   key: string;
   label: string;
-  type?: "text" | "number" | "email" | "select" | "switch" | "textarea" | "date" | "time";
-  options?: { label: string; value: string }[];
+  type?: "text" | "number" | "email" | "password" | "textarea" | "select" | "multi-select" | "switch" | "date";
   required?: boolean;
+  options?: { value: string; label: string }[];
   placeholder?: string;
   defaultValue?: any;
   readOnly?: boolean;
@@ -26,16 +26,34 @@ interface CrudDialogProps {
   initialData?: Record<string, any>;
   onSubmit: (data: Record<string, any>) => void;
   isPending?: boolean;
+  errors?: Record<string, string>; // NEW: Backend validation errors ke liye
 }
 
-export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit, isPending }: CrudDialogProps) {
+export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit, isPending, errors }: CrudDialogProps) {
   const [form, setForm] = useState<Record<string, any>>({});
 
   useEffect(() => {
     if (open) {
       const defaults: Record<string, any> = {};
       fields.forEach((f) => {
-        defaults[f.key] = initialData?.[f.key] ?? f.defaultValue ?? (f.type === "switch" ? false : f.type === "number" ? "" : "");
+        let value = initialData?.[f.key] ?? f.defaultValue;
+
+        if (f.type === "multi-select") {
+          if (typeof value === "string") {
+            value = value.split(",").map(v => v.trim()).filter(Boolean);
+          } else if (typeof value === "number") {
+            value = [String(value)];
+          } else if (!Array.isArray(value)) {
+            value = [];
+          } else {
+            value = value.map(v => String(v));
+          }
+        } else if (f.type === "switch") {
+          value = value ?? false;
+        } else {
+          value = value ?? "";
+        }
+        defaults[f.key] = value;
       });
       setForm(defaults);
     }
@@ -66,13 +84,69 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
         <form onSubmit={handleSubmit} className="space-y-4">
           {fields.map((f) => (
             <div key={f.key} className="space-y-1.5">
-              <Label htmlFor={f.key}>{f.label}{f.required && " *"}</Label>
-              {f.type === "select" ? (
+              <Label htmlFor={f.key} className={errors?.[f.key] ? "text-destructive" : ""}>
+                {f.label}{f.required && " *"}
+              </Label>
+
+              {f.type === "multi-select" ? (
+                <div className={`space-y-2 p-1 ${errors?.[f.key] ? "border-red-500 rounded-md" : ""}`}>
+                  <div className="flex gap-2 mb-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[10px]"
+                      onClick={() => {
+                        const allValues = f.options?.map(o => o.value) || [];
+                        setForm(p => ({ ...p, [f.key]: allValues }));
+                      }}
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-[10px]"
+                      onClick={() => setForm(p => ({ ...p, [f.key]: [] }))}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 border rounded-md p-3 max-h-48 overflow-y-auto bg-background">
+                    {f.options?.map((opt) => {
+                      const currentValues = Array.isArray(form[f.key]) ? form[f.key] : [];
+                      const isChecked = currentValues.includes(opt.value);
+
+                      return (
+                        <label key={opt.value} className="flex items-center gap-3 p-1 hover:bg-accent rounded-sm cursor-pointer transition-colors">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-primary text-primary"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              let nextValues;
+                              if (e.target.checked) {
+                                nextValues = [...currentValues, opt.value];
+                              } else {
+                                nextValues = currentValues.filter((v: string) => v !== opt.value);
+                              }
+                              setForm((p) => ({ ...p, [f.key]: nextValues }));
+                            }}
+                          />
+                          <span className="text-sm font-medium">{opt.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : f.type === "select" ? (
                 <Select
                   value={String(form[f.key] || "")}
                   onValueChange={(v) => setForm((p) => ({ ...p, [f.key]: v }))}
                 >
-                  <SelectTrigger data-testid={`select-${f.key}`}>
+                  <SelectTrigger className={errors?.[f.key] ? "border-destructive" : ""}>
                     <SelectValue placeholder={f.placeholder || `Select ${f.label}`} />
                   </SelectTrigger>
                   <SelectContent>
@@ -87,35 +161,42 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                     id={f.key}
                     checked={!!form[f.key]}
                     onCheckedChange={(v) => setForm((p) => ({ ...p, [f.key]: v }))}
-                    data-testid={`switch-${f.key}`}
                   />
                   <span className="text-sm text-muted-foreground">{form[f.key] ? "Yes" : "No"}</span>
                 </div>
               ) : f.type === "textarea" ? (
                 <Textarea
                   id={f.key}
+                  className={errors?.[f.key] ? "border-destructive focus-visible:ring-destructive" : ""}
                   value={form[f.key] || ""}
                   onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
                   placeholder={f.placeholder}
-                  data-testid={`textarea-${f.key}`}
                 />
               ) : (
                 <Input
                   id={f.key}
                   type={f.type || "text"}
+                  className={errors?.[f.key] ? "border-destructive focus-visible:ring-destructive" : ""}
                   value={form[f.key] ?? ""}
                   onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
                   required={f.required}
                   placeholder={f.placeholder}
                   readOnly={f.readOnly}
-                  data-testid={`input-${f.key}`}
                 />
+              )}
+
+              {/* INLINE ERROR MESSAGE: Yeh raha wo logic jo input ke niche text dikhayega */}
+              {errors?.[f.key] && (
+                <p className="text-[12px] font-medium text-destructive mt-1 animate-in fade-in slide-in-from-top-1">
+                  {errors[f.key]}
+                </p>
               )}
             </div>
           ))}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} data-testid="button-cancel">Cancel</Button>
-            <Button type="submit" disabled={isPending} data-testid="button-submit">
+
+          <DialogFooter className="sticky bottom-0 bg-background pt-2 border-t mt-4">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={isPending}>
               {isPending ? "Saving..." : "Save"}
             </Button>
           </DialogFooter>

@@ -12,7 +12,8 @@ import {
   insertAccessLevelSchema, insertAccessRuleSchema, insertPersonAccessSchema,
   insertVisitorSchema, insertVisitSchema, insertAttendanceSchema,
   insertAccessLogSchema, insertAlertSchema, insertExceptionSchema,
-  insertSystemSettingSchema, insertUserProfileSchema
+  insertSystemSettingSchema, insertUserProfileSchema,
+  insertRoleSchema
 } from "@shared/schema";
 
 function requireAuth(req: any, res: any, next: any) {
@@ -31,6 +32,40 @@ function crudRoutes<T>(
   remove?: (id: number) => Promise<void>,
   getOne?: (id: number) => Promise<any>
 ) {
+  const handleDbError = (e: any, res: any) => {
+    // Terminal mein check karein asli error kya aa raha hai
+    console.error("FULL DB ERROR:", e);
+
+    const errorMessage = e.message || "";
+
+    // Is logic ko update kiya hai taaki raw query failures ko bhi pakad sake
+    const isDuplicate =
+      e.number === 2627 ||
+      e.number === 2601 ||
+      e.code === '23505' || // Postgres code
+      errorMessage.includes("UNIQUE KEY") ||
+      errorMessage.includes("duplicate") ||
+      errorMessage.includes("already exists") ||
+      errorMessage.includes("Failed query"); // Aapke inspect mein ye dikha tha
+
+    if (isDuplicate) {
+      // Check karein ki "code" duplicate hai ya "name"
+      let field = errorMessage.toLowerCase().includes("code") ? "Role Code" : "Role Name";
+
+      return res.status(400).json({
+        isDuplicate: true,
+        // Professional Message examples:
+        message: `${field} is already in use. Please provide a unique ${field.toLowerCase()}.`
+      });
+    }
+
+    // Agar logic yahan pahunchta hai, toh iska matlab isDuplicate match nahi hua
+    res.status(500).json({
+      message: "Server error occurred.",
+      devDetails: errorMessage // Debugging ke liye
+    });
+  };
+
   app.get(basePath, async (req, res) => {
     try {
       const result = await getAll(req.query);
@@ -47,7 +82,6 @@ function crudRoutes<T>(
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
   }
-
   app.post(basePath, requireAuth, async (req, res) => {
     try {
       const input = schema.parse(req.body);
@@ -55,10 +89,19 @@ function crudRoutes<T>(
       res.status(201).json(item);
     } catch (e: any) {
       if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-      res.status(500).json({ message: e.message });
+      handleDbError(e, res); // <--- Ye line check karein
     }
   });
-
+  // app.post(basePath, requireAuth, async (req, res) => {
+  //   try {
+  //     const input = schema.parse(req.body);
+  //     const item = await create(input);
+  //     res.status(201).json(item);
+  //   } catch (e: any) {
+  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
   if (update) {
     app.put(`${basePath}/:id`, requireAuth, async (req, res) => {
       try {
@@ -67,10 +110,22 @@ function crudRoutes<T>(
         res.json(item);
       } catch (e: any) {
         if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-        res.status(500).json({ message: e.message });
+        handleDbError(e, res); // Call our professional error handler
       }
     });
   }
+  // if (update) {
+  //   app.put(`${basePath}/:id`, requireAuth, async (req, res) => {
+  //     try {
+  //       const input = schema.partial().parse(req.body);
+  //       const item = await update(parseInt(req.params.id), input);
+  //       res.json(item);
+  //     } catch (e: any) {
+  //       if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //       res.status(500).json({ message: e.message });
+  //     }
+  //   });
+  // }
 
   if (remove) {
     app.delete(`${basePath}/:id`, requireAuth, async (req, res) => {
@@ -735,6 +790,15 @@ app.get("/api/reports/attendance", requireAuth, async (req, res) => {
       res.status(500).json({ message: e.message });
     }
   });
-
+  // Roles CRUD routes
+  crudRoutes(
+    app,
+    "/api/roles",
+    insertRoleSchema,
+    () => storage.getRoles(),
+    (data) => storage.createRole(data),
+    (id, data) => storage.updateRole(id, data),
+    (id) => storage.deleteRole(id)
+  );
   return httpServer;
 }

@@ -30,7 +30,12 @@ export default function DevicesPage() {
 
   const fields: FieldConfig[] = [
     { key: "name", label: "Device Name", required: true },
-    { key: "code", label: "Code" },
+    // { key: "code", label: "Code" },
+    {
+      key: "activationCode", // Database column name se match hona chahiye
+      label: "Activation Code",
+      readOnly: !!editing // Edit page par ise read-only rakhein taaki koi badal na sake
+    } as any,
     { key: "deviceType", label: "Type", type: "select", options: [{ value: "reader", label: "Reader" }, { value: "turnstile", label: "Turnstile" }, { value: "gate", label: "Gate" }, { value: "barrier", label: "Barrier" }, { value: "controller", label: "Controller" }, { value: "biometric", label: "Biometric" }], defaultValue: "reader" },
     { key: "locationId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "zoneId", label: "Zone", type: "select", options: zones.map((z) => ({ value: String(z.id), label: z.name })) },
@@ -74,7 +79,7 @@ export default function DevicesPage() {
       </div>
       <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={["name", "code", "ipAddress", "serialNumber"]} emptyMessage="No devices registered" />
       <CrudDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditing(null); }} title={editing ? "Edit Device" : "Add Device"} fields={fields}
-        initialData={editing ? { ...editing, locationId: editing.locationId ? String(editing.locationId) : "", zoneId: editing.zoneId ? String(editing.zoneId) : "" } : undefined}
+        initialData={editing ? { ...editing, locationId: editing.locationId ? String(editing.locationId) : "", activationCode: editing.activationCode || "", zoneId: editing.zoneId ? String(editing.zoneId) : "" } : undefined}
         onSubmit={(data) => { if (data.locationId) data.locationId = Number(data.locationId); if (data.zoneId) data.zoneId = Number(data.zoneId); editing ? update({ id: editing.id, data }) : create(data); setDialogOpen(false); setEditing(null); }} isPending={isCreating || isUpdating} />
     </div>
   );
