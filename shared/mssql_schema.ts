@@ -55,6 +55,7 @@ export const DeviceAdapter = {
         return row;
     }
 };
+
 export const PersonAdapter = {
     toPostgres: (row: any): Partial<Person> => {
         const remoteId = row.EmployeeId ?? row.employeeid ?? row.Id ?? row.id;
@@ -80,4 +81,32 @@ export const PersonAdapter = {
         Location: pg.address,
         AttendanceLocationId: pg.locationId 
     })
+};
+
+export const SiteAdapter = {
+    toPostgres: (row: any) => {
+        const remoteId = row.Id ?? row.id ?? row.ID;
+
+        return {
+            msId: remoteId ? Number(remoteId) : null,
+            name: (row.Description || row.description || "Unnamed Site").trim(),
+            code: row.Code || row.code || null,
+            // Postgres specific fields
+            address: row.Address || row.address || null,
+            city: row.City || row.city || null,
+            state: row.State || row.state || null,
+            country: row.Country || row.country || "India",
+            timezone: "Asia/Kolkata",
+            isActive: true,
+            createdAt: new Date(),
+        };
+    },
+
+    toMsSql: (pg: any) => {
+        return {
+            Id: pg.msId, // Postgres ka msId wapas MS SQL ki Id ban jayega
+            Code: pg.code,
+            Description: pg.name
+        };
+    }
 };

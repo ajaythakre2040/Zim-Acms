@@ -173,8 +173,16 @@ export default function PeoplePage() {
       key: "departmentId", label: "Department", hideOnMobile: true,
       render: (p: Person) => departments.find((d) => d.id === p.departmentId)?.name || "-",
     },
-    { key: "roleId", label: "Role ID", hideOnMobile: true },
     {
+      key: "roleName",
+      label: "Role",
+      hideOnMobile: true,
+      render: (p: any) => (
+        <span className={p.roleName ? "text-sm text-foreground" : "text-sm text-muted-foreground"}>
+          {p.roleName || "No Role Assigned"}
+        </span>
+      )
+    },    {
       key: "status", label: "Status",
       render: (p: Person) => <Badge variant={statusColors[p.status || "active"] as any}>{p.status}</Badge>,
     },

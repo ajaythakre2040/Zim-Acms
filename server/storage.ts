@@ -454,16 +454,82 @@ export class DatabaseStorage implements IStorage {
       await db.delete(devices).where(eq(devices.msId, msId));
     }
   }
+  // async getPeople(search?: string): Promise<Person[]> {
+  //   const [pgData, msDataRaw] = await Promise.all([
+  //     db.select().from(people),
+  //     dbMsSql.select().from({ dbName: 'Employees' }).execute()
+  //   ]);
+  //   const msIds = new Set();
+  //   for (const msRow of (msDataRaw || [])) {
+  //     const mapped = PersonAdapter.toPostgres(msRow);
+  //     msIds.add(mapped.msId);
+  //     const exists = pgData.find(p => p.msId === mapped.msId);
+  //     if (mapped.msId && !exists) {
+  //       try {
+  //         const [newRec] = await db.insert(people).values({
+  //           msId: mapped.msId,
+  //           employeeName: mapped.employeeName ?? "Unknown",
+  //           employeeCode: mapped.employeeCode,
+  //           locationId: mapped.locationId,
+  //           address: mapped.address,
+  //           overtimeEligible: mapped.overtimeEligible,
+  //           personType: "employee",
+  //           status: "active",
+  //           sourceSystem: "mssql_bio",
+  //           externalId: mapped.externalId,
+  //           updatedAt: new Date(),
+  //           createdAt: new Date(),
+  //         }).returning();
+  //         pgData.push(newRec);
+  //       } catch (e) {
+  //         console.error("People Sync Insert Error:", e);
+  //       }
+  //     }
+  //   }
+  //   for (const pgRow of pgData) {
+  //     if (pgRow.msId && !msIds.has(pgRow.msId)) {
+  //       try {
+  //         await db.delete(people)
+  //           .where(eq(people.msId, pgRow.msId));
+  //       } catch (e) {
+  //         console.error("People Sync Delete Error:", e);
+  //       }
+  //     }
+  //   }
+  //   let results = pgData;
+  //   if (search) {
+  //     const term = search.toLowerCase();
+  //     results = pgData.filter(p =>
+  //       p.employeeName.toLowerCase().includes(term) ||
+  //       (p.employeeCode && p.employeeCode.toLowerCase().includes(term))
+  //     );
+  //   }
+  //   return Array.from(
+  //     new Map(results.map(p => [`${p.msId || p.employeeCode || p.id}`, p])).values()
+  //   );
+  // }
   async getPeople(search?: string): Promise<Person[]> {
-    const [pgData, msDataRaw] = await Promise.all([
-      db.select().from(people),
+    const [pgDataRaw, msDataRaw] = await Promise.all([
+      db.select({
+        person: people,
+        roleName: roles.name,
+      })
+        .from(people)
+        .leftJoin(roles, eq(people.roleId, roles.id)),
       dbMsSql.select().from({ dbName: 'Employees' }).execute()
     ]);
+
     const msIds = new Set();
+    const currentPgData = pgDataRaw.map(row => ({
+      ...row.person,
+      roleName: row.roleName || null
+    }));
+
     for (const msRow of (msDataRaw || [])) {
       const mapped = PersonAdapter.toPostgres(msRow);
       msIds.add(mapped.msId);
-      const exists = pgData.find(p => p.msId === mapped.msId);
+      const exists = currentPgData.find(p => p.msId === mapped.msId);
+
       if (mapped.msId && !exists) {
         try {
           const [newRec] = await db.insert(people).values({
@@ -480,30 +546,33 @@ export class DatabaseStorage implements IStorage {
             updatedAt: new Date(),
             createdAt: new Date(),
           }).returning();
-          pgData.push(newRec);
-        } catch (e) {
-          console.error("People Sync Insert Error:", e);
-        }
+          currentPgData.push({ ...newRec, roleName: null });
+        } catch (e) { }
       }
     }
-    for (const pgRow of pgData) {
+
+    for (const pgRow of currentPgData) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
-          await db.delete(people)
-            .where(eq(people.msId, pgRow.msId));
-        } catch (e) {
-          console.error("People Sync Delete Error:", e);
-        }
+          await db.delete(people).where(eq(people.msId, pgRow.msId));
+        } catch (e) { }
       }
     }
-    let results = pgData;
+
+    let results = currentPgData.map(p => ({
+      ...p,
+      roleId: p.roleName ? p.roleId : null
+    }));
+
     if (search) {
       const term = search.toLowerCase();
-      results = pgData.filter(p =>
+      results = results.filter(p =>
         p.employeeName.toLowerCase().includes(term) ||
-        (p.employeeCode && p.employeeCode.toLowerCase().includes(term))
+        (p.employeeCode && p.employeeCode.toLowerCase().includes(term)) ||
+        (p.roleName && p.roleName.toLowerCase().includes(term))
       );
     }
+
     return Array.from(
       new Map(results.map(p => [`${p.msId || p.employeeCode || p.id}`, p])).values()
     );

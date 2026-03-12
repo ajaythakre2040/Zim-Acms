@@ -88,6 +88,7 @@ export const vendors = pgTable("vendors", {
 // ==================== SITES ====================
 export const sites = pgTable("sites", {
   id: serial("id").primaryKey(),
+  msId: integer("ms_id").unique(),
   name: text("name").notNull(),
   code: text("code").unique(),
   address: text("address"),
