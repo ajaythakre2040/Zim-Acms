@@ -16,6 +16,7 @@ export interface FieldConfig {
   placeholder?: string;
   defaultValue?: any;
   readOnly?: boolean;
+  onChange?: (value: any, currentForm: Record<string, any>, setForm: (data: any) => void) => void;
 }
 
 interface CrudDialogProps {
@@ -26,7 +27,7 @@ interface CrudDialogProps {
   initialData?: Record<string, any>;
   onSubmit: (data: Record<string, any>) => void;
   isPending?: boolean;
-  errors?: Record<string, string>; // NEW: Backend validation errors ke liye
+  errors?: Record<string, string>;
 }
 
 export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit, isPending, errors }: CrudDialogProps) {
@@ -37,7 +38,6 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
       const defaults: Record<string, any> = {};
       fields.forEach((f) => {
         let value = initialData?.[f.key] ?? f.defaultValue;
-
         if (f.type === "multi-select") {
           if (typeof value === "string") {
             value = value.split(",").map(v => v.trim()).filter(Boolean);
@@ -113,12 +113,10 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                       Clear
                     </Button>
                   </div>
-
                   <div className="grid grid-cols-1 gap-2 border rounded-md p-3 max-h-48 overflow-y-auto bg-background">
                     {f.options?.map((opt) => {
                       const currentValues = Array.isArray(form[f.key]) ? form[f.key] : [];
                       const isChecked = currentValues.includes(opt.value);
-
                       return (
                         <label key={opt.value} className="flex items-center gap-3 p-1 hover:bg-accent rounded-sm cursor-pointer transition-colors">
                           <input
@@ -144,7 +142,17 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
               ) : f.type === "select" ? (
                 <Select
                   value={String(form[f.key] || "")}
-                  onValueChange={(v) => setForm((p) => ({ ...p, [f.key]: v }))}
+                    // CrudDialog.tsx ke andar
+                    onValueChange={(v) => {
+                      // 1. Local state update karo (Jo input box mein dikhega)
+                      const nextForm = { ...form, [f.key]: v };
+                      setForm(nextForm);
+
+                      // 2. onChange trigger karo (Jo displayDevices ko update karega)
+                      if (f.onChange) {
+                        f.onChange(v, nextForm, setForm);
+                      }
+                    }}
                 >
                   <SelectTrigger className={errors?.[f.key] ? "border-destructive" : ""}>
                     <SelectValue placeholder={f.placeholder || `Select ${f.label}`} />
@@ -155,6 +163,7 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                     ))}
                   </SelectContent>
                 </Select>
+              
               ) : f.type === "switch" ? (
                 <div className="flex items-center gap-2">
                   <Switch
@@ -184,8 +193,6 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                   readOnly={f.readOnly}
                 />
               )}
-
-              {/* INLINE ERROR MESSAGE: Yeh raha wo logic jo input ke niche text dikhayega */}
               {errors?.[f.key] && (
                 <p className="text-[12px] font-medium text-destructive mt-1 animate-in fade-in slide-in-from-top-1">
                   {errors[f.key]}
@@ -193,7 +200,6 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
               )}
             </div>
           ))}
-
           <DialogFooter className="sticky bottom-0 bg-background pt-2 border-t mt-4">
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
             <Button type="submit" disabled={isPending}>

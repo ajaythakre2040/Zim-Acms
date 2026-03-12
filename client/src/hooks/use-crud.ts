@@ -76,10 +76,13 @@ export function useCrud<T>(endpoint: string, label: string) {
       }
     },
   });
-
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `${endpoint}/${id}`);
+      const res = await apiRequest("DELETE", `${endpoint}/${id}`);
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to delete");
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [endpoint] });
@@ -89,6 +92,18 @@ export function useCrud<T>(endpoint: string, label: string) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     },
   });
+  // const deleteMutation = useMutation({
+  //   mutationFn: async (id: number) => {
+  //     await apiRequest("DELETE", `${endpoint}/${id}`);
+  //   },
+  //   onSuccess: () => {
+  //     queryClient.invalidateQueries({ queryKey: [endpoint] });
+  //     toast({ title: `${label} deleted` });
+  //   },
+  //   onError: (e: Error) => {
+  //     toast({ title: "Error", description: e.message, variant: "destructive" });
+  //   },
+  // });
 
   return {
     data: query.data || [],

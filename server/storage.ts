@@ -3,7 +3,9 @@ import {
   sites, buildings, floors, zones, doors, devices, people, credentials,
   accessCards, shifts, shiftAssignments, holidays, accessLevels, accessRules,
   personAccess, visitors, visits, attendance, accessLogs, alerts, exceptions,
-  systemSettings,
+  systemSettings, InsertRole, Role, roles, EmployeeRole,
+  InsertEmployeeRole,
+  employeeRoles,
   type User, type UpsertUser,
   type UserProfile, type InsertUserProfile,
   type Company, type InsertCompany,
@@ -33,16 +35,15 @@ import {
   type Alert, type InsertAlert,
   type Exception, type InsertException,
   type SystemSetting, type InsertSystemSetting,
-  InsertRole,
-  Role,
-  roles,
+  blockUnblockLogs,
+
 } from "@shared/schema";
 import { db, dbMsSql } from "./db";
-import { eq, desc, and, count, sql, ilike } from "drizzle-orm";
+import { eq, desc,or, and, count, sql, ilike, notInArray } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS } from './constant';
-
+import { esslService } from "./essl-service";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -191,6 +192,12 @@ export interface IStorage {
   createRole(data: InsertRole): Promise<Role>;
   updateRole(id: number, data: Partial<InsertRole>): Promise<Role>;
   deleteRole(id: number): Promise<void>;
+
+  getEmployeeRoles(): Promise<EmployeeRole[]>;
+  getEmployeeRole(id: number): Promise<EmployeeRole | undefined>;
+  createEmployeeRole(data: InsertEmployeeRole): Promise<EmployeeRole>;
+  updateEmployeeRole(id: number, data: Partial<InsertEmployeeRole>): Promise<EmployeeRole>;
+  deleteEmployeeRole(id: number): Promise<void>;
 
   getDashboardStats(): Promise<object>;
 }
@@ -428,63 +435,130 @@ export class DatabaseStorage implements IStorage {
   // }
   async getDevices(): Promise<any[]> {
     const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
+
     if (!msDataRaw) return [];
 
-    return msDataRaw.map((d: any) => ({
-      // Frontend 'id' aur 'name' dhoond raha hai
-      id: d.DeviceId || d.DeviceID,
+    const formattedDevices = msDataRaw.map((d: any) => ({
       msId: d.DeviceId || d.DeviceID,
-      name: d.DeviceName || "Unnamed Device", // 'DeviceName' ko 'name' mein convert karein
+      name: d.DeviceName || "Unnamed Device",
       activationCode: d.ActivationCode || "",
       deviceType: String(d.DeviceType || " ").toLowerCase(),
       serialNumber: d.SerialNumber || d.serialno,
       status: d.Status || "offline",
-      lastHeartbeat: d.LastHeartbeat || d.LastPing || null,
-      locationId: d.LocationId || null
+      lastHeartbeat: d.LastHeartbeat ? new Date(d.LastHeartbeat) : null,
+      locationId: d.LocationId || null,
+      ipAddress: d.IpAddress || ""
     }));
+
+    try {
+      for (const dev of formattedDevices) {
+        await db.insert(devices)
+          .values({
+            msId: dev.msId,
+            name: dev.name,
+            serialNumber: dev.serialNumber,
+            status: dev.status,
+            lastHeartbeat: dev.lastHeartbeat,
+            activationCode: dev.activationCode,
+            deviceType: dev.deviceType,
+            locationId: dev.locationId,
+            ipAddress: dev.ipAddress,
+            isActive: true
+          })
+          .onConflictDoUpdate({
+            target: devices.msId,
+            set: {
+              name: dev.name,
+              status: dev.status,
+              lastHeartbeat: dev.lastHeartbeat,
+              ipAddress: dev.ipAddress,
+              locationId: dev.locationId
+            }
+          });
+      }
+
+      const currentMsIds = formattedDevices.map(d => d.msId);
+      if (currentMsIds.length > 0) {
+        await db.delete(devices)
+          .where(notInArray(devices.msId, currentMsIds));
+      } else {
+        await db.delete(devices);
+      }
+
+    } catch (error) {
+      console.error("Device Sync Error:", error);
+    }
+
+    return formattedDevices;
   }
+ 
   async createDevice(data: InsertDevice): Promise<Device> {
     let mssqlId: number | null = null;
     try {
-      const msRes = await dbMsSql.insert({ dbName: 'Devices' }).values(DeviceAdapter.toMsSql(data));
-      // MS SQL DeviceId capture
-      mssqlId = msRes.recordset?.[0]?.DeviceId || msRes.recordset?.[0]?.Id || null;
+      const msRes = await dbMsSql.insert({ dbName: 'Devices' })
+        .values(DeviceAdapter.toMsSql(data));
+
+      // recordset ka use karein indexing ke liye
+      if (msRes.recordset && msRes.recordset.length > 0) {
+        mssqlId = msRes.recordset[0].DeviceId || msRes.recordset[0].Id;
+      }
     } catch (e) {
       console.error("MS SQL Device Sync Error:", e);
     }
 
-    const [created] = await db.insert(devices).values({ ...data, msId: mssqlId }).returning();
+    const [created] = await db.insert(devices)
+      .values({
+        ...data,
+        msId: mssqlId,
+        isActive: true
+      })
+      .returning();
+
     return created;
   }
 
   async updateDevice(id: number, data: Partial<InsertDevice>): Promise<Device> {
-    const [updated] = await db.update(devices).set(data).where(eq(devices.id, id)).returning();
+    const [record] = await db.select()
+      .from(devices)
+      .where(or(eq(devices.id, id), eq(devices.msId, id)));
 
-    if (!updated) {
-      throw new Error("Device not synced with Postgres. Please refresh.");
+    if (!record) {
+      throw new Error("Device not found in Postgres.");
     }
+
+    const [updated] = await db.update(devices)
+      .set(data)
+      .where(eq(devices.id, record.id))
+      .returning();
 
     if (updated.msId) {
       try {
-        // Device ke liye pk: 'DeviceId' batana zaroori hai
         await dbMsSql.update({ dbName: 'Devices', pk: 'DeviceId' })
           .set(DeviceAdapter.toMsSql(data))
           .where({ value: updated.msId });
-      } catch (e) { console.error("MS SQL Device Update Error", e); }
+      } catch (e) {
+        console.error("MS SQL Device Update Error", e);
+      }
     }
+
     return updated;
   }
+  async deleteDevice(msId: number): Promise < void> {
+      const [record] = await db.select()
+        .from(devices)
+        .where(eq(devices.msId, msId));
 
-  async deleteDevice(id: number): Promise<void> {
-    const [record] = await db.select().from(devices).where(eq(devices.id, id));
-    if (record) {
-      if (record.msId) {
-        await dbMsSql.delete({ dbName: 'Devices', pk: 'DeviceId' }).where({ value: record.msId });
+      if(record) {
+        try {
+          await dbMsSql.delete({ dbName: 'Devices', pk: 'DeviceId' })
+            .where({ value: msId });
+        } catch (e) {
+          console.error("MS SQL Sync Delete Error:", e);
+        }
+
+        await db.delete(devices).where(eq(devices.msId, msId));
       }
-      await db.delete(devices).where(eq(devices.id, id));
     }
-  }
-
   // async getDevices(): Promise<Device[]> {
   //   return await db.select().from(devices);
   // }
@@ -500,18 +574,26 @@ export class DatabaseStorage implements IStorage {
   //   await db.delete(devices).where(eq(devices.id, id));
   // }
   // --- GET ALL PEOPLE WITH AUTO-SYNC ---
-  async getPeople(search?: string): Promise<Person[]> {
-    const [pgData, msDataRaw] = await Promise.all([
-      db.select().from(people),
-      dbMsSql.select().from({ dbName: 'Employees' }).execute()
-    ]);
+  async getPeople(search ?: string): Promise < Person[] > {
 
-    for (const msRow of (msDataRaw || [])) {
+      const [pgData, msDataRaw] = await Promise.all([
+        db.select().from(people),
+        dbMsSql.select().from({ dbName: 'Employees' }).execute()
+      ]);
+
+      const msIds = new Set();
+
+      // INSERT new records
+      for(const msRow of (msDataRaw || [])) {
+
       const mapped = PersonAdapter.toPostgres(msRow);
+      msIds.add(mapped.msId);
+
       const exists = pgData.find(p => p.msId === mapped.msId);
 
       if (mapped.msId && !exists) {
         try {
+
           const [newRec] = await db.insert(people).values({
             msId: mapped.msId,
             employeeName: mapped.employeeName ?? "Unknown",
@@ -526,16 +608,38 @@ export class DatabaseStorage implements IStorage {
             updatedAt: new Date(),
             createdAt: new Date(),
           }).returning();
+
           pgData.push(newRec);
+
         } catch (e) {
-          console.error("People Sync Error:", e);
+          console.error("People Sync Insert Error:", e);
         }
       }
     }
 
+    // DELETE records removed from MSSQL
+    for (const pgRow of pgData) {
+
+      if (pgRow.msId && !msIds.has(pgRow.msId)) {
+
+        try {
+
+          await db.delete(people)
+            .where(eq(people.msId, pgRow.msId));
+
+        } catch (e) {
+          console.error("People Sync Delete Error:", e);
+        }
+
+      }
+
+    }
+
     let results = pgData;
+
     if (search) {
       const term = search.toLowerCase();
+
       results = pgData.filter(p =>
         p.employeeName.toLowerCase().includes(term) ||
         (p.employeeCode && p.employeeCode.toLowerCase().includes(term))
@@ -545,6 +649,7 @@ export class DatabaseStorage implements IStorage {
     return Array.from(
       new Map(results.map(p => [`${p.msId || p.employeeCode || p.id}`, p])).values()
     );
+
   }
   // async getPeople(search?: string): Promise<Person[]> {
   //   // 1. Parallel fetch from both DBs
@@ -1537,5 +1642,217 @@ export class DatabaseStorage implements IStorage {
   async deleteRole(id: number): Promise<void> {
     await db.delete(roles).where(eq(roles.id, id));
   }
+  async getEmployeeRoles(): Promise<EmployeeRole[]> {
+    // Saare assignment fetch karein
+    return await db.select().from(employeeRoles);
+  }
+
+  async getEmployeeRole(id: number): Promise<EmployeeRole | undefined> {
+    // Single ID se fetch karein
+    const [result] = await db
+      .select()
+      .from(employeeRoles)
+      .where(eq(employeeRoles.id, id));
+    return result;
+  }
+
+  async createEmployeeRole(insertData: InsertEmployeeRole): Promise<EmployeeRole> {
+    return await db.transaction(async (tx) => {
+      await tx
+        .delete(employeeRoles)
+        .where(eq(employeeRoles.employeeCode, insertData.employeeCode));
+
+      const [newMapping] = await tx
+        .insert(employeeRoles)
+        .values(insertData)
+        .returning();
+
+      if (newMapping) {
+        await tx
+          .update(people)
+          .set({
+            roleId: Number(newMapping.roleId),
+            updatedAt: new Date()
+          })
+          .where(eq(people.employeeCode, newMapping.employeeCode));
+
+        const roleForSync = Number(newMapping.roleId) === 0 ? null : Number(newMapping.roleId);
+        this.executeHardwareSync(newMapping.employeeCode, roleForSync, false);
+      }
+
+      return newMapping;
+    });
+  }
+
+  async updateEmployeeRole(id: number, data: Partial<InsertEmployeeRole>): Promise<EmployeeRole> {
+    return await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(employeeRoles)
+        .set({
+          ...data,
+          updatedAt: new Date()
+        })
+        .where(eq(employeeRoles.id, id))
+        .returning();
+
+      if (!updated) {
+        throw new Error(`Employee Role assignment not found.`);
+      }
+
+      await tx
+        .update(people)
+        .set({
+          roleId: Number(updated.roleId),
+          updatedAt: new Date()
+        })
+        .where(eq(people.employeeCode, updated.employeeCode));
+
+      this.executeHardwareSync(updated.employeeCode, Number(updated.roleId));
+
+      return updated;
+    });
+  }
+
+  async deleteEmployeeRole(id: number): Promise<void> {
+    await db.transaction(async (tx) => {
+      const mapping = await this.getEmployeeRole(id);
+
+      if (mapping) {
+        await tx.delete(employeeRoles).where(eq(employeeRoles.id, id));
+
+        await tx
+          .update(people)
+          .set({
+            roleId: null,
+            updatedAt: new Date()
+          })
+          .where(eq(people.employeeCode, mapping.employeeCode));
+
+
+        this.executeHardwareSync(mapping.employeeCode, null, false);
+      }
+    });
+  }
+  private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
+    try {
+      // 1. Fetch Role from Postgres & Devices direct from MS SQL
+      const [role, msDevicesRaw] = await Promise.all([
+        (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
+        dbMsSql.select().from({ dbName: 'Devices' }).execute() // Direct MS SQL call
+      ]);
+
+      if (!msDevicesRaw || msDevicesRaw.length === 0) {
+        console.warn("⚠️ No devices found in MS SQL.");
+        return;
+      }
+
+      // 2. Allowed Device IDs (Role se uthaye gaye IDs)
+      let allowedDeviceIds: number[] = [];
+      if (!blockAll && role) {
+        allowedDeviceIds = (role.deviceIds as unknown as number[]) || [];
+      } else if (!blockAll && !role) {
+        // Agar role nahi hai, toh sab allowed (Default)
+        allowedDeviceIds = msDevicesRaw.map((d: any) => Number(d.DeviceId || d.Id));
+      }
+
+      // 3. SOAP API calls for each MS SQL device
+      const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
+        const msDeviceId = Number(msDevice.DeviceId || msDevice.Id);
+        const serialNumber = msDevice.SerialNumber || msDevice.serialno;
+
+        // Logic: Kya ye DeviceId allowed list mein hai?
+        const isAllowed = allowedDeviceIds.some(id => Number(id) === msDeviceId);
+
+        const shouldBlock = blockAll || !isAllowed;
+        const actionType = shouldBlock ? "block" : "unblock";
+
+        if (!serialNumber) {
+          console.error(`❌ Device ${msDeviceId} has no Serial Number in MS SQL.`);
+          return;
+        }
+
+        try {
+          // A. SOAP Request (Direct to Hardware)
+          const status = await esslService.syncUserBlockStatus(
+            employeeCode,
+            serialNumber,
+            shouldBlock
+          );
+
+          // B. Log to Postgres for History (Using MS ID)
+          await db.insert(blockUnblockLogs).values({
+            employeeCode: employeeCode,
+            deviceId: msDeviceId,
+            type: actionType,
+          }).catch(() => { });
+
+          console.log(`🚀 [SOAP SYNC] Device: ${serialNumber} | Action: ${actionType} | Status: SUCCESS`);
+        } catch (err: any) {
+          console.error(`❌ [SOAP FAILED] ${serialNumber}: ${err.message}`);
+        }
+      });
+
+      await Promise.all(syncPromises);
+
+    } catch (error: any) {
+      console.error("💀 Hardware Sync Engine Failure:", error.message);
+    }
+  }
+  // private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
+  //   try {
+  //     const [role, allDevices] = await Promise.all([
+  //       (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
+  //       this.getDevices()
+  //     ]);
+
+  //     if (!allDevices || allDevices.length === 0) return;
+
+  //     let allowedDeviceIds: number[] = [];
+
+  //     if (blockAll) {
+  //       allowedDeviceIds = [];
+  //     } else if (role) {
+  //       allowedDeviceIds = (role.deviceIds as unknown as number[]) || [];
+  //     } else {
+  //       allowedDeviceIds = allDevices.map(device => Number(device.id));
+  //     }
+
+  //     const syncPromises = allDevices.map(async (device: any) => {
+  //       const currentDeviceId = Number(device.id);
+  //       const isAllowed = allowedDeviceIds.some(id => Number(id) === currentDeviceId);
+  //       const shouldBlock = !isAllowed;
+  //       const actionType = shouldBlock ? "block" : "unblock";
+
+  //       try {
+  //         await db.insert(blockUnblockLogs).values({
+  //           employeeCode: employeeCode,
+  //           deviceId: currentDeviceId,
+  //           type: actionType,
+  //         });
+
+  //         const status = await esslService.syncUserBlockStatus(
+  //           employeeCode,
+  //           device.serialNumber,
+  //           shouldBlock
+  //         );
+
+  //         if (status === "SUCCESS") {
+  //           console.log(`✅ [SYNC DONE] Device: ${device.serialNumber} | Emp: ${employeeCode} (${actionType})`);
+  //         }
+
+  //         return status;
+  //       } catch (err: any) {
+  //         console.error(`❌ [SYNC FAILED] ${err.message} | Device: ${device.serialNumber}`);
+  //       }
+  //     });
+
+  //     Promise.all(syncPromises).catch(err =>
+  //       console.error("🔥 Critical Error in Batch Sync Processing:", err)
+  //     );
+
+  //   } catch (error: any) {
+  //     console.error("💀 Hardware Sync Engine Failure:", error.message);
+  //   }
+  // }
 }
 export const storage = new DatabaseStorage();

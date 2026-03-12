@@ -63,8 +63,24 @@ export default function DevicesPage() {
     { key: "lastHeartbeat", label: "Last Seen", hideOnMobile: true, render: (d: Device) => d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString() : "Never" },
     { key: "actions", label: "", render: (d: Device) => (
       <div className="flex gap-1">
-        <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(d); setDialogOpen(true); }}><Pencil className="w-4 h-4" /></Button>
-        <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); remove(d.id); }}><Trash2 className="w-4 h-4" /></Button>
+        <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(d); setDialogOpen(true); }}>
+          <Pencil className="w-4 h-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Postgres 'id' ya MS SQL 'msId' jo bhi mile use bhej dega
+            const idToDelete = d.id || d.msId;
+            if (idToDelete && window.confirm("Are you sure?")) {
+              remove(idToDelete);
+            }
+          }}
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
       </div>
     )},
   ];
@@ -78,9 +94,36 @@ export default function DevicesPage() {
         <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-red-600 dark:text-red-400">{errored}</p><p className="text-xs text-muted-foreground">Error</p></CardContent></Card>
       </div>
       <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={["name", "code", "ipAddress", "serialNumber"]} emptyMessage="No devices registered" />
-      <CrudDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditing(null); }} title={editing ? "Edit Device" : "Add Device"} fields={fields}
-        initialData={editing ? { ...editing, locationId: editing.locationId ? String(editing.locationId) : "", activationCode: editing.activationCode || "", zoneId: editing.zoneId ? String(editing.zoneId) : "" } : undefined}
-        onSubmit={(data) => { if (data.locationId) data.locationId = Number(data.locationId); if (data.zoneId) data.zoneId = Number(data.zoneId); editing ? update({ id: editing.id, data }) : create(data); setDialogOpen(false); setEditing(null); }} isPending={isCreating || isUpdating} />
+      <CrudDialog 
+      open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEditing(null); }}
+        title={editing ? "Edit Device" : "Add Device"}
+        fields={fields}
+        initialData={editing ? {
+          ...editing,
+          locationId: editing.locationId ? String(editing.locationId) : "",
+          zoneId: editing.zoneId ? String(editing.zoneId) : ""
+        } : undefined}
+        onSubmit={(formData) => {
+          if (formData.locationId) formData.locationId = Number(formData.locationId);
+          if (formData.zoneId) formData.zoneId = Number(formData.zoneId);
+
+          if (editing) {
+            // Robust ID check: agar .id null hai toh .msId try karega
+            const updateId = editing.id || (editing as any).msId;
+            if (!updateId) {
+              console.error("Device object missing ID:", editing);
+              return;
+            }
+            update({ id: updateId, data: formData });
+          } else {
+            create(formData);
+          }
+          setDialogOpen(false);
+          setEditing(null);
+        }}
+        isPending={isCreating || isUpdating}
+      />
     </div>
   );
 }

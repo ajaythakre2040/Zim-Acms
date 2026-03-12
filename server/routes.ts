@@ -3,6 +3,7 @@ import type { Server } from "http";
 import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
 import { storage } from "./storage";
 import { z } from "zod";
+
 import {
   insertCompanySchema, insertDepartmentSchema, insertDesignationSchema,
   insertCategorySchema, insertVendorSchema, insertSiteSchema, insertBuildingSchema,
@@ -13,18 +14,17 @@ import {
   insertVisitorSchema, insertVisitSchema, insertAttendanceSchema,
   insertAccessLogSchema, insertAlertSchema, insertExceptionSchema,
   insertSystemSettingSchema, insertUserProfileSchema,
-  insertRoleSchema
+  insertRoleSchema, insertEmployeeRoleSchema,
+
 } from "@shared/schema";
 
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
   next();
 }
-
 function crudRoutes<T>(
   app: Express,
   basePath: string,
-  // schema: z.ZodTypeAny,
   schema: z.AnyZodObject,
   getAll: (...args: any[]) => Promise<any[]>,
   create: (data: any) => Promise<any>,
@@ -33,36 +33,36 @@ function crudRoutes<T>(
   getOne?: (id: number) => Promise<any>
 ) {
   const handleDbError = (e: any, res: any) => {
-    // Terminal mein check karein asli error kya aa raha hai
-    console.error("FULL DB ERROR:", e);
-
+    console.error(`[DB ERROR] ${basePath}:`, e);
     const errorMessage = e.message || "";
 
-    // Is logic ko update kiya hai taaki raw query failures ko bhi pakad sake
     const isDuplicate =
       e.number === 2627 ||
       e.number === 2601 ||
-      e.code === '23505' || // Postgres code
+      e.code === '23505' ||
       errorMessage.includes("UNIQUE KEY") ||
       errorMessage.includes("duplicate") ||
-      errorMessage.includes("already exists") ||
-      errorMessage.includes("Failed query"); // Aapke inspect mein ye dikha tha
+      errorMessage.includes("already exists");
 
     if (isDuplicate) {
-      // Check karein ki "code" duplicate hai ya "name"
-      let field = errorMessage.toLowerCase().includes("code") ? "Role Code" : "Role Name";
+      let fieldName = "Entry";
+      const lowerMsg = errorMessage.toLowerCase();
+
+      if (lowerMsg.includes("code")) fieldName = "Code";
+      else if (lowerMsg.includes("name")) fieldName = "Name";
+      else if (lowerMsg.includes("mac")) fieldName = "MAC Address";
+      else if (lowerMsg.includes("serial")) fieldName = "Serial Number";
+      else if (lowerMsg.includes("ip")) fieldName = "IP Address";
 
       return res.status(400).json({
         isDuplicate: true,
-        // Professional Message examples:
-        message: `${field} is already in use. Please provide a unique ${field.toLowerCase()}.`
+        message: `${fieldName} is already in use. Please provide a unique value.`
       });
     }
 
-    // Agar logic yahan pahunchta hai, toh iska matlab isDuplicate match nahi hua
     res.status(500).json({
-      message: "Server error occurred.",
-      devDetails: errorMessage // Debugging ke liye
+      message: "An unexpected database error occurred.",
+      devDetails: errorMessage
     });
   };
 
@@ -76,12 +76,14 @@ function crudRoutes<T>(
   if (getOne) {
     app.get(`${basePath}/:id`, async (req, res) => {
       try {
-        const item = await getOne(parseInt(req.params.id));
+        const id = parseInt(req.params.id);
+        const item = await getOne(id);
         if (!item) return res.status(404).json({ message: "Not found" });
         res.json(item);
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
   }
+
   app.post(basePath, requireAuth, async (req, res) => {
     try {
       const input = schema.parse(req.body);
@@ -89,54 +91,185 @@ function crudRoutes<T>(
       res.status(201).json(item);
     } catch (e: any) {
       if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-      handleDbError(e, res); // <--- Ye line check karein
+      handleDbError(e, res);
     }
   });
-  // app.post(basePath, requireAuth, async (req, res) => {
-  //   try {
-  //     const input = schema.parse(req.body);
-  //     const item = await create(input);
-  //     res.status(201).json(item);
-  //   } catch (e: any) {
-  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-  //     res.status(500).json({ message: e.message });
-  //   }
-  // });
+
   if (update) {
     app.put(`${basePath}/:id`, requireAuth, async (req, res) => {
       try {
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
         const input = schema.partial().parse(req.body);
-        const item = await update(parseInt(req.params.id), input);
+        const item = await update(id, input);
         res.json(item);
       } catch (e: any) {
         if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-        handleDbError(e, res); // Call our professional error handler
+        handleDbError(e, res);
       }
     });
   }
-  // if (update) {
-  //   app.put(`${basePath}/:id`, requireAuth, async (req, res) => {
-  //     try {
-  //       const input = schema.partial().parse(req.body);
-  //       const item = await update(parseInt(req.params.id), input);
-  //       res.json(item);
-  //     } catch (e: any) {
-  //       if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-  //       res.status(500).json({ message: e.message });
-  //     }
-  //   });
-  // }
 
   if (remove) {
     app.delete(`${basePath}/:id`, requireAuth, async (req, res) => {
       try {
-        await remove(parseInt(req.params.id));
+        const id = parseInt(req.params.id);
+        if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+        await remove(id);
         res.sendStatus(204);
-      } catch (e: any) { res.status(500).json({ message: e.message }); }
+      } catch (e: any) { handleDbError(e, res); }
     });
   }
 }
+// function crudRoutes<T>(
+//   app: Express,
+//   basePath: string,
+//   // schema: z.ZodTypeAny,
+//   schema: z.AnyZodObject,
+//   getAll: (...args: any[]) => Promise<any[]>,
+//   create: (data: any) => Promise<any>,
+//   update?: (id: number, data: any) => Promise<any>,
+//   remove?: (id: number) => Promise<void>,
+//   getOne?: (id: number) => Promise<any>
+// ) {
+//   const handleDbError = (e: any, res: any) => {
+//     // Terminal mein check karein asli error kya aa raha hai
+//     console.error("FULL DB ERROR:", e);
 
+//     const errorMessage = e.message || "";
+
+//     // Is logic ko update kiya hai taaki raw query failures ko bhi pakad sake
+//     const isDuplicate =
+//       e.number === 2627 ||
+//       e.number === 2601 ||
+//       e.code === '23505' || // Postgres code
+//       errorMessage.includes("UNIQUE KEY") ||
+//       errorMessage.includes("duplicate") ||
+//       errorMessage.includes("already exists") ||
+//       errorMessage.includes("Failed query"); // Aapke inspect mein ye dikha tha
+
+//     if (isDuplicate) {
+//       // Check karein ki "code" duplicate hai ya "name"
+//       let field = errorMessage.toLowerCase().includes("code") ? "Role Code" : "Role Name";
+
+//       return res.status(400).json({
+//         isDuplicate: true,
+//         // Professional Message examples:
+//         message: `${field} is already in use. Please provide a unique ${field.toLowerCase()}.`
+//       });
+//     }
+
+//     // Agar logic yahan pahunchta hai, toh iska matlab isDuplicate match nahi hua
+//     res.status(500).json({
+//       message: "Server error occurred.",
+//       devDetails: errorMessage // Debugging ke liye
+//     });
+//   };
+
+//   app.get(basePath, async (req, res) => {
+//     try {
+//       const result = await getAll(req.query);
+//       res.json(result);
+//     } catch (e: any) { res.status(500).json({ message: e.message }); }
+//   });
+
+//   if (getOne) {
+//     app.get(`${basePath}/:id`, async (req, res) => {
+//       try {
+//         const item = await getOne(parseInt(req.params.id));
+//         if (!item) return res.status(404).json({ message: "Not found" });
+//         res.json(item);
+//       } catch (e: any) { res.status(500).json({ message: e.message }); }
+//     });
+//   }
+//   app.post(basePath, requireAuth, async (req, res) => {
+//     try {
+//       const input = schema.parse(req.body);
+//       const item = await create(input);
+//       res.status(201).json(item);
+//     } catch (e: any) {
+//       if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+//       handleDbError(e, res); // <--- Ye line check karein
+//     }
+//   });
+//   // app.post(basePath, requireAuth, async (req, res) => {
+//   //   try {
+//   //     const input = schema.parse(req.body);
+//   //     const item = await create(input);
+//   //     res.status(201).json(item);
+//   //   } catch (e: any) {
+//   //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+//   //     res.status(500).json({ message: e.message });
+//   //   }
+//   // });
+//   // if (update) {
+//   //   app.put(`${basePath}/:id`, requireAuth, async (req, res) => {
+//   //     try {
+//   //       const input = schema.partial().parse(req.body);
+//   //       const item = await update(parseInt(req.params.id), input);
+//   //       res.json(item);
+//   //     } catch (e: any) {
+//   //       if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+//   //       handleDbError(e, res); // Call our professional error handler
+//   //     }
+//   //   });
+//   if (update) {
+//     app.put(`${basePath}/:id`, requireAuth, async (req, res) => {
+//       try {
+//         const id = parseInt(req.params.id);
+//         if (isNaN(id)) {
+//           return res.status(400).json({ message: "Invalid ID" });
+//         }
+//         const input = schema.partial().parse(req.body);
+//         const item = await update(id, input);
+//         res.json(item);
+//       } catch (e: any) {
+//         if (e instanceof z.ZodError) {
+//           return res.status(400).json(e.errors);
+//         }
+//         handleDbError(e, res);
+//       }
+//     });
+  
+//   }
+//   // if (update) {
+//   //   app.put(`${basePath}/:id`, requireAuth, async (req, res) => {
+//   //     try {
+//   //       const input = schema.partial().parse(req.body);
+//   //       const item = await update(parseInt(req.params.id), input);
+//   //       res.json(item);
+//   //     } catch (e: any) {
+//   //       if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+//   //       res.status(500).json({ message: e.message });
+//   //     }
+//   //   });
+//   // }
+
+// //   if (remove) {
+// //     app.delete(`${basePath}/:id`, requireAuth, async (req, res) => {
+// //       try {
+// //         await remove(parseInt(req.params.id));
+// //         res.sendStatus(204);
+// //       } catch (e: any) { res.status(500).json({ message: e.message }); }
+// //     });
+// //   }
+// // }
+//   // crudRoutes ke andar delete handler aisa hona chahiye
+//   if (remove) {
+//     app.delete(`${basePath}/:id`, requireAuth, async (req, res) => {
+//       try {
+//         const id = Number(req.params.id);
+//         if (isNaN(id)) {
+//           return res.status(400).json({ message: "Invalid ID" });
+//         }
+//         await remove(id);
+//         res.sendStatus(204);
+//       } catch (e: any) {
+//         handleDbError(e, res);
+//       }
+//     });
+//   }
+// }
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
@@ -588,25 +721,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //   }
   // });
   // routes.ts (Attendance Report Section)
-app.get("/api/reports/attendance", requireAuth, async (req, res) => {
-  try {
-    const filters = {
-      dateFrom: req.query.dateFrom as string | undefined,
-      dateTo: req.query.dateTo as string | undefined,
-      status: req.query.status as string | undefined,
-      // Agar backend Integer expect karta hai toh parseInt use karein:
-      deviceId: req.query.deviceId ? String(req.query.deviceId) : undefined,
-      personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
-    };
+  app.get("/api/reports/attendance", requireAuth, async (req, res) => {
+    try {
+      const filters = {
+        dateFrom: req.query.dateFrom as string | undefined,
+        dateTo: req.query.dateTo as string | undefined,
+        status: req.query.status as string | undefined,
+        // Agar backend Integer expect karta hai toh parseInt use karein:
+        deviceId: req.query.deviceId ? String(req.query.deviceId) : undefined,
+        personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
+      };
 
-    console.log("Route received filters:", filters); // Full filter check karein
+      console.log("Route received filters:", filters); // Full filter check karein
 
-    const data = await storage.getAttendanceReport(filters);
-    res.json(data);
-  } catch (e: any) {
-    res.status(500).json({ message: e.message });
-  }
-});
+      const data = await storage.getAttendanceReport(filters);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
   app.get("/api/reports/late-coming", requireAuth, async (req, res) => {
     try {
       const filters = {
@@ -800,5 +933,66 @@ app.get("/api/reports/attendance", requireAuth, async (req, res) => {
     (id, data) => storage.updateRole(id, data),
     (id) => storage.deleteRole(id)
   );
+  // Employee Roles CRUD routes
+  // crudRoutes(
+  //   app,
+  //   "/api/employee-roles",
+  //   insertEmployeeRoleSchema,
+  //   () => storage.getEmployeeRoles(),
+  //   async (data) => {
+  //     // Optional: Check for duplicates before creating
+  //     const existing = await storage.getEmployeeRoles();
+  //     const isDuplicate = existing.some(
+  //       (r) => r.employeeCode === data.employeeCode && r.roleId === data.roleId
+  //     );
+
+  //     if (isDuplicate) {
+  //       // Yeh error aapka handleDbError ya useCrud handle kar lega
+  //       const error: any = new Error("This role is already assigned to this employee.");
+  //       error.isDuplicate = true;
+  //       error.status = 400;
+  //       throw error;
+  //     }
+
+  //     return storage.createEmployeeRole(data);
+  //   },
+  //   (id, data) => storage.updateEmployeeRole(id, data),
+  //   (id) => storage.deleteEmployeeRole(id)
+  // );
+
+  // Employee Roles CRUD routes
+  // Employee Roles CRUD routes
+  crudRoutes(
+    app,
+    "/api/employee-roles",
+    insertEmployeeRoleSchema,
+    () => storage.getEmployeeRoles(),
+    async (data: any) => {
+      // 1. Duplicate Check (Optional but Recommended)
+      const existing = await storage.getEmployeeRoles();
+      const isDuplicate = existing.some(
+        (r) => r.employeeCode === data.employeeCode && Number(r.roleId) === Number(data.roleId)
+      );
+
+      if (isDuplicate) {
+        const error: any = new Error("This role is already assigned to this employee.");
+        error.status = 400;
+        throw error;
+      }
+
+      // 2. Storage function call (Iske andar hi Postgres + MS SQL + eSSL Sync logic hai)
+      return await storage.createEmployeeRole(data);
+    },
+    // Update: Jab UI se role change hoga, storage function automatically re-sync trigger karega
+    async (id, data) => {
+      return await storage.updateEmployeeRole(id, data);
+    },
+    // Delete: Storage function automatically saare devices se block command bhej dega
+    async (id) => {
+      return await storage.deleteEmployeeRole(id);
+    }
+  );
   return httpServer;
+
 }
+

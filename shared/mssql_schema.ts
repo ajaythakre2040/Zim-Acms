@@ -56,6 +56,7 @@ export const DeviceAdapter = {
         if (pg.deviceDirection !== undefined) row.DeviceDirection = pg.deviceDirection;
         if (pg.serialNumber !== undefined) row.SerialNumber = pg.serialNumber;
         if (pg.locationId !== undefined) row.LocationId = pg.locationId;
+        if (pg.activationCode !== undefined) row.ActivationCode = pg.activationCode;
         if (pg.deviceType !== undefined) row.DeviceType = pg.deviceType;
         if (pg.opstamp !== undefined) row.OpStamp = pg.opstamp;
         if (pg.isAttendanceDevice !== undefined) {

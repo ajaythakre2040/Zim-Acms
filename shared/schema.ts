@@ -104,7 +104,7 @@ export const buildings = pgTable("buildings", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code"),
-  locationId: integer("site_id").notNull(),
+  locationId: integer("location_id").notNull(),
   address: text("address"),
   floorCount: integer("floor_count").default(1),
   isActive: boolean("is_active").default(true),
@@ -127,7 +127,7 @@ export const zones = pgTable("zones", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code"),
-  locationId: integer("site_id").notNull(),
+  locationId: integer("location_id").notNull(),
   buildingId: integer("building_id"),
   floorId: integer("floor_id"),
   parentZoneId: integer("parent_zone_id"),
@@ -144,7 +144,7 @@ export const doors = pgTable("doors", {
   name: text("name").notNull(),
   code: text("code"),
   zoneId: integer("zone_id"),
-  locationId: integer("site_id"),
+  locationId: integer("location_id"),
   doorType: text("door_type", { enum: ["standard", "turnstile", "barrier", "gate", "emergency"] }).default("standard"),
   isHighRisk: boolean("is_high_risk").default(false),
   requires2FA: boolean("requires_2fa").default(false),
@@ -159,7 +159,7 @@ export const doors = pgTable("doors", {
 // ==================== DEVICES ====================
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
-  msId: integer("ms_id"), // MS SQL DeviceId ke liye
+  msId: integer("ms_id").unique(), // MS SQL DeviceId ke liye
   name: text("name").notNull(), // DeviceName yahan aayega
   deviceDirection: text("device_direction"),
   serialNumber: text("serial_number"),
@@ -169,7 +169,7 @@ export const devices = pgTable("devices", {
   activationCode: text("activation_code"),
   isAttendanceDevice: integer("is_attendance_device"),
   deviceType: text("device_type").default("reader"),
-  locationId: integer("site_id"), // LocationId yahan aayega
+  locationId: integer("location_id"), // LocationId yahan aayega
   // Baki fields
   zoneId: integer("zone_id"),
   ipAddress: text("ip_address"),
@@ -183,7 +183,7 @@ export const devices = pgTable("devices", {
 //   name: text("name").notNull(),
 //   code: text("code"),
 //   deviceType: text("device_type", { enum: ["reader", "turnstile", "gate", "barrier", "controller", "biometric"] }).default("reader"),
-//   locationId: integer("site_id"),
+//   locationId: integer("location_id"),
 //   zoneId: integer("zone_id"),
 //   ipAddress: text("ip_address"),
 //   macAddress: text("mac_address"),
@@ -196,6 +196,7 @@ export const devices = pgTable("devices", {
 // });
 export const people = pgTable("people", {
   id: serial("id").primaryKey(),
+  roleId: integer("role_id"), 
   msId: integer("ms_id"),
   employeeName: text("employee_name").notNull(),
   email: text("email"),
@@ -250,7 +251,7 @@ export const people = pgTable("people", {
 //   designationId: integer("designation_id"),
 //   companyId: integer("company_id"),
 //   categoryId: integer("category_id"),
-//   locationId: integer("site_id"),
+//   locationId: integer("location_id"),
 //   photoUrl: text("photo_url"),
 //   personType: text("person_type", { enum: ["employee", "contractor", "visitor", "intern", "consultant"] }).default("employee"),
 //   riskTier: integer("risk_tier").default(1),
@@ -372,7 +373,7 @@ export const accessRules = pgTable("access_rules", {
   name: text("name").notNull(),
   description: text("description"),
   personId: integer("person_id"),
-  locationId: integer("site_id"),
+  locationId: integer("location_id"),
   zoneId: integer("zone_id"),
   accessType: text("access_type", { enum: ["permanent", "temporary", "scheduled"] }).default("permanent"),
   validFrom: text("valid_from"),
@@ -426,7 +427,7 @@ export const visitors = pgTable("visitors", {
 export const visits = pgTable("visits", {
   id: serial("id").primaryKey(),
   visitorId: integer("visitor_id").notNull(),
-  locationId: integer("site_id"),
+  locationId: integer("location_id"),
   hostPersonId: integer("host_person_id"),
   purpose: text("purpose"),
   badgeNumber: text("badge_number"),
@@ -450,7 +451,7 @@ export const visitAccess = pgTable("visit_access", {
 export const attendance = pgTable("attendance", {
   id: serial("id").primaryKey(),
   personId: integer("person_id").notNull(),
-  locationId: integer("site_id"),
+  locationId: integer("location_id"),
   date: text("date").notNull(),
   clockIn: timestamp("clock_in"),
   clockOut: timestamp("clock_out"),
@@ -513,7 +514,7 @@ export const alerts = pgTable("alerts", {
   personId: integer("person_id"),
   visitorId: integer("visitor_id"),
   deviceId: integer("device_id"),
-  locationId: integer("site_id"),
+  locationId: integer("location_id"),
   doorId: integer("door_id"),
   isRead: boolean("is_read").default(false),
   isResolved: boolean("is_resolved").default(false),
@@ -633,6 +634,21 @@ export const roles = pgTable("roles", {
   deviceIds: jsonb("device_ids").$type<number[]>().default([]), // Devices store karne ke liye
   isActive: boolean("is_active").default(true),
 });
+export const blockUnblockLogs = pgTable("user_block_unblock_logs", {
+  id: serial("id").primaryKey(),
+  employeeCode: varchar("employee_code", { length: 20 }).notNull(),
+  deviceId: integer("device_id").notNull(),
+  type: text("type", { enum: ["block", "unblock"] }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+export const employeeRoles = pgTable("employee_roles", {
+  id: serial("id").primaryKey(),
+  employeeCode: varchar("employee_code", { length: 20 }).notNull(),
+  roleId: integer("role_id").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
 // ==================== INSERT SCHEMAS ====================
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
@@ -665,7 +681,10 @@ export const insertAccessEventSchema = createInsertSchema(accessEvents).omit({ i
 export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true, createdAt: true });
 export const insertExceptionSchema = createInsertSchema(exceptions).omit({ id: true, createdAt: true });
 export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({ id: true, createdAt: true });
-export const insertRoleSchema = createInsertSchema(roles).omit({id: true});
+export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
+export const insertBlockUnblockLogSchema = createInsertSchema(blockUnblockLogs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertEmployeeRoleSchema = createInsertSchema(employeeRoles).omit({ id: true, createdAt: true, updatedAt: true });
+
 
 // ==================== TYPES ====================
 export type UserProfile = typeof userProfiles.$inferSelect;
@@ -732,3 +751,9 @@ export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
 export type Role = typeof roles.$inferSelect;
 export type InsertRole = z.infer<typeof insertRoleSchema>;
+export type BlockUnblockLog = typeof blockUnblockLogs.$inferSelect;
+export type InsertBlockUnblockLog = z.infer<typeof insertBlockUnblockLogSchema>;
+export type EmployeeRole = typeof employeeRoles.$inferSelect;
+export type InsertEmployeeRole = z.infer<typeof insertEmployeeRoleSchema>;
+
+
