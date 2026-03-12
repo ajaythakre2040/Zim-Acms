@@ -10,7 +10,6 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
-
 function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: string; label: string; fields: FieldConfig[]; nameKey?: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -18,28 +17,14 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(endpoint, label);
   const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
-
-  // const dynamicFields = fields.map(f => {
-  //   if (f.key === "deviceIds") {
-  //     return {
-  //       ...f,
-  //       type: "multi-select",
-  //       options: [
-  //         ...devices.map((d: Device) => ({ value: String(d.id), label: d.name }))
-  //       ]
-  //     } as any;
-  //   }
-  //   return f;
-  // });
   const dynamicFields = fields.map(f => {
     if (f.key === "deviceIds") {
       return {
         ...f,
         type: "multi-select",
         options: [
-           // All option add karein
           ...devices.map((d: Device) => ({
-            value: String(d.msId || d.id), // MS ID ko priority dein
+            value: String(d.msId || d.id), 
             label: `${d.name} `
           }))
         ]
@@ -88,21 +73,18 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       )
     },
   ];
-
   const handleSubmit = async (formData: any) => {
     setFormErrors({});
     const finalData = { ...formData };
-
     if (Array.isArray(formData.deviceIds)) {
       if (formData.deviceIds.includes("all")) {
         finalData.deviceIds = devices.map((d: Device) => Number(d.id));
       } else {
         finalData.deviceIds = formData.deviceIds
           .map((id: string) => Number(id))
-          .filter((id: number) => !isNaN(id)); // Fixed TypeScript implicit 'any' error
+          .filter((id: number) => !isNaN(id)); 
       }
     }
-
     try {
       if (editing) {
         await update({ id: editing.id, data: finalData });
@@ -115,14 +97,9 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       setEditing(null);
     } catch (error: any) {
       console.log("Original Error:", error);
-
       let errorData;
-
-      // 1. Check karein agar error message ke andar JSON chhupa hai
-      // Screenshots mein toast '400: {JSON}' dikha raha hai, iska matlab message string hai
       if (typeof error.message === 'string' && error.message.includes('{')) {
         try {
-          // JSON nikalne ke liye string ko split karein (400: {..} -> {..})
           const jsonPart = error.message.substring(error.message.indexOf('{'));
           errorData = JSON.parse(jsonPart);
         } catch (e) {
@@ -131,21 +108,15 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       } else {
         errorData = error.response?.data || error;
       }
-
-      // 2. Extract Clean Message
       const finalMessage = errorData?.message || error.message || "An error occurred";
-
       if (errorData?.isDuplicate) {
         const msg = finalMessage.toLowerCase();
         const fieldKey = msg.includes("code") ? "code" : "name";
-
-        // FormErrors state update karein taaki Input red ho jaye
         setFormErrors({ [fieldKey]: finalMessage });
-
         toast({
           variant: "destructive",
           title: "Duplicate Entry",
-          description: `The ${fieldKey} you entered is already in use.`, // Clean message
+          description: `The ${fieldKey} you entered is already in use.`, 
         });
       } else {
         toast({
@@ -163,9 +134,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
           <Plus className="w-4 h-4 mr-1" /> Add {label}
         </Button>
       </div>
-
       <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={[nameKey]} emptyMessage={`No ${label.toLowerCase()}s`} />
-
       <CrudDialog
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null); setFormErrors({}); }}
@@ -179,7 +148,6 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
     </div>
   );
 }
-
 export default function MasterDataPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -193,7 +161,6 @@ export default function MasterDataPage() {
           <TabsTrigger value="vendors">Vendors</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
         </TabsList>
-
         <TabsContent value="departments">
           <MasterTab endpoint="/api/departments" label="Department" fields={[
             { key: "name", label: "Name", required: true },
@@ -202,7 +169,6 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
-
         <TabsContent value="designations">
           <MasterTab endpoint="/api/designations" label="Designation" fields={[
             { key: "name", label: "Name", required: true },
@@ -212,7 +178,6 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
-
         <TabsContent value="categories">
           <MasterTab endpoint="/api/categories" label="Category" fields={[
             { key: "name", label: "Name", required: true },
@@ -220,7 +185,6 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
-
         <TabsContent value="companies">
           <MasterTab endpoint="/api/companies" label="Company" fields={[
             { key: "name", label: "Name", required: true },
@@ -231,7 +195,6 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
-
         <TabsContent value="vendors">
           <MasterTab endpoint="/api/vendors" label="Vendor" fields={[
             { key: "name", label: "Name", required: true },
@@ -246,7 +209,6 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
-
         <TabsContent value="roles">
           <MasterTab
             endpoint="/api/roles"
@@ -260,7 +222,7 @@ export default function MasterDataPage() {
                 type: "multi-select",
                 options: [],
               },
-              { key: "isActive", label: "Active", type: "switch", defaultValue: true }, // Add this
+              { key: "isActive", label: "Active", type: "switch", defaultValue: true }, 
             ]}
           />
         </TabsContent>

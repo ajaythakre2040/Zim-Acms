@@ -55,7 +55,8 @@ export default function AttendancePage() {
 
   const columns = [
     // { key: "person", label: "Person", render: (a: Attendance) => { const p = people.find((x) => x.id === a.personId); return p ? `${p.firstName} ${p.lastName || ""}` : `#${a.personId}`; }},
-    { key: "person", label: "Person", render: (a: any) => { const p = people.find((x) => x.id === a.personId || x.msId === a.personId); return p ? p.employeeName : `#${a.employeeCode || a.personId}`; } },    { key: "status", label: "Status", render: (a: Attendance) => <Badge variant={statusColors[a.status || ""] as any}>{(a.status || "").replace("_", " ")}</Badge> },
+    { key: "person", label: "Person", render: (a: any) => { const p = people.find((x) => x.id === a.personId || x.msId === a.personId); return p ? p.employeeName : `#${a.employeeCode || a.personId}`; } },
+    { key: "status", label: "Status", render: (a: Attendance) => <Badge variant={statusColors[a.status || ""] as any}>{(a.status || "").replace("_", " ")}</Badge> },
     { key: "clockIn", label: "Clock In", hideOnMobile: true, render: (a: Attendance) => a.clockIn ? new Date(a.clockIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-" },
     { key: "clockOut", label: "Clock Out", hideOnMobile: true, render: (a: Attendance) => a.clockOut ? new Date(a.clockOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-" },
     { key: "workingHours", label: "Hours", render: (a: Attendance) => a.workingHours ? `${a.workingHours}h` : "-" },

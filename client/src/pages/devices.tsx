@@ -9,32 +9,27 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, Wifi, WifiOff, AlertCircle, Wrench } from "lucide-react";
 import type { Device, Site, Zone } from "@shared/schema";
-
 const statusConfig: Record<string, { color: string; icon: typeof Wifi }> = {
   online: { color: "default", icon: Wifi },
   offline: { color: "secondary", icon: WifiOff },
   error: { color: "destructive", icon: AlertCircle },
   maintenance: { color: "outline", icon: Wrench },
 };
-
 export default function DevicesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Device | null>(null);
   const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Device>("/api/devices", "Device");
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: zones = [] } = useQuery<Zone[]>({ queryKey: ["/api/zones"] });
-
   const online = data.filter((d) => d.status === "online").length;
   const offline = data.filter((d) => d.status === "offline").length;
   const errored = data.filter((d) => d.status === "error").length;
-
   const fields: FieldConfig[] = [
     { key: "name", label: "Device Name", required: true },
-    // { key: "code", label: "Code" },
     {
-      key: "activationCode", // Database column name se match hona chahiye
+      key: "activationCode", 
       label: "Activation Code",
-      readOnly: !!editing // Edit page par ise read-only rakhein taaki koi badal na sake
+      readOnly: !!editing 
     } as any,
     { key: "deviceType", label: "Type", type: "select", options: [{ value: "reader", label: "Reader" }, { value: "turnstile", label: "Turnstile" }, { value: "gate", label: "Gate" }, { value: "barrier", label: "Barrier" }, { value: "controller", label: "Controller" }, { value: "biometric", label: "Biometric" }], defaultValue: "reader" },
     { key: "locationId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
@@ -46,7 +41,6 @@ export default function DevicesPage() {
     { key: "status", label: "Status", type: "select", options: [{ value: "online", label: "Online" }, { value: "offline", label: "Offline" }, { value: "error", label: "Error" }, { value: "maintenance", label: "Maintenance" }], defaultValue: "offline" },
     { key: "isActive", label: "Active", type: "switch", defaultValue: true },
   ];
-
   const columns = [
     { key: "name", label: "Device", render: (d: Device) => (
       <div>
@@ -72,7 +66,6 @@ export default function DevicesPage() {
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            // Postgres 'id' ya MS SQL 'msId' jo bhi mile use bhej dega
             const idToDelete = d.id || d.msId;
             if (idToDelete && window.confirm("Are you sure?")) {
               remove(idToDelete);
@@ -84,7 +77,6 @@ export default function DevicesPage() {
       </div>
     )},
   ];
-
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
       <PageHeader title="Devices" description="Manage access control devices" action={<Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Device</Button>} />
@@ -107,9 +99,7 @@ export default function DevicesPage() {
         onSubmit={(formData) => {
           if (formData.locationId) formData.locationId = Number(formData.locationId);
           if (formData.zoneId) formData.zoneId = Number(formData.zoneId);
-
           if (editing) {
-            // Robust ID check: agar .id null hai toh .msId try karega
             const updateId = editing.id || (editing as any).msId;
             if (!updateId) {
               console.error("Device object missing ID:", editing);

@@ -55,6 +55,11 @@ export default function PeoplePage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/people"] }); setDialogOpen(false); setEditing(null); toast({ title: "Person updated" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
+  const deleteMut = useMutation({
+    mutationFn: async (id: number) => {await apiRequest("DELETE", `/api/people/${id}`);},
+    onSuccess: () => {queryClient.invalidateQueries({ queryKey: ["/api/people"] }); toast({ title: "Success", description: "Person deleted successfully." }); },
+    onError: (e: Error) => { toast({ title: "Error", description: e.message, variant: "destructive" });},
+  });
   const createRoleAssign = useMutation({
     mutationFn: async (data: any) => { const r = await apiRequest("POST", "/api/employee-roles", data); return r.json(); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/people"] }); queryClient.invalidateQueries({ queryKey: ["/api/employee-roles"] }); setRoleDialogOpen(false); toast({ title: "Role assigned successfully" }); },
@@ -207,7 +212,18 @@ export default function PeoplePage() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="icon" variant="ghost" className="hover:text-destructive">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="hover:text-destructive"
+                  disabled={deleteMut.isPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (window.confirm("Delete this person from all systems?")) {
+                      deleteMut.mutate(p.id);
+                    }
+                  }}
+                >
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
