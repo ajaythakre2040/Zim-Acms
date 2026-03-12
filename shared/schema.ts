@@ -633,6 +633,9 @@ export const roles = pgTable("roles", {
   code: text("code").notNull().unique(),
   deviceIds: jsonb("device_ids").$type<number[]>().default([]), // Devices store karne ke liye
   isActive: boolean("is_active").default(true),
+  updatedBy: varchar("updated_by"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 export const blockUnblockLogs = pgTable("user_block_unblock_logs", {
   id: serial("id").primaryKey(),

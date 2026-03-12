@@ -19,19 +19,34 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
   const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(endpoint, label);
   const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
 
+  // const dynamicFields = fields.map(f => {
+  //   if (f.key === "deviceIds") {
+  //     return {
+  //       ...f,
+  //       type: "multi-select",
+  //       options: [
+  //         ...devices.map((d: Device) => ({ value: String(d.id), label: d.name }))
+  //       ]
+  //     } as any;
+  //   }
+  //   return f;
+  // });
   const dynamicFields = fields.map(f => {
     if (f.key === "deviceIds") {
       return {
         ...f,
         type: "multi-select",
         options: [
-          ...devices.map((d: Device) => ({ value: String(d.id), label: d.name }))
+           // All option add karein
+          ...devices.map((d: Device) => ({
+            value: String(d.msId || d.id), // MS ID ko priority dein
+            label: `${d.name} `
+          }))
         ]
       } as any;
     }
     return f;
   });
-
   const columns = [
     {
       key: nameKey,
@@ -75,6 +90,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
   ];
 
   const handleSubmit = async (formData: any) => {
+    setFormErrors({});
     const finalData = { ...formData };
 
     if (Array.isArray(formData.deviceIds)) {
@@ -120,18 +136,16 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       const finalMessage = errorData?.message || error.message || "An error occurred";
 
       if (errorData?.isDuplicate) {
-        // Check karein galti 'code' mein hai ya 'name' mein
         const msg = finalMessage.toLowerCase();
         const fieldKey = msg.includes("code") ? "code" : "name";
 
-        // Popup ke andar laal error text dikhayye
+        // FormErrors state update karein taaki Input red ho jaye
         setFormErrors({ [fieldKey]: finalMessage });
 
-        // Toast ko clean banayein (JSON nahi dikhega)
         toast({
           variant: "destructive",
           title: "Duplicate Entry",
-          description: finalMessage,
+          description: `The ${fieldKey} you entered is already in use.`, // Clean message
         });
       } else {
         toast({
@@ -243,10 +257,10 @@ export default function MasterDataPage() {
               {
                 key: "deviceIds",
                 label: "Assign Devices",
-                type: "select",
+                type: "multi-select",
                 options: [],
-                placeholder: "Select Device or All"
-              }
+              },
+              { key: "isActive", label: "Active", type: "switch", defaultValue: true }, // Add this
             ]}
           />
         </TabsContent>

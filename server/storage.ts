@@ -39,7 +39,7 @@ import {
 
 } from "@shared/schema";
 import { db, dbMsSql } from "./db";
-import { eq, desc,or, and, count, sql, ilike, notInArray } from "drizzle-orm";
+import { eq, desc, or, and, ne, count, sql, ilike, notInArray } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS } from './constant';
@@ -1627,18 +1627,54 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(roles).values(data).returning();
     return created;
   }
-
   async updateRole(id: number, data: Partial<InsertRole>): Promise<Role> {
-    const [updated] = await db
-      .update(roles)
-      .set(data)
-      .where(eq(roles.id, id))
-      .returning();
+    return await db.transaction(async (tx) => {
+      // 1. Duplicate Code Check (Unique constraint violation se bachne ke liye)
+      if (data.code) {
+        const [existing] = await tx
+          .select()
+          .from(roles)
+          .where(
+            and(
+              eq(roles.code, data.code),
+              ne(roles.id, id) // Apne current record ko check se exclude karein
+            )
+          );
 
-    if (!updated) throw new Error("Role not found");
-    return updated;
+        if (existing) {
+          throw new Error(`Role code '${data.code}' already exists.`);
+        }
+      }
+
+      // 2. Perform Update
+      const [updated] = await tx
+        .update(roles)
+        .set({
+          ...data,
+          updatedAt: new Date(), // Manual timestamp update
+        })
+        .where(eq(roles.id, id))
+        .returning();
+
+      if (!updated) {
+        throw new Error("Role not found");
+      }
+
+      // 3. Hardware Sync Trigger
+      // Kyunki deviceIds JSONB hai, role badalne par unse jude employees ko sync karna hoga
+      const affectedEmployees = await tx
+        .select()
+        .from(employeeRoles)
+        .where(eq(employeeRoles.roleId, id));
+
+      for (const emp of affectedEmployees) {
+        // Direct MS SQL devices fetch wala logic trigger karein
+        this.executeHardwareSync(emp.employeeCode, id);
+      }
+
+      return updated;
+    });
   }
-
   async deleteRole(id: number): Promise<void> {
     await db.delete(roles).where(eq(roles.id, id));
   }
