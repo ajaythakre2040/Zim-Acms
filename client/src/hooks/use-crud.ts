@@ -85,6 +85,7 @@ export function useCrud<T>(endpoint: string, label: string) {
   return {
     data: query.data || [],
     isLoading: query.isLoading,
+    refetch: query.refetch,
     create: createMutation.mutateAsync,
     update: updateMutation.mutateAsync,
     remove: deleteMutation.mutate,

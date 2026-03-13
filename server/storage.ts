@@ -40,7 +40,7 @@ import {
 import { db, dbMsSql } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
-import { DeviceAdapter, HolidayAdapter, PersonAdapter } from "@shared/mssql_schema";
+import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS } from './constant';
 import { esslService } from "./essl-service";
 export interface IStorage {
@@ -264,20 +264,158 @@ export class DatabaseStorage implements IStorage {
   async deleteVendor(id: number): Promise<void> {
     await db.delete(vendors).where(eq(vendors.id, id));
   }
+  // async getSites(): Promise<Site[]> {
+  //   return await db.select().from(sites);
+  // }
   async getSites(): Promise<Site[]> {
-    return await db.select().from(sites);
+    const [pgData, msDataRaw] = await Promise.all([
+      db.select().from(sites),
+      dbMsSql.select().from({ dbName: 'Locations' }).execute()
+    ]);
+
+    const msIds = new Set();
+    const currentSites = [...pgData];
+
+    for (const msRow of (msDataRaw || [])) {
+      const mapped = SiteAdapter.toPostgres(msRow);
+      msIds.add(mapped.msId);
+
+      const exists = currentSites.find(s => s.msId === mapped.msId);
+
+      if (mapped.msId && !exists) {
+        try {
+          const [newRec] = await db.insert(sites).values({
+            msId: mapped.msId,
+            name: mapped.name,
+            code: mapped.code,
+            timezone: "Asia/Kolkata",
+            isActive: true,
+            createdAt: new Date(),
+          }).returning();
+          currentSites.push(newRec);
+        } catch (e) { }
+      }
+    }
+
+    for (const pgRow of currentSites) {
+      if (pgRow.msId && !msIds.has(pgRow.msId)) {
+        try {
+          await db.delete(sites).where(eq(sites.msId, pgRow.msId));
+        } catch (e) { }
+      }
+    }
+
+    return currentSites;
   }
   async createSite(data: InsertSite): Promise<Site> {
+    // data.code ko string mein cast karein ya default value check lagayein
+    if (data.code) {
+      const [existing] = await db
+        .select()
+        .from(sites)
+        .where(eq(sites.code, data.code as string)); // 'as string' use karein ya niche wala method
+
+      if (existing) {
+        throw new Error("Code is already in use. Please provide a unique value.");
+      }
+    }
+
     const [created] = await db.insert(sites).values(data).returning();
+
+    try {
+      const msData = SiteAdapter.toMsSql(created);
+      await dbMsSql.insert({ dbName: 'Locations' }).values({
+        Code: msData.Code,
+        Description: msData.Description
+      });
+    } catch (e) {
+      console.error("MSSQL Sync Error:", e);
+    }
+
     return created;
   }
+
+  // async updateSite(id: number, data: Partial<InsertSite>): Promise<Site> {
+  //   if (data.code) {
+  //     const [existing] = await db.select()
+  //       .from(sites)
+  //       .where(and(
+  //         eq(sites.code, data.code),
+  //         ne(sites.id, id) 
+  //       ));
+
+  //     if (existing) {
+  //       throw new Error("Code is already in use. Please provide a unique value.");
+  //     }
+  //   }
+
+  //   const [updated] = await db.update(sites)
+  //     .set({ ...data })
+  //     .where(eq(sites.id, id))
+  //     .returning();
+
+  //   if (updated?.msId) {
+  //     try {
+  //       await dbMsSql.update({ dbName: 'Locations', pk: 'Id' })
+  //         .set({
+  //           Code: updated.code,
+  //           Description: updated.name
+  //         })
+  //         .where({ value: updated.msId });
+  //     } catch (e) { }
+  //   }
+  //   return updated;
+  // }
   async updateSite(id: number, data: Partial<InsertSite>): Promise<Site> {
-    const [updated] = await db.update(sites).set(data).where(eq(sites.id, id)).returning();
+    if (data.code) {
+      const [existing] = await db.select()
+        .from(sites)
+        .where(and(
+          eq(sites.code, data.code),
+          ne(sites.id, id)
+        ));
+
+      if (existing) {
+        // Is error ko route handler mein catch karke res.status(400) bhejna hoga
+        throw new Error("DUPLICATE_CODE");
+      }
+    }
+
+    // Baki technical fields (id, msId, createdAt) ko data se nikal kar hi update chalayein
+    const { id: _, msId: __, createdAt: ___, ...updateData } = data as any;
+
+    const [updated] = await db.update(sites)
+      .set(updateData)
+      .where(eq(sites.id, id))
+      .returning();
+
+    // ... rest of the code (MSSQL sync)
     return updated;
   }
   async deleteSite(id: number): Promise<void> {
-    await db.delete(sites).where(eq(sites.id, id));
+    const [record] = await db.select().from(sites).where(eq(sites.id, id));
+
+    if (record) {
+      if (record.msId) {
+        try {
+          await dbMsSql.delete({ dbName: 'Locations', pk: 'Id' })
+            .where({ value: record.msId });
+        } catch (e) { }
+      }
+      await db.delete(sites).where(eq(sites.id, id));
+    }
   }
+  // async createSite(data: InsertSite): Promise<Site> {
+  //   const [created] = await db.insert(sites).values(data).returning();
+  //   return created;
+  // }
+  // async updateSite(id: number, data: Partial<InsertSite>): Promise<Site> {
+  //   const [updated] = await db.update(sites).set(data).where(eq(sites.id, id)).returning();
+  //   return updated;
+  // }
+  // async deleteSite(id: number): Promise<void> {
+  //   await db.delete(sites).where(eq(sites.id, id));
+  // }
   async getBuildings(locationId?: number): Promise<Building[]> {
     if (locationId) {
       return await db.select().from(buildings).where(eq(buildings.locationId, locationId));
