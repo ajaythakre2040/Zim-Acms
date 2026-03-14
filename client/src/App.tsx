@@ -35,6 +35,7 @@ import MasterDataPage from "@/pages/master-data";
 import UserAdminPage from "@/pages/user-admin";
 import SettingsPage from "@/pages/settings";
 import ReportsPage from "@/pages/reports";
+import CronMasterPage from "@/pages/CronMasterPage";
 
 function Router() {
   return (
@@ -59,6 +60,8 @@ function Router() {
       <Route path="/user-admin" component={UserAdminPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/reports" component={ReportsPage} />
+      <Route path="/cron-master" component={CronMasterPage} />
+
       <Route component={NotFound} />
     </Switch>
   );

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, UserCheck, Clock, DoorOpen, Cpu,
   Building2, Shield, Key, CalendarDays, Calendar, Bell, FileWarning,
   Settings, UserCog, MapPin, Layers, CreditCard, BookOpen, LogOut, ChevronRight,
-  Zap, FileText, Timer, LucideIcon
+  Zap, FileText
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -12,24 +12,11 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-interface NavItem {
-  title: string;
-  url: string;
-  icon: LucideIcon;
-  iconColor: string;
-}
-
-interface NavGroup {
-  label: string;
-  color: string;
-  bgColor: string;
-  items: NavItem[];
-}
-
-const navGroups: NavGroup[] = [
+const navGroups = [
   {
     label: "Overview",
     color: "text-blue-400",
@@ -79,14 +66,6 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Automation",
-    color: "text-orange-400",
-    bgColor: "bg-orange-500/15",
-    items: [
-      { title: "Cron Master", url: "/cron-master", icon: Timer, iconColor: "text-orange-400" },
-    ],
-  },
-  {
     label: "Infrastructure",
     color: "text-emerald-400",
     bgColor: "bg-emerald-500/15",
@@ -123,7 +102,7 @@ export function AppSidebar() {
             <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-sidebar animate-pulse-soft" />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-bold tracking-tight">ZIM-ACMS</span>
+            <span className="text-sm font-bold tracking-tight" data-testid="text-app-name">ZIM-ACMS</span>
             <span className="text-[10px] text-sidebar-foreground/50 uppercase tracking-widest flex items-center gap-1">
               <Zap className="w-2.5 h-2.5 text-amber-400" />
               Access Control
@@ -146,7 +125,7 @@ export function AppSidebar() {
                   return (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild data-active={isActive} className="mx-2 rounded-lg">
-                        <Link href={item.url}>
+                        <Link href={item.url} data-testid={`nav-${item.title.toLowerCase().replace(/\s+/g, "-")}`}>
                           <div className={`flex items-center justify-center w-6 h-6 rounded-md ${isActive ? group.bgColor : "bg-transparent"} transition-colors duration-200`}>
                             <item.icon className={`w-3.5 h-3.5 ${isActive ? item.iconColor : "text-sidebar-foreground/60"} transition-colors duration-200`} />
                           </div>
@@ -169,7 +148,7 @@ export function AppSidebar() {
             <AvatarFallback className="text-xs bg-gradient-to-br from-primary/30 to-accent/30 text-primary-foreground font-semibold">{initials}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-xs font-medium truncate text-sidebar-foreground">
+            <span className="text-xs font-medium truncate text-sidebar-foreground" data-testid="text-user-name">
               {user?.firstName || "User"} {user?.lastName || ""}
             </span>
             <span className="text-[10px] text-sidebar-foreground/50 flex items-center gap-1">
@@ -182,6 +161,7 @@ export function AppSidebar() {
             variant="ghost"
             className="text-sidebar-foreground/50"
             onClick={() => { fetch("/api/logout", { method: "POST", credentials: "include" }).then(() => window.location.reload()); }}
+            data-testid="button-sidebar-logout"
           >
             <LogOut className="w-3.5 h-3.5" />
           </Button>

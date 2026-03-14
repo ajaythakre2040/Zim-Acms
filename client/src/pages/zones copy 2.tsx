@@ -11,18 +11,15 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import {
-  Popover, PopoverContent, PopoverTrigger
-} from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
+} from "@/components/ui/select";
 import {
   Plus,
   Pencil,
   Trash2,
   MonitorSmartphone,
   X,
-  Settings2,
-  ChevronDown,
-  Check
+  Settings2
 } from "lucide-react";
 import {
   Tooltip,
@@ -48,56 +45,38 @@ export default function ZonesDoorsPage() {
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: devices = [] } = useQuery<any[]>({ queryKey: ["/api/devices"] });
 
-  const currentMapping = mappingCrud.data?.find((m: any) => m.doorId === selectedDoorForMapping?.id);
+  const handleMappingUpdate = async (deviceId: number, direction: 'in' | 'out') => {
+    if (!selectedDoorForMapping || isNaN(deviceId)) return;
 
-  // --- MULTI-SELECT TOGGLE LOGIC (ARRAY STORAGE) ---
-  const toggleDevice = async (deviceId: number, direction: 'in' | 'out') => {
-    if (!selectedDoorForMapping) return;
+    const existing = mappingCrud.data.find((m: any) => m.doorId === selectedDoorForMapping.id);
+    const inIds = Array.isArray(existing?.inDeviceIds) ? existing.inDeviceIds : [];
+    const outIds = Array.isArray(existing?.outDeviceIds) ? existing.outDeviceIds : [];
 
-    const inIds = Array.isArray(currentMapping?.inDeviceIds) ? [...currentMapping.inDeviceIds] : [];
-    const outIds = Array.isArray(currentMapping?.outDeviceIds) ? [...currentMapping.outDeviceIds] : [];
-
-    let newInIds = inIds;
-    let newOutIds = outIds;
-
-    if (direction === 'in') {
-      newInIds = inIds.includes(deviceId) ? inIds.filter(id => id !== deviceId) : [...inIds, deviceId];
-    } else {
-      newOutIds = outIds.includes(deviceId) ? outIds.filter(id => id !== deviceId) : [...outIds, deviceId];
-    }
+    if (direction === 'in' && inIds.includes(deviceId)) return;
+    if (direction === 'out' && outIds.includes(deviceId)) return;
 
     const payload = {
       doorId: selectedDoorForMapping.id,
-      inDeviceIds: newInIds,
-      outDeviceIds: newOutIds,
+      inDeviceIds: direction === 'in' ? [...inIds, deviceId] : inIds,
+      outDeviceIds: direction === 'out' ? [...outIds, deviceId] : outIds,
     };
 
-    if (currentMapping) {
-      await mappingCrud.update({ id: currentMapping.id, data: payload });
+    if (existing) {
+      await mappingCrud.update({ id: existing.id, data: payload });
     } else {
       await mappingCrud.create(payload);
     }
   };
 
-  const handleBulkAction = async (direction: 'in' | 'out', action: 'all' | 'clear') => {
-    if (!selectedDoorForMapping) return;
-
-    let newInIds = Array.isArray(currentMapping?.inDeviceIds) ? [...currentMapping.inDeviceIds] : [];
-    let newOutIds = Array.isArray(currentMapping?.outDeviceIds) ? [...currentMapping.outDeviceIds] : [];
-
-    const allIds = devices.map(d => d.id);
-
-    if (direction === 'in') {
-      newInIds = action === 'all' ? allIds : [];
-    } else {
-      newOutIds = action === 'all' ? allIds : [];
-    }
-
-    const payload = { doorId: selectedDoorForMapping.id, inDeviceIds: newInIds, outDeviceIds: newOutIds };
-    currentMapping ? await mappingCrud.update({ id: currentMapping.id, data: payload }) : await mappingCrud.create(payload);
+  const removeDevice = async (deviceId: number, direction: 'in' | 'out', mapping: any) => {
+    const payload = {
+      ...mapping,
+      inDeviceIds: direction === 'in' ? mapping.inDeviceIds.filter((id: number) => id !== deviceId) : mapping.inDeviceIds,
+      outDeviceIds: direction === 'out' ? mapping.outDeviceIds.filter((id: number) => id !== deviceId) : mapping.outDeviceIds,
+    };
+    await mappingCrud.update({ id: mapping.id, data: payload });
   };
 
-  // --- YOUR ORIGINAL CONFIGS (RESTRICTED TO NOT CHANGE) ---
   const zoneFields: FieldConfig[] = [
     { key: "name", label: "Zone Name", required: true },
     { key: "code", label: "Code" },
@@ -144,10 +123,10 @@ export default function ZonesDoorsPage() {
         <div className="flex flex-col">
           <span className="font-medium">{d.name}</span>
           <div className="flex gap-1 mt-1">
-            {mappingCrud.data?.filter((m: any) => m.doorId === d.id).map((m: any) => (
+            {mappingCrud.data.filter((m: any) => m.doorId === d.id).map((m: any) => (
               <div key={m.id} className="flex gap-1">
-                {m.inDeviceIds?.length > 0 && <Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700 border-none">IN: {m.inDeviceIds.length}</Badge>}
-                {m.outDeviceIds?.length > 0 && <Badge variant="secondary" className="text-[10px] bg-green-50 text-green-700 border-none">OUT: {m.outDeviceIds.length}</Badge>}
+                {m.inDeviceIds?.length > 0 && <Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">IN: {m.inDeviceIds.length}</Badge>}
+                {m.outDeviceIds?.length > 0 && <Badge variant="secondary" className="text-[10px] bg-green-50 text-green-700">OUT: {m.outDeviceIds.length}</Badge>}
               </div>
             ))}
           </div>
@@ -155,6 +134,8 @@ export default function ZonesDoorsPage() {
       )
     },
     { key: "code", label: "Code", hideOnMobile: true },
+    { key: "doorType", label: "Type", render: (d: Door) => <Badge variant="secondary" className="capitalize">{d.doorType}</Badge> },
+    { key: "zone", label: "Zone", hideOnMobile: true, render: (d: Door) => zoneCrud.data.find((z) => z.id === d.zoneId)?.name || "-" },
     { key: "status", label: "Status", render: (d: Door) => <Badge variant={doorStatusColors[d.status || ""] as any}>{d.status}</Badge> },
     {
       key: "actions",
@@ -164,7 +145,7 @@ export default function ZonesDoorsPage() {
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:bg-blue-50" onClick={(e) => { e.stopPropagation(); setSelectedDoorForMapping(d); setMappingDialog(true); }}>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" onClick={(e) => { e.stopPropagation(); setSelectedDoorForMapping(d); setMappingDialog(true); }}>
                   <MonitorSmartphone className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -180,7 +161,7 @@ export default function ZonesDoorsPage() {
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); doorCrud.remove(d.id); }}>
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); doorCrud.remove(d.id); }}>
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
@@ -191,6 +172,8 @@ export default function ZonesDoorsPage() {
       )
     },
   ];
+
+  const currentMapping = mappingCrud.data.find((m: any) => m.doorId === selectedDoorForMapping?.id);
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -223,65 +206,40 @@ export default function ZonesDoorsPage() {
 
       <CrudDialog open={doorDialog} onClose={() => { setDoorDialog(false); setEditingDoor(null); }} title={editingDoor ? "Edit Door" : "Add Door"} fields={doorFields} initialData={editingDoor ? { ...editingDoor, locationId: editingDoor.locationId ? String(editingDoor.locationId) : "", zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "" } : undefined} onSubmit={(data) => { if (data.locationId) data.locationId = Number(data.locationId); if (data.zoneId) data.zoneId = Number(data.zoneId); editingDoor ? doorCrud.update({ id: editingDoor.id, data }) : doorCrud.create(data); setDoorDialog(false); }} isPending={doorCrud.isCreating || doorCrud.isUpdating} />
 
-      {/* --- REWORKED MULTI-SELECT MAPPING DIALOG --- */}
       <Dialog open={mappingDialog} onOpenChange={setMappingDialog}>
-        <DialogContent className="sm:max-w-[520px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-xl font-bold">
+            <DialogTitle className="flex items-center gap-2 text-xl">
               <Settings2 className="w-5 h-5 text-primary" />
               Hardware: {selectedDoorForMapping?.name}
             </DialogTitle>
           </DialogHeader>
-
-          <div className="grid gap-8 py-6">
+          <div className="grid gap-6 py-4">
             {/* IN Section */}
             <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-bold text-blue-600 uppercase">Entry (IN) Devices</label>
-                <div className="flex gap-4 text-[11px] font-bold">
-                  <button className="text-blue-500 hover:underline" onClick={() => handleBulkAction('in', 'all')}>SELECT ALL</button>
-                  <button className="text-red-500 hover:underline" onClick={() => handleBulkAction('in', 'clear')}>CLEAR</button>
-                </div>
-              </div>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between bg-slate-50 border-slate-200 h-11 text-slate-500 font-normal">
-                    <span className="truncate">
-                      {currentMapping?.inDeviceIds?.length > 0
-                        ? `${currentMapping.inDeviceIds.length} Devices selected`
-                        : "Click to add device..."}
-                    </span>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[470px] p-2" align="start">
-                  <div className="max-h-[250px] overflow-y-auto space-y-1">
-                    {devices.map((device) => {
-                      const isSelected = currentMapping?.inDeviceIds?.includes(device.id);
-                      return (
-                        <div key={device.id}
-                          className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-slate-50'}`}
-                          onClick={() => toggleDevice(device.id, 'in')}>
-                          <div className="flex items-center gap-3">
-                            <Checkbox checked={isSelected} className="border-slate-300" />
-                            <span className="text-sm font-medium">{device.name} {device.ipAddress && <span className="text-[10px] text-slate-400 font-normal ml-1">({device.ipAddress})</span>}</span>
-                          </div>
-                          {isSelected && <Check className="w-4 h-4" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              <div className="flex flex-wrap gap-2">
+              <label className="text-sm font-bold text-blue-600 flex justify-between">
+                <span>Entry (IN) Devices</span>
+                <span className="text-[10px] font-normal text-muted-foreground uppercase">Select to add</span>
+              </label>
+              <Select value="" onValueChange={(val) => handleMappingUpdate(Number(val), 'in')}>
+                <SelectTrigger className="w-full bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="Click to add device..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {devices.map(d => (
+                    <SelectItem key={d.id} value={String(d.id)} disabled={currentMapping?.inDeviceIds?.includes(d.id)}>
+                      {d.name} {d.ipAddress ? `(${d.ipAddress})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex flex-wrap gap-2 min-h-[32px]">
                 {currentMapping?.inDeviceIds?.map((id: number) => {
                   const dev = devices.find(d => d.id === id);
                   return (
-                    <Badge key={id} variant="secondary" className="pl-3 pr-1 py-1.5 bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100">
+                    <Badge key={id} variant="secondary" className="pl-3 pr-1.5 py-1.5 gap-2 bg-blue-50 border-blue-100 text-blue-700 hover:bg-blue-100 transition-colors">
                       {dev?.name || `ID: ${id}`}
-                      <X className="w-3.5 h-3.5 ml-2 cursor-pointer text-blue-400 hover:text-red-500" onClick={() => toggleDevice(id, 'in')} />
+                      <X className="w-3.5 h-3.5 cursor-pointer text-blue-400 hover:text-destructive" onClick={() => removeDevice(id, 'in', currentMapping)} />
                     </Badge>
                   );
                 })}
@@ -292,61 +250,37 @@ export default function ZonesDoorsPage() {
 
             {/* OUT Section */}
             <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-bold text-green-600 uppercase">Exit (OUT) Devices</label>
-                <div className="flex gap-4 text-[11px] font-bold">
-                  <button className="text-blue-500 hover:underline" onClick={() => handleBulkAction('out', 'all')}>SELECT ALL</button>
-                  <button className="text-red-500 hover:underline" onClick={() => handleBulkAction('out', 'clear')}>CLEAR</button>
-                </div>
-              </div>
-
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between bg-slate-50 border-slate-200 h-11 text-slate-500 font-normal">
-                    <span className="truncate">
-                      {currentMapping?.outDeviceIds?.length > 0
-                        ? `${currentMapping.outDeviceIds.length} Devices selected`
-                        : "Click to add device..."}
-                    </span>
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[470px] p-2" align="start">
-                  <div className="max-h-[250px] overflow-y-auto space-y-1">
-                    {devices.map((device) => {
-                      const isSelected = currentMapping?.outDeviceIds?.includes(device.id);
-                      return (
-                        <div key={device.id}
-                          className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${isSelected ? 'bg-primary/5 text-primary' : 'hover:bg-slate-50'}`}
-                          onClick={() => toggleDevice(device.id, 'out')}>
-                          <div className="flex items-center gap-3">
-                            <Checkbox checked={isSelected} className="border-slate-300" />
-                            <span className="text-sm font-medium">{device.name} {device.ipAddress && <span className="text-[10px] text-slate-400 font-normal ml-1">({device.ipAddress})</span>}</span>
-                          </div>
-                          {isSelected && <Check className="w-4 h-4" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </PopoverContent>
-              </Popover>
-
-              <div className="flex flex-wrap gap-2">
+              <label className="text-sm font-bold text-green-600 flex justify-between">
+                <span>Exit (OUT) Devices</span>
+                <span className="text-[10px] font-normal text-muted-foreground uppercase">Select to add</span>
+              </label>
+              <Select value="" onValueChange={(val) => handleMappingUpdate(Number(val), 'out')}>
+                <SelectTrigger className="w-full bg-slate-50 border-slate-200">
+                  <SelectValue placeholder="Click to add device..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {devices.map(d => (
+                    <SelectItem key={d.id} value={String(d.id)} disabled={currentMapping?.outDeviceIds?.includes(d.id)}>
+                      {d.name} {d.ipAddress ? `(${d.ipAddress})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex flex-wrap gap-2 min-h-[32px]">
                 {currentMapping?.outDeviceIds?.map((id: number) => {
                   const dev = devices.find(d => d.id === id);
                   return (
-                    <Badge key={id} variant="secondary" className="pl-3 pr-1 py-1.5 bg-green-50 border-green-100 text-green-700 hover:bg-green-100">
+                    <Badge key={id} variant="secondary" className="pl-3 pr-1.5 py-1.5 gap-2 bg-green-50 border-green-100 text-green-700 hover:bg-green-100 transition-colors">
                       {dev?.name || `ID: ${id}`}
-                      <X className="w-3.5 h-3.5 ml-2 cursor-pointer text-green-400 hover:text-red-500" onClick={() => toggleDevice(id, 'out')} />
+                      <X className="w-3.5 h-3.5 cursor-pointer text-green-400 hover:text-destructive" onClick={() => removeDevice(id, 'out', currentMapping)} />
                     </Badge>
                   );
                 })}
               </div>
             </div>
           </div>
-
           <DialogFooter className="border-t pt-4">
-            <Button className="w-full shadow-md font-bold text-base h-11" onClick={() => setMappingDialog(false)}>DONE</Button>
+            <Button className="w-full shadow-md" onClick={() => setMappingDialog(false)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

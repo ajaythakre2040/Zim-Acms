@@ -608,6 +608,25 @@ export const employeeRoles = pgTable("employee_roles", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
+
+export const mainGateLogs = pgTable("main_gate_logs", {
+  id: serial("id").primaryKey(),
+  employeeCode: text("employee_code").notNull(),
+  deviceId: integer("device_id").notNull(),
+  doorId: integer("door_id").notNull(),
+  logDate: timestamp("log_date").notNull(),
+  deviceDirection: text("device_direction", { enum: ["IN", "OUT"] }).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+})
+export const doorDevices = pgTable("door_devices", {
+  id: serial("id").primaryKey(),
+  doorId: integer("door_id").notNull(),
+  inDeviceIds: integer("in_device_ids").array().default([]),
+  outDeviceIds: integer("out_device_ids").array().default([]),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
 // ==================== INSERT SCHEMAS ====================
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
@@ -643,7 +662,7 @@ export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
 export const insertBlockUnblockLogSchema = createInsertSchema(blockUnblockLogs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEmployeeRoleSchema = createInsertSchema(employeeRoles).omit({ id: true, createdAt: true, updatedAt: true });
-
+export const insertMainGateLogSchema = createInsertSchema(mainGateLogs).omit({ id: true, createdAt: true, updatedAt: true });
 
 // ==================== TYPES ====================
 export type UserProfile = typeof userProfiles.$inferSelect;
@@ -714,5 +733,7 @@ export type BlockUnblockLog = typeof blockUnblockLogs.$inferSelect;
 export type InsertBlockUnblockLog = z.infer<typeof insertBlockUnblockLogSchema>;
 export type EmployeeRole = typeof employeeRoles.$inferSelect;
 export type InsertEmployeeRole = z.infer<typeof insertEmployeeRoleSchema>;
+export type MainGateLog = typeof mainGateLogs.$inferSelect;
+export type InsertMainGateLog = z.infer<typeof insertMainGateLogSchema>;
 
 
