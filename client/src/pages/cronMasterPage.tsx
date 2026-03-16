@@ -6,171 +6,252 @@ import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Play, Timer, Activity } from "lucide-react";
+import {
+    Plus, Pencil, Trash2, Play, Settings2, History,
+    Activity, Clock, Timer, AlertCircle, CheckCircle2, Loader2
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
-function CronTab({ group, label }: { group: string; label: string }) {
+export default function DynamicCronDashboard() {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editing, setEditing] = useState<any>(null);
-    const [formErrors, setFormErrors] = useState<Record<string, string>>({});
     const { toast } = useToast();
 
-    const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>("/api/cron-jobs", label);
+    // Single source of truth: All data comes from cron-jobs table
+    const { data: crons, isLoading: cronsLoading, create, update, remove, isCreating, isUpdating } =
+        useCrud<any>("/api/cron-jobs", "Cron Master");
 
-    const filteredData = data?.filter((item: any) => item.group === group) || [];
-
+    // Form Fields aligned with your NEW Schema
     const fields: FieldConfig[] = [
-        { key: "name", label: "Job Name", required: true },
-        { key: "expression", label: "Cron Expression (e.g. */5 * * * *)", required: true },
+        { key: "displayName", label: "Job Name", required: true, placeholder: "e.g., Main Gate Sync" },
+        { key: "cronKey", label: "Unique Identifier (ID)", required: true, placeholder: "MAIN_GATE_SYNC" },
+        {
+            key: "scheduleTime",
+            label: "Schedule Time (Cron Format)",
+            required: true,
+            placeholder: "*/5 * * * *",
+            // @ts-ignore (Adding description if your component supports it)
+            description: "Format: min hour dom month dow"
+        },
         {
             key: "task",
-            label: "Task Type",
+            label: "Execution Task",
             type: "select",
             required: true,
             options: [
-                { value: "sync_attendance", label: "Sync Attendance" },
-                { value: "clear_logs", label: "Clear Logs" },
-                { value: "db_backup", label: "Database Backup" }
+                { value: "sync_door_logs", label: "Door: Sync Access Logs (Raw Data)" },
+                { value: "gate_status_monitor", label: "Door: Check Gate Open/Close Status" },
+                { value: "sync_visitor_logs", label: "Door: Sync Visitor Entry/Exit" },
+
+                // --- GATEWAY TASKS ---
+                { value: "gateway_health", label: "Gateway: API Endpoint Health Check" },
+                { value: "gateway_traffic", label: "Gateway: Sync Request/Response Logs" },
+
+                // --- ATTENDANCE SYNC ---
+                { value: "sync_attendance", label: "Sync: MSSQL to PostgreSQL Attendance" },
+                { value: "sync_employee", label: "Sync: Employee Master Data" },
+
+                // --- MAINTENANCE ---
+                { value: "db_backup", label: "System: Full DB Backup" },
+                { value: "log_cleanup", label: "System: Auto-Delete Old Logs (>30 Days)" },
+                { value: "send_daily_summary", label: "Report: Email Attendance Summary" }
             ]
         },
-        { key: "isActive", label: "Active", type: "switch", defaultValue: true },
-        // 'hidden' ki jagah hum ise fields se nikal dete hain kyunki hum ise handleSubmit mein merge kar rahe hain
-    ];
-    const columns = [
         {
-            key: "name",
-            label: "Job Name",
-            render: (item: any) => (
+            key: "priority",
+            label: "Priority",
+            type: "select",
+            defaultValue: "medium",
+            options: [
+                { value: "high", label: "High" },
+                { value: "medium", label: "Medium" },
+                { value: "low", label: "Low" }
+            ]
+        },
+        { key: "retryCount", label: "Max Retries", type: "number", defaultValue: 3 },
+        { key: "timeoutMinutes", label: "Timeout (Mins)", type: "number", defaultValue: 15 },
+        { key: "isActive", label: "Execution Enabled", type: "switch", defaultValue: true },
+    ];
+
+    const masterColumns = [
+        {
+            key: "displayName",
+            label: "Job Info",
+            render: (i: any) => (
                 <div className="flex flex-col">
-                    <span className="font-medium text-foreground">{item.name}</span>
-                    <span className="text-[10px] font-mono text-muted-foreground bg-muted w-fit px-1 rounded">
-                        {item.expression}
+                    <span className="font-bold text-sm">{i.displayName}</span>
+                    <span className="text-[10px] font-mono text-blue-500 uppercase">{i.cronKey}</span>
+                </div>
+            )
+        },
+        {
+            key: "scheduleTime",
+            label: "Schedule",
+            render: (i: any) => (
+                <div className="flex items-center gap-2">
+                    <Clock className="w-3 h-3 text-muted-foreground" />
+                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded border">{i.scheduleTime}</code>
+                </div>
+            )
+        },
+        {
+            key: "executionStatus",
+            label: "Current Status",
+            render: (i: any) => (
+                <div className="flex flex-col gap-1">
+                    {i.isRunning ? (
+                        <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 animate-pulse">
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" /> In Progress
+                        </Badge>
+                    ) : (
+                        <Badge variant={i.isActive ? "default" : "secondary"} className={i.isActive ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : ""}>
+                            {i.isActive ? "Ready" : "Paused"}
+                        </Badge>
+                    )}
+                </div>
+            )
+        },
+        {
+            key: "lastRun",
+            label: "Last Run Stats",
+            render: (i: any) => (
+                <div className="flex flex-col text-[11px]">
+                    <span className="text-muted-foreground">
+                        {i.lastRun ? format(new Date(i.lastRun), "HH:mm:ss") : "Never"}
+                    </span>
+                    <span className="flex items-center gap-1 font-mono text-amber-600">
+                        <Timer className="w-3 h-3" /> {i.lastRunDuration || 0}s
                     </span>
                 </div>
             )
         },
         {
-            key: "task",
-            label: "Task",
-            render: (item: any) => (
-                <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 capitalize">
-                    <Activity className="w-3 h-3 mr-1" /> {item.task.replace("_", " ")}
-                </Badge>
-            )
-        },
-        {
-            key: "lastRun",
-            label: "Last Run",
-            render: (item: any) => item.lastRun ? format(new Date(item.lastRun), "PP p") : "Never"
-        },
-        {
-            key: "isActive",
-            label: "Status",
-            render: (item: any) => (
-                <Badge variant={item.isActive ? "default" : "secondary"} className={item.isActive ? "bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/20" : ""}>
-                    {item.isActive ? "Running" : "Paused"}
-                </Badge>
-            )
-        },
-        {
             key: "actions",
             label: "",
-            render: (item: any) => (
+            render: (i: any) => (
                 <div className="flex gap-1 justify-end">
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-400" title="Run Now">
-                        <Play className="w-4 h-4" />
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-blue-500" disabled={i.isRunning}>
+                        <Play className="w-4 h-4 fill-current" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditing(item); setDialogOpen(true); }}>
+                    <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => { setEditing(i); setDialogOpen(true); }}>
                         <Pencil className="w-4 h-4" />
                     </Button>
-                    <Button size="icon" variant="ghost" className="h-8 w-8 text-rose-400" onClick={() => remove(item.id)}>
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-rose-500" onClick={() => remove(i.id)}>
                         <Trash2 className="w-4 h-4" />
                     </Button>
                 </div>
             )
-        },
+        }
     ];
 
-    const handleSubmit = async (formData: any) => {
-        setFormErrors({});
-        // Yahan hum manual 'group' add kar rahe hain, isliye hidden field ki zaroorat nahi
-        const finalData = { ...formData, group };
-
-        try {
-            if (editing) {
-                await update({ id: editing.id, data: finalData });
-            } else {
-                await create(finalData);
-            }
-            setDialogOpen(false);
-            setEditing(null);
-        } catch (error: any) {
-            toast({ variant: "destructive", title: "Error", description: error.message });
-        }
-    };
-
     return (
-        <div className="space-y-4">
+        <div className="p-4 md:p-8 max-w-[1500px] mx-auto space-y-6">
             <div className="flex justify-between items-center">
-                <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
-                    <Plus className="w-4 h-4 mr-1" /> Add Job
-                </Button>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono bg-muted/50 px-2 py-1 rounded border">
-                    <Timer className="w-3 h-3" /> {format(new Date(), "HH:mm:ss")}
+                <PageHeader title="Automation Hub" description="Single-table system for all background processes." />
+                <div className="flex items-center gap-4 bg-card border rounded-xl px-4 py-2 shadow-sm">
+                    <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold">Server Time</span>
+                        <span className="text-sm font-mono">{format(new Date(), "HH:mm:ss")}</span>
+                    </div>
+                    <Clock className="w-5 h-5 text-primary" />
                 </div>
             </div>
 
-            <DataTable
-                columns={columns}
-                data={filteredData}
-                isLoading={isLoading}
-                searchable
-                searchKeys={["name"]}
-                emptyMessage="No cron jobs found"
-            />
+            <Tabs defaultValue="master" className="space-y-6">
+                <div className="overflow-x-auto">
+                    <TabsList className="bg-muted/50 border p-1 h-auto flex w-max gap-1">
+                        <TabsTrigger value="master" className="gap-2 px-6 py-2">
+                            <Settings2 className="w-4 h-4" /> Master Control
+                        </TabsTrigger>
+                        {crons?.map((cron: any) => (
+                            <TabsTrigger key={cron.id} value={`log-${cron.cronKey}`} className="gap-2 px-6 py-2">
+                                <History className="w-4 h-4" /> {cron.displayName}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </div>
+
+                {/* TAB 1: MASTER SETTINGS */}
+                <TabsContent value="master" className="space-y-4 animate-in fade-in duration-500">
+                    <div className="flex justify-between items-center bg-card p-5 rounded-2xl border border-primary/10 shadow-sm">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 rounded-lg">
+                                <Activity className="text-primary w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-lg leading-none">Registered Tasks</h3>
+                                <p className="text-xs text-muted-foreground mt-1">Configure intervals and monitor live execution.</p>
+                            </div>
+                        </div>
+                        <Button onClick={() => { setEditing(null); setDialogOpen(true); }} className="shadow-lg shadow-primary/20">
+                            <Plus className="w-4 h-4 mr-2" /> Add Schedule
+                        </Button>
+                    </div>
+                    <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
+                        <DataTable columns={masterColumns} data={crons || []} isLoading={cronsLoading} />
+                    </div>
+                </TabsContent>
+
+                {/* DYNAMIC LOGS TABS (Using same table data) */}
+                {crons?.map((cron: any) => (
+                    <TabsContent key={cron.id} value={`log-${cron.cronKey}`} className="animate-in slide-in-from-right-2 duration-300">
+                        <div className="space-y-4">
+                            <div className="bg-card p-6 rounded-2xl border flex items-center justify-between shadow-sm">
+                                <div className="flex items-center gap-4">
+                                    <div className={`p-3 rounded-full ${cron.lastStatus === 'SUCCESS' ? 'bg-emerald-500/10' : 'bg-rose-500/10'}`}>
+                                        {cron.lastStatus === 'SUCCESS' ? <CheckCircle2 className="text-emerald-500 w-6 h-6" /> : <AlertCircle className="text-rose-500 w-6 h-6" />}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-bold text-xl">{cron.displayName} Status</h3>
+                                        <p className="text-sm text-muted-foreground italic">
+                                            Last Message: {cron.lastMessage || "No recent activity recorded."}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <Badge variant="outline" className="font-mono mb-1">{cron.scheduleTime}</Badge>
+                                    <p className="text-[10px] text-muted-foreground uppercase">Schedule Interval</p>
+                                </div>
+                            </div>
+
+                            {/* Info Grid for Single Table Data */}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="p-4 bg-card border rounded-xl">
+                                    <span className="text-xs text-muted-foreground uppercase">Last Run</span>
+                                    <p className="font-bold">{cron.lastRun ? format(new Date(cron.lastRun), "PP p") : "N/A"}</p>
+                                </div>
+                                <div className="p-4 bg-card border rounded-xl">
+                                    <span className="text-xs text-muted-foreground uppercase">Duration</span>
+                                    <p className="font-bold text-amber-600">{cron.lastRunDuration || 0} Seconds</p>
+                                </div>
+                                <div className="p-4 bg-card border rounded-xl">
+                                    <span className="text-xs text-muted-foreground uppercase">Status</span>
+                                    <p className={`font-bold ${cron.lastStatus === 'SUCCESS' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                        {cron.lastStatus || "IDLE"}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </TabsContent>
+                ))}
+            </Tabs>
 
             <CrudDialog
                 open={dialogOpen}
                 onClose={() => { setDialogOpen(false); setEditing(null); }}
-                title={editing ? `Edit ${label}` : `Add ${label}`}
+                title={editing ? `Update Job: ${editing.displayName}` : "Schedule New Automation"}
                 fields={fields}
-                initialData={editing || { isActive: true, group }}
-                onSubmit={handleSubmit}
+                initialData={editing || { isActive: true, priority: 'medium', group: 'default' }}
+                onSubmit={async (val) => {
+                    // Automatically setting group to cronKey for dynamic tab logic
+                    const finalData = { ...val, group: val.cronKey };
+                    editing ? await update({ id: editing.id, data: finalData }) : await create(finalData);
+                    setDialogOpen(false);
+                    setEditing(null);
+                }}
                 isPending={isCreating || isUpdating}
-                errors={formErrors}
             />
-        </div>
-    );
-}
-
-export default function CronMasterPage() {
-    return (
-        <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
-            <PageHeader
-                title="Cron Master"
-                description="Manage background automation and scheduled tasks"
-            />
-
-            <Tabs defaultValue="main_gate" className="space-y-4">
-                <TabsList className="bg-background border shadow-sm">
-                    <TabsTrigger value="main_gate">Main Gate Cron</TabsTrigger>
-                    <TabsTrigger value="office">Office Cron</TabsTrigger>
-                    <TabsTrigger value="system">System Tasks</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="main_gate">
-                    <CronTab group="main_gate" label="Main Gate Cron" />
-                </TabsContent>
-
-                <TabsContent value="office">
-                    <CronTab group="office" label="Office Cron" />
-                </TabsContent>
-
-                <TabsContent value="system">
-                    <CronTab group="system" label="System Cron" />
-                </TabsContent>
-            </Tabs>
         </div>
     );
 }

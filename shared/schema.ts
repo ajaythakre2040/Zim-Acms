@@ -627,6 +627,41 @@ export const doorDevices = pgTable("door_devices", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
+export const cronMaster = pgTable("cron_master", {
+  id: serial("id").primaryKey(),
+
+  // --- Configuration ---
+  displayName: text("display_name").notNull(),
+  cronKey: text("cron_key").unique().notNull(),
+
+  // Naam badal kar 'scheduleTime' kar diya hai
+  scheduleTime: text("schedule_time").notNull(), // Example: "*/5 * * * *"
+
+  task: text("task").notNull(),
+  group: text("group").notNull(),
+
+  // --- Execution Controls ---
+  retryCount: integer("retry_count").default(3),
+  timeoutMinutes: integer("timeout_minutes").default(15),
+  priority: text("priority").default("medium"),
+
+  // --- Status & Tracking ---
+  isActive: boolean("is_active").default(true),
+  isRunning: boolean("is_running").default(false),
+
+  // Last Run Details (Kitne time chala aur kab)
+  lastRun: timestamp("last_run"),
+  lastRunDuration: integer("last_run_duration"), // In seconds
+  lastStatus: text("last_status"),
+  lastMessage: text("last_message"),
+
+  // --- Maintenance ---
+  logRetentionDays: integer("log_retention_days").default(30),
+  alertEmail: text("alert_email"),
+
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
 // ==================== INSERT SCHEMAS ====================
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
@@ -663,6 +698,7 @@ export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
 export const insertBlockUnblockLogSchema = createInsertSchema(blockUnblockLogs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEmployeeRoleSchema = createInsertSchema(employeeRoles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMainGateLogSchema = createInsertSchema(mainGateLogs).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertCronMasterSchema = createInsertSchema(cronMaster).omit({ id: true, createdAt: true, updatedAt: true });
 
 // ==================== TYPES ====================
 export type UserProfile = typeof userProfiles.$inferSelect;
@@ -735,5 +771,7 @@ export type EmployeeRole = typeof employeeRoles.$inferSelect;
 export type InsertEmployeeRole = z.infer<typeof insertEmployeeRoleSchema>;
 export type MainGateLog = typeof mainGateLogs.$inferSelect;
 export type InsertMainGateLog = z.infer<typeof insertMainGateLogSchema>;
+export type CronMaster = typeof cronMaster.$inferSelect;
+export type InsertCronMaster = z.infer<typeof insertCronMasterSchema>;
 
 

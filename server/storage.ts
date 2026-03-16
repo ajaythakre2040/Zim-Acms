@@ -36,6 +36,9 @@ import {
   type Exception, type InsertException,
   type SystemSetting, type InsertSystemSetting,
   blockUnblockLogs,
+  CronMaster,
+  cronMaster,
+  InsertCronMaster,
 } from "@shared/schema";
 import { db, dbMsSql } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray } from "drizzle-orm";
@@ -1415,6 +1418,29 @@ export class DatabaseStorage implements IStorage {
         this.executeHardwareSync(mapping.employeeCode, null, false);
       }
     });
+  }
+  
+  async getCronMasters(): Promise<CronMaster[]> {
+    return await db.select().from(cronMaster).orderBy(desc(cronMaster.createdAt));
+  }
+
+  async createCronMaster(data: InsertCronMaster): Promise<CronMaster> {
+    const [newCron] = await db.insert(cronMaster).values(data).returning();
+    return newCron;
+  }
+
+  async updateCronMaster(id: number, data: Partial<InsertCronMaster>): Promise<CronMaster> {
+    const [updatedCron] = await db
+      .update(cronMaster)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(cronMaster.id, id))
+      .returning();
+    if (!updatedCron) throw new Error("Cron not found");
+    return updatedCron;
+  }
+
+  async deleteCronMaster(id: number): Promise<void> {
+    await db.delete(cronMaster).where(eq(cronMaster.id, id));
   }
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
     try {

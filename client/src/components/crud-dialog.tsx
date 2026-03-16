@@ -16,6 +16,7 @@ export interface FieldConfig {
   placeholder?: string;
   defaultValue?: any;
   readOnly?: boolean;
+  // disabled?: boolean;
   onChange?: (value: any, currentForm: Record<string, any>, setForm: (data: any) => void) => void;
 }
 

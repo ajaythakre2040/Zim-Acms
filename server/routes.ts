@@ -14,6 +14,7 @@ import {
   insertAccessLogSchema, insertAlertSchema, insertExceptionSchema,
   insertSystemSettingSchema, insertUserProfileSchema,
   insertRoleSchema, insertEmployeeRoleSchema,
+  insertCronMasterSchema,
 } from "@shared/schema";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
@@ -668,28 +669,56 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     (id, data) => storage.updateRole(id, data),
     (id) => storage.deleteRole(id)
   );
+    crudRoutes(
+      app,
+      "/api/employee-roles",
+      insertEmployeeRoleSchema,
+      () => storage.getEmployeeRoles(),
+      async (data: any) => {
+        const existing = await storage.getEmployeeRoles();
+        const isDuplicate = existing.some(
+          (r) => r.employeeCode === data.employeeCode && Number(r.roleId) === Number(data.roleId)
+        );
+        if (isDuplicate) {
+          const error: any = new Error("This role is already assigned to this employee.");
+          error.status = 400;
+          throw error;
+        }
+        return await storage.createEmployeeRole(data);
+      },
+      async (id, data) => {
+        return await storage.updateEmployeeRole(id, data);
+      },
+      async (id) => {
+        return await storage.deleteEmployeeRole(id);
+      }
+    );
+  // routes.ts mein ye add karein
   crudRoutes(
     app,
-    "/api/employee-roles",
-    insertEmployeeRoleSchema,
-    () => storage.getEmployeeRoles(),
+    "/api/cron-jobs",
+    insertCronMasterSchema,
+    () => storage.getCronMasters(),
     async (data: any) => {
-      const existing = await storage.getEmployeeRoles();
+      // Check if cronKey already exists
+      const existing = await storage.getCronMasters();
       const isDuplicate = existing.some(
-        (r) => r.employeeCode === data.employeeCode && Number(r.roleId) === Number(data.roleId)
+        (c) => c.cronKey.toLowerCase() === data.cronKey.toLowerCase()
       );
+
       if (isDuplicate) {
-        const error: any = new Error("This role is already assigned to this employee.");
+        const error: any = new Error("This Cron Key is already defined. Please use a unique key.");
         error.status = 400;
         throw error;
       }
-      return await storage.createEmployeeRole(data);
+
+      return await storage.createCronMaster(data);
     },
     async (id, data) => {
-      return await storage.updateEmployeeRole(id, data);
+      return await storage.updateCronMaster(id, data);
     },
     async (id) => {
-      return await storage.deleteEmployeeRole(id);
+      return await storage.deleteCronMaster(id);
     }
   );
   return httpServer;
