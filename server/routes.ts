@@ -15,6 +15,7 @@ import {
   insertSystemSettingSchema, insertUserProfileSchema,
   insertRoleSchema, insertEmployeeRoleSchema,
   insertCronMasterSchema,
+  insertDoorDeviceSchema,
 } from "@shared/schema";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
@@ -719,6 +720,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     },
     async (id) => {
       return await storage.deleteCronMaster(id);
+    }
+  );
+  // Door Devices Mapping Routes
+  crudRoutes(
+    app,
+    "/api/door-devices",
+    insertDoorDeviceSchema, // Ensure this Zod schema allows arrays
+    () => storage.getDoorDevices(),
+    async (data: any) => {
+      // Check if mapping for this door already exists to prevent duplicates
+      const existing = await storage.getDoorDevices();
+      const isDuplicate = existing.some((m) => m.doorId === data.doorId);
+
+      if (isDuplicate) {
+        const error: any = new Error("Hardware mapping already exists for this door.");
+        error.status = 400;
+        throw error;
+      }
+
+      return await storage.createDoorDevice(data);
+    },
+    async (id, data) => {
+      return await storage.updateDoorDevice(id, data);
+    },
+    async (id) => {
+      return await storage.deleteDoorDevice(id);
     }
   );
   return httpServer;

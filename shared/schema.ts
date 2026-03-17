@@ -624,6 +624,8 @@ export const doorDevices = pgTable("door_devices", {
   doorId: integer("door_id").notNull(),
   inDeviceIds: integer("in_device_ids").array().default([]),
   outDeviceIds: integer("out_device_ids").array().default([]),
+  // inDeviceIds: jsonb("in_device_ids").$type<number[]>().default([]),
+  // outDeviceIds: jsonb("out_device_ids").$type<number[]>().default([]),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -699,6 +701,8 @@ export const insertBlockUnblockLogSchema = createInsertSchema(blockUnblockLogs).
 export const insertEmployeeRoleSchema = createInsertSchema(employeeRoles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMainGateLogSchema = createInsertSchema(mainGateLogs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCronMasterSchema = createInsertSchema(cronMaster).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertDoorDeviceSchema = createInsertSchema(doorDevices).omit({ id: true, createdAt: true });
+
 
 // ==================== TYPES ====================
 export type UserProfile = typeof userProfiles.$inferSelect;
@@ -773,5 +777,7 @@ export type MainGateLog = typeof mainGateLogs.$inferSelect;
 export type InsertMainGateLog = z.infer<typeof insertMainGateLogSchema>;
 export type CronMaster = typeof cronMaster.$inferSelect;
 export type InsertCronMaster = z.infer<typeof insertCronMasterSchema>;
+export type DoorDevice = typeof doorDevices.$inferSelect;
+export type InsertDoorDevice = z.infer<typeof insertDoorDeviceSchema>;
 
 

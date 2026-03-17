@@ -39,6 +39,9 @@ import {
   CronMaster,
   cronMaster,
   InsertCronMaster,
+  doorDevices,
+  InsertDoorDevice,
+  DoorDevice,
 } from "@shared/schema";
 import { db, dbMsSql } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray } from "drizzle-orm";
@@ -1441,6 +1444,37 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCronMaster(id: number): Promise<void> {
     await db.delete(cronMaster).where(eq(cronMaster.id, id));
+  }
+  // --- DOOR DEVICES MAPPING ---
+
+  async getDoorDevices(): Promise<DoorDevice[]> {
+    return await db.select().from(doorDevices).orderBy(desc(doorDevices.createdAt));
+  }
+
+  async createDoorDevice(data: InsertDoorDevice): Promise<DoorDevice> {
+    // Array data already parsed hoke aayega schema validation se
+    const [newMapping] = await db.insert(doorDevices).values(data).returning();
+    return newMapping;
+  }
+
+  async updateDoorDevice(id: number, data: Partial<InsertDoorDevice>): Promise<DoorDevice> {
+    const [updatedMapping] = await db
+      .update(doorDevices)
+      .set({
+        ...data,
+        // Ensure arrays are treated as arrays if they exist in data
+        inDeviceIds: data.inDeviceIds,
+        outDeviceIds: data.outDeviceIds,
+      })
+      .where(eq(doorDevices.id, id))
+      .returning();
+
+    if (!updatedMapping) throw new Error("Mapping not found");
+    return updatedMapping;
+  }
+
+  async deleteDoorDevice(id: number): Promise<void> {
+    await db.delete(doorDevices).where(eq(doorDevices.id, id));
   }
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
     try {
