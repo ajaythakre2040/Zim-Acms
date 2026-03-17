@@ -9,33 +9,27 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Pencil, Trash2, Wifi, WifiOff, AlertCircle, Wrench } from "lucide-react";
 import type { Device, Site, Zone } from "@shared/schema";
-
-const statusConfig: Record<string, { color: string; icon: typeof Wifi; dotClass: string }> = {
-  online: { color: "default", icon: Wifi, dotClass: "bg-green-500" },
-  offline: { color: "secondary", icon: WifiOff, dotClass: "bg-slate-400" },
-  error: { color: "destructive", icon: AlertCircle, dotClass: "bg-red-500" },
-  maintenance: { color: "outline", icon: Wrench, dotClass: "bg-orange-500" },
+const statusConfig: Record<string, { color: string; icon: typeof Wifi }> = {
+  online: { color: "default", icon: Wifi },
+  offline: { color: "secondary", icon: WifiOff },
+  error: { color: "destructive", icon: AlertCircle },
+  maintenance: { color: "outline", icon: Wrench },
 };
-
 export default function DevicesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Device | null>(null);
-
-  // Aapka original CRUD hook
-  const { data = [], isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Device>("/api/devices", "Device");
+  const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Device>("/api/devices", "Device");
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: zones = [] } = useQuery<Zone[]>({ queryKey: ["/api/zones"] });
-
   const online = data.filter((d) => d.status === "online").length;
   const offline = data.filter((d) => d.status === "offline").length;
   const errored = data.filter((d) => d.status === "error").length;
-
   const fields: FieldConfig[] = [
     { key: "name", label: "Device Name", required: true },
     {
-      key: "activationCode",
+      key: "activationCode", 
       label: "Activation Code",
-      readOnly: !!editing
+      readOnly: !!editing 
     } as any,
     { key: "deviceType", label: "Type", type: "select", options: [{ value: "reader", label: "Reader" }, { value: "turnstile", label: "Turnstile" }, { value: "gate", label: "Gate" }, { value: "barrier", label: "Barrier" }, { value: "controller", label: "Controller" }, { value: "biometric", label: "Biometric" }], defaultValue: "reader" },
     { key: "locationId", label: "Site", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
@@ -47,101 +41,53 @@ export default function DevicesPage() {
     { key: "status", label: "Status", type: "select", options: [{ value: "online", label: "Online" }, { value: "offline", label: "Offline" }, { value: "error", label: "Error" }, { value: "maintenance", label: "Maintenance" }], defaultValue: "offline" },
     { key: "isActive", label: "Active", type: "switch", defaultValue: true },
   ];
-
   const columns = [
-    {
-      key: "name", label: "Device", render: (d: Device) => (
-        <div>
-          <span className="font-medium">{d.name}</span>
-          {d.ipAddress && <p className="text-xs text-muted-foreground font-mono">{d.ipAddress}</p>}
-        </div>
-      )
-    },
+    { key: "name", label: "Device", render: (d: Device) => (
+      <div>
+        <span className="font-medium">{d.name}</span>
+        {d.ipAddress && <p className="text-xs text-muted-foreground font-mono">{d.ipAddress}</p>}
+      </div>
+    )},
     { key: "deviceType", label: "Type", render: (d: Device) => <Badge variant="secondary">{d.deviceType}</Badge> },
-
-    // YEH RAH AAPKA SITE COLUMN (Jaisa pehle tha)
     { key: "site", label: "Site", hideOnMobile: true, render: (d: Device) => sites.find((s) => s.id === d.locationId)?.name || "-" },
-
-    // STATUS COLUMN (Visual Update Only)
-    {
-      key: "status", label: "Status", render: (d: Device) => {
-        const statusKey = d.status || "offline";
-        const cfg = statusConfig[statusKey];
-        return (
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              {statusKey === "online" && (
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              )}
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${cfg.dotClass}`}></span>
-            </span>
-            <Badge variant={cfg.color as any}>{statusKey}</Badge>
-          </div>
-        );
-      }
-    },
-
-    // LAST SEEN COLUMN (Format Update Only)
-    {
-      key: "lastHeartbeat", label: "Last Seen", hideOnMobile: true, render: (d: Device) => {
-        if (!d.lastHeartbeat) return "Never";
-        const date = new Date(d.lastHeartbeat);
-        const diffInMins = Math.floor((new Date().getTime() - date.getTime()) / 60000);
-
-        let timeAgo = "";
-        if (diffInMins < 1) timeAgo = "Just now";
-        else if (diffInMins < 60) timeAgo = `${diffInMins}m ago`;
-        else if (diffInMins < 1440) timeAgo = `${Math.floor(diffInMins / 60)}h ago`;
-        else timeAgo = date.toLocaleDateString();
-
-        return (
-          <div className="flex flex-col leading-tight">
-            <span className="text-sm font-medium">{timeAgo}</span>
-            <span className="text-[10px] text-muted-foreground">{date.toLocaleTimeString()}</span>
-          </div>
-        );
-      }
-    },
-
-    {
-      key: "actions", label: "", render: (d: Device) => (
-        <div className="flex gap-1">
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(d); setDialogOpen(true); }}>
-            <Pencil className="w-4 h-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const idToDelete = d.id || (d as any).msId;
-              if (idToDelete && window.confirm("Are you sure?")) {
-                remove(idToDelete);
-              }
-            }}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      )
-    },
+    { key: "status", label: "Status", render: (d: Device) => {
+      const cfg = statusConfig[d.status || "offline"];
+      return <Badge variant={cfg.color as any}>{d.status}</Badge>;
+    }},
+    { key: "lastHeartbeat", label: "Last Seen", hideOnMobile: true, render: (d: Device) => d.lastHeartbeat ? new Date(d.lastHeartbeat).toLocaleString() : "Never" },
+    { key: "actions", label: "", render: (d: Device) => (
+      <div className="flex gap-1">
+        <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(d); setDialogOpen(true); }}>
+          <Pencil className="w-4 h-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const idToDelete = d.id || d.msId;
+            if (idToDelete && window.confirm("Are you sure?")) {
+              remove(idToDelete);
+            }
+          }}
+        >
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      </div>
+    )},
   ];
-
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
       <PageHeader title="Devices" description="Manage access control devices" action={<Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Device</Button>} />
-
       <div className="grid grid-cols-3 gap-3">
         <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-green-600 dark:text-green-400">{online}</p><p className="text-xs text-muted-foreground">Online</p></CardContent></Card>
         <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-muted-foreground">{offline}</p><p className="text-xs text-muted-foreground">Offline</p></CardContent></Card>
         <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-red-600 dark:text-red-400">{errored}</p><p className="text-xs text-muted-foreground">Error</p></CardContent></Card>
       </div>
-
-      <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={["name", "ipAddress", "serialNumber"]} emptyMessage="No devices registered" />
-
-      <CrudDialog
-        open={dialogOpen}
+      <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={["name", "code", "ipAddress", "serialNumber"]} emptyMessage="No devices registered" />
+      <CrudDialog 
+      open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null); }}
         title={editing ? "Edit Device" : "Add Device"}
         fields={fields}
@@ -155,6 +101,10 @@ export default function DevicesPage() {
           if (formData.zoneId) formData.zoneId = Number(formData.zoneId);
           if (editing) {
             const updateId = editing.id || (editing as any).msId;
+            if (!updateId) {
+              console.error("Device object missing ID:", editing);
+              return;
+            }
             update({ id: updateId, data: formData });
           } else {
             create(formData);

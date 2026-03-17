@@ -476,8 +476,41 @@ export class DatabaseStorage implements IStorage {
   async deleteZone(id: number): Promise<void> {
     await db.delete(zones).where(eq(zones.id, id));
   }
-  async getDoors(): Promise<Door[]> {
-    return await db.select().from(doors);
+  // async getDoors(): Promise<Door[]> {
+  //   return await db.select().from(doors);
+  //    }
+  async getDoors(): Promise<any[]> {
+    try {
+      const [allDoors, allDoorDevices, allDevices] = await Promise.all([
+        db.select().from(doors),
+        db.select().from(doorDevices),
+        db.select().from(devices)
+      ]);
+
+      return allDoors.map((door) => {
+        const mapping = allDoorDevices.find((md) => md.doorId === door.id);
+
+        const resolveNames = (ids: any[] | null): string[] => {
+          if (!ids || !Array.isArray(ids)) return [];
+          return ids
+            .map(id => allDevices.find(d => d.id === Number(id))?.name)
+            .filter((name): name is string => !!name);
+        };
+
+        const inNames = resolveNames(mapping?.inDeviceIds || []);
+        const outNames = resolveNames(mapping?.outDeviceIds || []);
+
+        return {
+          ...door,
+          inDeviceNames: inNames,
+          outDeviceNames: outNames,
+          allConnectedDevices: Array.from(new Set([...inNames, ...outNames]))
+        };
+      });
+    } catch (error) {
+      console.error("getDoors Error:", error);
+      return [];
+    }
   }
   async createDoor(data: InsertDoor): Promise<Door> {
     const [created] = await db.insert(doors).values(data).returning();
@@ -490,57 +523,138 @@ export class DatabaseStorage implements IStorage {
   async deleteDoor(id: number): Promise<void> {
     await db.delete(doors).where(eq(doors.id, id));
   }
+  // async getDevices(): Promise<any[]> {
+  //   const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
+  //   if (!msDataRaw) return [];
+  //   const formattedDevices = msDataRaw.map((d: any) => ({
+  //     msId: d.DeviceId || d.DeviceID,
+  //     name: d.DeviceName || "Unnamed Device",
+  //     activationCode: d.ActivationCode || "",
+  //     deviceType: String(d.DeviceType || " ").toLowerCase(),
+  //     serialNumber: d.SerialNumber || d.serialno,
+  //     status: d.Status || "offline",
+  //     lastHeartbeat: d.LastHeartbeat ? new Date(d.LastHeartbeat) : null,
+  //     locationId: d.LocationId || null,
+  //     ipAddress: d.IpAddress || ""
+  //   }));
+  //   try {
+  //     for (const dev of formattedDevices) {
+  //       await db.insert(devices)
+  //         .values({
+  //           msId: dev.msId,
+  //           name: dev.name,
+  //           serialNumber: dev.serialNumber,
+  //           status: dev.status,
+  //           lastHeartbeat: dev.lastHeartbeat,
+  //           activationCode: dev.activationCode,
+  //           deviceType: dev.deviceType,
+  //           locationId: dev.locationId,
+  //           ipAddress: dev.ipAddress,
+  //           isActive: true
+  //         })
+  //         .onConflictDoUpdate({
+  //           target: devices.msId,
+  //           set: {
+  //             name: dev.name,
+  //             status: dev.status,
+  //             lastHeartbeat: dev.lastHeartbeat,
+  //             ipAddress: dev.ipAddress,
+  //             locationId: dev.locationId
+  //           }
+  //         });
+  //     }
+  //     const currentMsIds = formattedDevices.map(d => d.msId);
+  //     if (currentMsIds.length > 0) {
+  //       await db.delete(devices)
+  //         .where(notInArray(devices.msId, currentMsIds));
+  //     } else {
+  //       await db.delete(devices);
+  //     }
+  //   } catch (error) {
+  //     console.error("Device Sync Error:", error);
+  //   }
+  //   return formattedDevices;
+  // }
+
   async getDevices(): Promise<any[]> {
-    const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
-    if (!msDataRaw) return [];
-    const formattedDevices = msDataRaw.map((d: any) => ({
-      msId: d.DeviceId || d.DeviceID,
-      name: d.DeviceName || "Unnamed Device",
-      activationCode: d.ActivationCode || "",
-      deviceType: String(d.DeviceType || " ").toLowerCase(),
-      serialNumber: d.SerialNumber || d.serialno,
-      status: d.Status || "offline",
-      lastHeartbeat: d.LastHeartbeat ? new Date(d.LastHeartbeat) : null,
-      locationId: d.LocationId || null,
-      ipAddress: d.IpAddress || ""
-    }));
     try {
+      // 1. MS SQL Database se saara data fetch karein
+      const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
+
+      if (!msDataRaw || msDataRaw.length === 0) return [];
+
+      const currentTime = new Date();
+      const THRESHOLD_MINUTES = 1;
+
+      // 2. Data Transform aur Status Calculation
+      const formattedDevices = msDataRaw.map((d: any) => {
+        const lPing = d.LastPing ? new Date(d.LastPing) : null;
+
+        // Online/Offline Logic
+        let calculatedStatus = "offline";
+        if (lPing) {
+          const diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
+          if (diffInMinutes <= THRESHOLD_MINUTES) {
+            calculatedStatus = "online";
+          }
+        }
+
+        return {
+          msId: d.DeviceId || d.DeviceID,
+          name: d.DeviceName || "Unnamed Device",
+          deviceDirection: d.DeviceDirection || null,
+          serialNumber: d.SerialNumber || d.serialno,
+          opstamp: d.OpStamp ? String(d.OpStamp) : null,
+          lastPing: lPing,
+          lastreset: d.LastReset ? new Date(d.LastReset) : null,
+          activationCode: d.ActivationCode || "",
+          isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+          deviceType: String(d.DeviceType || "-").toLowerCase(),
+          locationId: d.LocationId || null,
+          ipAddress: d.IpAddress || "",
+          lastHeartbeat: lPing, // LastPing ko hi heartbeat mein store kar rahe hain
+          status: calculatedStatus,
+          isActive: true
+        };
+      });
+
+      // 3. Postgres mein Upsert (Insert or Update)
       for (const dev of formattedDevices) {
         await db.insert(devices)
-          .values({
-            msId: dev.msId,
-            name: dev.name,
-            serialNumber: dev.serialNumber,
-            status: dev.status,
-            lastHeartbeat: dev.lastHeartbeat,
-            activationCode: dev.activationCode,
-            deviceType: dev.deviceType,
-            locationId: dev.locationId,
-            ipAddress: dev.ipAddress,
-            isActive: true
-          })
+          .values(dev)
           .onConflictDoUpdate({
             target: devices.msId,
             set: {
               name: dev.name,
-              status: dev.status,
-              lastHeartbeat: dev.lastHeartbeat,
+              deviceDirection: dev.deviceDirection,
+              serialNumber: dev.serialNumber,
+              opstamp: dev.opstamp,
+              lastPing: dev.lastPing,
+              lastreset: dev.lastreset,
+              activationCode: dev.activationCode,
+              isAttendanceDevice: dev.isAttendanceDevice,
+              deviceType: dev.deviceType,
+              locationId: dev.locationId,
               ipAddress: dev.ipAddress,
-              locationId: dev.locationId
+              lastHeartbeat: dev.lastHeartbeat,
+              status: dev.status,
+              isActive: true
             }
           });
       }
-      const currentMsIds = formattedDevices.map(d => d.msId);
+
+      // 4. Cleanup: Jo MS SQL mein nahi hain unhe delete karein
+      const currentMsIds = formattedDevices.map(d => d.msId as number);
       if (currentMsIds.length > 0) {
-        await db.delete(devices)
-          .where(notInArray(devices.msId, currentMsIds));
-      } else {
-        await db.delete(devices);
+        await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
       }
+
+      return formattedDevices;
+
     } catch (error) {
       console.error("Device Sync Error:", error);
+      return [];
     }
-    return formattedDevices;
   }
   async createDevice(data: InsertDevice): Promise<Device> {
     let mssqlId: number | null = null;
