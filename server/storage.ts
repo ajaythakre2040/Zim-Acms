@@ -490,15 +490,15 @@ export class DatabaseStorage implements IStorage {
       return allDoors.map((door) => {
         const mapping = allDoorDevices.find((md) => md.doorId === door.id);
 
-        // Fix: Har ek ID ke liye alag se name uthana
         const resolveDevices = (ids: any[] | null) => {
           if (!ids || !Array.isArray(ids)) return [];
 
-          // Map har ek ID ko process karega, duplicates filter nahi honge
           return ids.map(id => {
-            const dev = allDevices.find(d => d.id === Number(id));
-            return dev ? { id: dev.id, name: dev.name } : { id: Number(id), name: "Unknown" };
-          });
+            // FIX: Hum 'msId' se match kar rahe hain kyunki aapka input MS SQL ID hai
+            const dev = allDevices.find(d => Number(d.msId) === Number(id));
+
+            return dev ? { id: dev.id, msId: dev.msId, name: dev.name } : null;
+          }).filter((d): d is { id: number; msId: number; name: string } => d !== null);
         };
 
         const inDevices = resolveDevices(mapping?.inDeviceIds || []);
@@ -506,14 +506,14 @@ export class DatabaseStorage implements IStorage {
 
         return {
           ...door,
-          inDevices,  // Ab isme poore 4 objects milenge agar IDs 4 hain
-          outDevices, // Isme 3 objects milenge agar IDs 3 hain
+          inDevices,
+          outDevices,
           inCount: inDevices.length,
           outCount: outDevices.length
         };
       });
     } catch (error) {
-      console.error("getDoors Final Fix Error:", error);
+      console.error("getDoors MS_ID Sync Error:", error);
       return [];
     }
   }
