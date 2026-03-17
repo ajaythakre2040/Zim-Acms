@@ -490,25 +490,30 @@ export class DatabaseStorage implements IStorage {
       return allDoors.map((door) => {
         const mapping = allDoorDevices.find((md) => md.doorId === door.id);
 
-        const resolveNames = (ids: any[] | null): string[] => {
+        // Fix: Har ek ID ke liye alag se name uthana
+        const resolveDevices = (ids: any[] | null) => {
           if (!ids || !Array.isArray(ids)) return [];
-          return ids
-            .map(id => allDevices.find(d => d.id === Number(id))?.name)
-            .filter((name): name is string => !!name);
+
+          // Map har ek ID ko process karega, duplicates filter nahi honge
+          return ids.map(id => {
+            const dev = allDevices.find(d => d.id === Number(id));
+            return dev ? { id: dev.id, name: dev.name } : { id: Number(id), name: "Unknown" };
+          });
         };
 
-        const inNames = resolveNames(mapping?.inDeviceIds || []);
-        const outNames = resolveNames(mapping?.outDeviceIds || []);
+        const inDevices = resolveDevices(mapping?.inDeviceIds || []);
+        const outDevices = resolveDevices(mapping?.outDeviceIds || []);
 
         return {
           ...door,
-          inDeviceNames: inNames,
-          outDeviceNames: outNames,
-          allConnectedDevices: Array.from(new Set([...inNames, ...outNames]))
+          inDevices,  // Ab isme poore 4 objects milenge agar IDs 4 hain
+          outDevices, // Isme 3 objects milenge agar IDs 3 hain
+          inCount: inDevices.length,
+          outCount: outDevices.length
         };
       });
     } catch (error) {
-      console.error("getDoors Error:", error);
+      console.error("getDoors Final Fix Error:", error);
       return [];
     }
   }
