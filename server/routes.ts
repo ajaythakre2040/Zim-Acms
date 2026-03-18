@@ -16,6 +16,7 @@ import {
   insertRoleSchema, insertEmployeeRoleSchema,
   insertCronMasterSchema,
   insertDoorDeviceSchema,
+  insertBlockUnblockLogSchema,
 } from "@shared/schema";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
@@ -661,6 +662,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  app.get("/api/people/device-status/:empCode", async (req, res) => {
+    try {
+      const statuses = await storage.getEmployeeDeviceStatuses(req.params.empCode);
+      res.json(statuses);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.post("/api/people/emergency-toggle", async (req, res) => {
+    try {
+      const result = await storage.toggleEmployeeDeviceAccess(req.body);
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
   crudRoutes(
     app,
     "/api/roles",
@@ -748,5 +766,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return await storage.deleteDoorDevice(id);
     }
   );
+  crudRoutes(
+  app,
+  "/api/block-unblock-logs",
+  insertBlockUnblockLogSchema,
+  () => storage.getBlockUnblockLogs(),
+  async (data: any) => {
+    return await storage.createBlockUnblockLog(data);
+  },
+  async (id, data) => {
+    return await storage.updateBlockUnblockLog(id, data);
+  },
+  async (id) => {
+    return await storage.deleteBlockUnblockLog(id);
+  }
+);
   return httpServer;
 }

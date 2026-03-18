@@ -42,6 +42,8 @@ import {
   doorDevices,
   InsertDoorDevice,
   DoorDevice,
+  BlockUnblockLog,
+  InsertBlockUnblockLog,
 } from "@shared/schema";
 import { db, dbMsSql } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray } from "drizzle-orm";
@@ -200,20 +202,20 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(userProfiles).set({ ...profile, updatedAt: new Date() }).where(eq(userProfiles.id, id)).returning();
     return updated;
   }
-  async getCompanies(): Promise<Company[]> {
-    return await db.select().from(companies);
-  }
-  async createCompany(data: InsertCompany): Promise<Company> {
-    const [created] = await db.insert(companies).values(data).returning();
-    return created;
-  }
-  async updateCompany(id: number, data: Partial<InsertCompany>): Promise<Company> {
-    const [updated] = await db.update(companies).set(data).where(eq(companies.id, id)).returning();
-    return updated;
-  }
-  async deleteCompany(id: number): Promise<void> {
-    await db.delete(companies).where(eq(companies.id, id));
-  }
+    async getCompanies(): Promise<Company[]> {
+      return await db.select().from(companies);
+    }
+    async createCompany(data: InsertCompany): Promise<Company> {
+      const [created] = await db.insert(companies).values(data).returning();
+      return created;
+    }
+    async updateCompany(id: number, data: Partial<InsertCompany>): Promise<Company> {
+      const [updated] = await db.update(companies).set(data).where(eq(companies.id, id)).returning();
+      return updated;
+    }
+    async deleteCompany(id: number): Promise<void> {
+      await db.delete(companies).where(eq(companies.id, id));
+    }
   async getDepartments(): Promise<Department[]> {
     return await db.select().from(departments);
   }
@@ -1595,6 +1597,109 @@ export class DatabaseStorage implements IStorage {
   async deleteDoorDevice(id: number): Promise<void> {
     await db.delete(doorDevices).where(eq(doorDevices.id, id));
   }
+  async getBlockUnblockLogs(): Promise<any[]> {
+    try {
+      return await db
+        .select({
+          id: blockUnblockLogs.id,
+          employeeCode: blockUnblockLogs.employeeCode,
+          deviceId: blockUnblockLogs.deviceId,
+          deviceName: devices.name, // Device table se join karke naam nikalna
+          type: blockUnblockLogs.type,
+          createdAt: blockUnblockLogs.createdAt,
+          updatedAt: blockUnblockLogs.updatedAt,
+        })
+        .from(blockUnblockLogs)
+        .leftJoin(devices, eq(blockUnblockLogs.deviceId, devices.msId))
+        .orderBy(desc(blockUnblockLogs.createdAt));
+    } catch (error) {
+      console.error("Error fetching logs:", error);
+      return [];
+    }
+  }
+
+  // 2. INSERT: Naya log record karna (Using your InsertBlockUnblockLog type)
+  async createBlockUnblockLog(data: InsertBlockUnblockLog): Promise<BlockUnblockLog> {
+    const [log] = await db
+      .insert(blockUnblockLogs)
+      .values(data)
+      .returning();
+    return log;
+  }
+
+  // 3. UPDATE: Kisi existing log entry ko update karna
+  async updateBlockUnblockLog(id: number, data: Partial<InsertBlockUnblockLog>): Promise<BlockUnblockLog> {
+    const [updated] = await db
+      .update(blockUnblockLogs)
+      .set({
+        ...data,
+        updatedAt: new Date()
+      })
+      .where(eq(blockUnblockLogs.id, id))
+      .returning();
+    return updated;
+  }
+
+  // 4. DELETE: Log entry remove karna
+  async deleteBlockUnblockLog(id: number): Promise<void> {
+    await db
+      .delete(blockUnblockLogs)
+      .where(eq(blockUnblockLogs.id, id));
+  }
+
+  // 5. GET BY ID: Single record fetch karna
+  async getBlockUnblockLogById(id: number): Promise<BlockUnblockLog | null> {
+    const [log] = await db
+      .select()
+      .from(blockUnblockLogs)
+      .where(eq(blockUnblockLogs.id, id))
+      .limit(1);
+    return log || null;
+  }
+  async getEmployeeDeviceStatuses(employeeCode: string) {
+    const logs = await db
+      .select({
+        id: blockUnblockLogs.id,
+        employeeCode: blockUnblockLogs.employeeCode,
+        deviceId: blockUnblockLogs.deviceId, // DB: device_id -> JSON: deviceId
+        type: blockUnblockLogs.type,
+        createdAt: blockUnblockLogs.createdAt,
+      })
+      .from(blockUnblockLogs)
+      .where(eq(blockUnblockLogs.employeeCode, employeeCode))
+      .orderBy(desc(blockUnblockLogs.createdAt));
+
+    // Filter for unique latest device status
+    const latestMap = new Map();
+    logs.forEach(log => {
+      // Agar is device ka log pehle nahi mila (since ordered by desc, first is latest)
+      if (!latestMap.has(log.deviceId)) {
+        latestMap.set(log.deviceId, log);
+      }
+    });
+
+    return Array.from(latestMap.values());
+  }
+  async toggleEmployeeDeviceAccess(params: {
+    employeeCode: string;
+    deviceId: number;
+    serialNumber: string;
+    action: "block" | "unblock";
+  }) {
+    const { employeeCode, deviceId, serialNumber, action } = params;
+
+    // Hardware Sync Call
+    await esslService.syncUserBlockStatus(employeeCode, serialNumber, action === "block");
+
+    // Audit Log Insert (Serial No store nahi kar rahe, as per requirement)
+    return await db.insert(blockUnblockLogs).values({
+      employeeCode,
+      deviceId,
+      type: action,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    }).returning();
+  }
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
     try {
       const [role, msDevicesRaw] = await Promise.all([
@@ -1642,5 +1747,6 @@ export class DatabaseStorage implements IStorage {
       console.error("💀 Hardware Sync Engine Failure:", error.message);
     }
   }
+  
 }
 export const storage = new DatabaseStorage();

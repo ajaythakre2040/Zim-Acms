@@ -359,8 +359,8 @@ function AttendanceTable({ data }: { data: any[] }) {
             <th className="text-left p-2 font-medium">Clock Out</th>
             <th className="text-left p-2 font-medium">Working Hrs</th>
             <th className="text-left p-2 font-medium">OT Hrs</th>
-            <th className="text-left p-2 font-medium">Late (min)</th>
-            <th className="text-left p-2 font-medium">Early (min)</th>
+            <th className="text-left p-2 font-medium">Late Coming (min)</th>
+            <th className="text-left p-2 font-medium">Early Going (min)</th>
             <th className="text-left p-2 font-medium">Status</th>
           </tr>
         </thead>
@@ -599,7 +599,7 @@ export default function ReportsPage() {
   //     return res.json();
   //   },
   // });
-// Replace your existing useQuery for reportData with this:
+  // Replace your existing useQuery for reportData with this:
   // 1. Generic mein <any[], Error> specify karein
   // 2. queryFn ke return type ko Promise<any[]> banayein
   const { data: reportData = [], isLoading, refetch } = useQuery<any[], Error>({
@@ -627,12 +627,12 @@ export default function ReportsPage() {
     staleTime: 0,
   });
   // const handleApply = () => setAppliedFilters({ ...filters });
-const handleApply = () => {
-  setAppliedFilters({ 
-    ...filters, 
-    _refresh: Date.now().toString() // Yeh har click par state change trigger karega
-  });
-};
+  const handleApply = () => {
+    setAppliedFilters({
+      ...filters,
+      _refresh: Date.now().toString() // Yeh har click par state change trigger karega
+    });
+  };
   const handleReportChange = (id: string) => {
     setActiveReport(id);
     setFilters({});

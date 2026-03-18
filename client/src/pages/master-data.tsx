@@ -10,6 +10,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
+
 function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: string; label: string; fields: FieldConfig[]; nameKey?: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -17,6 +18,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(endpoint, label);
   const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
+
   const dynamicFields = fields.map(f => {
     if (f.key === "deviceIds") {
       return {
@@ -24,7 +26,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
         type: "multi-select",
         options: [
           ...devices.map((d: Device) => ({
-            value: String(d.msId || d.id), 
+            value: String(d.msId || d.id),
             label: `${d.name} `
           }))
         ]
@@ -32,6 +34,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
     }
     return f;
   });
+
   const columns = [
     {
       key: nameKey,
@@ -60,7 +63,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
     },
     {
       key: "actions",
-      label: "",
+      label: "Actions", // UPDATE: Header label "Actions" wapas add kiya gaya hai
       render: (item: any) => (
         <div className="flex gap-1">
           <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(item); setDialogOpen(true); }}>
@@ -73,6 +76,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       )
     },
   ];
+
   const handleSubmit = async (formData: any) => {
     setFormErrors({});
     const finalData = { ...formData };
@@ -82,7 +86,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       } else {
         finalData.deviceIds = formData.deviceIds
           .map((id: string) => Number(id))
-          .filter((id: number) => !isNaN(id)); 
+          .filter((id: number) => !isNaN(id));
       }
     }
     try {
@@ -96,7 +100,6 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       setDialogOpen(false);
       setEditing(null);
     } catch (error: any) {
-      console.log("Original Error:", error);
       let errorData;
       if (typeof error.message === 'string' && error.message.includes('{')) {
         try {
@@ -116,7 +119,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
         toast({
           variant: "destructive",
           title: "Duplicate Entry",
-          description: `The ${fieldKey} you entered is already in use.`, 
+          description: `The ${fieldKey} you entered is already in use.`,
         });
       } else {
         toast({
@@ -127,9 +130,10 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       }
     }
   }
+
   return (
     <div>
-      <div className="mb-4">
+      <div className="mb-4 flex justify-end">
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
           <Plus className="w-4 h-4 mr-1" /> Add {label}
         </Button>
@@ -148,19 +152,23 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
     </div>
   );
 }
+
 export default function MasterDataPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, vendors,  and roles" />
-      <Tabs defaultValue="departments" className="space-y-4">
+      {/* <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, vendors,  and roles" /> */}
+      <PageHeader title="Master Data" description="Manage companies and roles" />
+
+      <Tabs defaultValue="companies" className="space-y-4">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="departments">Departments</TabsTrigger>
-          <TabsTrigger value="designations">Designations</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
+          {/* <TabsTrigger value="departments">Departments</TabsTrigger> */}
+          {/* <TabsTrigger value="designations">Designations</TabsTrigger> */}
+          {/* <TabsTrigger value="categories">Categories</TabsTrigger> */}
           <TabsTrigger value="companies">Companies</TabsTrigger>
-          <TabsTrigger value="vendors">Vendors</TabsTrigger>
+          {/* <TabsTrigger value="vendors">Vendors</TabsTrigger> */}
           <TabsTrigger value="roles">Roles</TabsTrigger>
         </TabsList>
+
         <TabsContent value="departments">
           <MasterTab endpoint="/api/departments" label="Department" fields={[
             { key: "name", label: "Name", required: true },
@@ -169,6 +177,7 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
+
         <TabsContent value="designations">
           <MasterTab endpoint="/api/designations" label="Designation" fields={[
             { key: "name", label: "Name", required: true },
@@ -178,6 +187,7 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
+
         <TabsContent value="categories">
           <MasterTab endpoint="/api/categories" label="Category" fields={[
             { key: "name", label: "Name", required: true },
@@ -185,6 +195,7 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
+
         <TabsContent value="companies">
           <MasterTab endpoint="/api/companies" label="Company" fields={[
             { key: "name", label: "Name", required: true },
@@ -195,6 +206,7 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
+
         <TabsContent value="vendors">
           <MasterTab endpoint="/api/vendors" label="Vendor" fields={[
             { key: "name", label: "Name", required: true },
@@ -209,6 +221,7 @@ export default function MasterDataPage() {
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
+
         <TabsContent value="roles">
           <MasterTab
             endpoint="/api/roles"
@@ -222,7 +235,7 @@ export default function MasterDataPage() {
                 type: "multi-select",
                 options: [],
               },
-              { key: "isActive", label: "Active", type: "switch", defaultValue: true }, 
+              { key: "isActive", label: "Active", type: "switch", defaultValue: true },
             ]}
           />
         </TabsContent>

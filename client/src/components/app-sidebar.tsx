@@ -44,21 +44,21 @@ const navGroups: NavGroup[] = [
     bgColor: "bg-cyan-500/15",
     items: [
       { title: "People", url: "/people", icon: Users, iconColor: "text-cyan-400" },
-      { title: "Visitors", url: "/visitors", icon: UserCheck, iconColor: "text-teal-400" },
+      // { title: "Visitors", url: "/visitors", icon: UserCheck, iconColor: "text-teal-400" },
     ],
   },
-  {
-    label: "Access Control",
-    color: "text-violet-400",
-    bgColor: "bg-violet-500/15",
-    items: [
-      { title: "Access Logs", url: "/access-logs", icon: BookOpen, iconColor: "text-violet-400" },
-      { title: "Access Rules", url: "/access-rules", icon: Shield, iconColor: "text-purple-400" },
-      { title: "Access Levels", url: "/access-levels", icon: Layers, iconColor: "text-indigo-400" },
-      { title: "Credentials", url: "/credentials", icon: Key, iconColor: "text-fuchsia-400" },
-      { title: "Access Cards", url: "/access-cards", icon: CreditCard, iconColor: "text-pink-400" },
-    ],
-  },
+  // {
+  //   label: "Access Control",
+  //   color: "text-violet-400",
+  //   bgColor: "bg-violet-500/15",
+  //   items: [
+  //     { title: "Access Logs", url: "/access-logs", icon: BookOpen, iconColor: "text-violet-400" },
+  //     { title: "Access Rules", url: "/access-rules", icon: Shield, iconColor: "text-purple-400" },
+  //     { title: "Access Levels", url: "/access-levels", icon: Layers, iconColor: "text-indigo-400" },
+  //     { title: "Credentials", url: "/credentials", icon: Key, iconColor: "text-fuchsia-400" },
+  //     { title: "Access Cards", url: "/access-cards", icon: CreditCard, iconColor: "text-pink-400" },
+  //   ],
+  // },
   {
     label: "Time & Attendance",
     color: "text-amber-400",
@@ -67,7 +67,7 @@ const navGroups: NavGroup[] = [
       { title: "Attendance", url: "/attendance", icon: Clock, iconColor: "text-amber-400" },
       { title: "Shifts", url: "/shifts", icon: CalendarDays, iconColor: "text-orange-400" },
       { title: "Holidays", url: "/holidays", icon: Calendar, iconColor: "text-yellow-400" },
-      { title: "Exceptions", url: "/exceptions", icon: FileWarning, iconColor: "text-red-400" },
+      // { title: "Exceptions", url: "/exceptions", icon: FileWarning, iconColor: "text-red-400" },
     ],
   },
   {
@@ -101,7 +101,7 @@ const navGroups: NavGroup[] = [
     color: "text-rose-400",
     bgColor: "bg-rose-500/15",
     items: [
-      { title: "Alerts", url: "/alerts", icon: Bell, iconColor: "text-rose-400" },
+      // { title: "Alerts", url: "/alerts", icon: Bell, iconColor: "text-rose-400" },
       { title: "Master Data", url: "/master-data", icon: Building2, iconColor: "text-slate-400" },
       { title: "User Admin", url: "/user-admin", icon: UserCog, iconColor: "text-sky-400" },
       { title: "Settings", url: "/settings", icon: Settings, iconColor: "text-zinc-400" },

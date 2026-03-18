@@ -73,11 +73,7 @@ class EsslApiService {
         return this.soapRequest("DeviceCommand_BlockUnBlockUser", innerXml);
     }
 
-    // Future API Example:
-    // async getAttendance(fromDate: string, toDate: string) {
-    //   const innerXml = `<GetAttendance... />`;
-    //   return this.soapRequest("GetAttendance", innerXml);
-    // }
+  
 }
 
 export const esslService = new EsslApiService();

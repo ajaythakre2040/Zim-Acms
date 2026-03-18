@@ -9,13 +9,19 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RefreshCw, Pencil, Eye, Trash2, UserPlus } from "lucide-react";
-import type { Person, Department, Designation, Company, Category, Site, Role } from "@shared/schema";
+import type { Person, Department, Designation, Company, Category, Site, Role, Device } from "@shared/schema";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 type RoleWithDevices = Role & {
   assignedDeviceNames?: string;
 };
@@ -45,6 +51,47 @@ export default function PeoplePage() {
   const { data: categories = [] } = useQuery<Category[]>({ queryKey: ["/api/categories"] });
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: roles = [] } = useQuery<RoleWithDevices[]>({ queryKey: ["/api/roles"] });
+  const { data: allDevices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
+  const [deviceStatusOpen, setDeviceStatusOpen] = useState(false);
+  const [deviceViewPerson, setDeviceViewPerson] = useState<Person | null>(null);
+  const { data: deviceLogs = [], refetch: refetchLogs } = useQuery({
+    queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
+    enabled: !!deviceViewPerson,
+    queryFn: async () => {
+      const r = await apiRequest("GET", `/api/people/device-status/${deviceViewPerson?.employeeCode}`);
+      return r.json();
+    }
+  });
+
+  const emergencyToggleMut = useMutation({
+    mutationFn: async (data: any) => {
+      const r = await apiRequest("POST", "/api/people/emergency-toggle", data);
+      return r.json();
+    },
+    onSuccess: (response) => {
+      // 1. Sabse pehle cache ko manual update karo (Instant UI change)
+      queryClient.setQueryData(
+        ["/api/device-status", deviceViewPerson?.employeeCode],
+        (oldData: any) => {
+          // Agar pehle se logs hain, toh naye log ko purane ke saath merge karo
+          // Agar same device ka log hai, toh use update kar do
+          const newLog = response.data?.[0] || response.data; // Ensure we get the log object
+          if (!oldData) return [newLog];
+
+          const filtered = oldData.filter((l: any) => Number(l.deviceId) !== Number(newLog.deviceId));
+          return [newLog, ...filtered];
+        }
+      );
+
+      // 2. Background mein server se fresh data fetch karo
+      queryClient.invalidateQueries({
+        queryKey: ["/api/device-status", deviceViewPerson?.employeeCode]
+      });
+      refetchLogs(); // Force refetch
+      toast({ title: "Updated" });
+    },
+    onError: (e: Error) => toast({ title: "Sync Error", description: e.message, variant: "destructive" }),
+  });
   const createMut = useMutation({
     mutationFn: async (data: any) => { const r = await apiRequest("POST", "/api/people", data); return r.json(); },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/people"] }); setDialogOpen(false); toast({ title: "Person created" }); },
@@ -56,9 +103,9 @@ export default function PeoplePage() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
   const deleteMut = useMutation({
-    mutationFn: async (id: number) => {await apiRequest("DELETE", `/api/people/${id}`);},
-    onSuccess: () => {queryClient.invalidateQueries({ queryKey: ["/api/people"] }); toast({ title: "Success", description: "Person deleted successfully." }); },
-    onError: (e: Error) => { toast({ title: "Error", description: e.message, variant: "destructive" });},
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/people/${id}`); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/people"] }); toast({ title: "Success", description: "Person deleted successfully." }); },
+    onError: (e: Error) => { toast({ title: "Error", description: e.message, variant: "destructive" }); },
   });
   const createRoleAssign = useMutation({
     mutationFn: async (data: any) => { const r = await apiRequest("POST", "/api/employee-roles", data); return r.json(); },
@@ -70,9 +117,9 @@ export default function PeoplePage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/employee-roles"] }); setRoleDialogOpen(false); setRoleAssign(null); toast({ title: "Role updated" }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
-   const deleteRoleAssign = useMutation({
-    mutationFn: async (id: number) => {await apiRequest("DELETE", `/api/employee-roles/${id}`);},
-    onSuccess: () => {queryClient.invalidateQueries({ queryKey: ["/api/people"] });setRoleDialogOpen(false);toast({ title: "Role removed", description: "Employee now has full device access." });},
+  const deleteRoleAssign = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/employee-roles/${id}`); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/people"] }); setRoleDialogOpen(false); toast({ title: "Role removed", description: "Employee now has full device access." }); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
   const fields: FieldConfig[] = [
@@ -182,7 +229,7 @@ export default function PeoplePage() {
           {p.roleName || "No Role Assigned"}
         </span>
       )
-    },    {
+    }, {
       key: "status", label: "Status",
       render: (p: Person) => <Badge variant={statusColors[p.status || "active"] as any}>{p.status}</Badge>,
     },
@@ -192,6 +239,22 @@ export default function PeoplePage() {
       render: (p: Person) => (
         <TooltipProvider delayDuration={100}>
           <div className="flex">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeviceViewPerson(p); // Is person ko select karo
+                    setDeviceStatusOpen(true); // Modal kholo
+                  }}
+                >
+                  <Eye className="w-4 h-4 text-blue-500" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent><p>Device Access Status</p></TooltipContent>
+            </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -280,7 +343,88 @@ export default function PeoplePage() {
         searchKeys={["employeeName", "employeeCode", "email"]}
         emptyMessage="No people registered yet"
       />
+      {/* --- DEVICE ACCESS MODAL --- */}
+      <Dialog open={deviceStatusOpen} onOpenChange={setDeviceStatusOpen}>
+        <DialogContent className="max-w-md p-0 overflow-hidden">
+          <DialogHeader className="p-4 border-b bg-muted/20">
+            <DialogTitle className="text-sm font-bold uppercase">
+              Device Access: {deviceViewPerson?.employeeName}
+            </DialogTitle>
+          </DialogHeader>
 
+          <div className="max-h-[450px] overflow-y-auto">
+            <table className="w-full text-xs">
+              <tbody className="divide-y">
+                {allDevices.map((dev) => {
+                  // 1. Logs matching (Checking both camelCase and snake_case)
+                  const latestLog = deviceLogs?.find((l: any) => {
+                    const lId = l.deviceId ?? l.device_id;
+                    return Number(lId) === Number(dev.msId);
+                  });
+
+                  // 2. Role matching
+                  const userRole = roles.find(r => r.id === deviceViewPerson?.roleId);
+                  // Note: Check if deviceIds is an array or string
+                  const isRoleAssigned = Array.isArray(userRole?.deviceIds)
+                    ? userRole.deviceIds.includes(Number(dev.msId))
+                    : false;
+
+                  // 3. Status Priority (Log first, then Role)
+                  const isUnblocked = latestLog
+                    ? (latestLog.type === "unblock")
+                    : isRoleAssigned;
+
+                  // Debugging (Remove after fix)
+                  // console.log(`Device: ${dev.name}, Log:`, latestLog, `Role: ${isRoleAssigned}`);
+
+                  return (
+                    <tr key={dev.id} className="hover:bg-muted/30">
+                      <td className="p-3">
+                        <p className="font-bold text-foreground">{dev.name || "Unknown Device"}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">
+                          SN: {dev.serialNumber || "N/A"}
+                        </p>
+                      </td>
+
+                      <td className="p-3 text-center">
+                        <Badge
+                          variant={isUnblocked ? "outline" : "destructive"}
+                          className={`text-[9px] font-bold px-2 ${isUnblocked ? 'border-green-500 text-green-600 bg-green-50' : ''}`}
+                        >
+                          {isUnblocked ? "ALLOWED" : "BLOCKED"}
+                        </Badge>
+                      </td>
+
+                      <td className="p-3 text-right">
+                        <Button
+                          size="sm"
+                          variant={isUnblocked ? "destructive" : "outline"}
+                          className="h-7 text-[10px] font-bold min-w-[80px]"
+                          disabled={emergencyToggleMut.isPending}
+                          onClick={() => {
+                            // Important: Trigger mutation with latest UI state
+                            emergencyToggleMut.mutate({
+                              employeeCode: deviceViewPerson?.employeeCode,
+                              deviceId: dev.msId,
+                              serialNumber: dev.serialNumber,
+                              action: isUnblocked ? "block" : "unblock"
+                            });
+                          }}
+                        >
+                          {emergencyToggleMut.isPending ? "..." : (isUnblocked ? "BLOCK" : "UNBLOCK")}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="p-2 text-[9px] text-center bg-muted/10 italic text-muted-foreground">
+            Logs override the default Role settings.
+          </div>
+        </DialogContent>
+      </Dialog>
       <CrudDialog
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null); }}
