@@ -155,14 +155,14 @@ export default function DynamicCronDashboard() {
                     >
                         <Pencil className="w-4 h-4" />
                     </Button>
-                    <Button
+                    {/* <Button
                         size="icon"
                         variant="ghost"
                         className="h-8 w-8 text-rose-500"
                         onClick={() => remove(i.id)}
                     >
                         <Trash2 className="w-4 h-4" />
-                    </Button>
+                    </Button> */}
                 </div>
             ),
         },
@@ -224,7 +224,7 @@ export default function DynamicCronDashboard() {
                                 </p>
                             </div>
                         </div>
-                        <Button
+                        {/* <Button
                             onClick={() => {
                                 setEditing(null);
                                 setDialogOpen(true);
@@ -232,7 +232,7 @@ export default function DynamicCronDashboard() {
                             className="shadow-lg shadow-primary/20"
                         >
                             <Plus className="w-4 h-4 mr-2" /> Add Schedule
-                        </Button>
+                        </Button> */}
                     </div>
                     <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
                         <DataTable

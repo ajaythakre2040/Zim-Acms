@@ -14,17 +14,10 @@ import type { Device } from "@shared/schema";
 function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: string; label: string; fields: FieldConfig[]; nameKey?: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
-
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(endpoint, label);
   const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
-
-  const handleClose = () => {
-    setDialogOpen(false);
-    setEditing(null);
-    setFormErrors({});
-  };
 
   const dynamicFields = fields.map(f => {
     if (f.key === "deviceIds") {
@@ -32,8 +25,10 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
         ...f,
         type: "multi-select",
         options: [
-          { value: "all", label: "All Devices" },
-          ...devices.map((d: Device) => ({ value: String(d.id), label: d.name }))
+          ...devices.map((d: Device) => ({
+            value: String(d.msId || d.id),
+            label: `${d.name} `
+          }))
         ]
       } as any;
     }
@@ -68,13 +63,13 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
     },
     {
       key: "actions",
-      label: "",
+      label: "Actions", // UPDATE: Header label "Actions" wapas add kiya gaya hai
       render: (item: any) => (
-        <div className="flex gap-1 justify-end">
+        <div className="flex gap-1">
           <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(item); setDialogOpen(true); }}>
             <Pencil className="w-4 h-4" />
           </Button>
-          <Button size="icon" variant="ghost" className="hover:text-destructive" onClick={(e) => { e.stopPropagation(); remove(item.id); }}>
+          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); remove(item.id); }}>
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
@@ -85,7 +80,6 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
   const handleSubmit = async (formData: any) => {
     setFormErrors({});
     const finalData = { ...formData };
-
     if (Array.isArray(formData.deviceIds)) {
       if (formData.deviceIds.includes("all")) {
         finalData.deviceIds = devices.map((d: Device) => Number(d.id));
@@ -95,7 +89,6 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
           .filter((id: number) => !isNaN(id));
       }
     }
-
     try {
       if (editing) {
         await update({ id: editing.id, data: finalData });
@@ -104,46 +97,51 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
         await create(finalData);
         toast({ title: "Success", description: `${label} created successfully.` });
       }
-      handleClose();
+      setDialogOpen(false);
+      setEditing(null);
     } catch (error: any) {
-      const errorBody = error.response?.data;
-      const rawMessage = (typeof errorBody === 'string' ? errorBody : errorBody?.message || error.message || "").toLowerCase();
-
-      // Check specifically for duplicate Role Code or Name
-      if (rawMessage.includes("code") && (rawMessage.includes("unique") || rawMessage.includes("already exists"))) {
-        setFormErrors({ code: "This code is already in use. Please use a unique one." });
-      } else if (rawMessage.includes("name") && (rawMessage.includes("unique") || rawMessage.includes("already exists"))) {
-        setFormErrors({ name: "This name already exists." });
+      let errorData;
+      if (typeof error.message === 'string' && error.message.includes('{')) {
+        try {
+          const jsonPart = error.message.substring(error.message.indexOf('{'));
+          errorData = JSON.parse(jsonPart);
+        } catch (e) {
+          errorData = error.response?.data || error;
+        }
+      } else {
+        errorData = error.response?.data || error;
+      }
+      const finalMessage = errorData?.message || error.message || "An error occurred";
+      if (errorData?.isDuplicate) {
+        const msg = finalMessage.toLowerCase();
+        const fieldKey = msg.includes("code") ? "code" : "name";
+        setFormErrors({ [fieldKey]: finalMessage });
+        toast({
+          variant: "destructive",
+          title: "Duplicate Entry",
+          description: `The ${fieldKey} you entered is already in use.`,
+        });
       } else {
         toast({
           variant: "destructive",
           title: "Error",
-          description: "Database error. Please check if all fields are valid.",
+          description: finalMessage,
         });
       }
     }
-  };
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
+    <div>
+      <div className="mb-4 flex justify-end">
         <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" /> Add {label}
+          <Plus className="w-4 h-4 mr-1" /> Add {label}
         </Button>
       </div>
-
-      <DataTable
-        columns={columns}
-        data={data || []}
-        isLoading={isLoading}
-        searchable
-        searchKeys={[nameKey]}
-        emptyMessage={`No ${label.toLowerCase()}s found`}
-      />
-
+      <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={[nameKey]} emptyMessage={`No ${label.toLowerCase()}s`} />
       <CrudDialog
         open={dialogOpen}
-        onClose={handleClose}
+        onClose={() => { setDialogOpen(false); setEditing(null); setFormErrors({}); }}
         title={editing ? `Edit ${label}` : `Add ${label}`}
         fields={dynamicFields as any}
         initialData={editing || undefined}
@@ -158,15 +156,16 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
 export default function MasterDataPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, and vendors" />
+      {/* <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, vendors,  and roles" /> */}
+      <PageHeader title="Master Data" description="Manage companies and roles" />
 
-      <Tabs defaultValue="departments" className="mt-6 space-y-4">
-        <TabsList className="flex-wrap h-auto p-1">
-          <TabsTrigger value="departments">Departments</TabsTrigger>
-          <TabsTrigger value="designations">Designations</TabsTrigger>
-          <TabsTrigger value="categories">Categories</TabsTrigger>
+      <Tabs defaultValue="companies" className="space-y-4">
+        <TabsList className="flex-wrap">
+          {/* <TabsTrigger value="departments">Departments</TabsTrigger> */}
+          {/* <TabsTrigger value="designations">Designations</TabsTrigger> */}
+          {/* <TabsTrigger value="categories">Categories</TabsTrigger> */}
           <TabsTrigger value="companies">Companies</TabsTrigger>
-          <TabsTrigger value="vendors">Vendors</TabsTrigger>
+          {/* <TabsTrigger value="vendors">Vendors</TabsTrigger> */}
           <TabsTrigger value="roles">Roles</TabsTrigger>
         </TabsList>
 
@@ -235,8 +234,8 @@ export default function MasterDataPage() {
                 label: "Assign Devices",
                 type: "multi-select",
                 options: [],
-                placeholder: "Select Devices"
-              }
+              },
+              { key: "isActive", label: "Active", type: "switch", defaultValue: true },
             ]}
           />
         </TabsContent>

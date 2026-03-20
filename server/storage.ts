@@ -51,6 +51,8 @@ import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS } from './constant';
 import { esslService } from "./essl-service";
+import { CRON_TASKS } from "./constant"; // Aapka constant file path
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -1700,53 +1702,140 @@ export class DatabaseStorage implements IStorage {
       updatedAt: new Date()
     }).returning();
   }
+  // private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
+  //   try {
+  //     const [role, msDevicesRaw] = await Promise.all([
+  //       (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
+  //       dbMsSql.select().from({ dbName: 'Devices' }).execute()
+  //     ]);
+  //     if (!msDevicesRaw || msDevicesRaw.length === 0) {
+  //       console.warn("⚠️ No devices found in MS SQL.");
+  //       return;
+  //     }
+  //     let allowedDeviceIds: number[] = [];
+  //     if (!blockAll && role) {
+  //       allowedDeviceIds = (role.deviceIds as unknown as number[]) || [];
+  //     } else if (!blockAll && !role) {
+  //       allowedDeviceIds = msDevicesRaw.map((d: any) => Number(d.DeviceId || d.Id));
+  //     }
+  //     const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
+  //       const msDeviceId = Number(msDevice.DeviceId || msDevice.Id);
+  //       const serialNumber = msDevice.SerialNumber || msDevice.serialno;
+  //       const isAllowed = allowedDeviceIds.some(id => Number(id) === msDeviceId);
+  //       const shouldBlock = blockAll || !isAllowed;
+  //       const actionType = shouldBlock ? "block" : "unblock";
+  //       if (!serialNumber) {
+  //         console.error(`❌ Device ${msDeviceId} has no Serial Number in MS SQL.`);
+  //         return;
+  //       }
+  //       try {
+  //         const status = await esslService.syncUserBlockStatus(
+  //           employeeCode,
+  //           serialNumber,
+  //           shouldBlock
+  //         );
+  //         await db.insert(blockUnblockLogs).values({
+  //           employeeCode: employeeCode,
+  //           deviceId: msDeviceId,
+  //           type: actionType,
+  //         }).catch(() => { });
+  //         console.log(`🚀 [SOAP SYNC] Device: ${serialNumber} | Action: ${actionType} | Status: SUCCESS`);
+  //       } catch (err: any) {
+  //         console.error(`❌ [SOAP FAILED] ${serialNumber}: ${err.message}`);
+  //       }
+  //     });
+  //     await Promise.all(syncPromises);
+  //   } catch (error: any) {
+  //     console.error("💀 Hardware Sync Engine Failure:", error.message);
+  //   }
+  // }
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
     try {
-      const [role, msDevicesRaw] = await Promise.all([
+      const gateDoorId = CRON_TASKS.MAIN_GATE_SYNC.DOOR_ID; // e.g., 1
+
+      // 1. Fetching all required data
+      const [role, msDevicesRaw, gateMappings] = await Promise.all([
         (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
-        dbMsSql.select().from({ dbName: 'Devices' }).execute()
+        dbMsSql.select().from({ dbName: 'Devices' }).execute(),
+        // Fetch door_devices where door_id matches our constant
+        db.select().from(doorDevices)
+          .where(eq(doorDevices.doorId, gateDoorId))
+          .execute()
       ]);
+
       if (!msDevicesRaw || msDevicesRaw.length === 0) {
         console.warn("⚠️ No devices found in MS SQL.");
         return;
       }
-      let allowedDeviceIds: number[] = [];
+
+      // 2. Create a unique whitelist of Device IDs from the arrays
+      const mainGateWhitelistedIds = new Set<number>();
+      gateMappings.forEach(mapping => {
+        if (mapping.isActive) {
+          // Flattening the arrays (inDeviceIds & outDeviceIds)
+          (mapping.inDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
+          (mapping.outDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
+        }
+      });
+
+      // 3. Define allowed devices from Role
+      let allowedFromRole: number[] = [];
       if (!blockAll && role) {
-        allowedDeviceIds = (role.deviceIds as unknown as number[]) || [];
-      } else if (!blockAll && !role) {
-        allowedDeviceIds = msDevicesRaw.map((d: any) => Number(d.DeviceId || d.Id));
+        allowedFromRole = (role.deviceIds as unknown as number[]) || [];
       }
+
+      // 4. Start Hardware Sync
       const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
         const msDeviceId = Number(msDevice.DeviceId || msDevice.Id);
         const serialNumber = msDevice.SerialNumber || msDevice.serialno;
-        const isAllowed = allowedDeviceIds.some(id => Number(id) === msDeviceId);
-        const shouldBlock = blockAll || !isAllowed;
-        const actionType = shouldBlock ? "block" : "unblock";
-        if (!serialNumber) {
-          console.error(`❌ Device ${msDeviceId} has no Serial Number in MS SQL.`);
-          return;
+
+        // Logic Check
+        const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
+
+        let shouldBlock: boolean;
+        if (isMainGate) {
+          shouldBlock = false; // Main Gate is ALWAYS unblocked
+        } else {
+          // Normal devices: blocked if blockAll is true OR not in role
+          const isAllowedByRole = allowedFromRole.includes(msDeviceId);
+          shouldBlock = blockAll || !isAllowedByRole;
         }
+
+        const actionType = shouldBlock ? "block" : "unblock";
+
+        if (!serialNumber) return;
+
         try {
-          const status = await esslService.syncUserBlockStatus(
+          // Hardware Sync (Using Serial Number)
+          await esslService.syncUserBlockStatus(
             employeeCode,
-            serialNumber,
+            serialNumber.toString(),
             shouldBlock
           );
+
+          // Database Logging (Using Device ID)
           await db.insert(blockUnblockLogs).values({
-            employeeCode: employeeCode,
+            employeeCode,
             deviceId: msDeviceId,
             type: actionType,
-          }).catch(() => { });
-          console.log(`🚀 [SOAP SYNC] Device: ${serialNumber} | Action: ${actionType} | Status: SUCCESS`);
+            createdAt: new Date()
+          }).catch(() => { }); // Silent catch for logs
+
+          console.log(`${isMainGate ? '🛡️ [GATEWAY]' : '🚀 [SYNC]'} Device: ${msDeviceId} | Action: ${actionType}`);
+
         } catch (err: any) {
-          console.error(`❌ [SOAP FAILED] ${serialNumber}: ${err.message}`);
+          console.error(`❌ [SYNC FAILED] Device ${msDeviceId}: ${err.message}`);
         }
       });
+
       await Promise.all(syncPromises);
+
     } catch (error: any) {
       console.error("💀 Hardware Sync Engine Failure:", error.message);
     }
   }
+
+  
   
 }
 export const storage = new DatabaseStorage();

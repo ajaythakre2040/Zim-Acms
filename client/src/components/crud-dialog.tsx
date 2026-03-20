@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 export interface FieldConfig {
   key: string;
   label: string;
-  type?: "text" | "number" | "email" | "password" | "textarea" | "select" | "multi-select" | "switch" | "date";
+  type?: "text" | "number" | "email" | "password" | "textarea" | "select" | "multi-select" | "switch" | "date" | "time";
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
@@ -202,7 +202,7 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
               ) : (
                 <Input
                   id={f.key}
-                  type={f.type || "text"}
+                  type={f.type === "time" ? "time" : f.type || "text"}
                   className={errors?.[f.key] ? "border-destructive focus-visible:ring-destructive" : ""}
                   // Safe value check for numbers/nulls
                   value={form[f.key] === undefined || form[f.key] === null ? "" : form[f.key]}

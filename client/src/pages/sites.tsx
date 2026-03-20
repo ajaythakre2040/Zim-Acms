@@ -27,7 +27,7 @@ export default function SitesPage() {
 
   const siteFields: FieldConfig[] = [
     { key: "name", label: "Site Name", required: true },
-    { key: "code", label: "Code" },
+    { key: "code", label: "Code", disabled: true },
     { key: "address", label: "Address", type: "textarea" },
     { key: "city", label: "City" },
     { key: "state", label: "State" },
@@ -38,7 +38,7 @@ export default function SitesPage() {
 
   const buildingFields: FieldConfig[] = [
     { key: "name", label: "Building Name", required: true },
-    { key: "code", label: "Code" },
+    { key: "code", label: "Code", disabled: true },
     { key: "locationId", label: "Site", type: "select", required: true, options: siteCrud.data.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "address", label: "Address", type: "textarea" },
     { key: "floorCount", label: "Floor Count", type: "number", defaultValue: 1 },
@@ -50,10 +50,14 @@ export default function SitesPage() {
     { key: "code", label: "Code", hideOnMobile: true },
     { key: "isActive", label: "Status", render: (s: Site) => s.isActive ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge> },
     {
-      key: "actions", label: "", render: (s: Site) => (
-        <div className="flex gap-1">
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditingSite(s); setSiteDialog(true); }}><Pencil className="w-4 h-4" /></Button>
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); if (confirm("Are you sure?")) siteCrud.remove(s.id); }}><Trash2 className="w-4 h-4" /></Button>
+      key: "actions",
+      label: "Actions", // Header Label Added
+      headerClassName: "text-left",
+      className: "text-left",
+      render: (s: Site) => (
+        <div className="flex items-center justify-start gap-1">
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setEditingSite(s); setSiteDialog(true); }}><Pencil className="w-4 h-4" /></Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); if (confirm("Are you sure?")) siteCrud.remove(s.id); }}><Trash2 className="w-4 h-4" /></Button>
         </div>
       )
     },
@@ -65,10 +69,14 @@ export default function SitesPage() {
     { key: "site", label: "Site", render: (b: Building) => siteCrud.data.find((s) => s.id === b.locationId)?.name || "-" },
     { key: "isActive", label: "Status", render: (b: Building) => b.isActive ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge> },
     {
-      key: "actions", label: "", render: (b: Building) => (
-        <div className="flex gap-1">
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditingBuilding(b); setBuildingDialog(true); }}><Pencil className="w-4 h-4" /></Button>
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); if (confirm("Are you sure?")) buildingCrud.remove(b.id); }}><Trash2 className="w-4 h-4" /></Button>
+      key: "actions",
+      label: "Actions", // Header Label Added
+      headerClassName: "text-left",
+      className: "text-left",
+      render: (b: Building) => (
+        <div className="flex items-center justify-start gap-1">
+          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={(e) => { e.stopPropagation(); setEditingBuilding(b); setBuildingDialog(true); }}><Pencil className="w-4 h-4" /></Button>
+          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); if (confirm("Are you sure?")) buildingCrud.remove(b.id); }}><Trash2 className="w-4 h-4" /></Button>
         </div>
       )
     },
@@ -107,13 +115,11 @@ export default function SitesPage() {
               const { id, msId, createdAt, ...updateData } = data as any;
               await siteCrud.update({ id: editingSite.id, data: updateData });
             } else {
-              // Yahan CREATE logic ko try-catch ke andar rakha gaya hai
               await siteCrud.create(data);
             }
             setSiteDialog(false);
             setEditingSite(null);
           } catch (err: any) {
-            // Error extraction logic
             const rawError = err.message || "";
             if (rawError.includes("already in use") || rawError.includes("DUPLICATE_CODE")) {
               setFieldErrors({ code: "Duplicate code entry! This code is already used." });

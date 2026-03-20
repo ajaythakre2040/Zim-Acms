@@ -22,7 +22,19 @@ const mssqlConfig: mssql.config = {
     trustServerCertificate: true
   }
 };
-
+// const mssqlConfig: mssql.config = {
+//   user: 'sa',
+//   password: '1234', // Jo aapne SSMS mein set kiya
+//   server: '127.0.0.1', // localhost ki jagah IP
+//   database: 'bzi_bios',
+//   port: 1433,
+//   options: {
+//     // instanceName: 'SQLEXPRESS', // Kabhi-kabhi port dene par instance name ki zarurat nahi hoti
+//     encrypt: false,
+//     trustServerCertificate: true,
+//     connectTimeout: 60000 // 60 seconds
+//   }
+// };
 export const mssqlPool = new mssql.ConnectionPool(mssqlConfig);
 
 // --- 2. Helper Functions ---

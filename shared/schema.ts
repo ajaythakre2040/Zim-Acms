@@ -1,6 +1,6 @@
 export * from "./models/auth";
 
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real, varchar, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -197,7 +197,7 @@ export const devices = pgTable("devices", {
 // });
 export const people = pgTable("people", {
   id: serial("id").primaryKey(),
-  roleId: integer("role_id"), 
+  roleId: integer("role_id"),
   msId: integer("ms_id"),
   employeeName: text("employee_name").notNull(),
   email: text("email"),
@@ -609,16 +609,36 @@ export const employeeRoles = pgTable("employee_roles", {
   updatedAt: timestamp("updated_at").defaultNow()
 });
 
+// --- Main Gate Activity Logs Table ---
 export const mainGateLogs = pgTable("main_gate_logs", {
   id: serial("id").primaryKey(),
   employeeCode: text("employee_code").notNull(),
   deviceId: integer("device_id").notNull(),
-  doorId: integer("door_id").notNull(),
-  logDate: timestamp("log_date").notNull(),
-  deviceDirection: text("device_direction", { enum: ["IN", "OUT"] }).notNull(),
+  direction: text("direction").notNull(), // 'IN' or 'OUT'
+  punchTime: timestamp("punch_time").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-})
+
+}, (table) => {
+  return {
+    // 🛡️ Ye index duplicates ko rokega
+    uniquePunchIdx: uniqueIndex("unique_punch_idx").on(
+      table.employeeCode,
+      table.deviceId,
+      table.punchTime
+    ),
+  };
+});
+// export const mainGateLogs = pgTable("main_gate_logs", {
+//   id: serial("id").primaryKey(),
+//   employeeCode: text("employee_code").notNull(),
+//   deviceId: integer("device_id").notNull(),
+//   doorId: integer("door_id").notNull(),
+//   logDate: timestamp("log_date").notNull(),
+//   deviceDirection: text("device_direction", { enum: ["IN", "OUT"] }).notNull(),
+//   createdAt: timestamp("created_at").defaultNow(),
+//   updatedAt: timestamp("updated_at").defaultNow(),
+// })
 export const doorDevices = pgTable("door_devices", {
   id: serial("id").primaryKey(),
   doorId: integer("door_id").notNull(),
@@ -631,16 +651,15 @@ export const doorDevices = pgTable("door_devices", {
 });
 export const cronMaster = pgTable("cron_master", {
   id: serial("id").primaryKey(),
-
+  doorId: integer("door_id"),
   // --- Configuration ---
   displayName: text("display_name").notNull(),
-  cronKey: text("cron_key").unique().notNull(),
+  code: text("code").unique().notNull(),
 
   // Naam badal kar 'scheduleTime' kar diya hai
-  scheduleTime: text("schedule_time").notNull(), // Example: "*/5 * * * *"
-
-  task: text("task").notNull(),
-  group: text("group").notNull(),
+  scheduleTime: integer("schedule_time").notNull().default(30),
+  task: text("task"),
+  group: text("group"),
 
   // --- Execution Controls ---
   retryCount: integer("retry_count").default(3),

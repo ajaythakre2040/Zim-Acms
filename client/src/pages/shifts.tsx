@@ -11,11 +11,12 @@ import type { Shift } from "@shared/schema";
 export default function ShiftsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Shift | null>(null);
-  const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Shift>("/api/shifts", "Shift");
+  const { data = [], isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Shift>("/api/shifts", "Shift");
 
   const fields: FieldConfig[] = [
     { key: "name", label: "Shift Name", required: true },
-    { key: "code", label: "Code" },
+    // यहाँ disabled: true जोड़ा गया है ताकि यह Read-only रहे
+    { key: "code", label: "Code", disabled: true },
     { key: "startTime", label: "Start Time", type: "time", required: true },
     { key: "endTime", label: "End Time", type: "time", required: true },
     { key: "breakDuration", label: "Break (mins)", type: "number", defaultValue: 0 },
@@ -34,20 +35,80 @@ export default function ShiftsPage() {
     { key: "hours", label: "Hours", hideOnMobile: true, render: (s: Shift) => `${s.fullDayHours}h` },
     { key: "isNightShift", label: "Night", hideOnMobile: true, render: (s: Shift) => s.isNightShift ? <Badge variant="secondary">Night</Badge> : null },
     { key: "isActive", label: "Status", render: (s: Shift) => s.isActive ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge> },
-    { key: "actions", label: "", render: (s: Shift) => (
-      <div className="flex gap-1">
-        <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(s); setDialogOpen(true); }}><Pencil className="w-4 h-4" /></Button>
-        <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); remove(s.id); }}><Trash2 className="w-4 h-4" /></Button>
-      </div>
-    )},
+
+    {
+      key: "actions",
+      label: "Actions",
+      headerClassName: "text-left",
+      className: "text-left",
+      render: (s: Shift) => (
+        <div className="flex items-center justify-start gap-1">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8"
+            title="Edit"
+            onClick={(e) => { e.stopPropagation(); setEditing(s); setDialogOpen(true); }}
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+            title="Delete"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (window.confirm("Are you sure you want to delete this shift?")) {
+                remove(s.id);
+              }
+            }}
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      )
+    },
   ];
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <PageHeader title="Shifts" description="Configure work shifts and schedules" action={<Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Shift</Button>} />
-      <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={["name", "code"]} emptyMessage="No shifts configured" />
-      <CrudDialog open={dialogOpen} onClose={() => { setDialogOpen(false); setEditing(null); }} title={editing ? "Edit Shift" : "Add Shift"} fields={fields} initialData={editing || undefined}
-        onSubmit={(data) => { editing ? update({ id: editing.id, data }) : create(data); setDialogOpen(false); setEditing(null); }} isPending={isCreating || isUpdating} />
+      <PageHeader
+        title="Shifts"
+        description="Configure work shifts and schedules"
+        action={
+          <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1" /> Add Shift
+          </Button>
+        }
+      />
+
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        searchable
+        searchKeys={["name", "code"]}
+        emptyMessage="No shifts configured"
+      />
+
+      <CrudDialog
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setEditing(null); }}
+        title={editing ? "Edit Shift" : "Add Shift"}
+        fields={fields}
+        initialData={editing || undefined}
+        onSubmit={(formData) => {
+          if (editing) {
+            update({ id: editing.id, data: formData });
+          } else {
+            create(formData);
+          }
+          setDialogOpen(false);
+          setEditing(null);
+        }}
+        isPending={isCreating || isUpdating}
+      />
     </div>
   );
 }

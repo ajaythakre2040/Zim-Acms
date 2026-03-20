@@ -59,10 +59,10 @@ export default function DevicesPage() {
     },
     { key: "deviceType", label: "Type", render: (d: Device) => <Badge variant="secondary">{d.deviceType}</Badge> },
 
-    // YEH RAH AAPKA SITE COLUMN (Jaisa pehle tha)
+    // YEH RAH AAPKA SITE COLUMN
     { key: "site", label: "Site", hideOnMobile: true, render: (d: Device) => sites.find((s) => s.id === d.locationId)?.name || "-" },
 
-    // STATUS COLUMN (Visual Update Only)
+    // STATUS COLUMN
     {
       key: "status", label: "Status", render: (d: Device) => {
         const statusKey = d.status || "offline";
@@ -81,7 +81,7 @@ export default function DevicesPage() {
       }
     },
 
-    // LAST SEEN COLUMN (Format Update Only)
+    // LAST SEEN COLUMN
     {
       key: "lastHeartbeat", label: "Last Seen", hideOnMobile: true, render: (d: Device) => {
         if (!d.lastHeartbeat) return "Never";
@@ -103,20 +103,30 @@ export default function DevicesPage() {
       }
     },
 
+    // ACTIONS COLUMN (Yahan "Actions" header add kiya hai)
     {
-      key: "actions", label: "", render: (d: Device) => (
+      key: "actions",
+      label: "Actions",
+      render: (d: Device) => (
         <div className="flex gap-1">
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(d); setDialogOpen(true); }}>
+          <Button
+            size="icon"
+            variant="ghost"
+            title="Edit"
+            onClick={(e) => { e.stopPropagation(); setEditing(d); setDialogOpen(true); }}
+          >
             <Pencil className="w-4 h-4" />
           </Button>
           <Button
             size="icon"
             variant="ghost"
+            title="Delete"
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               const idToDelete = d.id || (d as any).msId;
-              if (idToDelete && window.confirm("Are you sure?")) {
+              if (idToDelete && window.confirm("Are you sure you want to delete this device?")) {
                 remove(idToDelete);
               }
             }}
@@ -130,7 +140,11 @@ export default function DevicesPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
-      <PageHeader title="Devices" description="Manage access control devices" action={<Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Device</Button>} />
+      <PageHeader
+        title="Devices"
+        description="Manage access control devices"
+        action={<Button onClick={() => { setEditing(null); setDialogOpen(true); }}><Plus className="w-4 h-4 mr-1" /> Add Device</Button>}
+      />
 
       <div className="grid grid-cols-3 gap-3">
         <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-green-600 dark:text-green-400">{online}</p><p className="text-xs text-muted-foreground">Online</p></CardContent></Card>
@@ -138,7 +152,14 @@ export default function DevicesPage() {
         <Card><CardContent className="p-3 text-center"><p className="text-2xl font-bold text-red-600 dark:text-red-400">{errored}</p><p className="text-xs text-muted-foreground">Error</p></CardContent></Card>
       </div>
 
-      <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={["name", "ipAddress", "serialNumber"]} emptyMessage="No devices registered" />
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        searchable
+        searchKeys={["name", "ipAddress", "serialNumber"]}
+        emptyMessage="No devices registered"
+      />
 
       <CrudDialog
         open={dialogOpen}

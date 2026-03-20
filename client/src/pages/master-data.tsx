@@ -172,7 +172,7 @@ export default function MasterDataPage() {
         <TabsContent value="departments">
           <MasterTab endpoint="/api/departments" label="Department" fields={[
             { key: "name", label: "Name", required: true },
-            { key: "code", label: "Code" },
+            { key: "code", label: "Code", disabled: true },
             { key: "description", label: "Description", type: "textarea" },
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
@@ -181,7 +181,7 @@ export default function MasterDataPage() {
         <TabsContent value="designations">
           <MasterTab endpoint="/api/designations" label="Designation" fields={[
             { key: "name", label: "Name", required: true },
-            { key: "code", label: "Code" },
+            { key: "code", label: "Code", disabled: true },
             { key: "level", label: "Level", type: "number" },
             { key: "description", label: "Description", type: "textarea" },
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
@@ -210,7 +210,7 @@ export default function MasterDataPage() {
         <TabsContent value="vendors">
           <MasterTab endpoint="/api/vendors" label="Vendor" fields={[
             { key: "name", label: "Name", required: true },
-            { key: "code", label: "Code" },
+            { key: "code", label: "Code", disabled: true },
             { key: "contactPerson", label: "Contact Person" },
             { key: "phone", label: "Phone" },
             { key: "email", label: "Email", type: "email" },
@@ -228,7 +228,7 @@ export default function MasterDataPage() {
             label="Role"
             fields={[
               { key: "name", label: "Role Name", required: true },
-              { key: "code", label: "Role Code", required: true },
+              { key: "code", label: "Role Code", disabled: true, required: true },
               {
                 key: "deviceIds",
                 label: "Assign Devices",

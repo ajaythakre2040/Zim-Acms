@@ -4,7 +4,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { initDatabases } from "./db"; // DB initialization import karein
-
+import { initCronSystem } from "./cron/scheduler"; // <-- Cron Scheduler Import
 const app = express();
 const httpServer = createServer(app);
 
@@ -76,7 +76,9 @@ app.use((req, res, next) => {
     // 1. Initialize Databases (Postgres + MS SQL)
     log("Initializing databases...", "startup");
     await initDatabases();
-
+    // Isse aapka background task (30 sec wala) chalu ho jayega
+    log("Starting Cron Scheduler...", "startup");
+    await initCronSystem();
     // 2. Register API Routes
     await registerRoutes(httpServer, app);
 

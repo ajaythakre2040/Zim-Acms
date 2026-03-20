@@ -154,7 +154,7 @@ export default function ZonesDoorsPage() {
     { key: "isHighRisk", label: "High Risk Zone", type: "switch" },
     { key: "description", label: "Description", type: "textarea" },
     { key: "isActive", label: "Active", type: "switch", defaultValue: true },
-  ], [sites, editingZone]); // Dependencies: sites change hon ya editing mode
+  ], [sites, editingZone]);
 
   const doorFields: FieldConfig[] = useMemo(() => [
     { key: "name", label: "Door Name", required: true },
@@ -250,12 +250,15 @@ export default function ZonesDoorsPage() {
     },
     {
       key: "actions",
-      label: "",
+      label: "Actions",
+      headerClassName: "text-left",
+      className: "text-left",
       render: (z: Zone) => (
-        <div className="flex gap-1 justify-end">
+        <div className="flex gap-1 justify-start items-center">
           <Button
             size="icon"
             variant="ghost"
+            className="h-8 w-8"
             onClick={() => {
               setEditingZone(z);
               setZoneDialog(true);
@@ -266,7 +269,10 @@ export default function ZonesDoorsPage() {
           <Button
             size="icon"
             variant="ghost"
-            onClick={() => zoneCrud.remove(z.id)}
+            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => {
+              if (window.confirm("Delete this zone?")) zoneCrud.remove(z.id)
+            }}
           >
             <Trash2 className="w-4 h-4" />
           </Button>
@@ -355,9 +361,11 @@ export default function ZonesDoorsPage() {
     },
     {
       key: "actions",
-      label: "",
+      label: "Actions",
+      headerClassName: "text-left",
+      className: "text-left",
       render: (d: Door) => (
-        <div className="flex gap-1 justify-end">
+        <div className="flex gap-1 justify-start items-center">
           <TooltipProvider delayDuration={300}>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -401,7 +409,7 @@ export default function ZonesDoorsPage() {
                   className="h-8 w-8 text-destructive hover:bg-destructive/10"
                   onClick={(e) => {
                     e.stopPropagation();
-                    doorCrud.remove(d.id);
+                    if (window.confirm("Delete this door?")) doorCrud.remove(d.id);
                   }}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -559,13 +567,6 @@ export default function ZonesDoorsPage() {
                   className="w-[470px] p-2"
                   align="start"
                   onWheel={(e) => e.stopPropagation()}
-                  onPointerDownOutside={(e) => {
-                    if (
-                      e.target instanceof Element &&
-                      e.target.closest(".custom-scrollbar")
-                    )
-                      e.preventDefault();
-                  }}
                 >
                   <div className="flex justify-end gap-4 p-2 mb-2 border-b border-slate-100 text-[11px] font-bold">
                     <button
@@ -587,14 +588,7 @@ export default function ZonesDoorsPage() {
                       CLEAR
                     </button>
                   </div>
-                  <div
-                    className="max-h-[250px] overflow-y-auto space-y-1 pr-1 custom-scrollbar"
-                    style={{
-                      pointerEvents: "auto",
-                      touchAction: "pan-y",
-                      position: "relative",
-                    }}
-                  >
+                  <div className="max-h-[250px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                     {devices.map((device) => {
                       const isSelected = pendingMapping.inDeviceIds.includes(
                         device.msId,
@@ -675,13 +669,6 @@ export default function ZonesDoorsPage() {
                   className="w-[470px] p-2"
                   align="start"
                   onWheel={(e) => e.stopPropagation()}
-                  onPointerDownOutside={(e) => {
-                    if (
-                      e.target instanceof Element &&
-                      e.target.closest(".custom-scrollbar")
-                    )
-                      e.preventDefault();
-                  }}
                 >
                   <div className="flex justify-end gap-4 p-2 mb-2 border-b border-slate-100 text-[11px] font-bold">
                     <button
@@ -703,14 +690,7 @@ export default function ZonesDoorsPage() {
                       CLEAR
                     </button>
                   </div>
-                  <div
-                    className="max-h-[250px] overflow-y-auto space-y-1 pr-1 custom-scrollbar"
-                    style={{
-                      pointerEvents: "auto",
-                      touchAction: "pan-y",
-                      position: "relative",
-                    }}
-                  >
+                  <div className="max-h-[250px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
                     {devices.map((device) => {
                       const isSelected = pendingMapping.outDeviceIds.includes(
                         device.msId,

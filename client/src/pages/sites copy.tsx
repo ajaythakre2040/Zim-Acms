@@ -119,7 +119,7 @@ export default function SitesPage() {
               setFieldErrors({ code: "Duplicate code entry! This code is already used." });
               toast({
                 variant: "destructive",
-                title: "Validation Error",
+                title: "Duplicate Entry",
                 description: "This code is already in use. Please provide a unique value."
               });
             } else {
