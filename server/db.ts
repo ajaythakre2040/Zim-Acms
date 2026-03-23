@@ -27,7 +27,7 @@ const mssqlConfig: mssql.config = {
 //   password: '1234', // Jo aapne SSMS mein set kiya
 //   server: '127.0.0.1', // localhost ki jagah IP
 //   database: 'bzi_bios',
-//   port: 1433,
+//   port: 1433, 
 //   options: {
 //     // instanceName: 'SQLEXPRESS', // Kabhi-kabhi port dene par instance name ki zarurat nahi hoti
 //     encrypt: false,

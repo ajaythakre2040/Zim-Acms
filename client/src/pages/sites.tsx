@@ -27,7 +27,15 @@ export default function SitesPage() {
 
   const siteFields: FieldConfig[] = [
     { key: "name", label: "Site Name", required: true },
-    { key: "code", label: "Code", disabled: true },
+
+    // Edit mode mein disabled (true), Add mode mein enabled (false)
+    {
+      key: "code",
+      label: "Code",
+      required: !editingSite,
+      disabled: !!editingSite
+    },
+
     { key: "address", label: "Address", type: "textarea" },
     { key: "city", label: "City" },
     { key: "state", label: "State" },
@@ -38,7 +46,7 @@ export default function SitesPage() {
 
   const buildingFields: FieldConfig[] = [
     { key: "name", label: "Building Name", required: true },
-    { key: "code", label: "Code", disabled: true },
+    { key: "code", label: "Code", required: !editingBuilding, disabled: !!editingBuilding },
     { key: "locationId", label: "Site", type: "select", required: true, options: siteCrud.data.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "address", label: "Address", type: "textarea" },
     { key: "floorCount", label: "Floor Count", type: "number", defaultValue: 1 },

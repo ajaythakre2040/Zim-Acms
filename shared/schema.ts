@@ -3,9 +3,9 @@ export * from "./models/auth";
 import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { users } from "./models/auth";
-
+import { bigint } from "drizzle-orm/pg-core";
 // ==================== USER PROFILES (RBAC) ====================
 export const userProfiles = pgTable("user_profiles", {
   id: serial("id").primaryKey(),
@@ -143,7 +143,7 @@ export const zones = pgTable("zones", {
 export const doors = pgTable("doors", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  code: text("code"),
+  code: text("code").unique().notNull(),
   zoneId: integer("zone_id"),
   locationId: integer("location_id"),
   doorType: text("door_type", { enum: ["standard", "turnstile", "barrier", "gate", "emergency"] }).default("standard"),
@@ -652,14 +652,19 @@ export const doorDevices = pgTable("door_devices", {
 export const cronMaster = pgTable("cron_master", {
   id: serial("id").primaryKey(),
   doorId: integer("door_id"),
+
   // --- Configuration ---
   displayName: text("display_name").notNull(),
-  code: text("code").unique().notNull(),
+  code: text("code").unique().notNull(), // Example: 'MG_SYNC_01'
 
-  // Naam badal kar 'scheduleTime' kar diya hai
+  // Sync Interval (Seconds mein, default 30s)
   scheduleTime: integer("schedule_time").notNull().default(30),
   task: text("task"),
   group: text("group"),
+
+  // --- Sync Pointers (Crucial for MS SQL) ---
+  // mode: "number" use karne se JS side par pointer handling asaan rehti hai
+  lastProcessedId: bigint("last_processed_id", { mode: "number" }).default(0),
 
   // --- Execution Controls ---
   retryCount: integer("retry_count").default(3),
@@ -670,18 +675,20 @@ export const cronMaster = pgTable("cron_master", {
   isActive: boolean("is_active").default(true),
   isRunning: boolean("is_running").default(false),
 
-  // Last Run Details (Kitne time chala aur kab)
-  lastRun: timestamp("last_run"),
-  lastRunDuration: integer("last_run_duration"), // In seconds
-  lastStatus: text("last_status"),
-  lastMessage: text("last_message"),
+  // 🕒 Time Details (With IST Support)
+  // withTimezone: true + TZ=Asia/Kolkata = Perfect Indian Time
+  lastRun: timestamp("last_run", { withTimezone: true }),
+  lastRunDuration: integer("last_run_duration"), // Sync hone mein kitne seconds lage
+  lastStatus: text("last_status"), // 'success' or 'failed'
+  lastMessage: text("last_message"), // Error message ya summary data
 
   // --- Maintenance ---
   logRetentionDays: integer("log_retention_days").default(30),
   alertEmail: text("alert_email"),
 
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  // Auto-timestamps (Database level par IST handle karne ke liye)
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
 });
 // ==================== INSERT SCHEMAS ====================
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });

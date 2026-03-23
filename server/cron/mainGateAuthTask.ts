@@ -1,112 +1,158 @@
 import { db, mssqlPool } from "../db";
 import { esslService } from "../essl-service";
-import { people, devices, doorDevices, blockUnblockLogs, roles } from "@shared/schema";
+import { people, devices, doorDevices, blockUnblockLogs, roles, cronMaster } from "@shared/schema";
 import { eq, and, desc, gt } from "drizzle-orm";
+import { CRON_TASKS } from "../constant";
 
 export async function runMainGateAuthSync(doorId: number) {
+    const cronCode = CRON_TASKS.MAIN_GATE_SYNC.CODE;
+    const startTime = Date.now();
     const timestamp = new Date().toLocaleTimeString();
-    console.log(`\n--- 🔄 [CRON START: ${timestamp}] ---`);
 
     try {
-        // 1. GATE CONFIGURATION
+        console.log(`\n--- 🔄 [CRON ATTEMPT: ${timestamp}] ---`);
+
+        // 1. CRON STATE & SAFETY LOCK
+        const [cronState] = await db.select().from(cronMaster).where(eq(cronMaster.code, cronCode)).limit(1);
+
+        if (!cronState) {
+            console.error(`❌ [ERROR] Cron code '${cronCode}' not found in database!`);
+            return;
+        }
+
+        if (cronState.isRunning) {
+            const lastRunTime = cronState.lastRun ? new Date(cronState.lastRun).getTime() : 0;
+            const timeoutThreshold = 5 * 60 * 1000; // 5 Minutes Safety
+
+            if (Date.now() - lastRunTime > timeoutThreshold) {
+                console.log(`⚠️ [FORCE RESET] Cron was stuck for >5 mins. Resetting lock...`);
+            } else {
+                console.log(`⏳ [SKIP] Cycle already in progress. Last run: ${cronState.lastRun}`);
+                return;
+            }
+        }
+
+        // 2. CONFIGURATION LOAD
+        console.log(`🔍 Loading Config for Door ID: ${doorId}...`);
         const doorConfig = await db.select().from(doorDevices).where(eq(doorDevices.doorId, doorId)).limit(1).then(r => r[0]);
-        if (!doorConfig) return;
+
+        if (!doorConfig) {
+            console.error(`❌ [ERROR] No configuration found in 'doorDevices' for doorId: ${doorId}`);
+            return;
+        }
 
         const inGateIds = doorConfig.inDeviceIds || [];
         const outGateIds = doorConfig.outDeviceIds || [];
         const allGateIds = [...inGateIds, ...outGateIds];
+        console.log(`✅ Config Found. Gates to monitor: ${allGateIds.join(", ")}`);
 
-        // 🚀 OPTIMIZATION 1: Sirf pichle 2-3 minutes ka data uthao (Delta Sync)
-        // Taaki 1000 logo ke purane records baar-baar loop na chalein
+        // 🚀 LOCK START
+        await db.update(cronMaster).set({ isRunning: true, lastRun: new Date() }).where(eq(cronMaster.code, cronCode));
+
+        // 3. FETCH NEW PUNCHES
+        let lastId = Number(cronState.lastProcessedId || 0);
+        console.log(`📡 Querying MS SQL (LastProcessedId: ${lastId})...`);
+
         const request = mssqlPool.request();
-        const activityQuery = `
-            SELECT EmployeeCode, DeviceId, DeviceLogId FROM (
-                SELECT EmployeeCode, DeviceId, DeviceLogId,
-                ROW_NUMBER() OVER (PARTITION BY EmployeeCode ORDER BY DeviceLogId DESC) as rn
-                FROM DeviceLogs 
-                WHERE DeviceId IN (${allGateIds.join(",")}) 
-                AND LogDate >= DATEADD(minute, -3, GETDATE()) -- ✅ Sirf last 3 mins ka data
-            ) t WHERE rn = 1`;
+        // Agar lastId 0 hai toh pichle 10 min ka data uthao (Testing ke liye 5 se 10 kar diya)
+        const activityQuery = lastId === 0
+            ? `SELECT EmployeeCode, DeviceId, DeviceLogId FROM DeviceLogs 
+               WHERE DeviceId IN (${allGateIds.join(",")}) AND LogDate >= DATEADD(minute, -10, GETDATE())
+               ORDER BY DeviceLogId ASC`
+            : `SELECT EmployeeCode, DeviceId, DeviceLogId FROM DeviceLogs 
+               WHERE DeviceLogId > ${lastId} AND DeviceId IN (${allGateIds.join(",")}) 
+               ORDER BY DeviceLogId ASC`;
 
         const result = await request.query(activityQuery);
         const activePunches = result.recordset;
 
         if (activePunches.length === 0) {
-            // console.log("ℹ️ No new gate activity in last 3 mins.");
+            console.log("ℹ️ [IDLE] No new punches found in MS SQL. Ending cycle.");
+            await db.update(cronMaster).set({ isRunning: false }).where(eq(cronMaster.code, cronCode));
             return;
         }
 
-        console.log(`🏃 [SPEED] Processing ${activePunches.length} recent employee movements...`);
+        console.log(`🏃 [PROCESS] Found ${activePunches.length} NEW punches to sync.`);
 
-        // 2. FETCH ALL INTERNAL DEVICES ONCE (Loop ke bahar taaki speed badhe)
-        const allDevices = await db.select().from(devices);
-        const internalDevices = allDevices.filter(d => d.msId !== null && !allGateIds.includes(d.msId));
+        // 4. BULK DATA FETCH
+        console.log("📦 Fetching People, Roles, and Internal Devices...");
+        const [allDevices, allPeople, allRoles] = await Promise.all([
+            db.select().from(devices).where(gt(devices.msId, 0)),
+            db.select().from(people),
+            db.select().from(roles)
+        ]);
 
-        // 3. PROCESS RECENT EMPLOYEES
+        const internalDevices = allDevices.filter(d => !allGateIds.includes(d.msId!));
+        console.log(`🖥️ Internal devices to sync: ${internalDevices.map(d => d.msId).join(", ")}`);
+
+        let maxIdInThisRun = lastId;
+
+        // 5. SYNC LOOP
         for (const punch of activePunches) {
             const empCode = punch.EmployeeCode;
-            const lastPunchId = punch.DeviceId;
-            const isInside = inGateIds.includes(lastPunchId);
+            const isInside = inGateIds.includes(punch.DeviceId);
+            console.log(`👤 Syncing Emp: ${empCode} | Direction: ${isInside ? 'IN' : 'OUT'} | PunchID: ${punch.DeviceLogId}`);
 
-            // Get Employee Data
-            const [emp] = await db.select().from(people).where(eq(people.employeeCode, empCode)).limit(1);
-
-            let allowedMsIds: number[] = [];
-            let hasValidRole = false;
-
-            if (emp && emp.roleId) {
-                const [roleData] = await db.select().from(roles).where(eq(roles.id, emp.roleId)).limit(1);
-                if (roleData) {
-                    allowedMsIds = roleData.deviceIds || [];
-                    hasValidRole = true;
-                }
+            const emp = allPeople.find(p => p.employeeCode === empCode);
+            if (!emp) {
+                console.log(`   ⚠️ Emp ${empCode} not found in local People table. Skipping.`);
+                if (Number(punch.DeviceLogId) > maxIdInThisRun) maxIdInThisRun = Number(punch.DeviceLogId);
+                continue;
             }
 
-            // STEP 4: Device-by-Device Sync
-            for (const dev of internalDevices) {
-                let shouldBlock = true;
+            const role = allRoles.find(r => r.id === emp.roleId);
+            const allowedMsIds = (role?.deviceIds as number[]) || [];
 
-                if (isInside && hasValidRole) {
-                    shouldBlock = !allowedMsIds.includes(dev.msId!);
-                } else {
-                    shouldBlock = true;
-                }
-
+            // Parallel Sync for all internal devices
+            await Promise.all(internalDevices.map(async (dev) => {
+                const shouldBlock = !(isInside && role && allowedMsIds.includes(dev.msId!));
                 const currentStatus = shouldBlock ? "block" : "unblock";
 
-                // CHANGE DETECTION (Duplicate entries check)
+                // Change Detection
                 const [lastLog] = await db.select()
                     .from(blockUnblockLogs)
-                    .where(and(
-                        eq(blockUnblockLogs.employeeCode, empCode),
-                        eq(blockUnblockLogs.deviceId, dev.msId!)
-                    ))
-                    .orderBy(desc(blockUnblockLogs.createdAt))
-                    .limit(1);
+                    .where(and(eq(blockUnblockLogs.employeeCode, empCode), eq(blockUnblockLogs.deviceId, dev.msId!)))
+                    .orderBy(desc(blockUnblockLogs.createdAt)).limit(1);
 
-                if (lastLog && lastLog.type === currentStatus) continue;
+                if (lastLog && lastLog.type === currentStatus) {
+                    // console.log(`   ⏭️ Dev ${dev.msId} already ${currentStatus}.`);
+                    return;
+                }
 
                 try {
-                    console.log(`   🚨 [SYNC] Emp ${empCode} -> Dev ${dev.msId} (${currentStatus.toUpperCase()})`);
+                    console.log(`   🚨 [CMD] ${currentStatus.toUpperCase()} Emp ${empCode} on Dev ${dev.msId}`);
                     await esslService.syncUserBlockStatus(empCode, dev.serialNumber!, shouldBlock);
 
                     await db.insert(blockUnblockLogs).values({
-                        employeeCode: empCode,
-                        deviceId: dev.msId!,
-                        type: currentStatus,
-                        createdAt: new Date()
+                        employeeCode: empCode, deviceId: dev.msId!, type: currentStatus, createdAt: new Date()
                     });
-
-                    // Thoda sa delay taaki hardware hang na ho
-                    await new Promise(res => setTimeout(res, 800));
                 } catch (err: any) {
-                    console.error(`   ❌ Failed Dev ${dev.msId}: ${err.message}`);
+                    console.error(`   ❌ Hardware Error (Dev ${dev.msId}): ${err.message}`);
                 }
+            }));
+
+            if (Number(punch.DeviceLogId) > maxIdInThisRun) {
+                maxIdInThisRun = Number(punch.DeviceLogId);
             }
         }
-        console.log(`--- ✅ [CRON FINISHED] ---`);
+
+        // 6. UPDATE CRON MASTER & UNLOCK
+        const duration = Math.floor((Date.now() - startTime) / 1000);
+        await db.update(cronMaster)
+            .set({
+                isRunning: false,
+                lastProcessedId: maxIdInThisRun,
+                lastRunDuration: duration,
+                lastStatus: "success",
+                lastMessage: `Synced ${activePunches.length} punches. MaxID: ${maxIdInThisRun}`
+            })
+            .where(eq(cronMaster.code, cronCode));
+
+        console.log(`✅ [CRON FINISHED] Pointer updated to: ${maxIdInThisRun} | Time: ${duration}s`);
 
     } catch (err: any) {
-        console.error("‼️ FATAL CRON ERROR:", err.message);
+        console.error("‼️ [FATAL ERROR]:", err.message);
+        await db.update(cronMaster).set({ isRunning: false, lastStatus: "failed", lastMessage: err.message })
+            .where(eq(cronMaster.code, cronCode));
     }
 }

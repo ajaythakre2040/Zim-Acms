@@ -16,7 +16,12 @@ export default function ShiftsPage() {
   const fields: FieldConfig[] = [
     { key: "name", label: "Shift Name", required: true },
     // यहाँ disabled: true जोड़ा गया है ताकि यह Read-only रहे
-    { key: "code", label: "Code", disabled: true },
+    {
+      key: "code",
+      label: "Code",
+      required: !editing,
+      disabled: !!editing
+    },
     { key: "startTime", label: "Start Time", type: "time", required: true },
     { key: "endTime", label: "End Time", type: "time", required: true },
     { key: "breakDuration", label: "Break (mins)", type: "number", defaultValue: 0 },

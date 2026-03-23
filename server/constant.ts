@@ -16,20 +16,25 @@ export const ATTENDANCE_STATUS = {
 
 export const CRON_TASKS = {
   MAIN_GATE_SYNC: {
-    CODE: "MG_SYNC_01",              // Unique ID for DB
-    TASK_NAME: "COMMON_GATE_AUTH",   // Logic Identifier
-    DISPLAY_NAME: "Main Gate - Sync",
-    DEFAULT_SECONDS: 30,             // Sync Interval
+    // Ye details Doors table ke liye hain
+    CODE: "MG_SYNC_01",           // Unique Identifier (Sabse zaroori)
+    DISPLAY_NAME: "Main Gate",    // Door ka naam
+    DOOR_TYPE: "gate",            // Enum: gate, standard, etc.
+
+    // Ye details Cron Master table ke liye hain
+    TASK_NAME: "COMMON_GATE_AUTH",
+    DEFAULT_SECONDS: 30,
     GROUP: "gate_security",
     PRIORITY: "high",
-    DOOR_ID: 1,                      // Default Door
   },
-
-// Future mein koi naya task aaye toh yahan add karein
-HEALTH_CHECK: {
-  CODE: "OFFICE_HC_01",
-    TASK_NAME: "health_check",
-      DISPLAY_NAME: "Office - Health Check",
-        DEFAULT_SECONDS: 3600,
+  // Future mein naye gate ke liye bas ek naya object yahan add karein
+  SIDE_GATE_SYNC: {
+    CODE: "SG_SYNC_02",
+    DISPLAY_NAME: "Side Gate",
+    DOOR_TYPE: "gate",
+    TASK_NAME: "SIDE_GATE_AUTH",
+    DEFAULT_SECONDS: 60,
+    GROUP: "gate_security",
+    PRIORITY: "medium",
   }
 };

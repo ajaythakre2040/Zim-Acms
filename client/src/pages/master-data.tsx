@@ -11,7 +11,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
 
-function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: string; label: string; fields: FieldConfig[]; nameKey?: string }) {
+// MasterTab updated to accept fields as a function or array
+function MasterTab({ endpoint, label, fields, nameKey = "name" }: {
+  endpoint: string;
+  label: string;
+  fields: FieldConfig[] | ((editing: any) => FieldConfig[]);
+  nameKey?: string
+}) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const { toast } = useToast();
@@ -19,7 +25,10 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
   const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(endpoint, label);
   const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
 
-  const dynamicFields = fields.map(f => {
+  // Evaluate fields based on editing state
+  const currentFields = typeof fields === 'function' ? fields(editing) : fields;
+
+  const dynamicFields = currentFields.map(f => {
     if (f.key === "deviceIds") {
       return {
         ...f,
@@ -41,7 +50,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
       label: "Name",
       render: (item: any) => <span className="font-medium">{item[nameKey]}</span>
     },
-    ...fields
+    ...currentFields
       .filter((f) => f.key !== nameKey && f.key !== "description" && f.key !== "isActive")
       .slice(0, 2)
       .map((f) => ({
@@ -63,7 +72,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: { endpoint: st
     },
     {
       key: "actions",
-      label: "Actions", // UPDATE: Header label "Actions" wapas add kiya gaya hai
+      label: "Actions",
       render: (item: any) => (
         <div className="flex gap-1">
           <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(item); setDialogOpen(true); }}>
@@ -170,18 +179,18 @@ export default function MasterDataPage() {
         </TabsList>
 
         <TabsContent value="departments">
-          <MasterTab endpoint="/api/departments" label="Department" fields={[
+          <MasterTab endpoint="/api/departments" label="Department" fields={(editing) => [
             { key: "name", label: "Name", required: true },
-            { key: "code", label: "Code", disabled: true },
+            { key: "code", label: "Code", required: !editing, disabled: !!editing },
             { key: "description", label: "Description", type: "textarea" },
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
           ]} />
         </TabsContent>
 
         <TabsContent value="designations">
-          <MasterTab endpoint="/api/designations" label="Designation" fields={[
+          <MasterTab endpoint="/api/designations" label="Designation" fields={(editing) => [
             { key: "name", label: "Name", required: true },
-            { key: "code", label: "Code", disabled: true },
+            { key: "code", label: "Code", required: !editing, disabled: !!editing },
             { key: "level", label: "Level", type: "number" },
             { key: "description", label: "Description", type: "textarea" },
             { key: "isActive", label: "Active", type: "switch", defaultValue: true },
@@ -208,9 +217,9 @@ export default function MasterDataPage() {
         </TabsContent>
 
         <TabsContent value="vendors">
-          <MasterTab endpoint="/api/vendors" label="Vendor" fields={[
+          <MasterTab endpoint="/api/vendors" label="Vendor" fields={(editing) => [
             { key: "name", label: "Name", required: true },
-            { key: "code", label: "Code", disabled: true },
+            { key: "code", label: "Code", required: !editing, disabled: !!editing },
             { key: "contactPerson", label: "Contact Person" },
             { key: "phone", label: "Phone" },
             { key: "email", label: "Email", type: "email" },
@@ -226,9 +235,9 @@ export default function MasterDataPage() {
           <MasterTab
             endpoint="/api/roles"
             label="Role"
-            fields={[
+            fields={(editing) => [
               { key: "name", label: "Role Name", required: true },
-              { key: "code", label: "Role Code", disabled: true, required: true },
+              { key: "code", label: "Role Code", required: !editing, disabled: !!editing },
               {
                 key: "deviceIds",
                 label: "Assign Devices",

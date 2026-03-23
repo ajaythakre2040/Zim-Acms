@@ -719,10 +719,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     insertCronMasterSchema,
     () => storage.getCronMasters(),
     async (data: any) => {
-      // Check if cronKey already exists
+      // Check if code already exists
       const existing = await storage.getCronMasters();
       const isDuplicate = existing.some(
-        (c) => c.cronKey.toLowerCase() === data.cronKey.toLowerCase()
+        (c) => c.code.toLowerCase() === data.code.toLowerCase()
       );
 
       if (isDuplicate) {

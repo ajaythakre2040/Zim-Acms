@@ -1,3 +1,4 @@
+process.env.TZ = "Asia/Kolkata";
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
@@ -78,7 +79,7 @@ app.use((req, res, next) => {
     await initDatabases();
     // Isse aapka background task (30 sec wala) chalu ho jayega
     log("Starting Cron Scheduler...", "startup");
-    await initCronSystem();
+    // await initCronSystem();
     // 2. Register API Routes
     await registerRoutes(httpServer, app);
 

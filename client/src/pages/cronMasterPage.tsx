@@ -54,9 +54,10 @@ export default function DynamicCronDashboard() {
         },
         {
             key: "scheduleTime",
-            label: "Schedule Time (Cron Format)",
+            label: "Sync Interval (Seconds)",
             required: true,
-            placeholder: "*/5 * * * *",
+            type: "number",
+            placeholder: "e.g., 30 or 90",
             // @ts-ignore
             description: "Format: min hour dom month dow",
             pattern: "^[0-9*\\/\\-, .]*$",

@@ -1751,7 +1751,14 @@ export class DatabaseStorage implements IStorage {
   // }
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
     try {
-      const gateDoorId = CRON_TASKS.MAIN_GATE_SYNC.DOOR_ID; // e.g., 1
+      // 1. Fetch Dynamic Configuration
+      const taskConfig = await db.query.cronMaster.findFirst({
+        where: eq(cronMaster.code, CRON_TASKS.MAIN_GATE_SYNC.CODE)
+      });
+
+      if (!taskConfig?.doorId) return; // Silent exit if config is missing
+
+      const activeGateId = taskConfig.doorId;
 
       // 1. Fetching all required data
       const [role, msDevicesRaw, gateMappings] = await Promise.all([
@@ -1759,7 +1766,7 @@ export class DatabaseStorage implements IStorage {
         dbMsSql.select().from({ dbName: 'Devices' }).execute(),
         // Fetch door_devices where door_id matches our constant
         db.select().from(doorDevices)
-          .where(eq(doorDevices.doorId, gateDoorId))
+          .where(eq(doorDevices.doorId, activeGateId))
           .execute()
       ]);
 
