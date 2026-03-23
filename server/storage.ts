@@ -51,7 +51,7 @@ import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS } from './constant';
 import { esslService } from "./essl-service";
-import { CRON_TASKS } from "./constant"; // Aapka constant file path
+import { CRON_TASKS } from "./constant"; 
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -274,9 +274,9 @@ export class DatabaseStorage implements IStorage {
   async deleteVendor(id: number): Promise<void> {
     await db.delete(vendors).where(eq(vendors.id, id));
   }
-  // async getSites(): Promise<Site[]> {
-  //   return await db.select().from(sites);
-  // }
+  
+  
+  
   async getSites(): Promise<Site[]> {
     const [pgData, msDataRaw] = await Promise.all([
       db.select().from(sites),
@@ -318,12 +318,12 @@ export class DatabaseStorage implements IStorage {
     return currentSites;
   }
   async createSite(data: InsertSite): Promise<Site> {
-    // data.code ko string mein cast karein ya default value check lagayein
+    
     if (data.code) {
       const [existing] = await db
         .select()
         .from(sites)
-        .where(eq(sites.code, data.code as string)); // 'as string' use karein ya niche wala method
+        .where(eq(sites.code, data.code as string)); 
 
       if (existing) {
         throw new Error("Code is already in use. Please provide a unique value.");
@@ -345,37 +345,37 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  // async updateSite(id: number, data: Partial<InsertSite>): Promise<Site> {
-  //   if (data.code) {
-  //     const [existing] = await db.select()
-  //       .from(sites)
-  //       .where(and(
-  //         eq(sites.code, data.code),
-  //         ne(sites.id, id) 
-  //       ));
+  
+  
+  
+  
+  
+  
+  
+  
 
-  //     if (existing) {
-  //       throw new Error("Code is already in use. Please provide a unique value.");
-  //     }
-  //   }
+  
+  
+  
+  
 
-  //   const [updated] = await db.update(sites)
-  //     .set({ ...data })
-  //     .where(eq(sites.id, id))
-  //     .returning();
+  
+  
+  
+  
 
-  //   if (updated?.msId) {
-  //     try {
-  //       await dbMsSql.update({ dbName: 'Locations', pk: 'Id' })
-  //         .set({
-  //           Code: updated.code,
-  //           Description: updated.name
-  //         })
-  //         .where({ value: updated.msId });
-  //     } catch (e) { }
-  //   }
-  //   return updated;
-  // }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   async updateSite(id: number, data: Partial<InsertSite>): Promise<Site> {
     if (data.code) {
       const [existing] = await db.select()
@@ -386,12 +386,12 @@ export class DatabaseStorage implements IStorage {
         ));
 
       if (existing) {
-        // Is error ko route handler mein catch karke res.status(400) bhejna hoga
+        
         throw new Error("DUPLICATE_CODE");
       }
     }
 
-    // Baki technical fields (id, msId, createdAt) ko data se nikal kar hi update chalayein
+    
     const { id: _, msId: __, createdAt: ___, ...updateData } = data as any;
 
     const [updated] = await db.update(sites)
@@ -399,7 +399,7 @@ export class DatabaseStorage implements IStorage {
       .where(eq(sites.id, id))
       .returning();
 
-    // ... rest of the code (MSSQL sync)
+    
     return updated;
   }
   async deleteSite(id: number): Promise<void> {
@@ -415,17 +415,17 @@ export class DatabaseStorage implements IStorage {
       await db.delete(sites).where(eq(sites.id, id));
     }
   }
-  // async createSite(data: InsertSite): Promise<Site> {
-  //   const [created] = await db.insert(sites).values(data).returning();
-  //   return created;
-  // }
-  // async updateSite(id: number, data: Partial<InsertSite>): Promise<Site> {
-  //   const [updated] = await db.update(sites).set(data).where(eq(sites.id, id)).returning();
-  //   return updated;
-  // }
-  // async deleteSite(id: number): Promise<void> {
-  //   await db.delete(sites).where(eq(sites.id, id));
-  // }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   async getBuildings(locationId?: number): Promise<Building[]> {
     if (locationId) {
       return await db.select().from(buildings).where(eq(buildings.locationId, locationId));
@@ -480,9 +480,9 @@ export class DatabaseStorage implements IStorage {
   async deleteZone(id: number): Promise<void> {
     await db.delete(zones).where(eq(zones.id, id));
   }
-  // async getDoors(): Promise<Door[]> {
-  //   return await db.select().from(doors);
-  //    }
+  
+  
+  
   async getDoors(): Promise<any[]> {
     try {
       const [allDoors, allDoorDevices, allDevices] = await Promise.all([
@@ -498,7 +498,7 @@ export class DatabaseStorage implements IStorage {
           if (!ids || !Array.isArray(ids)) return [];
 
           return ids.map(id => {
-            // FIX: Hum 'msId' se match kar rahe hain kyunki aapka input MS SQL ID hai
+            
             const dev = allDevices.find(d => Number(d.msId) === Number(id));
 
             return dev ? { id: dev.id, msId: dev.msId, name: dev.name } : null;
@@ -532,62 +532,62 @@ export class DatabaseStorage implements IStorage {
   async deleteDoor(id: number): Promise<void> {
     await db.delete(doors).where(eq(doors.id, id));
   }
-  // async getDevices(): Promise<any[]> {
-  //   const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
-  //   if (!msDataRaw) return [];
-  //   const formattedDevices = msDataRaw.map((d: any) => ({
-  //     msId: d.DeviceId || d.DeviceID,
-  //     name: d.DeviceName || "Unnamed Device",
-  //     activationCode: d.ActivationCode || "",
-  //     deviceType: String(d.DeviceType || " ").toLowerCase(),
-  //     serialNumber: d.SerialNumber || d.serialno,
-  //     status: d.Status || "offline",
-  //     lastHeartbeat: d.LastHeartbeat ? new Date(d.LastHeartbeat) : null,
-  //     locationId: d.LocationId || null,
-  //     ipAddress: d.IpAddress || ""
-  //   }));
-  //   try {
-  //     for (const dev of formattedDevices) {
-  //       await db.insert(devices)
-  //         .values({
-  //           msId: dev.msId,
-  //           name: dev.name,
-  //           serialNumber: dev.serialNumber,
-  //           status: dev.status,
-  //           lastHeartbeat: dev.lastHeartbeat,
-  //           activationCode: dev.activationCode,
-  //           deviceType: dev.deviceType,
-  //           locationId: dev.locationId,
-  //           ipAddress: dev.ipAddress,
-  //           isActive: true
-  //         })
-  //         .onConflictDoUpdate({
-  //           target: devices.msId,
-  //           set: {
-  //             name: dev.name,
-  //             status: dev.status,
-  //             lastHeartbeat: dev.lastHeartbeat,
-  //             ipAddress: dev.ipAddress,
-  //             locationId: dev.locationId
-  //           }
-  //         });
-  //     }
-  //     const currentMsIds = formattedDevices.map(d => d.msId);
-  //     if (currentMsIds.length > 0) {
-  //       await db.delete(devices)
-  //         .where(notInArray(devices.msId, currentMsIds));
-  //     } else {
-  //       await db.delete(devices);
-  //     }
-  //   } catch (error) {
-  //     console.error("Device Sync Error:", error);
-  //   }
-  //   return formattedDevices;
-  // }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
 
   async getDevices(): Promise<any[]> {
     try {
-      // 1. MS SQL Database se saara data fetch karein
+      
       const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
 
       if (!msDataRaw || msDataRaw.length === 0) return [];
@@ -595,11 +595,11 @@ export class DatabaseStorage implements IStorage {
       const currentTime = new Date();
       const THRESHOLD_MINUTES = 1;
 
-      // 2. Data Transform aur Status Calculation
+      
       const formattedDevices = msDataRaw.map((d: any) => {
         const lPing = d.LastPing ? new Date(d.LastPing) : null;
 
-        // Online/Offline Logic
+        
         let calculatedStatus = "offline";
         if (lPing) {
           const diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
@@ -621,13 +621,13 @@ export class DatabaseStorage implements IStorage {
           deviceType: String(d.DeviceType || "-").toLowerCase(),
           locationId: d.LocationId || null,
           ipAddress: d.IpAddress || "",
-          lastHeartbeat: lPing, // LastPing ko hi heartbeat mein store kar rahe hain
+          lastHeartbeat: lPing, 
           status: calculatedStatus,
           isActive: true
         };
       });
 
-      // 3. Postgres mein Upsert (Insert or Update)
+      
       for (const dev of formattedDevices) {
         await db.insert(devices)
           .values(dev)
@@ -652,7 +652,7 @@ export class DatabaseStorage implements IStorage {
           });
       }
 
-      // 4. Cleanup: Jo MS SQL mein nahi hain unhe delete karein
+      
       const currentMsIds = formattedDevices.map(d => d.msId as number);
       if (currentMsIds.length > 0) {
         await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
@@ -721,60 +721,60 @@ export class DatabaseStorage implements IStorage {
       await db.delete(devices).where(eq(devices.msId, msId));
     }
   }
-  // async getPeople(search?: string): Promise<Person[]> {
-  //   const [pgData, msDataRaw] = await Promise.all([
-  //     db.select().from(people),
-  //     dbMsSql.select().from({ dbName: 'Employees' }).execute()
-  //   ]);
-  //   const msIds = new Set();
-  //   for (const msRow of (msDataRaw || [])) {
-  //     const mapped = PersonAdapter.toPostgres(msRow);
-  //     msIds.add(mapped.msId);
-  //     const exists = pgData.find(p => p.msId === mapped.msId);
-  //     if (mapped.msId && !exists) {
-  //       try {
-  //         const [newRec] = await db.insert(people).values({
-  //           msId: mapped.msId,
-  //           employeeName: mapped.employeeName ?? "Unknown",
-  //           employeeCode: mapped.employeeCode,
-  //           locationId: mapped.locationId,
-  //           address: mapped.address,
-  //           overtimeEligible: mapped.overtimeEligible,
-  //           personType: "employee",
-  //           status: "active",
-  //           sourceSystem: "mssql_bio",
-  //           externalId: mapped.externalId,
-  //           updatedAt: new Date(),
-  //           createdAt: new Date(),
-  //         }).returning();
-  //         pgData.push(newRec);
-  //       } catch (e) {
-  //         console.error("People Sync Insert Error:", e);
-  //       }
-  //     }
-  //   }
-  //   for (const pgRow of pgData) {
-  //     if (pgRow.msId && !msIds.has(pgRow.msId)) {
-  //       try {
-  //         await db.delete(people)
-  //           .where(eq(people.msId, pgRow.msId));
-  //       } catch (e) {
-  //         console.error("People Sync Delete Error:", e);
-  //       }
-  //     }
-  //   }
-  //   let results = pgData;
-  //   if (search) {
-  //     const term = search.toLowerCase();
-  //     results = pgData.filter(p =>
-  //       p.employeeName.toLowerCase().includes(term) ||
-  //       (p.employeeCode && p.employeeCode.toLowerCase().includes(term))
-  //     );
-  //   }
-  //   return Array.from(
-  //     new Map(results.map(p => [`${p.msId || p.employeeCode || p.id}`, p])).values()
-  //   );
-  // }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   async getPeople(search?: string): Promise<Person[]> {
     const [pgDataRaw, msDataRaw] = await Promise.all([
       db.select({
@@ -1568,14 +1568,14 @@ export class DatabaseStorage implements IStorage {
   async deleteCronMaster(id: number): Promise<void> {
     await db.delete(cronMaster).where(eq(cronMaster.id, id));
   }
-  // --- DOOR DEVICES MAPPING ---
+  
 
   async getDoorDevices(): Promise<DoorDevice[]> {
     return await db.select().from(doorDevices).orderBy(desc(doorDevices.createdAt));
   }
 
   async createDoorDevice(data: InsertDoorDevice): Promise<DoorDevice> {
-    // Array data already parsed hoke aayega schema validation se
+    
     const [newMapping] = await db.insert(doorDevices).values(data).returning();
     return newMapping;
   }
@@ -1585,7 +1585,7 @@ export class DatabaseStorage implements IStorage {
       .update(doorDevices)
       .set({
         ...data,
-        // Ensure arrays are treated as arrays if they exist in data
+        
         inDeviceIds: data.inDeviceIds,
         outDeviceIds: data.outDeviceIds,
       })
@@ -1606,7 +1606,7 @@ export class DatabaseStorage implements IStorage {
           id: blockUnblockLogs.id,
           employeeCode: blockUnblockLogs.employeeCode,
           deviceId: blockUnblockLogs.deviceId,
-          deviceName: devices.name, // Device table se join karke naam nikalna
+          deviceName: devices.name, 
           type: blockUnblockLogs.type,
           createdAt: blockUnblockLogs.createdAt,
           updatedAt: blockUnblockLogs.updatedAt,
@@ -1620,7 +1620,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // 2. INSERT: Naya log record karna (Using your InsertBlockUnblockLog type)
+  
   async createBlockUnblockLog(data: InsertBlockUnblockLog): Promise<BlockUnblockLog> {
     const [log] = await db
       .insert(blockUnblockLogs)
@@ -1629,7 +1629,7 @@ export class DatabaseStorage implements IStorage {
     return log;
   }
 
-  // 3. UPDATE: Kisi existing log entry ko update karna
+  
   async updateBlockUnblockLog(id: number, data: Partial<InsertBlockUnblockLog>): Promise<BlockUnblockLog> {
     const [updated] = await db
       .update(blockUnblockLogs)
@@ -1642,14 +1642,14 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  // 4. DELETE: Log entry remove karna
+  
   async deleteBlockUnblockLog(id: number): Promise<void> {
     await db
       .delete(blockUnblockLogs)
       .where(eq(blockUnblockLogs.id, id));
   }
 
-  // 5. GET BY ID: Single record fetch karna
+  
   async getBlockUnblockLogById(id: number): Promise<BlockUnblockLog | null> {
     const [log] = await db
       .select()
@@ -1663,7 +1663,7 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: blockUnblockLogs.id,
         employeeCode: blockUnblockLogs.employeeCode,
-        deviceId: blockUnblockLogs.deviceId, // DB: device_id -> JSON: deviceId
+        deviceId: blockUnblockLogs.deviceId, 
         type: blockUnblockLogs.type,
         createdAt: blockUnblockLogs.createdAt,
       })
@@ -1671,10 +1671,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(blockUnblockLogs.employeeCode, employeeCode))
       .orderBy(desc(blockUnblockLogs.createdAt));
 
-    // Filter for unique latest device status
+    
     const latestMap = new Map();
     logs.forEach(log => {
-      // Agar is device ka log pehle nahi mila (since ordered by desc, first is latest)
+      
       if (!latestMap.has(log.deviceId)) {
         latestMap.set(log.deviceId, log);
       }
@@ -1689,82 +1689,88 @@ export class DatabaseStorage implements IStorage {
     action: "block" | "unblock";
   }) {
     const { employeeCode, deviceId, serialNumber, action } = params;
-
-    // Hardware Sync Call
-    await esslService.syncUserBlockStatus(employeeCode, serialNumber, action === "block");
-
-    // Audit Log Insert (Serial No store nahi kar rahe, as per requirement)
-    return await db.insert(blockUnblockLogs).values({
+    const [logEntry] = await db.insert(blockUnblockLogs).values({
       employeeCode,
       deviceId,
       type: action,
       createdAt: new Date(),
       updatedAt: new Date()
     }).returning();
+
+    esslService.syncUserBlockStatus(employeeCode, serialNumber, action === "block")
+      .then(() => {
+        console.log(`:white_check_mark: MS SQL Updated: ${employeeCode} on ${serialNumber}`);
+      })
+      .catch((err) => {
+  
+        console.error(`:x: MS SQL Sync Failed:`, err.message);
+      });
+
+    return logEntry;
   }
-  // private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
-  //   try {
-  //     const [role, msDevicesRaw] = await Promise.all([
-  //       (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
-  //       dbMsSql.select().from({ dbName: 'Devices' }).execute()
-  //     ]);
-  //     if (!msDevicesRaw || msDevicesRaw.length === 0) {
-  //       console.warn("⚠️ No devices found in MS SQL.");
-  //       return;
-  //     }
-  //     let allowedDeviceIds: number[] = [];
-  //     if (!blockAll && role) {
-  //       allowedDeviceIds = (role.deviceIds as unknown as number[]) || [];
-  //     } else if (!blockAll && !role) {
-  //       allowedDeviceIds = msDevicesRaw.map((d: any) => Number(d.DeviceId || d.Id));
-  //     }
-  //     const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
-  //       const msDeviceId = Number(msDevice.DeviceId || msDevice.Id);
-  //       const serialNumber = msDevice.SerialNumber || msDevice.serialno;
-  //       const isAllowed = allowedDeviceIds.some(id => Number(id) === msDeviceId);
-  //       const shouldBlock = blockAll || !isAllowed;
-  //       const actionType = shouldBlock ? "block" : "unblock";
-  //       if (!serialNumber) {
-  //         console.error(`❌ Device ${msDeviceId} has no Serial Number in MS SQL.`);
-  //         return;
-  //       }
-  //       try {
-  //         const status = await esslService.syncUserBlockStatus(
-  //           employeeCode,
-  //           serialNumber,
-  //           shouldBlock
-  //         );
-  //         await db.insert(blockUnblockLogs).values({
-  //           employeeCode: employeeCode,
-  //           deviceId: msDeviceId,
-  //           type: actionType,
-  //         }).catch(() => { });
-  //         console.log(`🚀 [SOAP SYNC] Device: ${serialNumber} | Action: ${actionType} | Status: SUCCESS`);
-  //       } catch (err: any) {
-  //         console.error(`❌ [SOAP FAILED] ${serialNumber}: ${err.message}`);
-  //       }
-  //     });
-  //     await Promise.all(syncPromises);
-  //   } catch (error: any) {
-  //     console.error("💀 Hardware Sync Engine Failure:", error.message);
-  //   }
-  // }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
     try {
-      // 1. Fetch Dynamic Configuration
+      
       const taskConfig = await db.query.cronMaster.findFirst({
         where: eq(cronMaster.code, CRON_TASKS.MAIN_GATE_SYNC.CODE)
       });
 
-      if (!taskConfig?.doorId) return; // Silent exit if config is missing
+      if (!taskConfig?.doorId) return; 
 
       const activeGateId = taskConfig.doorId;
 
-      // 1. Fetching all required data
+      
       const [role, msDevicesRaw, gateMappings] = await Promise.all([
         (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
         dbMsSql.select().from({ dbName: 'Devices' }).execute(),
-        // Fetch door_devices where door_id matches our constant
+        
         db.select().from(doorDevices)
           .where(eq(doorDevices.doorId, activeGateId))
           .execute()
@@ -1775,35 +1781,35 @@ export class DatabaseStorage implements IStorage {
         return;
       }
 
-      // 2. Create a unique whitelist of Device IDs from the arrays
+      
       const mainGateWhitelistedIds = new Set<number>();
       gateMappings.forEach(mapping => {
         if (mapping.isActive) {
-          // Flattening the arrays (inDeviceIds & outDeviceIds)
+          
           (mapping.inDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
           (mapping.outDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
         }
       });
 
-      // 3. Define allowed devices from Role
+      
       let allowedFromRole: number[] = [];
       if (!blockAll && role) {
         allowedFromRole = (role.deviceIds as unknown as number[]) || [];
       }
 
-      // 4. Start Hardware Sync
+      
       const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
         const msDeviceId = Number(msDevice.DeviceId || msDevice.Id);
         const serialNumber = msDevice.SerialNumber || msDevice.serialno;
 
-        // Logic Check
+        
         const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
 
         let shouldBlock: boolean;
         if (isMainGate) {
-          shouldBlock = false; // Main Gate is ALWAYS unblocked
+          shouldBlock = false; 
         } else {
-          // Normal devices: blocked if blockAll is true OR not in role
+          
           const isAllowedByRole = allowedFromRole.includes(msDeviceId);
           shouldBlock = blockAll || !isAllowedByRole;
         }
@@ -1813,20 +1819,20 @@ export class DatabaseStorage implements IStorage {
         if (!serialNumber) return;
 
         try {
-          // Hardware Sync (Using Serial Number)
+          
           await esslService.syncUserBlockStatus(
             employeeCode,
             serialNumber.toString(),
             shouldBlock
           );
 
-          // Database Logging (Using Device ID)
+          
           await db.insert(blockUnblockLogs).values({
             employeeCode,
             deviceId: msDeviceId,
             type: actionType,
             createdAt: new Date()
-          }).catch(() => { }); // Silent catch for logs
+          }).catch(() => { }); 
 
           console.log(`${isMainGate ? '🛡️ [GATEWAY]' : '🚀 [SYNC]'} Device: ${msDeviceId} | Action: ${actionType}`);
 

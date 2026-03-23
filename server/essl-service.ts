@@ -15,7 +15,7 @@ class EsslApiService {
         this.client = axios.create({
             baseURL: this.url,
             timeout: 30000, // 30 seconds
-            httpAgent: new http.Agent({ keepAlive: true, maxSockets: 1 }), // Ek baar mein 1 hi connection
+            httpAgent: new http.Agent({ keepAlive: true, maxSockets: 10 }), // Ek baar mein 1 hi connection
             headers: {
                 "Content-Type": "text/xml; charset=utf-8",
                 "User-Agent": "PostmanRuntime/7.37.3",
@@ -75,7 +75,7 @@ class EsslApiService {
         const blockValue = isBlocked ? "true" : "false";
 
         // 💡 FIX 2: Delay zaroori hai (Thoda kam kar diya hai fast sync ke liye)
-        await new Promise(res => setTimeout(res, 20000));
+        await new Promise(res => setTimeout(res, 2000));
 
         // 💡 FIX 3: XML ko ekdam "Flat" rakho, koi extra spaces ya newlines nahi
         const innerXml = `<DeviceCommand_BlockUnBlockUser xmlns="http://tempuri.org/"><UserName>${this.auth.user}</UserName><Password>${this.auth.pass}</Password><DeviceSerialNumber>${deviceSerial.trim()}</DeviceSerialNumber><EmployeeCode>${employeeCode.trim()}</EmployeeCode><BlockUser>${blockValue}</BlockUser></DeviceCommand_BlockUnBlockUser>`;

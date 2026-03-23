@@ -28,13 +28,5 @@ export const CRON_TASKS = {
     PRIORITY: "high",
   },
   // Future mein naye gate ke liye bas ek naya object yahan add karein
-  SIDE_GATE_SYNC: {
-    CODE: "SG_SYNC_02",
-    DISPLAY_NAME: "Side Gate",
-    DOOR_TYPE: "gate",
-    TASK_NAME: "SIDE_GATE_AUTH",
-    DEFAULT_SECONDS: 60,
-    GROUP: "gate_security",
-    PRIORITY: "medium",
-  }
+  
 };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -62,7 +62,11 @@ export default function PeoplePage() {
       return r.json();
     }
   });
-
+  useEffect(() => {
+    if (deviceStatusOpen) {
+      refetchLogs();
+    }
+  }, [deviceStatusOpen]);
   const emergencyToggleMut = useMutation({
     mutationFn: async (data: any) => {
       const r = await apiRequest("POST", "/api/people/emergency-toggle", data);

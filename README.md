@@ -41,6 +41,8 @@ $env:PORT = "5000"   # optional
 npm run db:push
 ```
 npx drizzle-kit push
+
+npm run db:seed     
 4. Start dev server (PowerShell-friendly):
 
 ```powershell
