@@ -46,13 +46,12 @@ import {
   InsertBlockUnblockLog,
 } from "@shared/schema";
 import { db, dbMsSql } from "./db";
-import { eq, desc, or, and, ne, count, sql, ilike, notInArray } from "drizzle-orm";
+import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS } from './constant';
 import { esslService } from "./essl-service";
-import { CRON_TASKS } from "./constant"; 
-
+import { CRON_TASKS } from "./constant";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -177,6 +176,9 @@ export interface IStorage {
   updateEmployeeRole(id: number, data: Partial<InsertEmployeeRole>): Promise<EmployeeRole>;
   deleteEmployeeRole(id: number): Promise<void>;
   getDashboardStats(): Promise<object>;
+  getLockoutEligibleDoors(search?: string): Promise<any[]>;
+  updateDoorLockoutStatusBulk(doorIds: number[], status: boolean): Promise<any[]>;
+
 }
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
@@ -204,20 +206,20 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(userProfiles).set({ ...profile, updatedAt: new Date() }).where(eq(userProfiles.id, id)).returning();
     return updated;
   }
-    async getCompanies(): Promise<Company[]> {
-      return await db.select().from(companies);
-    }
-    async createCompany(data: InsertCompany): Promise<Company> {
-      const [created] = await db.insert(companies).values(data).returning();
-      return created;
-    }
-    async updateCompany(id: number, data: Partial<InsertCompany>): Promise<Company> {
-      const [updated] = await db.update(companies).set(data).where(eq(companies.id, id)).returning();
-      return updated;
-    }
-    async deleteCompany(id: number): Promise<void> {
-      await db.delete(companies).where(eq(companies.id, id));
-    }
+  async getCompanies(): Promise<Company[]> {
+    return await db.select().from(companies);
+  }
+  async createCompany(data: InsertCompany): Promise<Company> {
+    const [created] = await db.insert(companies).values(data).returning();
+    return created;
+  }
+  async updateCompany(id: number, data: Partial<InsertCompany>): Promise<Company> {
+    const [updated] = await db.update(companies).set(data).where(eq(companies.id, id)).returning();
+    return updated;
+  }
+  async deleteCompany(id: number): Promise<void> {
+    await db.delete(companies).where(eq(companies.id, id));
+  }
   async getDepartments(): Promise<Department[]> {
     return await db.select().from(departments);
   }
@@ -274,24 +276,17 @@ export class DatabaseStorage implements IStorage {
   async deleteVendor(id: number): Promise<void> {
     await db.delete(vendors).where(eq(vendors.id, id));
   }
-  
-  
-  
   async getSites(): Promise<Site[]> {
     const [pgData, msDataRaw] = await Promise.all([
       db.select().from(sites),
       dbMsSql.select().from({ dbName: 'Locations' }).execute()
     ]);
-
     const msIds = new Set();
     const currentSites = [...pgData];
-
     for (const msRow of (msDataRaw || [])) {
       const mapped = SiteAdapter.toPostgres(msRow);
       msIds.add(mapped.msId);
-
       const exists = currentSites.find(s => s.msId === mapped.msId);
-
       if (mapped.msId && !exists) {
         try {
           const [newRec] = await db.insert(sites).values({
@@ -306,7 +301,6 @@ export class DatabaseStorage implements IStorage {
         } catch (e) { }
       }
     }
-
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
@@ -314,24 +308,19 @@ export class DatabaseStorage implements IStorage {
         } catch (e) { }
       }
     }
-
     return currentSites;
   }
   async createSite(data: InsertSite): Promise<Site> {
-    
     if (data.code) {
       const [existing] = await db
         .select()
         .from(sites)
-        .where(eq(sites.code, data.code as string)); 
-
+        .where(eq(sites.code, data.code as string));
       if (existing) {
         throw new Error("Code is already in use. Please provide a unique value.");
       }
     }
-
     const [created] = await db.insert(sites).values(data).returning();
-
     try {
       const msData = SiteAdapter.toMsSql(created);
       await dbMsSql.insert({ dbName: 'Locations' }).values({
@@ -341,41 +330,8 @@ export class DatabaseStorage implements IStorage {
     } catch (e) {
       console.error("MSSQL Sync Error:", e);
     }
-
     return created;
   }
-
-  
-  
-  
-  
-  
-  
-  
-  
-
-  
-  
-  
-  
-
-  
-  
-  
-  
-
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   async updateSite(id: number, data: Partial<InsertSite>): Promise<Site> {
     if (data.code) {
       const [existing] = await db.select()
@@ -384,27 +340,19 @@ export class DatabaseStorage implements IStorage {
           eq(sites.code, data.code),
           ne(sites.id, id)
         ));
-
       if (existing) {
-        
         throw new Error("DUPLICATE_CODE");
       }
     }
-
-    
     const { id: _, msId: __, createdAt: ___, ...updateData } = data as any;
-
     const [updated] = await db.update(sites)
       .set(updateData)
       .where(eq(sites.id, id))
       .returning();
-
-    
     return updated;
   }
   async deleteSite(id: number): Promise<void> {
     const [record] = await db.select().from(sites).where(eq(sites.id, id));
-
     if (record) {
       if (record.msId) {
         try {
@@ -415,17 +363,6 @@ export class DatabaseStorage implements IStorage {
       await db.delete(sites).where(eq(sites.id, id));
     }
   }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   async getBuildings(locationId?: number): Promise<Building[]> {
     if (locationId) {
       return await db.select().from(buildings).where(eq(buildings.locationId, locationId));
@@ -480,9 +417,6 @@ export class DatabaseStorage implements IStorage {
   async deleteZone(id: number): Promise<void> {
     await db.delete(zones).where(eq(zones.id, id));
   }
-  
-  
-  
   async getDoors(): Promise<any[]> {
     try {
       const [allDoors, allDoorDevices, allDevices] = await Promise.all([
@@ -490,24 +424,17 @@ export class DatabaseStorage implements IStorage {
         db.select().from(doorDevices),
         db.select().from(devices)
       ]);
-
       return allDoors.map((door) => {
         const mapping = allDoorDevices.find((md) => md.doorId === door.id);
-
         const resolveDevices = (ids: any[] | null) => {
           if (!ids || !Array.isArray(ids)) return [];
-
           return ids.map(id => {
-            
             const dev = allDevices.find(d => Number(d.msId) === Number(id));
-
             return dev ? { id: dev.id, msId: dev.msId, name: dev.name } : null;
           }).filter((d): d is { id: number; msId: number; name: string } => d !== null);
         };
-
         const inDevices = resolveDevices(mapping?.inDeviceIds || []);
         const outDevices = resolveDevices(mapping?.outDeviceIds || []);
-
         return {
           ...door,
           inDevices,
@@ -532,74 +459,14 @@ export class DatabaseStorage implements IStorage {
   async deleteDoor(id: number): Promise<void> {
     await db.delete(doors).where(eq(doors.id, id));
   }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-
   async getDevices(): Promise<any[]> {
     try {
-      
       const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
-
       if (!msDataRaw || msDataRaw.length === 0) return [];
-
       const currentTime = new Date();
       const THRESHOLD_MINUTES = 1;
-
-      
       const formattedDevices = msDataRaw.map((d: any) => {
         const lPing = d.LastPing ? new Date(d.LastPing) : null;
-
-        
         let calculatedStatus = "offline";
         if (lPing) {
           const diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
@@ -607,7 +474,6 @@ export class DatabaseStorage implements IStorage {
             calculatedStatus = "online";
           }
         }
-
         return {
           msId: d.DeviceId || d.DeviceID,
           name: d.DeviceName || "Unnamed Device",
@@ -621,13 +487,11 @@ export class DatabaseStorage implements IStorage {
           deviceType: String(d.DeviceType || "-").toLowerCase(),
           locationId: d.LocationId || null,
           ipAddress: d.IpAddress || "",
-          lastHeartbeat: lPing, 
+          lastHeartbeat: lPing,
           status: calculatedStatus,
           isActive: true
         };
       });
-
-      
       for (const dev of formattedDevices) {
         await db.insert(devices)
           .values(dev)
@@ -651,15 +515,11 @@ export class DatabaseStorage implements IStorage {
             }
           });
       }
-
-      
       const currentMsIds = formattedDevices.map(d => d.msId as number);
       if (currentMsIds.length > 0) {
         await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
       }
-
       return formattedDevices;
-
     } catch (error) {
       console.error("Device Sync Error:", error);
       return [];
@@ -721,60 +581,6 @@ export class DatabaseStorage implements IStorage {
       await db.delete(devices).where(eq(devices.msId, msId));
     }
   }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
   async getPeople(search?: string): Promise<Person[]> {
     const [pgDataRaw, msDataRaw] = await Promise.all([
       db.select({
@@ -785,18 +591,15 @@ export class DatabaseStorage implements IStorage {
         .leftJoin(roles, eq(people.roleId, roles.id)),
       dbMsSql.select().from({ dbName: 'Employees' }).execute()
     ]);
-
     const msIds = new Set();
     const currentPgData = pgDataRaw.map(row => ({
       ...row.person,
       roleName: row.roleName || null
     }));
-
     for (const msRow of (msDataRaw || [])) {
       const mapped = PersonAdapter.toPostgres(msRow);
       msIds.add(mapped.msId);
       const exists = currentPgData.find(p => p.msId === mapped.msId);
-
       if (mapped.msId && !exists) {
         try {
           const [newRec] = await db.insert(people).values({
@@ -817,7 +620,6 @@ export class DatabaseStorage implements IStorage {
         } catch (e) { }
       }
     }
-
     for (const pgRow of currentPgData) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
@@ -825,12 +627,10 @@ export class DatabaseStorage implements IStorage {
         } catch (e) { }
       }
     }
-
     let results = currentPgData.map(p => ({
       ...p,
       roleId: p.roleName ? p.roleId : null
     }));
-
     if (search) {
       const term = search.toLowerCase();
       results = results.filter(p =>
@@ -839,7 +639,7 @@ export class DatabaseStorage implements IStorage {
         (p.roleName && p.roleName.toLowerCase().includes(term))
       );
     }
-
+    const sortedResults = results.sort((a, b) => (b.id || 0) - (a.id || 0));
     return Array.from(
       new Map(results.map(p => [`${p.msId || p.employeeCode || p.id}`, p])).values()
     );
@@ -884,7 +684,6 @@ export class DatabaseStorage implements IStorage {
   }
   async deletePerson(id: number): Promise<void> {
     const [record] = await db.select().from(people).where(eq(people.id, id));
-
     if (record) {
       if (record.msId) {
         try {
@@ -892,7 +691,7 @@ export class DatabaseStorage implements IStorage {
             .where({ value: record.msId });
         } catch (e) {
           console.error("MS SQL Person Delete Error:", e);
-                 }
+        }
       }
       await db.delete(people).where(eq(people.id, id));
     }
@@ -1545,16 +1344,52 @@ export class DatabaseStorage implements IStorage {
       }
     });
   }
-  
+  async getRoleEligibleDevices(): Promise<any[]> {
+    try {
+      
+      const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
+      if (!msDataRaw || msDataRaw.length === 0) return [];
+
+      
+      const gateConfig = await db.query.cronMaster.findFirst({
+        where: eq(cronMaster.code, CRON_TASKS.MAIN_GATE_SYNC.CODE)
+      });
+
+      const whitelistedIds = new Set<number>();
+      if (gateConfig?.doorId) {
+        const mappings = await db.select().from(doorDevices)
+          .where(eq(doorDevices.doorId, gateConfig.doorId))
+          .execute();
+
+        mappings.forEach(m => {
+          
+          [...(m.inDeviceIds || []), ...(m.outDeviceIds || [])].forEach(id => whitelistedIds.add(Number(id)));
+        });
+      }
+
+      
+      return msDataRaw
+        .filter(d => !whitelistedIds.has(Number(d.DeviceId || d.DeviceID)))
+        .map(d => ({
+          msId: d.DeviceId || d.DeviceID,
+          name: d.DeviceName || "Unnamed Device",
+          serialNumber: d.SerialNumber || d.serialno,
+          ipAddress: d.IpAddress || "",
+          status: "online" 
+        }));
+
+    } catch (error) {
+      console.error("Error fetching role-eligible devices:", error);
+      return [];
+    }
+  }
   async getCronMasters(): Promise<CronMaster[]> {
     return await db.select().from(cronMaster).orderBy(desc(cronMaster.createdAt));
   }
-
   async createCronMaster(data: InsertCronMaster): Promise<CronMaster> {
     const [newCron] = await db.insert(cronMaster).values(data).returning();
     return newCron;
   }
-
   async updateCronMaster(id: number, data: Partial<InsertCronMaster>): Promise<CronMaster> {
     const [updatedCron] = await db
       .update(cronMaster)
@@ -1564,38 +1399,29 @@ export class DatabaseStorage implements IStorage {
     if (!updatedCron) throw new Error("Cron not found");
     return updatedCron;
   }
-
   async deleteCronMaster(id: number): Promise<void> {
     await db.delete(cronMaster).where(eq(cronMaster.id, id));
   }
-  
-
   async getDoorDevices(): Promise<DoorDevice[]> {
     return await db.select().from(doorDevices).orderBy(desc(doorDevices.createdAt));
   }
-
   async createDoorDevice(data: InsertDoorDevice): Promise<DoorDevice> {
-    
     const [newMapping] = await db.insert(doorDevices).values(data).returning();
     return newMapping;
   }
-
   async updateDoorDevice(id: number, data: Partial<InsertDoorDevice>): Promise<DoorDevice> {
     const [updatedMapping] = await db
       .update(doorDevices)
       .set({
         ...data,
-        
         inDeviceIds: data.inDeviceIds,
         outDeviceIds: data.outDeviceIds,
       })
       .where(eq(doorDevices.id, id))
       .returning();
-
     if (!updatedMapping) throw new Error("Mapping not found");
     return updatedMapping;
   }
-
   async deleteDoorDevice(id: number): Promise<void> {
     await db.delete(doorDevices).where(eq(doorDevices.id, id));
   }
@@ -1606,7 +1432,7 @@ export class DatabaseStorage implements IStorage {
           id: blockUnblockLogs.id,
           employeeCode: blockUnblockLogs.employeeCode,
           deviceId: blockUnblockLogs.deviceId,
-          deviceName: devices.name, 
+          deviceName: devices.name,
           type: blockUnblockLogs.type,
           createdAt: blockUnblockLogs.createdAt,
           updatedAt: blockUnblockLogs.updatedAt,
@@ -1619,8 +1445,6 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
   }
-
-  
   async createBlockUnblockLog(data: InsertBlockUnblockLog): Promise<BlockUnblockLog> {
     const [log] = await db
       .insert(blockUnblockLogs)
@@ -1628,8 +1452,6 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return log;
   }
-
-  
   async updateBlockUnblockLog(id: number, data: Partial<InsertBlockUnblockLog>): Promise<BlockUnblockLog> {
     const [updated] = await db
       .update(blockUnblockLogs)
@@ -1641,15 +1463,11 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return updated;
   }
-
-  
   async deleteBlockUnblockLog(id: number): Promise<void> {
     await db
       .delete(blockUnblockLogs)
       .where(eq(blockUnblockLogs.id, id));
   }
-
-  
   async getBlockUnblockLogById(id: number): Promise<BlockUnblockLog | null> {
     const [log] = await db
       .select()
@@ -1663,23 +1481,19 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: blockUnblockLogs.id,
         employeeCode: blockUnblockLogs.employeeCode,
-        deviceId: blockUnblockLogs.deviceId, 
+        deviceId: blockUnblockLogs.deviceId,
         type: blockUnblockLogs.type,
         createdAt: blockUnblockLogs.createdAt,
       })
       .from(blockUnblockLogs)
       .where(eq(blockUnblockLogs.employeeCode, employeeCode))
       .orderBy(desc(blockUnblockLogs.createdAt));
-
-    
     const latestMap = new Map();
     logs.forEach(log => {
-      
       if (!latestMap.has(log.deviceId)) {
         latestMap.set(log.deviceId, log);
       }
     });
-
     return Array.from(latestMap.values());
   }
   async toggleEmployeeDeviceAccess(params: {
@@ -1696,159 +1510,121 @@ export class DatabaseStorage implements IStorage {
       createdAt: new Date(),
       updatedAt: new Date()
     }).returning();
-
     esslService.syncUserBlockStatus(employeeCode, serialNumber, action === "block")
       .then(() => {
         console.log(`:white_check_mark: MS SQL Updated: ${employeeCode} on ${serialNumber}`);
       })
       .catch((err) => {
-  
         console.error(`:x: MS SQL Sync Failed:`, err.message);
       });
-
     return logEntry;
   }
   
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+  async getLockoutEligibleDoors(search?: string): Promise<any[]> {
+    const mainGateCode = CRON_TASKS.MAIN_GATE_SYNC.CODE;
+
+    
+    const query = db.select()
+      .from(doors)
+      .where(
+        and(
+          ne(doors.code, mainGateCode),
+          eq(doors.isActive, true),
+          
+          search ? ilike(doors.name, `%${search}%`) : undefined
+        )
+      )
+      .orderBy(doors.name);
+
+    return await query;
+  }
+
+  async updateDoorLockoutStatusBulk(doorIds: number[], status: boolean): Promise<any[]> {
+    const mainGateCode = CRON_TASKS.MAIN_GATE_SYNC.CODE;
+
+
+    if (!doorIds || doorIds.length === 0) return [];
+
+    const updatedDoors = await db.update(doors)
+      .set({
+        
+        is_lockout_enabled: status,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          inArray(doors.id, doorIds.map(id => Number(id))), 
+          ne(doors.code, mainGateCode)
+        )
+      )
+      .returning();
+
+   
+    return updatedDoors;
+  }
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
     try {
-      
       const taskConfig = await db.query.cronMaster.findFirst({
         where: eq(cronMaster.code, CRON_TASKS.MAIN_GATE_SYNC.CODE)
       });
-
-      if (!taskConfig?.doorId) return; 
-
+      if (!taskConfig?.doorId) return;
       const activeGateId = taskConfig.doorId;
-
-      
       const [role, msDevicesRaw, gateMappings] = await Promise.all([
         (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
         dbMsSql.select().from({ dbName: 'Devices' }).execute(),
-        
         db.select().from(doorDevices)
           .where(eq(doorDevices.doorId, activeGateId))
           .execute()
       ]);
-
       if (!msDevicesRaw || msDevicesRaw.length === 0) {
         console.warn("⚠️ No devices found in MS SQL.");
         return;
       }
-
-      
       const mainGateWhitelistedIds = new Set<number>();
       gateMappings.forEach(mapping => {
         if (mapping.isActive) {
-          
           (mapping.inDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
           (mapping.outDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
         }
       });
-
-      
       let allowedFromRole: number[] = [];
       if (!blockAll && role) {
         allowedFromRole = (role.deviceIds as unknown as number[]) || [];
       }
-
-      
       const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
         const msDeviceId = Number(msDevice.DeviceId || msDevice.Id);
         const serialNumber = msDevice.SerialNumber || msDevice.serialno;
-
-        
         const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
-
         let shouldBlock: boolean;
         if (isMainGate) {
-          shouldBlock = false; 
+          shouldBlock = false;
         } else {
-          
           const isAllowedByRole = allowedFromRole.includes(msDeviceId);
           shouldBlock = blockAll || !isAllowedByRole;
         }
-
         const actionType = shouldBlock ? "block" : "unblock";
-
         if (!serialNumber) return;
-
         try {
-          
           await esslService.syncUserBlockStatus(
             employeeCode,
             serialNumber.toString(),
             shouldBlock
           );
-
-          
           await db.insert(blockUnblockLogs).values({
             employeeCode,
             deviceId: msDeviceId,
             type: actionType,
             createdAt: new Date()
-          }).catch(() => { }); 
-
+          }).catch(() => { });
           console.log(`${isMainGate ? '🛡️ [GATEWAY]' : '🚀 [SYNC]'} Device: ${msDeviceId} | Action: ${actionType}`);
-
         } catch (err: any) {
           console.error(`❌ [SYNC FAILED] Device ${msDeviceId}: ${err.message}`);
         }
       });
-
       await Promise.all(syncPromises);
-
     } catch (error: any) {
       console.error("💀 Hardware Sync Engine Failure:", error.message);
     }
   }
-
-  
-  
 }
 export const storage = new DatabaseStorage();

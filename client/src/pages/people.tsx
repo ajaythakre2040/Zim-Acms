@@ -54,6 +54,7 @@ export default function PeoplePage() {
   const { data: allDevices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
   const [deviceStatusOpen, setDeviceStatusOpen] = useState(false);
   const [deviceViewPerson, setDeviceViewPerson] = useState<Person | null>(null);
+  const [deviceSearch, setDeviceSearch] = useState("");
   const { data: deviceLogs = [], refetch: refetchLogs } = useQuery({
     queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
     enabled: !!deviceViewPerson,
@@ -349,86 +350,145 @@ export default function PeoplePage() {
       />
       {/* --- DEVICE ACCESS MODAL --- */}
       <Dialog open={deviceStatusOpen} onOpenChange={setDeviceStatusOpen}>
-        <DialogContent className="max-w-md p-0 overflow-hidden">
+        <DialogContent className="max-w-md h-[520px] p-0 overflow-hidden flex flex-col">
+          {/* HEADER */}
           <DialogHeader className="p-4 border-b bg-muted/20">
             <DialogTitle className="text-sm font-bold uppercase">
-              Device Access: {deviceViewPerson?.employeeName}
+              Device Access : {deviceViewPerson?.employeeName}
             </DialogTitle>
           </DialogHeader>
 
-          <div className="max-h-[450px] overflow-y-auto">
-            <table className="w-full text-xs">
-              <tbody className="divide-y">
-                {allDevices.map((dev) => {
-                  // 1. Logs matching (Checking both camelCase and snake_case)
-                  const latestLog = deviceLogs?.find((l: any) => {
-                    const lId = l.deviceId ?? l.device_id;
-                    return Number(lId) === Number(dev.msId);
-                  });
-
-                  // 2. Role matching
-                  const userRole = roles.find(r => r.id === deviceViewPerson?.roleId);
-                  // Note: Check if deviceIds is an array or string
-                  const isRoleAssigned = Array.isArray(userRole?.deviceIds)
-                    ? userRole.deviceIds.includes(Number(dev.msId))
-                    : false;
-
-                  // 3. Status Priority (Log first, then Role)
-                  const isUnblocked = latestLog
-                    ? (latestLog.type === "unblock")
-                    : isRoleAssigned;
-
-                  // Debugging (Remove after fix)
-                  // console.log(`Device: ${dev.name}, Log:`, latestLog, `Role: ${isRoleAssigned}`);
-
-                  return (
-                    <tr key={dev.id} className="hover:bg-muted/30">
-                      <td className="p-3">
-                        <p className="font-bold text-foreground">{dev.name || "Unknown Device"}</p>
-                        <p className="text-[10px] text-muted-foreground font-mono">
-                          SN: {dev.serialNumber || "N/A"}
-                        </p>
-                      </td>
-
-                      <td className="p-3 text-center">
-                        <Badge
-                          variant={isUnblocked ? "outline" : "destructive"}
-                          className={`text-[9px] font-bold px-2 ${isUnblocked ? 'border-green-500 text-green-600 bg-green-50' : ''}`}
-                        >
-                          {isUnblocked ? "ALLOWED" : "BLOCKED"}
-                        </Badge>
-                      </td>
-
-                      <td className="p-3 text-right">
-                        <Button
-                          size="sm"
-                          variant={isUnblocked ? "destructive" : "outline"}
-                          className="h-7 text-[10px] font-bold min-w-[80px]"
-                          disabled={emergencyToggleMut.isPending}
-                          onClick={() => {
-                            // Important: Trigger mutation with latest UI state
-                            emergencyToggleMut.mutate({
-                              employeeCode: deviceViewPerson?.employeeCode,
-                              deviceId: dev.msId,
-                              serialNumber: dev.serialNumber,
-                              action: isUnblocked ? "block" : "unblock"
-                            });
-                          }}
-                        >
-                          {emergencyToggleMut.isPending ? "..." : (isUnblocked ? "BLOCK" : "UNBLOCK")}
-                        </Button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          {/* :mag: SEARCH BAR */}
+          <div className="p-3 border-b bg-muted/10">
+            <input
+              type="text"
+              placeholder="Search device by name or SN..."
+              value={deviceSearch}
+              onChange={(e) => setDeviceSearch(e.target.value)}
+              className="w-full px-3 py-2 text-xs border rounded-md outline-none focus:ring-1 focus:ring-primary"
+            />
           </div>
+
+          {/* :clipboard: DEVICE LIST */}
+          <div className="flex-1 overflow-y-auto">
+            {/* :red_circle: IMPORTANT: prevent shrink */}
+            <div className="min-h-full">
+              <table className="w-full text-xs">
+                <tbody className="divide-y">
+                  {allDevices
+                    .filter(
+                      (dev) =>
+                        (dev.name || "")
+                          .toLowerCase()
+                          .includes(deviceSearch.toLowerCase()) ||
+                        (dev.serialNumber || "")
+                          .toLowerCase()
+                          .includes(deviceSearch.toLowerCase()),
+                    )
+                    .map((dev) => {
+                      // LOG MATCH
+                      const latestLog = deviceLogs?.find((l: any) => {
+                        const lId = l.deviceId ?? l.device_id;
+                        return Number(lId) === Number(dev.msId);
+                      });
+
+                      // ROLE MATCH
+                      const userRole = roles.find(
+                        (r) => r.id === deviceViewPerson?.roleId,
+                      );
+
+                      const isRoleAssigned = Array.isArray(userRole?.deviceIds)
+                        ? userRole.deviceIds.includes(Number(dev.msId))
+                        : false;
+
+                      // FINAL STATUS
+                      const isUnblocked = latestLog
+                        ? latestLog.type === "unblock"
+                        : isRoleAssigned;
+
+                      return (
+                        <tr key={dev.id} className="hover:bg-muted/30">
+                          {/* DEVICE INFO */}
+                          <td className="p-3">
+                            <p className="font-bold text-foreground">
+                              {dev.name || "Unknown Device"}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground font-mono">
+                              SN: {dev.serialNumber || "N/A"}
+                            </p>
+                          </td>
+
+                          {/* STATUS */}
+                          <td className="p-3 text-center">
+                            <Badge
+                              variant={isUnblocked ? "outline" : "destructive"}
+                              className={`text-[9px] font-bold px-2 ${isUnblocked
+                                  ? "border-green-500 text-green-600 bg-green-50"
+                                  : ""
+                                }`}
+                            >
+                              {isUnblocked ? "ALLOWED" : "BLOCKED"}
+                            </Badge>
+                          </td>
+
+                          {/* ACTION */}
+                          <td className="p-3 text-right">
+                            <Button
+                              size="sm"
+                              variant={isUnblocked ? "destructive" : "outline"}
+                              className="h-7 text-[10px] font-bold min-w-[80px]"
+                              disabled={emergencyToggleMut.isPending}
+                              onClick={() => {
+                                emergencyToggleMut.mutate({
+                                  employeeCode: deviceViewPerson?.employeeCode,
+                                  deviceId: dev.msId,
+                                  serialNumber: dev.serialNumber,
+                                  action: isUnblocked ? "block" : "unblock",
+                                });
+                              }}
+                            >
+                              {emergencyToggleMut.isPending
+                                ? "..."
+                                : isUnblocked
+                                  ? "BLOCK"
+                                  : "UNBLOCK"}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                  {/* :x: NO DATA */}
+                  {allDevices.filter(
+                    (dev) =>
+                      (dev.name || "")
+                        .toLowerCase()
+                        .includes(deviceSearch.toLowerCase()) ||
+                      (dev.serialNumber || "")
+                        .toLowerCase()
+                        .includes(deviceSearch.toLowerCase()),
+                  ).length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="text-center p-6 text-muted-foreground"
+                        >
+                          No devices found
+                        </td>
+                      </tr>
+                    )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* FOOTER */}
           <div className="p-2 text-[9px] text-center bg-muted/10 italic text-muted-foreground">
             Logs override the default Role settings.
           </div>
         </DialogContent>
       </Dialog>
+
       <CrudDialog
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null); }}

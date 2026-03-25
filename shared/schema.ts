@@ -154,7 +154,9 @@ export const doors = pgTable("doors", {
   controllerId: integer("controller_id"),
   status: text("status", { enum: ["normal", "locked", "unlocked", "alarm", "maintenance"] }).default("normal"),
   isActive: boolean("is_active").default(true),
+  is_lockout_enabled: boolean("is_lockout_enabled").default(false),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 // ==================== DEVICES ====================
@@ -656,9 +658,14 @@ export const cronMaster = pgTable("cron_master", {
   // --- Configuration ---
   displayName: text("display_name").notNull(),
   code: text("code").unique().notNull(), // Example: 'MG_SYNC_01'
-
+  scheduleSecond: integer("schedule_second").default(0),
+  scheduleMinute: integer("schedule_minute").default(0),
+  scheduleHour: integer("schedule_hour").default(24), 
   // Sync Interval (Seconds mein, default 30s)
-  scheduleTime: integer("schedule_time").notNull().default(30),
+  // scheduleTime: integer("schedule_time").notNull().default(30),
+
+  lockoutHours: integer("lockout_hours").default(24),
+  lockoutMinutes: integer("lockout_minutes").default(0),
   task: text("task"),
   group: text("group"),
 
@@ -687,6 +694,23 @@ export const cronMaster = pgTable("cron_master", {
   alertEmail: text("alert_email"),
 
   // Auto-timestamps (Database level par IST handle karne ke liye)
+  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
+});
+export const cabinLockouts = pgTable("cabin_lockouts", {
+  id: serial("id").primaryKey(),
+  employeeCode: text("employee_code").notNull(),
+  doorId: integer("door_id").notNull(),
+
+  // Timestamps for audit
+  inPunchTime: timestamp("in_punch_time"),       // Jab cabin mein enter hua
+  outPunchTime: timestamp("out_punch_time"),     // Jab cabin se bahar nikla (Trigger point)
+
+  // Lockout logic
+  lockoutExpiry: timestamp("lockoutExpiry").notNull(), // outPunchTime + 24 Hours
+  durationHours: integer("duration_hours").default(24), // Custom duration agar kabhi badalna ho
+
+  status: text("status").default("active"),      // 'active', 'expired', 'manual_release'
   createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
 });

@@ -23,7 +23,7 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: {
   const { toast } = useToast();
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(endpoint, label);
-  const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
+  const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices/role-eligible"] });
 
   // Evaluate fields based on editing state
   const currentFields = typeof fields === 'function' ? fields(editing) : fields;

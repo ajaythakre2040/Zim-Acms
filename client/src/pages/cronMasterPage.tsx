@@ -1,346 +1,340 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
-import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
+import { CrudDialog } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-    Plus,
-    Pencil,
-    Trash2,
-    Settings2,
-    History,
-    Activity,
-    Clock,
-    Timer,
-    AlertCircle,
-    CheckCircle2,
-    Loader2,
-} from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Pencil, Loader2, DoorOpen, Check, Settings2, ShieldCheck, Search, X } from "lucide-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
-export default function DynamicCronDashboard() {
-    const [dialogOpen, setDialogOpen] = useState(false);
-    const [editing, setEditing] = useState<any>(null);
+export default function CronMasterPage() {
     const { toast } = useToast();
+    const [activeTab, setActiveTab] = useState("mainGate");
+    const [editingJob, setEditingJob] = useState<any>(null);
+    const [isCabinModalOpen, setIsCabinModalOpen] = useState(false);
+    const [isGateModalOpen, setIsGateModalOpen] = useState(false);
+    const [isDoorModalOpen, setIsDoorModalOpen] = useState(false);
 
-    const {
-        data: crons,
-        isLoading: cronsLoading,
-        create,
-        update,
-        remove,
-        isCreating,
-        isUpdating,
-    } = useCrud<any>("/api/cron-jobs", "Cron Master");
+    // States for Door Selection
+    const [selectedDoorIds, setSelectedDoorIds] = useState<number[]>([]);
+    const [currentJobForDoors, setCurrentJobForDoors] = useState<any>(null);
+    const [doorSearchQuery, setDoorSearchQuery] = useState("");
+    const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
-    const fields: FieldConfig[] = [
+    // --- API SERVICES ---
+    // Using 'refetch' instead of 'mutate' as per your use-crud hook structure
+    const { data: gateJobs, refetch: refetchGate } = useCrud<any>("/api/cron-jobs/main-gate", "Main Gate");
+    const { data: cabinJobs, refetch: refetchCabin } = useCrud<any>("/api/cron-jobs/cabin-lock", "Cabin Lockout");
+    const { data: eligibleDoors, isLoading: isLoadingDoors } = useCrud<any>("/api/doors/lockout-eligible", "Eligible Doors");
+
+    const { update: updateCronTask, isUpdating: isProcessing } = useCrud<any>("/api/cron-lists", "Cron Manager");
+
+    const mainGateSyncJob = gateJobs?.[0];
+    const cabinLockoutJob = cabinJobs?.[0];
+
+    // --- PERSISTENCE ---
+    useEffect(() => {
+        const saved = localStorage.getItem("cron_active_tab");
+        if (saved) setActiveTab(saved);
+    }, []);
+
+    const onTabChange = (value: string) => {
+        setActiveTab(value);
+        localStorage.setItem("cron_active_tab", value);
+    };
+
+    // --- CORE FUNCTIONS ---
+
+    /**
+     * 🚪 BULK DOOR UPDATE (Direct Table Update)
+     * Calls: /api/doors/bulk-lockout
+     */
+    const handleAssignDoors = async () => {
+        if (!currentJobForDoors || !eligibleDoors) return;
+
+        // Logic: Sab IDs nikaalo aur unhe do groups mein baanto
+        const allDoorIds = eligibleDoors.map((d: any) => d.id);
+        const enabledIds = selectedDoorIds; // Jo checked hain
+        const disabledIds = allDoorIds.filter((id: number) => !selectedDoorIds.includes(id)); // Jo checked nahi hain
+
+        setIsBulkUpdating(true);
+        try {
+            // API Call
+            const response = await fetch("/api/doors/bulk-lockout", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabledIds, disabledIds }),
+            });
+
+            // Cron Config Update (Taaki next time modal khule toh selections dikhein)
+            await updateCronTask({
+                id: currentJobForDoors.id,
+                data: {
+                    config: {
+                        ...currentJobForDoors.config,
+                        assignedDoors: selectedDoorIds
+                    }
+                }
+            });
+
+            toast({ title: "Success", description: "Doors updated successfully!" });
+            setIsDoorModalOpen(false);
+            refetchCabin(); // Refresh table data
+        } catch (error) {
+            toast({ title: "Error", variant: "destructive", description: "Sync failed." });
+        } finally {
+            setIsBulkUpdating(false);
+        }
+    };
+    /**
+     * ⚙️ GENERIC CRON UPDATE (Gate or Cabin Settings)
+     */
+    const handleCronUpdate = async (type: 'gate' | 'cabin', payload: any) => {
+        try {
+            await updateCronTask({
+                id: editingJob.id,
+                data: payload
+            });
+
+            // Refreshing specific list based on task type
+            if (type === 'gate') await refetchGate();
+            else await refetchCabin();
+
+            toast({ title: "Updated", description: "Cron settings saved successfully." });
+            setIsGateModalOpen(false);
+            setIsCabinModalOpen(false);
+        } catch (error) {
+            toast({ title: "Update Error", description: "Failed to save settings.", variant: "destructive" });
+        }
+    };
+
+    // --- TABLE COLUMNS ---
+    const gateColumns = [
         {
             key: "displayName",
-            label: "Job Name",
-            required: true,
-            placeholder: "e.g., Main Gate Sync",
-            readOnly: !!editing,
+            label: "Task Name",
+            render: (row: any) => (
+                <div className="flex flex-col">
+                    <span className="font-bold text-slate-700">{row?.displayName}</span>
+                    <span className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">{row?.code}</span>
+                </div>
+            ),
         },
         {
-            key: "cronKey",
-            label: "Code",
-            required: true,
-            placeholder: "MAIN_GATE_SYNC",
-            readOnly: !!editing,
+            key: "scheduleSecond",
+            label: "Interval",
+            render: (row: any) => <Badge variant="secondary" className="font-mono">{row?.scheduleSecond}s</Badge>,
         },
         {
-            key: "scheduleTime",
-            label: "Sync Interval (Seconds)",
-            required: true,
-            type: "number",
-            placeholder: "e.g., 30 or 90",
-            // @ts-ignore
-            description: "Format: min hour dom month dow",
-            pattern: "^[0-9*\\/\\-, .]*$",
-            validate: (value: string) => {
-                const cronRegex = /^[0-9*\/\-, .]+$/;
-                if (!cronRegex.test(value)) {
-                    return "Only numbers and cron symbols (* / - , .) are allowed";
-                }
-                return true;
-            },
+            key: "status",
+            label: "Status",
+            render: (row: any) => (
+                <Badge variant={row?.isActive ? "outline" : "destructive"} className={row?.isActive ? "bg-emerald-50 text-emerald-700 border-emerald-200" : ""}>
+                    {row?.isActive ? "RUNNING" : "STOPPED"}
+                </Badge>
+            ),
         },
         {
-            key: "isActive",
-            label: "Execution Enabled",
-            type: "switch",
-            defaultValue: true,
+            key: "actions",
+            label: "Edit",
+            render: (row: any) => (
+                <Button size="icon" variant="ghost" onClick={() => { setEditingJob(row); setIsGateModalOpen(true); }}>
+                    <Pencil className="w-4 h-4 text-slate-400" />
+                </Button>
+            ),
         },
     ];
 
-    const masterColumns = [
+    const cabinColumns = [
         {
             key: "displayName",
-            label: "Job Info",
-            render: (i: any) => (
+            label: "Policy Name",
+            render: (row: any) => (
                 <div className="flex flex-col">
-                    <span className="font-bold text-sm">{i.displayName}</span>
-                    <span className="text-[10px] font-mono text-blue-500 uppercase">
-                        {i.cronKey}
-                    </span>
+                    <span className="font-bold text-slate-700">{row?.displayName}</span>
+                    <span className="text-[10px] font-mono text-slate-400 uppercase">{row?.code}</span>
                 </div>
             ),
         },
         {
-            key: "scheduleTime",
-            label: "Schedule",
-            render: (i: any) => (
-                <div className="flex items-center gap-2">
-                    <Clock className="w-3 h-3 text-muted-foreground" />
-                    <code className="text-xs bg-muted px-1.5 py-0.5 rounded border">
-                        {i.scheduleTime}
-                    </code>
-                </div>
-            ),
-        },
-        {
-            key: "executionStatus",
-            label: "Current Status",
-            render: (i: any) => (
-                <div className="flex flex-col gap-1">
-                    {i.isRunning ? (
-                        <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 animate-pulse">
-                            <Loader2 className="w-3 h-3 mr-1 animate-spin" /> In Progress
-                        </Badge>
-                    ) : (
-                        <Badge
-                            variant={i.isActive ? "default" : "secondary"}
-                            className={
-                                i.isActive
-                                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-                                    : ""
-                            }
-                        >
-                            {i.isActive ? "Ready" : "Paused"}
-                        </Badge>
-                    )}
-                </div>
-            ),
-        },
-        {
-            key: "lastRun",
-            label: "Last Run Stats",
-            render: (i: any) => (
-                <div className="flex flex-col text-[11px]">
-                    <span className="text-muted-foreground">
-                        {i.lastRun ? format(new Date(i.lastRun), "HH:mm:ss") : "Never"}
-                    </span>
-                    <span className="flex items-center gap-1 font-mono text-amber-600">
-                        <Timer className="w-3 h-3" /> {i.lastRunDuration || 0}s
-                    </span>
+            key: "config",
+            label: "Lockout Schedule",
+            render: (row: any) => (
+                <div className="flex flex-col text-xs font-semibold">
+                    <span className="text-blue-600">Start: {String(row?.scheduleHour).padStart(2, '0')}:{String(row?.scheduleMinute).padStart(2, '0')}</span>
+                    <span className="text-slate-400 text-[10px]">Dur: {row?.lockoutHours}h {row?.lockoutMinutes}m</span>
                 </div>
             ),
         },
         {
             key: "actions",
-            label: "Actions",
-            render: (i: any) => (
-                <div className="flex gap-1"> {/* UPDATE: justify-end hata diya taaki header ke niche align ho */}
-                    <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8"
-                        onClick={() => {
-                            setEditing(i);
-                            setDialogOpen(true);
-                        }}
-                    >
-                        <Pencil className="w-4 h-4" />
+            label: "Control",
+            render: (row: any) => (
+                <div className="flex gap-2">
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button size="icon" variant="ghost" className="hover:bg-blue-50" onClick={() => {
+                                    setCurrentJobForDoors(row);
+                                    // ⚡ PRE-SELECT LOGIC: Loading IDs from existing config
+                                    setSelectedDoorIds(row?.config?.assignedDoors || []);
+                                    setIsDoorModalOpen(true);
+                                    setDoorSearchQuery("");
+                                }}>
+                                    <DoorOpen className="w-4 h-4 text-blue-500" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Assign Doors</TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                    <Button size="icon" variant="ghost" onClick={() => { setEditingJob(row); setIsCabinModalOpen(true); }}>
+                        <Pencil className="w-4 h-4 text-slate-400" />
                     </Button>
-                    {/* <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-rose-500"
-                        onClick={() => remove(i.id)}
-                    >
-                        <Trash2 className="w-4 h-4" />
-                    </Button> */}
                 </div>
             ),
         },
     ];
 
     return (
-        <div className="p-4 md:p-8 max-w-[1500px] mx-auto space-y-6">
-            <div className="flex justify-between items-center">
-                <PageHeader
-                    title="Automation Hub"
-                    description="Single-table system for all background processes."
-                />
-                <div className="flex items-center gap-4 bg-card border rounded-xl px-4 py-2 shadow-sm">
-                    <div className="flex flex-col items-end">
-                        <span className="text-[10px] text-muted-foreground uppercase font-bold">
-                            Server Time
-                        </span>
-                        <span className="text-sm font-mono">
-                            {format(new Date(), "HH:mm:ss")}
-                        </span>
+        <div className="p-6 space-y-6 max-w-7xl mx-auto relative">
+            {/* Global Loader Overlay */}
+            {(isProcessing || isBulkUpdating) && (
+                <div className="fixed inset-0 bg-white/40 backdrop-blur-[2px] z-[100] flex items-center justify-center">
+                    <div className="bg-white p-4 rounded-xl shadow-xl flex items-center gap-3 border animate-in fade-in zoom-in duration-200">
+                        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                        <span className="font-bold text-slate-700">Processing...</span>
                     </div>
-                    <Clock className="w-5 h-5 text-primary" />
                 </div>
-            </div>
+            )}
 
-            <Tabs defaultValue="master" className="space-y-6">
-                <div className="overflow-x-auto">
-                    <TabsList className="bg-muted/50 border p-1 h-auto flex w-max gap-1">
-                        <TabsTrigger value="master" className="gap-2 px-6 py-2">
-                            <Settings2 className="w-4 h-4" /> Master Control
-                        </TabsTrigger>
-                        {crons?.map((cron: any) => (
-                            <TabsTrigger
-                                key={cron.id}
-                                value={`log-${cron.cronKey}`}
-                                className="gap-2 px-6 py-2"
-                            >
-                                <History className="w-4 h-4" /> {cron.displayName}
-                            </TabsTrigger>
-                        ))}
-                    </TabsList>
-                </div>
+            <PageHeader title="Automation Hub" description="System-wide cron task orchestration and door lockout management." />
 
-                <TabsContent
-                    value="master"
-                    className="space-y-4 animate-in fade-in duration-500"
-                >
-                    <div className="flex justify-between items-center bg-card p-5 rounded-2xl border border-primary/10 shadow-sm">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary/10 rounded-lg">
-                                <Activity className="text-primary w-5 h-5" />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-lg leading-none">
-                                    Registered Tasks
-                                </h3>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    Configure intervals and monitor live execution.
-                                </p>
-                            </div>
-                        </div>
-                        {/* <Button
-                            onClick={() => {
-                                setEditing(null);
-                                setDialogOpen(true);
-                            }}
-                            className="shadow-lg shadow-primary/20"
-                        >
-                            <Plus className="w-4 h-4 mr-2" /> Add Schedule
-                        </Button> */}
-                    </div>
-                    <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
-                        <DataTable
-                            columns={masterColumns}
-                            data={crons || []}
-                            isLoading={cronsLoading}
-                        />
-                    </div>
-                </TabsContent>
+            <Tabs value={activeTab} onValueChange={onTabChange}>
+                <TabsList className="bg-slate-100 p-1 border shadow-sm">
+                    <TabsTrigger value="mainGate" className="gap-2 px-6"><Settings2 className="w-4 h-4" /> Gate Sync</TabsTrigger>
+                    <TabsTrigger value="cabin" className="gap-2 px-6"><ShieldCheck className="w-4 h-4" /> Cabin Lockout</TabsTrigger>
+                </TabsList>
 
-                {crons?.map((cron: any) => (
-                    <TabsContent
-                        key={cron.id}
-                        value={`log-${cron.cronKey}`}
-                        className="animate-in slide-in-from-right-2 duration-300"
-                    >
-                        <div className="space-y-4">
-                            <div className="bg-card p-6 rounded-2xl border flex items-center justify-between shadow-sm">
-                                <div className="flex items-center gap-4">
-                                    <div
-                                        className={`p-3 rounded-full ${cron.lastStatus === "SUCCESS" ? "bg-emerald-500/10" : "bg-rose-500/10"}`}
-                                    >
-                                        {cron.lastStatus === "SUCCESS" ? (
-                                            <CheckCircle2 className="text-emerald-500 w-6 h-6" />
-                                        ) : (
-                                            <AlertCircle className="text-rose-500 w-6 h-6" />
-                                        )}
-                                    </div>
-                                    <div>
-                                        <h3 className="font-bold text-xl">
-                                            {cron.displayName} Status
-                                        </h3>
-                                        <p className="text-sm text-muted-foreground italic">
-                                            Last Message:{" "}
-                                            {cron.lastMessage || "No recent activity recorded."}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="text-right">
-                                    <Badge variant="outline" className="font-mono mb-1">
-                                        {cron.scheduleTime}
-                                    </Badge>
-                                    <p className="text-[10px] text-muted-foreground uppercase">
-                                        Schedule Interval
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="p-4 bg-card border rounded-xl">
-                                    <span className="text-xs text-muted-foreground uppercase">
-                                        Last Run
-                                    </span>
-                                    <p className="font-bold">
-                                        {cron.lastRun
-                                            ? format(new Date(cron.lastRun), "PP p")
-                                            : "N/A"}
-                                    </p>
-                                </div>
-                                <div className="p-4 bg-card border rounded-xl">
-                                    <span className="text-xs text-muted-foreground uppercase">
-                                        Duration
-                                    </span>
-                                    <p className="font-bold text-amber-600">
-                                        {cron.lastRunDuration || 0} Seconds
-                                    </p>
-                                </div>
-                                <div className="p-4 bg-card border rounded-xl">
-                                    <span className="text-xs text-muted-foreground uppercase">
-                                        Status
-                                    </span>
-                                    <p
-                                        className={`font-bold ${cron.lastStatus === "SUCCESS" ? "text-emerald-500" : "text-rose-500"}`}
-                                    >
-                                        {cron.lastStatus || "IDLE"}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
+                <div className="mt-4 border rounded-2xl bg-white shadow-sm overflow-hidden border-slate-200">
+                    <TabsContent value="mainGate" className="m-0">
+                        <DataTable columns={gateColumns} data={mainGateSyncJob ? [mainGateSyncJob] : []} />
                     </TabsContent>
-                ))}
+                    <TabsContent value="cabin" className="m-0">
+                        <DataTable columns={cabinColumns} data={cabinLockoutJob ? [cabinLockoutJob] : []} />
+                    </TabsContent>
+                </div>
             </Tabs>
 
+            {/* DOOR ASSIGNMENT MODAL */}
+            <Dialog open={isDoorModalOpen} onOpenChange={setIsDoorModalOpen}>
+                <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+                    <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                            <DoorOpen className="w-6 h-6" />
+                            <div>
+                                <h2 className="text-xl font-bold leading-none">Assign Access Points</h2>
+                                <p className="text-blue-100 text-xs mt-1">Bulk update door table status</p>
+                            </div>
+                        </div>
+                        <button onClick={() => setIsDoorModalOpen(false)}><X className="w-5 h-5 opacity-70 hover:opacity-100 transition-opacity" /></button>
+                    </div>
+
+                    <div className="p-6 space-y-4">
+                        <div className="relative">
+                            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                            <input
+                                placeholder="Filter doors..."
+                                value={doorSearchQuery}
+                                onChange={(e) => setDoorSearchQuery(e.target.value)}
+                                className="w-full pl-10 pr-4 py-3 text-sm border-slate-200 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            />
+                        </div>
+
+                        <div className="flex justify-between items-center px-1">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">{selectedDoorIds.length} Selected</span>
+                            <div className="flex gap-4">
+                                <button className="text-[11px] font-bold text-blue-600 hover:underline" onClick={() => setSelectedDoorIds(eligibleDoors?.map((d: any) => d.id) || [])}>Select All</button>
+                                <button className="text-[11px] font-bold text-slate-400 hover:underline" onClick={() => setSelectedDoorIds([])}>Clear</button>
+                            </div>
+                        </div>
+
+                        <div className="h-[300px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-2">
+                            {isLoadingDoors ? (
+                                <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-400">
+                                    <Loader2 className="animate-spin" />
+                                    <span className="text-xs">Fetching Doors...</span>
+                                </div>
+                            ) : (
+                                eligibleDoors?.filter((d: any) => d.name.toLowerCase().includes(doorSearchQuery.toLowerCase())).map((door: any) => (
+                                    <div
+                                        key={door.id}
+                                        className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id) ? 'bg-white border-blue-200 shadow-sm' : 'border-transparent hover:bg-white hover:border-slate-200'}`}
+                                        onClick={() => setSelectedDoorIds(prev => prev.includes(door.id) ? prev.filter(id => id !== door.id) : [...prev, door.id])}
+                                    >
+                                        <Checkbox checked={selectedDoorIds.includes(door.id)} className="pointer-events-none" />
+                                        <span className={`text-sm ${selectedDoorIds.includes(door.id) ? 'font-bold text-blue-700' : 'text-slate-600'}`}>{door.name}</span>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
+                        <Button variant="outline" className="rounded-xl px-6" onClick={() => setIsDoorModalOpen(false)}>Cancel</Button>
+                        <Button className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700" onClick={handleAssignDoors} disabled={isBulkUpdating}>
+                            {isBulkUpdating ? <Loader2 className="animate-spin w-4 h-4 mr-2" /> : <Check className="w-4 h-4 mr-2" />}
+                            Update Access
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* CRON CONFIG DIALOGS */}
             <CrudDialog
-                open={dialogOpen}
-                onClose={() => {
-                    setDialogOpen(false);
-                    setEditing(null);
-                }}
-                title={
-                    editing
-                        ? `Update Job: ${editing.displayName}`
-                        : "Schedule New Automation"
-                }
-                fields={fields}
-                initialData={
-                    editing || { isActive: true, priority: "medium", group: "default" }
-                }
-                onSubmit={async (val) => {
-                    const finalData = { ...val, group: val.cronKey };
-                    editing
-                        ? await update({ id: editing.id, data: finalData })
-                        : await create(finalData);
-                    setDialogOpen(false);
-                    setEditing(null);
-                }}
-                isPending={isCreating || isUpdating}
+                open={isGateModalOpen}
+                onClose={() => setIsGateModalOpen(false)}
+                title="Sync Configuration"
+                fields={[
+                    { key: "displayName", label: "Job Name", required: true },
+                    { key: "scheduleSecond", label: "Interval (Seconds)", type: "number", required: true },
+                    { key: "isActive", label: "Enable Automation", type: "switch" },
+                ]}
+                initialData={editingJob}
+                onSubmit={(val) => handleCronUpdate('gate', {
+                    displayName: val.displayName,
+                    scheduleSecond: Number(val.scheduleSecond),
+                    isActive: val.isActive
+                })}
+                isPending={isProcessing}
+            />
+
+            <CrudDialog
+                open={isCabinModalOpen}
+                onClose={() => setIsCabinModalOpen(false)}
+                title="Policy Configuration"
+                fields={[
+                    { key: "displayName", label: "Policy Name", required: true },
+                    { key: "scheduleHour", label: "Trigger Hour (0-23)", type: "number" },
+                    { key: "scheduleMinute", label: "Trigger Minute (0-59)", type: "number" },
+                    { key: "lockoutHours", label: "Duration Hours", type: "number" },
+                    { key: "lockoutMinutes", label: "Duration Minutes", type: "number" },
+                    { key: "isActive", label: "Enable Policy", type: "switch" },
+                ]}
+                initialData={editingJob}
+                onSubmit={(val) => handleCronUpdate('cabin', {
+                    scheduleHour: Number(val.scheduleHour),
+                    scheduleMinute: Number(val.scheduleMinute),
+                    lockoutHours: Number(val.lockoutHours),
+                    lockoutMinutes: Number(val.lockoutMinutes),
+                    isActive: val.isActive
+                })}
+                isPending={isProcessing}
             />
         </div>
     );

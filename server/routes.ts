@@ -18,6 +18,7 @@ import {
   insertDoorDeviceSchema,
   insertBlockUnblockLogSchema,
 } from "@shared/schema";
+import { CRON_TASKS } from "./constant";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
   next();
@@ -714,32 +715,57 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     );
   // routes.ts mein ye add karein
   crudRoutes(
-    app,
-    "/api/cron-jobs",
-    insertCronMasterSchema,
-    () => storage.getCronMasters(),
-    async (data: any) => {
-      // Check if code already exists
-      const existing = await storage.getCronMasters();
-      const isDuplicate = existing.some(
-        (c) => c.code.toLowerCase() === data.code.toLowerCase()
-      );
+  app,
+  "/api/cron-lists",
+  insertCronMasterSchema,
+  () => storage.getCronMasters(),
+  async (data: any) => {
+    // 1. Check for Duplicate Code
+    const existing = await storage.getCronMasters();
+    const isDuplicate = existing.some(
+      (c) => c.code.toLowerCase() === data.code.toLowerCase()
+    );
 
-      if (isDuplicate) {
-        const error: any = new Error("This Cron Key is already defined. Please use a unique key.");
-        error.status = 400;
-        throw error;
-      }
-
-      return await storage.createCronMaster(data);
-    },
-    async (id, data) => {
-      return await storage.updateCronMaster(id, data);
-    },
-    async (id) => {
-      return await storage.deleteCronMaster(id);
+    if (isDuplicate) {
+      const error: any = new Error("This Cron Key is already defined. Please use a unique key.");
+      error.status = 400;
+      throw error;
     }
-  );
+
+    // 2. Default Config ensure karna (Optional but Recommended)
+    // Agar user ne config nahi bheja, toh empty object set kar dein
+    const cronData = {
+      ...data,
+      config: data.config || {},
+      isActive: data.isActive ?? false,
+      lastRun: null
+    };
+
+    return await storage.createCronMaster(cronData);
+  },
+  async (id, data) => {
+    // Update ke waqt bhi logic check kar sakte hain agar code change ho raha ho
+    return await storage.updateCronMaster(id, data);
+  },
+  async (id) => {
+    return await storage.deleteCronMaster(id);
+  }
+);
+  // 1. Main Gate Specific Route
+  app.get("/api/cron-jobs/main-gate", async (_req, res) => {
+    const allCrons = await storage.getCronMasters();
+    // CODE (MG_SYNC_01) ke basis par filter karein
+    const gateJob = allCrons.find(c => c.code === CRON_TASKS.MAIN_GATE_SYNC.CODE);
+    res.json(gateJob ? [gateJob] : []);
+  });
+
+  // 2. Cabin Lockout Specific Route
+  app.get("/api/cron-jobs/cabin-lock", async (_req, res) => {
+    const allCrons = await storage.getCronMasters();
+    // CODE (CABIN_LOCK_01) ke basis par filter karein
+    const cabinJob = allCrons.find(c => c.code === CRON_TASKS.CABIN_LOCKOUT_SYNC.CODE);
+    res.json(cabinJob ? [cabinJob] : []);
+  })
   // Door Devices Mapping Routes
   crudRoutes(
     app,
@@ -781,5 +807,46 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return await storage.deleteBlockUnblockLog(id);
   }
 );
+  app.get("/api/devices/role-eligible", async (_req, res) => {
+    try {
+      const devices = await storage.getRoleEligibleDevices();
+      res.json(devices);
+    } catch (error: any) {
+      res.status(500).json({ message: "Failed to fetch devices for role assignment" });
+    }
+  });
+  app.get("/api/doors/lockout-eligible", async (req, res) => {
+    try {
+      const search = req.query.search as string;
+      const doors = await storage.getLockoutEligibleDoors(search);
+      res.json(doors);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch doors" });
+    }
+  });
+
+
+
+  app.patch("/api/doors/bulk-lockout", async (req, res) => {
+    try {
+      const { enabledIds, disabledIds } = req.body;
+
+      // 1. Jo selected hain unhe TRUE karo
+      if (enabledIds && enabledIds.length > 0) {
+        await storage.updateDoorLockoutStatusBulk(enabledIds, true);
+      }
+
+      // 2. Jo selected NAHI hain unhe FALSE karo
+      if (disabledIds && disabledIds.length > 0) {
+        await storage.updateDoorLockoutStatusBulk(disabledIds, false);
+      }
+
+      return res.json({ success: true, message: "All doors synced successfully" });
+    } catch (error) {
+      console.error("Route Error:", error);
+      return res.status(500).json({ success: false, message: "Failed to sync doors" });
+    }
+  });
+
   return httpServer;
 }

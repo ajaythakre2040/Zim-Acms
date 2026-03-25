@@ -27,6 +27,22 @@ export const CRON_TASKS = {
     GROUP: "gate_security",
     PRIORITY: "high",
   },
-  // Future mein naye gate ke liye bas ek naya object yahan add karein
-  
+  CABIN_LOCKOUT_SYNC: {
+    CODE: "CABIN_LOCK_01",           // Unique Identifier for DB lookup
+    DISPLAY_NAME: "Cabin Lockout",    // UI Display Name
+    DOOR_TYPE: "system",              // Logical Task
+    TASK_NAME: "CABIN_EXIT_MONITOR",  // Function Name
+
+    // --- Execution Frequency (Timer) ---
+    DEFAULT_SECONDS: 0,
+    DEFAULT_MINUTES: 1,               // Har 1 minute mein check karega
+    DEFAULT_HOURS: 0,
+
+    // --- Lockout Policy (New Fields) ---
+    DEFAULT_LOCKOUT_HOURS: 24,        // Kitne ghante block rahega
+    DEFAULT_LOCKOUT_MINUTES: 0,       // Extra minutes
+
+    GROUP: "security_logic",
+    PRIORITY: "high",
+  }
 };
