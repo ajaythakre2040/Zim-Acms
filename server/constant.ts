@@ -13,36 +13,30 @@ export const ATTENDANCE_STATUS = {
   SINGLE_PUNCH: "single_punch" // Optional: Agar user ne out nahi kiya
 };
 
+export const MAIN_GATE_SYNC = {
+  CODE: "MG_SYNC_01",
+  DISPLAY_NAME: "Main Gate Entry",
+  DOOR_TYPE: "gate",           // Physical hardware type
+  TASK_NAME: "COMMON_GATE_AUTH",
+  DEFAULT_SECONDS: 30,
+  GROUP: "gate_security",
+  PRIORITY: "high",
+};
+export const CABIN_LOCKOUT_CONFIG = {
+  CODE: "CABIN_LOCK_01",
+  DISPLAY_NAME: "Cabin Lockout Policy",
+  DOOR_TYPE: "system",         // 'system' means virtual/logic, not a door
+  TASK_NAME: "CABIN_EXIT_MONITOR",
 
-export const CRON_TASKS = {
-  MAIN_GATE_SYNC: {
-    // Ye details Doors table ke liye hain
-    CODE: "MG_SYNC_01",           // Unique Identifier (Sabse zaroori)
-    DISPLAY_NAME: "Main Gate",    // Door ka naam
-    DOOR_TYPE: "gate",            // Enum: gate, standard, etc.
+  // Execution Timer (Cron kab chalega)
+  DEFAULT_SECONDS: 0,
+  DEFAULT_MINUTES: 1,
+  DEFAULT_HOURS: 0,
 
-    // Ye details Cron Master table ke liye hain
-    TASK_NAME: "COMMON_GATE_AUTH",
-    DEFAULT_SECONDS: 30,
-    GROUP: "gate_security",
-    PRIORITY: "high",
-  },
-  CABIN_LOCKOUT_SYNC: {
-    CODE: "CABIN_LOCK_01",           // Unique Identifier for DB lookup
-    DISPLAY_NAME: "Cabin Lockout",    // UI Display Name
-    DOOR_TYPE: "system",              // Logical Task
-    TASK_NAME: "CABIN_EXIT_MONITOR",  // Function Name
+  // Policy Settings (Kitni der ke liye lock hoga)
+  DEFAULT_LOCKOUT_HOURS: 24,
+  DEFAULT_LOCKOUT_MINUTES: 0,
 
-    // --- Execution Frequency (Timer) ---
-    DEFAULT_SECONDS: 0,
-    DEFAULT_MINUTES: 1,               // Har 1 minute mein check karega
-    DEFAULT_HOURS: 0,
-
-    // --- Lockout Policy (New Fields) ---
-    DEFAULT_LOCKOUT_HOURS: 24,        // Kitne ghante block rahega
-    DEFAULT_LOCKOUT_MINUTES: 0,       // Extra minutes
-
-    GROUP: "security_logic",
-    PRIORITY: "high",
-  }
+  GROUP: "security_logic",
+  PRIORITY: "high",
 };

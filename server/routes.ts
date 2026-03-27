@@ -18,7 +18,7 @@ import {
   insertDoorDeviceSchema,
   insertBlockUnblockLogSchema,
 } from "@shared/schema";
-import { CRON_TASKS } from "./constant";
+import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC } from "./constant";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
   next();
@@ -755,7 +755,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/cron-jobs/main-gate", async (_req, res) => {
     const allCrons = await storage.getCronMasters();
     // CODE (MG_SYNC_01) ke basis par filter karein
-    const gateJob = allCrons.find(c => c.code === CRON_TASKS.MAIN_GATE_SYNC.CODE);
+    const gateJob = allCrons.find(c => c.code === MAIN_GATE_SYNC.CODE);
     res.json(gateJob ? [gateJob] : []);
   });
 
@@ -763,7 +763,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/cron-jobs/cabin-lock", async (_req, res) => {
     const allCrons = await storage.getCronMasters();
     // CODE (CABIN_LOCK_01) ke basis par filter karein
-    const cabinJob = allCrons.find(c => c.code === CRON_TASKS.CABIN_LOCKOUT_SYNC.CODE);
+    const cabinJob = allCrons.find(c => c.code === CABIN_LOCKOUT_CONFIG.CODE);
     res.json(cabinJob ? [cabinJob] : []);
   })
   // Door Devices Mapping Routes

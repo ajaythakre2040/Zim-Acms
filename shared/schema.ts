@@ -643,7 +643,8 @@ export const mainGateLogs = pgTable("main_gate_logs", {
 // })
 export const doorDevices = pgTable("door_devices", {
   id: serial("id").primaryKey(),
-  doorId: integer("door_id").notNull(),
+ doorId: integer("door_id")
+    .references(() => doors.id, { onDelete: "cascade" }),
   inDeviceIds: integer("in_device_ids").array().default([]),
   outDeviceIds: integer("out_device_ids").array().default([]),
   // inDeviceIds: jsonb("in_device_ids").$type<number[]>().default([]),

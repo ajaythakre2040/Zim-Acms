@@ -2,10 +2,10 @@ import { db, mssqlPool } from "../db";
 import { esslService } from "../essl-service";
 import { people, devices, doorDevices, blockUnblockLogs, roles, cronMaster } from "@shared/schema";
 import { eq, and, desc, gt } from "drizzle-orm";
-import { CRON_TASKS } from "../constant";
+import { MAIN_GATE_SYNC } from "../constant";
 
 export async function runMainGateAuthSync(doorId: number) {
-    const cronCode = CRON_TASKS.MAIN_GATE_SYNC.CODE;
+    const cronCode = MAIN_GATE_SYNC.CODE;
     const startTime = Date.now();
     const timestamp = new Date().toLocaleTimeString();
 

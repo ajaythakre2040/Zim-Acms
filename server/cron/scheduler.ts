@@ -2,7 +2,7 @@ import cron from "node-cron";
 import { db } from "../db";
 import { cronMaster } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import { CRON_TASKS } from "../constant";
+import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC } from "../constant";
 import { runMainGateAuthSync } from "./mainGateAuthTask";
 import { processCabinLockout } from "./cabinLockoutCron"; // Cabin task import karein
 
@@ -14,14 +14,14 @@ const runningTasks = new Map<string, boolean>();
  */
 async function executeTask(taskCode: string, taskData: any) {
     switch (taskCode) {
-        case CRON_TASKS.MAIN_GATE_SYNC.CODE:
+        case MAIN_GATE_SYNC.CODE:
             await runMainGateAuthSync(taskData.doorId!);
             break;
-        case CRON_TASKS.CABIN_LOCKOUT_SYNC.CODE:
+        case CABIN_LOCKOUT_CONFIG.CODE:
             await processCabinLockout();
             break;
-        default:
-            console.warn(`⚠️ [CRON] No execution logic found for task code: ${taskCode}`);
+        // default:
+        //     console.warn(`⚠️ [CRON] No execution logic found for task code: ${taskCode}`);
     }
 }
 

@@ -51,7 +51,7 @@ import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS } from './constant';
 import { esslService } from "./essl-service";
-import { CRON_TASKS } from "./constant";
+import { MAIN_GATE_SYNC } from "./constant";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -1352,7 +1352,7 @@ export class DatabaseStorage implements IStorage {
 
       
       const gateConfig = await db.query.cronMaster.findFirst({
-        where: eq(cronMaster.code, CRON_TASKS.MAIN_GATE_SYNC.CODE)
+        where: eq(cronMaster.code, MAIN_GATE_SYNC.CODE)
       });
 
       const whitelistedIds = new Set<number>();
@@ -1521,7 +1521,7 @@ export class DatabaseStorage implements IStorage {
   }
   
   async getLockoutEligibleDoors(search?: string): Promise<any[]> {
-    const mainGateCode = CRON_TASKS.MAIN_GATE_SYNC.CODE;
+    const mainGateCode = MAIN_GATE_SYNC.CODE;
 
     
     const query = db.select()
@@ -1540,7 +1540,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateDoorLockoutStatusBulk(doorIds: number[], status: boolean): Promise<any[]> {
-    const mainGateCode = CRON_TASKS.MAIN_GATE_SYNC.CODE;
+    const mainGateCode = MAIN_GATE_SYNC.CODE;
 
 
     if (!doorIds || doorIds.length === 0) return [];
@@ -1565,7 +1565,7 @@ export class DatabaseStorage implements IStorage {
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
     try {
       const taskConfig = await db.query.cronMaster.findFirst({
-        where: eq(cronMaster.code, CRON_TASKS.MAIN_GATE_SYNC.CODE)
+        where: eq(cronMaster.code, MAIN_GATE_SYNC.CODE)
       });
       if (!taskConfig?.doorId) return;
       const activeGateId = taskConfig.doorId;

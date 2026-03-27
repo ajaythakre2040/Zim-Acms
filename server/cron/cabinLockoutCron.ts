@@ -2,10 +2,10 @@ import { db, mssqlPool } from "../db";
 import { doors, doorDevices, cabinLockouts, cronMaster } from "@shared/schema";
 import { eq, and, lt } from "drizzle-orm";
 import { esslService } from "../essl-service";
-import { CRON_TASKS } from "../constant";
+import { CABIN_LOCKOUT_CONFIG } from "../constant";
 
 export async function processCabinLockout() {
-    const TASK_CODE = CRON_TASKS.CABIN_LOCKOUT_SYNC.CODE;
+    const TASK_CODE = CABIN_LOCKOUT_CONFIG.CODE;
     const now = new Date();
 
     try {
@@ -67,8 +67,8 @@ export async function processCabinLockout() {
 
                 if (!existing) {
                     // Lockout Duration Calculation (From DB or Constant Fallback)
-                    const lHours = config.lockoutHours ?? CRON_TASKS.CABIN_LOCKOUT_SYNC.DEFAULT_LOCKOUT_HOURS;
-                    const lMinutes = config.lockoutMinutes ?? CRON_TASKS.CABIN_LOCKOUT_SYNC.DEFAULT_LOCKOUT_MINUTES;
+                    const lHours = config.lockoutHours ?? CABIN_LOCKOUT_CONFIG.DEFAULT_LOCKOUT_HOURS;
+                    const lMinutes = config.lockoutMinutes ?? CABIN_LOCKOUT_CONFIG.DEFAULT_LOCKOUT_MINUTES;
 
                     const lockoutMs = (lHours * 3600 + lMinutes * 60) * 1000;
                     const outPunch = new Date(log.LogDate);

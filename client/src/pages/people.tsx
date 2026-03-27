@@ -215,7 +215,7 @@ export default function PeoplePage() {
           </Avatar>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{p.employeeName}</p>
-            <p className="text-xs text-muted-foreground truncate">{p.employeeCode || p.email || ""}</p>
+            {/* <p className="text-xs text-muted-foreground truncate">{p.employeeCode || p.email || ""}</p> */}
           </div>
         </div>
       ),
