@@ -12,33 +12,40 @@ import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
 
 // MasterTab updated to accept fields as a function or array
-function MasterTab({ endpoint, label, fields, nameKey = "name" }: {
+function MasterTab({
+  endpoint,
+  label,
+  fields,
+  nameKey = "name",
+}: {
   endpoint: string;
   label: string;
   fields: FieldConfig[] | ((editing: any) => FieldConfig[]);
-  nameKey?: string
+  nameKey?: string;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const { toast } = useToast();
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const { data, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(endpoint, label);
-  const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices/role-eligible"] });
+  const { data, isLoading, create, update, remove, isCreating, isUpdating } =
+    useCrud<any>(endpoint, label);
+  // const { data: devices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices/role-eligible"] });
+  const { data: doors = [] } = useQuery<any[]>({ queryKey: ["/api/doors"] });
 
   // Evaluate fields based on editing state
-  const currentFields = typeof fields === 'function' ? fields(editing) : fields;
+  const currentFields = typeof fields === "function" ? fields(editing) : fields;
 
-  const dynamicFields = currentFields.map(f => {
-    if (f.key === "deviceIds") {
+  const dynamicFields = currentFields.map((f) => {
+    if (f.key === "doorIds") {
       return {
         ...f,
         type: "multi-select",
         options: [
-          ...devices.map((d: Device) => ({
-            value: String(d.msId || d.id),
-            label: `${d.name} `
-          }))
-        ]
+          ...doors.map((d: any) => ({
+            value: String(d.id),
+            label: d.name,
+          })),
+        ],
       } as any;
     }
     return f;
@@ -48,71 +55,104 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: {
     {
       key: nameKey,
       label: "Name",
-      render: (item: any) => <span className="font-medium">{item[nameKey]}</span>
+      render: (item: any) => (
+        <span className="font-medium">{item[nameKey]}</span>
+      ),
     },
     ...currentFields
-      .filter((f) => f.key !== nameKey && f.key !== "description" && f.key !== "isActive")
+      .filter(
+        (f) =>
+          f.key !== nameKey && f.key !== "description" && f.key !== "isActive",
+      )
       .slice(0, 2)
       .map((f) => ({
         key: f.key,
         label: f.label,
         hideOnMobile: true,
-        render: f.key === "deviceIds"
-          ? (item: any) => (
-            <span className="text-sm text-muted-foreground">
-              {item.assignedDeviceNames || "No Devices"}
-            </span>
-          )
-          : undefined,
+        render:
+          f.key === "doorIds"
+            ? (item: any) => (
+              <span className="text-sm text-muted-foreground">
+                {item.assignedDoorNames || "No Doors"}
+              </span>
+            )
+            : undefined,
       })),
     {
       key: "isActive",
       label: "Status",
-      render: (item: any) => item.isActive !== false ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge>
+      render: (item: any) =>
+        item.isActive !== false ? (
+          <Badge>Active</Badge>
+        ) : (
+          <Badge variant="secondary">Inactive</Badge>
+        ),
     },
     {
       key: "actions",
       label: "Actions",
       render: (item: any) => (
         <div className="flex gap-1">
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); setEditing(item); setDialogOpen(true); }}>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditing(item);
+              setDialogOpen(true);
+            }}
+          >
             <Pencil className="w-4 h-4" />
           </Button>
-          <Button size="icon" variant="ghost" onClick={(e) => { e.stopPropagation(); remove(item.id); }}>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={(e) => {
+              e.stopPropagation();
+              remove(item.id);
+            }}
+          >
             <Trash2 className="w-4 h-4" />
           </Button>
         </div>
-      )
+      ),
     },
   ];
 
   const handleSubmit = async (formData: any) => {
     setFormErrors({});
     const finalData = { ...formData };
-    if (Array.isArray(formData.deviceIds)) {
-      if (formData.deviceIds.includes("all")) {
-        finalData.deviceIds = devices.map((d: Device) => Number(d.id));
-      } else {
-        finalData.deviceIds = formData.deviceIds
-          .map((id: string) => Number(id))
-          .filter((id: number) => !isNaN(id));
-      }
+
+    // ✅ only doorIds logic
+    if (Array.isArray(formData.doorIds)) {
+      finalData.doorIds = formData.doorIds
+        .map((id: string) => Number(id))
+        .filter((id: number) => !isNaN(id));
     }
+
     try {
       if (editing) {
         await update({ id: editing.id, data: finalData });
-        toast({ title: "Success", description: `${label} updated successfully.` });
+        toast({
+          title: "Success",
+          description: `${label} updated successfully.`,
+        });
       } else {
         await create(finalData);
-        toast({ title: "Success", description: `${label} created successfully.` });
+        toast({
+          title: "Success",
+          description: `${label} created successfully.`,
+        });
       }
+
       setDialogOpen(false);
       setEditing(null);
     } catch (error: any) {
       let errorData;
-      if (typeof error.message === 'string' && error.message.includes('{')) {
+
+      if (typeof error.message === "string" && error.message.includes("{")) {
         try {
-          const jsonPart = error.message.substring(error.message.indexOf('{'));
+          const jsonPart = error.message.substring(error.message.indexOf("{"));
           errorData = JSON.parse(jsonPart);
         } catch (e) {
           errorData = error.response?.data || error;
@@ -120,11 +160,16 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: {
       } else {
         errorData = error.response?.data || error;
       }
-      const finalMessage = errorData?.message || error.message || "An error occurred";
+
+      const finalMessage =
+        errorData?.message || error.message || "An error occurred";
+
       if (errorData?.isDuplicate) {
         const msg = finalMessage.toLowerCase();
         const fieldKey = msg.includes("code") ? "code" : "name";
+
         setFormErrors({ [fieldKey]: finalMessage });
+
         toast({
           variant: "destructive",
           title: "Duplicate Entry",
@@ -138,19 +183,35 @@ function MasterTab({ endpoint, label, fields, nameKey = "name" }: {
         });
       }
     }
-  }
+  };
 
   return (
     <div>
       <div className="mb-4 flex justify-end">
-        <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
+        <Button
+          onClick={() => {
+            setEditing(null);
+            setDialogOpen(true);
+          }}
+        >
           <Plus className="w-4 h-4 mr-1" /> Add {label}
         </Button>
       </div>
-      <DataTable columns={columns} data={data} isLoading={isLoading} searchable searchKeys={[nameKey]} emptyMessage={`No ${label.toLowerCase()}s`} />
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        searchable
+        searchKeys={[nameKey]}
+        emptyMessage={`No ${label.toLowerCase()}s`}
+      />
       <CrudDialog
         open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setEditing(null); setFormErrors({}); }}
+        onClose={() => {
+          setDialogOpen(false);
+          setEditing(null);
+          setFormErrors({});
+        }}
         title={editing ? `Edit ${label}` : `Add ${label}`}
         fields={dynamicFields as any}
         initialData={editing || undefined}
@@ -166,7 +227,10 @@ export default function MasterDataPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       {/* <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, vendors,  and roles" /> */}
-      <PageHeader title="Master Data" description="Manage companies and roles" />
+      <PageHeader
+        title="Master Data"
+        description="Manage companies and roles"
+      />
 
       <Tabs defaultValue="companies" className="space-y-4">
         <TabsList className="flex-wrap">
@@ -179,56 +243,116 @@ export default function MasterDataPage() {
         </TabsList>
 
         <TabsContent value="departments">
-          <MasterTab endpoint="/api/departments" label="Department" fields={(editing) => [
-            { key: "name", label: "Name", required: true },
-            { key: "code", label: "Code", required: !editing, disabled: !!editing },
-            { key: "description", label: "Description", type: "textarea" },
-            { key: "isActive", label: "Active", type: "switch", defaultValue: true },
-          ]} />
+          <MasterTab
+            endpoint="/api/departments"
+            label="Department"
+            fields={(editing) => [
+              { key: "name", label: "Name", required: true },
+              {
+                key: "code",
+                label: "Code",
+                required: !editing,
+                disabled: !!editing,
+              },
+              { key: "description", label: "Description", type: "textarea" },
+              {
+                key: "isActive",
+                label: "Active",
+                type: "switch",
+                defaultValue: true,
+              },
+            ]}
+          />
         </TabsContent>
 
         <TabsContent value="designations">
-          <MasterTab endpoint="/api/designations" label="Designation" fields={(editing) => [
-            { key: "name", label: "Name", required: true },
-            { key: "code", label: "Code", required: !editing, disabled: !!editing },
-            { key: "level", label: "Level", type: "number" },
-            { key: "description", label: "Description", type: "textarea" },
-            { key: "isActive", label: "Active", type: "switch", defaultValue: true },
-          ]} />
+          <MasterTab
+            endpoint="/api/designations"
+            label="Designation"
+            fields={(editing) => [
+              { key: "name", label: "Name", required: true },
+              {
+                key: "code",
+                label: "Code",
+                required: !editing,
+                disabled: !!editing,
+              },
+              { key: "level", label: "Level", type: "number" },
+              { key: "description", label: "Description", type: "textarea" },
+              {
+                key: "isActive",
+                label: "Active",
+                type: "switch",
+                defaultValue: true,
+              },
+            ]}
+          />
         </TabsContent>
 
         <TabsContent value="categories">
-          <MasterTab endpoint="/api/categories" label="Category" fields={[
-            { key: "name", label: "Name", required: true },
-            { key: "description", label: "Description", type: "textarea" },
-            { key: "isActive", label: "Active", type: "switch", defaultValue: true },
-          ]} />
+          <MasterTab
+            endpoint="/api/categories"
+            label="Category"
+            fields={[
+              { key: "name", label: "Name", required: true },
+              { key: "description", label: "Description", type: "textarea" },
+              {
+                key: "isActive",
+                label: "Active",
+                type: "switch",
+                defaultValue: true,
+              },
+            ]}
+          />
         </TabsContent>
 
         <TabsContent value="companies">
-          <MasterTab endpoint="/api/companies" label="Company" fields={[
-            { key: "name", label: "Name", required: true },
-            { key: "shortName", label: "Short Name" },
-            { key: "address", label: "Address", type: "textarea" },
-            { key: "email", label: "Email", type: "email" },
-            { key: "website", label: "Website" },
-            { key: "isActive", label: "Active", type: "switch", defaultValue: true },
-          ]} />
+          <MasterTab
+            endpoint="/api/companies"
+            label="Company"
+            fields={[
+              { key: "name", label: "Name", required: true },
+              { key: "shortName", label: "Short Name" },
+              { key: "address", label: "Address", type: "textarea" },
+              { key: "email", label: "Email", type: "email" },
+              { key: "website", label: "Website" },
+              {
+                key: "isActive",
+                label: "Active",
+                type: "switch",
+                defaultValue: true,
+              },
+            ]}
+          />
         </TabsContent>
 
         <TabsContent value="vendors">
-          <MasterTab endpoint="/api/vendors" label="Vendor" fields={(editing) => [
-            { key: "name", label: "Name", required: true },
-            { key: "code", label: "Code", required: !editing, disabled: !!editing },
-            { key: "contactPerson", label: "Contact Person" },
-            { key: "phone", label: "Phone" },
-            { key: "email", label: "Email", type: "email" },
-            { key: "address", label: "Address", type: "textarea" },
-            { key: "city", label: "City" },
-            { key: "state", label: "State" },
-            { key: "gstNumber", label: "GST Number" },
-            { key: "isActive", label: "Active", type: "switch", defaultValue: true },
-          ]} />
+          <MasterTab
+            endpoint="/api/vendors"
+            label="Vendor"
+            fields={(editing) => [
+              { key: "name", label: "Name", required: true },
+              {
+                key: "code",
+                label: "Code",
+                required: !editing,
+                disabled: !!editing,
+              },
+              { key: "contactPerson", label: "Contact Person" },
+              { key: "phone", label: "Phone" },
+              { key: "email", label: "Email", type: "email" },
+              { key: "address", label: "Address", type: "textarea" },
+              { key: "city", label: "City" },
+              { key: "state", label: "State" },
+              { key: "gstNumber", label: "GST Number" },
+              {
+                key: "isActive",
+                label: "Active",
+                type: "switch",
+                defaultValue: true,
+              },
+            ]}
+          />
         </TabsContent>
 
         <TabsContent value="roles">
@@ -237,14 +361,24 @@ export default function MasterDataPage() {
             label="Role"
             fields={(editing) => [
               { key: "name", label: "Role Name", required: true },
-              { key: "code", label: "Role Code", required: !editing, disabled: !!editing },
               {
-                key: "deviceIds",
-                label: "Assign Devices",
+                key: "code",
+                label: "Role Code",
+                required: !editing,
+                disabled: !!editing,
+              },
+              {
+                key: "doorIds", // ✅ changed
+                label: "Assign Doors", // ✅ changed
                 type: "multi-select",
                 options: [],
               },
-              { key: "isActive", label: "Active", type: "switch", defaultValue: true },
+              {
+                key: "isActive",
+                label: "Active",
+                type: "switch",
+                defaultValue: true,
+              },
             ]}
           />
         </TabsContent>

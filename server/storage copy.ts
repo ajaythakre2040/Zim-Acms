@@ -45,7 +45,7 @@ import {
   BlockUnblockLog,
   InsertBlockUnblockLog,
 } from "@shared/schema";
-import { db, dbMsSql, mssqlPool } from "./db";
+import { db, dbMsSql } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
@@ -1194,51 +1194,31 @@ export class DatabaseStorage implements IStorage {
     };
   }
   async getRoles(): Promise<any[]> {
-    // 1. Saare roles fetch karein
     const allRoles = await db.select().from(roles).orderBy(desc(roles.id));
-
-    // 2. Postgres se saare doors fetch karein (Lookup ke liye)
-    const allDoors = await db.select({
-      id: doors.id,
-      name: doors.name
-    }).from(doors);
-
-    // 3. Door ID -> Door Name ka ek map banayein
-    const doorLookup = new Map<number, string>();
-    allDoors.forEach(d => doorLookup.set(d.id, d.name));
-
-    // 4. Roles ko map karke names attach karein
+    const msDevicesRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
+    const deviceLookup = new Map<number, string>();
+    if (msDevicesRaw) {
+      msDevicesRaw.forEach((d: any) => {
+        const id = Number(d.DeviceId || d.DeviceID);
+        deviceLookup.set(id, d.DeviceName || "Unnamed");
+      });
+    }
     return allRoles.map((role) => {
-      const idsArray = Array.isArray(role.doorIds) ? role.doorIds : [];
-
-      // Door IDs ko unke names mein convert karein
+      const rawIds = role.doorIds || [];
+      const idsArray = Array.isArray(rawIds) ? rawIds : [];
       const names = idsArray
-        .map(id => doorLookup.get(Number(id)))
+        .map(id => deviceLookup.get(Number(id)))
         .filter((name): name is string => Boolean(name));
-
       return {
         ...role,
-        // Frontend compatibility ke liye string array bhej rahe hain
-        doorIds: idsArray.map(id => String(id)),
-        assignedDoorNames: names.length > 0 ? names.join(", ") : "No Doors Assigned"
+        deviceIds: idsArray.map(id => String(id)),
+        assignedDeviceNames: names.join(", ")
       };
     });
   }
-  async getRole(id: number): Promise<any | undefined> {
+  async getRole(id: number): Promise<Role | undefined> {
     const [role] = await db.select().from(roles).where(eq(roles.id, id));
-    if (!role) return undefined;
-
-    const idsArray = Array.isArray(role.doorIds) ? role.doorIds : [];
-
-    // Doors table se names fetch karein
-    const doorDetails = await db.select({ name: doors.name })
-      .from(doors)
-      .where(inArray(doors.id, idsArray.length > 0 ? idsArray : [-1]));
-
-    return {
-      ...role,
-      assignedDoorNames: doorDetails.map(d => d.name).join(", ")
-    };
+    return role;
   }
   async createRole(data: InsertRole): Promise<Role> {
     const [existing] = await db
@@ -1253,18 +1233,20 @@ export class DatabaseStorage implements IStorage {
   }
   async updateRole(id: number, data: Partial<InsertRole>): Promise<Role> {
     return await db.transaction(async (tx) => {
-      // 1. Validation: Check if new role code already exists
       if (data.code) {
         const [existing] = await tx
           .select()
           .from(roles)
-          .where(and(eq(roles.code, data.code), ne(roles.id, id)));
+          .where(
+            and(
+              eq(roles.code, data.code),
+              ne(roles.id, id)
+            )
+          );
         if (existing) {
           throw new Error(`Role code '${data.code}' already exists.`);
         }
       }
-
-      // 2. Update the Role
       const [updated] = await tx
         .update(roles)
         .set({
@@ -1273,65 +1255,19 @@ export class DatabaseStorage implements IStorage {
         })
         .where(eq(roles.id, id))
         .returning();
-
       if (!updated) {
         throw new Error("Role not found");
       }
-
-      // 3. Find all employees who have this role
       const affectedEmployees = await tx
         .select()
         .from(employeeRoles)
         .where(eq(employeeRoles.roleId, id));
-
-      // 4. Trigger Sync for each employee (Background)
       for (const emp of affectedEmployees) {
-        // Hum await nahi kar rahe taaki API jaldi return ho jaye
-        this.executeHardwareSync(emp.employeeCode, id).catch(err =>
-          console.error(`Sync failed for ${emp.employeeCode}:`, err)
-        );
+        this.executeHardwareSync(emp.employeeCode, id);
       }
-
       return updated;
     });
   }
-  // async updateRole(id: number, data: Partial<InsertRole>): Promise<Role> {
-  //   return await db.transaction(async (tx) => {
-  //     if (data.code) {
-  //       const [existing] = await tx
-  //         .select()
-  //         .from(roles)
-  //         .where(
-  //           and(
-  //             eq(roles.code, data.code),
-  //             ne(roles.id, id)
-  //           )
-  //         );
-  //       if (existing) {
-  //         throw new Error(`Role code '${data.code}' already exists.`);
-  //       }
-  //     }
-  //     const [updated] = await tx
-  //       .update(roles)
-  //       .set({
-  //         ...data,
-  //         updatedAt: new Date(),
-  //       })
-  //       .where(eq(roles.id, id))
-  //       .returning();
-  //     if (!updated) {
-  //       throw new Error("Role not found");
-  //     }
-  //     const affectedEmployees = await tx
-  //       .select()
-  //       .from(employeeRoles)
-  //       .where(eq(employeeRoles.roleId, id));
-  //     for (const emp of affectedEmployees) {
-  //       this.executeHardwareSync(emp.employeeCode, id);
-  //     }
-  //     return updated;
-  //   });
-  // }
   async deleteRole(id: number): Promise<void> {
     await db.delete(roles).where(eq(roles.id, id));
   }
@@ -1628,154 +1564,67 @@ export class DatabaseStorage implements IStorage {
   }
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
     try {
-      // 1. Get Gateway Config
       const taskConfig = await db.query.cronMaster.findFirst({
         where: eq(cronMaster.code, MAIN_GATE_SYNC.CODE)
       });
       if (!taskConfig?.doorId) return;
       const activeGateId = taskConfig.doorId;
-
-      // 2. Fetch data in parallel
-      // roleId narrowing to avoid TS error 2345
-      const validRoleId = (roleId && roleId > 0) ? roleId : null;
-
-      const [role, msDevicesRaw, allDoorMappings] = await Promise.all([
-        validRoleId ? this.getRole(validRoleId) : Promise.resolve(null),
-        mssqlPool.request().query("SELECT DeviceID, SerialNumber FROM Devices")
-          .then((res: any) => res.recordset as any[]),
-        db.select().from(doorDevices).execute()
+      const [role, msDevicesRaw, gateMappings] = await Promise.all([
+        (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
+        dbMsSql.select().from({ dbName: 'Devices' }).execute(),
+        db.select().from(doorDevices)
+          .where(eq(doorDevices.doorId, activeGateId))
+          .execute()
       ]);
-
-      if (!msDevicesRaw) return;
-
-      // 3. Build Mapping (Device -> Door)
-      const deviceToDoorMap = new Map<number, number>();
+      if (!msDevicesRaw || msDevicesRaw.length === 0) {
+        console.warn("⚠️ No devices found in MS SQL.");
+        return;
+      }
       const mainGateWhitelistedIds = new Set<number>();
-
-      allDoorMappings.forEach((mapping: any) => {
-        const devIds = [
-          ...(mapping.inDeviceIds || []),
-          ...(mapping.outDeviceIds || [])
-        ].map(Number);
-
-        devIds.forEach(dId => {
-          deviceToDoorMap.set(dId, mapping.doorId);
-          if (mapping.doorId === activeGateId) {
-            mainGateWhitelistedIds.add(dId);
-          }
-        });
+      gateMappings.forEach(mapping => {
+        if (mapping.isActive) {
+          (mapping.inDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
+          (mapping.outDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
+        }
       });
-
-      // 4. Get Allowed Doors from Role
-      const allowedDoorIds = new Set<number>(
-        Array.isArray(role?.doorIds) ? (role.doorIds as number[]).map(Number) : []
-      );
-
-      // 5. Sync each Device
+      let allowedFromRole: number[] = [];
+      if (!blockAll && role) {
+        allowedFromRole = (role.doorIds as unknown as number[]) || [];
+      }
       const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
-        const msDeviceId = Number(msDevice.DeviceID || msDevice.DeviceId);
-        const serialNumber = msDevice.SerialNumber?.trim();
-        if (!serialNumber) return;
-
+        const msDeviceId = Number(msDevice.DeviceId || msDevice.Id);
+        const serialNumber = msDevice.SerialNumber || msDevice.serialno;
         const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
         let shouldBlock: boolean;
-
         if (isMainGate) {
-          shouldBlock = false; // Gateway hamesha open
+          shouldBlock = false;
         } else {
-          const doorIdForThisDevice = deviceToDoorMap.get(msDeviceId);
-          const isDoorAllowed = doorIdForThisDevice ? allowedDoorIds.has(doorIdForThisDevice) : false;
-          shouldBlock = blockAll || !isDoorAllowed;
+          const isAllowedByRole = allowedFromRole.includes(msDeviceId);
+          shouldBlock = blockAll || !isAllowedByRole;
         }
-
         const actionType = shouldBlock ? "block" : "unblock";
-
+        if (!serialNumber) return;
         try {
-          // ESSl Hardware Call
-          await esslService.syncUserBlockStatus(employeeCode.trim(), serialNumber, shouldBlock);
-
-          // Log the action
+          await esslService.syncUserBlockStatus(
+            employeeCode,
+            serialNumber.toString(),
+            shouldBlock
+          );
           await db.insert(blockUnblockLogs).values({
-            employeeCode: employeeCode.trim(),
+            employeeCode,
             deviceId: msDeviceId,
             type: actionType,
-            updatedAt: new Date()
+            createdAt: new Date()
           }).catch(() => { });
-
-          console.log(`[${isMainGate ? 'GATE' : 'SYNC'}] ${employeeCode} -> Device ${msDeviceId}: ${actionType}`);
+          console.log(`${isMainGate ? '🛡️ [GATEWAY]' : '🚀 [SYNC]'} Device: ${msDeviceId} | Action: ${actionType}`);
         } catch (err: any) {
-          console.error(`❌ Sync Failed: User ${employeeCode} on Device ${msDeviceId}: ${err.message}`);
+          console.error(`❌ [SYNC FAILED] Device ${msDeviceId}: ${err.message}`);
         }
       });
-
       await Promise.all(syncPromises);
     } catch (error: any) {
       console.error("💀 Hardware Sync Engine Failure:", error.message);
     }
   }
-  // private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
-  //   try {
-  //     const taskConfig = await db.query.cronMaster.findFirst({
-  //       where: eq(cronMaster.code, MAIN_GATE_SYNC.CODE)
-  //     });
-  //     if (!taskConfig?.doorId) return;
-  //     const activeGateId = taskConfig.doorId;
-  //     const [role, msDevicesRaw, gateMappings] = await Promise.all([
-  //       (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
-  //       dbMsSql.select().from({ dbName: 'Devices' }).execute(),
-  //       db.select().from(doorDevices)
-  //         .where(eq(doorDevices.doorId, activeGateId))
-  //         .execute()
-  //     ]);
-  //     if (!msDevicesRaw || msDevicesRaw.length === 0) {
-  //       console.warn("⚠️ No devices found in MS SQL.");
-  //       return;
-  //     }
-  //     const mainGateWhitelistedIds = new Set<number>();
-  //     gateMappings.forEach(mapping => {
-  //       if (mapping.isActive) {
-  //         (mapping.inDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
-  //         (mapping.outDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
-  //       }
-  //     });
-  //     let allowedFromRole: number[] = [];
-  //     if (!blockAll && role) {
-  //       allowedFromRole = (role.doorIds as unknown as number[]) || [];
-  //     }
-  //     const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
-  //       const msDeviceId = Number(msDevice.DeviceId || msDevice.Id);
-  //       const serialNumber = msDevice.SerialNumber || msDevice.serialno;
-  //       const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
-  //       let shouldBlock: boolean;
-  //       if (isMainGate) {
-  //         shouldBlock = false;
-  //       } else {
-  //         const isAllowedByRole = allowedFromRole.includes(msDeviceId);
-  //         shouldBlock = blockAll || !isAllowedByRole;
-  //       }
-  //       const actionType = shouldBlock ? "block" : "unblock";
-  //       if (!serialNumber) return;
-  //       try {
-  //         await esslService.syncUserBlockStatus(
-  //           employeeCode,
-  //           serialNumber.toString(),
-  //           shouldBlock
-  //         );
-  //         await db.insert(blockUnblockLogs).values({
-  //           employeeCode,
-  //           deviceId: msDeviceId,
-  //           type: actionType,
-  //           createdAt: new Date()
-  //         }).catch(() => { });
-  //         console.log(`${isMainGate ? '🛡️ [GATEWAY]' : '🚀 [SYNC]'} Device: ${msDeviceId} | Action: ${actionType}`);
-  //       } catch (err: any) {
-  //         console.error(`❌ [SYNC FAILED] Device ${msDeviceId}: ${err.message}`);
-  //       }
-  //     });
-  //     await Promise.all(syncPromises);
-  //   } catch (error: any) {
-  //     console.error("💀 Hardware Sync Engine Failure:", error.message);
-  //   }
-  // }
 }
 export const storage = new DatabaseStorage();

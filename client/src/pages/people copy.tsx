@@ -22,8 +22,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-type RoleWithDoors = Role & {
-  assignedDoorNames?: string;
+type RoleWithDevices = Role & {
+  assignedDeviceNames?: string;
 };
 const statusColors: Record<string, string> = {
   active: "default",
@@ -50,7 +50,7 @@ export default function PeoplePage() {
   const { data: companies = [] } = useQuery<Company[]>({ queryKey: ["/api/companies"] });
   const { data: categories = [] } = useQuery<Category[]>({ queryKey: ["/api/categories"] });
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
-  const { data: roles = [] } = useQuery<RoleWithDoors[]>({ queryKey: ["/api/roles"] });
+  const { data: roles = [] } = useQuery<RoleWithDevices[]>({ queryKey: ["/api/roles"] });
   const { data: allDevices = [] } = useQuery<Device[]>({ queryKey: ["/api/devices"] });
   const [deviceStatusOpen, setDeviceStatusOpen] = useState(false);
   const [deviceViewPerson, setDeviceViewPerson] = useState<Person | null>(null);
@@ -166,49 +166,45 @@ export default function PeoplePage() {
   //     },
   //   ] as FieldConfig[];
   // })[0];
-  const rolefields = [
-    {
-      key: "roleId",
-      label: "Role Name",
-      type: "select",
-      options: [
-        { value: "0", label: "None / Remove Role" },
-        ...(roles?.map((r: any) => ({
-          value: String(r.id),
-          label: r.name
-        })) || [])
-      ],
-      onChange: (val, currentForm, updateForm) => {
-        if (val === "0" || !val) {
+  const rolefields = Array.from({ length: 1 }, () => {
+    return [
+      {
+        key: "roleId",
+        label: "Role Name",
+        type: "select",
+        // 1. Yahan "None" option add kiya gaya hai
+        options: [
+          { value: "0", label: "None / Remove Role" },
+          ...(roles?.map((r: any) => ({ value: String(r.id), label: r.name })) || [])
+        ],
+        onChange: (val, currentForm, updateForm) => {
+          // 2. Agar "0" select kiya hai toh devices ko clear kar dein
+          if (val === "0" || !val) {
+            updateForm({
+              ...currentForm,
+              roleId: "0",
+              displayDevices: "No devices assigned (Role will be removed)"
+            });
+            return;
+          }
+
+          const selectedRole = roles.find((r: any) => String(r.id) === String(val));
           updateForm({
             ...currentForm,
-            roleId: "0",
-            displayDoors: "No doors assigned (Role will be removed)"
+            roleId: val,
+            displayDevices: selectedRole?.assignedDeviceNames || "No devices assigned"
           });
-          return;
         }
-
-        const selectedRole = roles.find(
-          (r: any) => String(r.id) === String(val)
-        );
-
-        updateForm({
-          ...currentForm,
-          roleId: val,
-          displayDoors:
-            selectedRole?.assignedDoorNames || "No doors assigned"
-        });
-      }
-    },
-    {
-      key: "displayDoors",
-      label: "Associated Doors",
-      type: "text",
-      readOnly: true,
-      placeholder: "Select a role to see doors"
-    }
-  ] as FieldConfig[];
-  // })[0];
+      },
+      {
+        key: "displayDevices",
+        label: "Associated Devices",
+        type: "text",
+        readOnly: true,
+        placeholder: "Select a role to see devices"
+      },
+    ] as FieldConfig[];
+  })[0];
   const columns = [
     {
       key: "employeeName", label: "Name",
@@ -401,8 +397,8 @@ export default function PeoplePage() {
                         (r) => r.id === deviceViewPerson?.roleId,
                       );
 
-                      const isRoleAssigned = Array.isArray(userRole?.doorIds)
-                        ? userRole.doorIds.includes(Number(dev.msId))
+                      const isRoleAssigned = Array.isArray(userRole?.deviceIds)
+                        ? userRole.deviceIds.includes(Number(dev.msId))
                         : false;
 
                       // FINAL STATUS
@@ -427,8 +423,8 @@ export default function PeoplePage() {
                             <Badge
                               variant={isUnblocked ? "outline" : "destructive"}
                               className={`text-[9px] font-bold px-2 ${isUnblocked
-                                ? "border-green-500 text-green-600 bg-green-50"
-                                : ""
+                                  ? "border-green-500 text-green-600 bg-green-50"
+                                  : ""
                                 }`}
                             >
                               {isUnblocked ? "ALLOWED" : "BLOCKED"}
@@ -533,7 +529,7 @@ export default function PeoplePage() {
           return {
             ...roleassign,
             roleId: currentId,
-            displayDoors: roleData?.assignedDoorNames || "No doors assigned"
+            displayDevices: roleData?.assignedDeviceNames || "No devices assigned"
           };
         })()}
         onSubmit={(data) => {

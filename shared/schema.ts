@@ -181,22 +181,8 @@ export const devices = pgTable("devices", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-// export const devices = pgTable("devices", {
-//   id: serial("id").primaryKey(),
-//   name: text("name").notNull(),
-//   code: text("code"),
-//   deviceType: text("device_type", { enum: ["reader", "turnstile", "gate", "barrier", "controller", "biometric"] }).default("reader"),
-//   locationId: integer("location_id"),
-//   zoneId: integer("zone_id"),
-//   ipAddress: text("ip_address"),
-//   macAddress: text("mac_address"),
-//   serialNumber: text("serial_number"),
-//   status: text("status", { enum: ["online", "offline", "error", "maintenance"] }).default("offline"),
-//   lastHeartbeat: timestamp("last_heartbeat"),
-//   firmwareVersion: text("firmware_version"),
-//   isActive: boolean("is_active").default(true),
-//   createdAt: timestamp("created_at").defaultNow(),
-// });
+
+// ==================== PEOPLE ====================
 export const people = pgTable("people", {
   id: serial("id").primaryKey(),
   roleId: integer("role_id"),
@@ -239,8 +225,12 @@ export const people = pgTable("people", {
   sourceSystem: text("source_system"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  currentZone: text("current_zone").default("OUT"),
+  lastPunchDoorId: integer("last_punch_door_id"),
+  lastseenid: integer("last_seen_id"),
+  ruleid: integer("rule_id"),
 });
-// ==================== PEOPLE ====================
+
 
 
 // ==================== CREDENTIALS ====================
@@ -589,12 +579,22 @@ export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   code: text("code").notNull().unique(),
-  deviceIds: jsonb("device_ids").$type<number[]>().default([]), // Devices store karne ke liye
+  doorIds: jsonb("door_ids").$type<number[]>().default([]), // Devices store karne ke liye
   isActive: boolean("is_active").default(true),
   updatedBy: varchar("updated_by"),
   updatedAt: timestamp("updated_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+// export const roles = pgTable("roles", {
+//   id: serial("id").primaryKey(),
+//   name: text("name").notNull(),
+//   code: text("code").notNull().unique(),
+//   deviceIds: jsonb("device_ids").$type<number[]>().default([]), // Devices store karne ke liye
+//   isActive: boolean("is_active").default(true),
+//   updatedBy: varchar("updated_by"),
+//   updatedAt: timestamp("updated_at").defaultNow(),
+//   createdAt: timestamp("created_at").defaultNow(),
+// });
 export const blockUnblockLogs = pgTable("user_block_unblock_logs", {
   id: serial("id").primaryKey(),
   employeeCode: varchar("employee_code", { length: 20 }).notNull(),
@@ -643,12 +643,15 @@ export const mainGateLogs = pgTable("main_gate_logs", {
 // })
 export const doorDevices = pgTable("door_devices", {
   id: serial("id").primaryKey(),
- doorId: integer("door_id")
-    .references(() => doors.id, { onDelete: "cascade" }),
+  doorId: integer("door_id").references(() => doors.id, { onDelete: "cascade" }),
+
+  // 🔥 NAYA COLUMN: Door Classification
+  // true = Main Gate (Sabko building mein lata hai)
+  // false = Cabin/Sensitive Area (Isme enter hote hi baki sab block hoga)
+  isMainGate: boolean("is_main_gate").default(false),
+
   inDeviceIds: integer("in_device_ids").array().default([]),
   outDeviceIds: integer("out_device_ids").array().default([]),
-  // inDeviceIds: jsonb("in_device_ids").$type<number[]>().default([]),
-  // outDeviceIds: jsonb("out_device_ids").$type<number[]>().default([]),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });

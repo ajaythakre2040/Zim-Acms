@@ -40,3 +40,14 @@ export const CABIN_LOCKOUT_CONFIG = {
   GROUP: "security_logic",
   PRIORITY: "high",
 };
+
+// gateConstants.js
+
+export const RULE_TYPES = {
+  MAIN_GATE_IN: 1,
+  MAIN_GATE_OUT: 2,
+  CIPLA_IN: 3,
+  CIPLA_OUT: 4,
+  OTHER_LAB_IN: 5,
+  OTHER_LAB_OUT: 6,
+};

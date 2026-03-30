@@ -209,9 +209,6 @@ async function toggleHardwareStatus(employeeCode: string, isBlock: boolean) {
         console.error(`❌ Toggle Hardware Error:`, err);
     }
 }
-
-
-
 async function releaseExpiredLockouts() {
     const now = new Date();
 
