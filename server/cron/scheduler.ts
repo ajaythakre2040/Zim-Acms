@@ -1,81 +1,53 @@
 import cron from "node-cron";
 import { db } from "../db";
 import { cronMaster } from "@shared/schema";
-import { eq } from "drizzle-orm";
-import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC } from "../constant";
-import { runMainGateAuthSync } from "./mainGateAuthTask";
-import { processCabinLockout } from "./cabinLockoutCron"; // Cabin task import karein
+import { eq, and } from "drizzle-orm"; // 'and' import karna mat bhoolna
+import { runMasterAuthSync } from "./mainGateAuthTask";
 
-// Har task ke liye alag lock track karne ke liye Map
 const runningTasks = new Map<string, boolean>();
 
-/**
- * Task code ke basis par sahi function run karta hai
- */
-async function executeTask(taskCode: string, taskData: any) {
-    switch (taskCode) {
-        case MAIN_GATE_SYNC.CODE:
-            await runMainGateAuthSync(taskData.doorId!);
-            break;
-        case CABIN_LOCKOUT_CONFIG.CODE:
-            await processCabinLockout();
-            break;
-        // default:
-        //     console.warn(`⚠️ [CRON] No execution logic found for task code: ${taskCode}`);
-    }
-}
+import { MAIN_GATE_SYNC } from "../constant"; // Constant import karein
 
 export async function initCronSystem() {
-    console.log("🔍 [SYSTEM] Initializing Universal Cron System...");
+    console.log("🔍 [SYSTEM] Initializing Master Sync Cron...");
 
     try {
-        // 1. Fetching all active tasks from DB (Sabhi active tasks uthao)
-        const tasks = await db.select().from(cronMaster).where(eq(cronMaster.isActive, true));
+        const tasks = await db.select()
+            .from(cronMaster)
+            .where(
+                and(
+                    eq(cronMaster.isActive, true),
+                    eq(cronMaster.code, MAIN_GATE_SYNC.CODE) // <-- Constant wala code use karein
+                )
+            );
 
         if (!tasks || tasks.length === 0) {
-            console.warn("⚠️ [CRON] No active configurations found in 'cron_master'.");
+            // Ab ye error nahi aayega kyunki code 'MG_SYNC_01' match ho jayega
+            console.warn(`⚠️ [CRON] No active config found for: ${MAIN_GATE_SYNC.CODE}`);
             return;
         }
 
-        console.log(`✅ [SYSTEM] Found ${tasks.length} active task(s).`);
-
         tasks.forEach((task) => {
-            // --- DYNAMIC INTERVAL LOGIC ---
-            // Hum DB se Hours, Minutes aur Seconds utha rahe hain
             const s = task.scheduleSecond || 0;
-            const m = task.scheduleMinute || 0;
-            const h = task.scheduleHour || 0;
+            const pattern = `*/${s} * * * * *`; // Simplified pattern
 
-            // Pattern: Agar 0 hai to "*" (every), agar value hai to "*/value" (interval)
-            const secPart = s > 0 ? `*/${s}` : "0"; // Default 0 sec agar m/h set hai
-            const minPart = m > 0 ? `*/${m}` : "*";
-            const hourPart = h > 0 ? `*/${h}` : "*";
-
-            const pattern = `${secPart} ${minPart} ${hourPart} * * *`;
-
-            console.log(`📡 [READY] ${task.displayName} scheduled: ${pattern}`);
+            console.log(`✅ [READY] ${task.displayName} scheduled: ${pattern}`);
 
             cron.schedule(pattern, async () => {
-                // Task-specific lock check
-                if (runningTasks.get(task.code)) {
-                    console.log(`⏳ [SKIP] ${task.displayName} - Already running.`);
-                    return;
-                }
-
-                runningTasks.set(task.code, true); // Lock this task
-                console.log(`\n⏱️ [START] ${new Date().toLocaleTimeString()} - ${task.displayName}`);
+                if (runningTasks.get(task.code)) return;
+                runningTasks.set(task.code, true);
 
                 try {
-                    await executeTask(task.code, task);
+                    // Hamara dynamic function
+                    await runMasterAuthSync(); 
                 } catch (err: any) {
-                    console.error(`❌ [TASK ERROR] ${task.displayName} failed:`, err.message);
+                    console.error(`❌ [TASK ERROR]:`, err.message);
                 } finally {
-                    runningTasks.set(task.code, false); // Unlock this task
+                    runningTasks.set(task.code, false);
                 }
             });
         });
-
     } catch (dbErr: any) {
-        console.error("‼️ [FATAL DB ERROR] Initializing cron system failed:", dbErr.message);
+        console.error("‼️ [FATAL DB ERROR]:", dbErr.message);
     }
 }

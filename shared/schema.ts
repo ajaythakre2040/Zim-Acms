@@ -190,7 +190,7 @@ export const people = pgTable("people", {
   employeeName: text("employee_name").notNull(),
   email: text("email"),
   phone: text("phone"),
-  employeeCode: text("employee_code"),
+  employeeCode: text("employee_code").unique(),
   departmentId: integer("department_id"),
   designationId: integer("designation_id"),
   companyId: integer("company_id"),
@@ -223,11 +223,11 @@ export const people = pgTable("people", {
   shiftType: text("shift_type", { enum: ["fixed", "rotational", "flexible"] }).default("fixed"),
   externalId: text("external_id"),
   sourceSystem: text("source_system"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: false }).defaultNow(),
+  lastSeenTime: timestamp("last_seen_time", { withTimezone: false }),
   currentZone: text("current_zone").default("OUT"),
   lastPunchDoorId: integer("last_punch_door_id"),
-  lastseenid: integer("last_seen_id"),
   ruleid: integer("rule_id"),
 });
 
@@ -664,7 +664,7 @@ export const cronMaster = pgTable("cron_master", {
   code: text("code").unique().notNull(), // Example: 'MG_SYNC_01'
   scheduleSecond: integer("schedule_second").default(0),
   scheduleMinute: integer("schedule_minute").default(0),
-  scheduleHour: integer("schedule_hour").default(24), 
+  scheduleHour: integer("schedule_hour").default(24),
   // Sync Interval (Seconds mein, default 30s)
   // scheduleTime: integer("schedule_time").notNull().default(30),
 
@@ -688,7 +688,7 @@ export const cronMaster = pgTable("cron_master", {
 
   // 🕒 Time Details (With IST Support)
   // withTimezone: true + TZ=Asia/Kolkata = Perfect Indian Time
-  lastRun: timestamp("last_run", { withTimezone: true }),
+  lastRun: timestamp("last_run", { withTimezone: false }),
   lastRunDuration: integer("last_run_duration"), // Sync hone mein kitne seconds lage
   lastStatus: text("last_status"), // 'success' or 'failed'
   lastMessage: text("last_message"), // Error message ya summary data
@@ -698,8 +698,8 @@ export const cronMaster = pgTable("cron_master", {
   alertEmail: text("alert_email"),
 
   // Auto-timestamps (Database level par IST handle karne ke liye)
-  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
+  createdAt: timestamp("created_at", { withTimezone: false }).default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: timestamp("updated_at", { withTimezone: false }).default(sql`CURRENT_TIMESTAMP`),
 });
 export const cabinLockouts = pgTable("cabin_lockouts", {
   id: serial("id").primaryKey(),

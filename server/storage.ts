@@ -1539,27 +1539,57 @@ export class DatabaseStorage implements IStorage {
       .where(eq(blockUnblockLogs.id, id))
       .limit(1);
     return log || null;
-  }
-  async getEmployeeDeviceStatuses(employeeCode: string) {
+  } async getEmployeeDeviceStatuses(employeeCode: string) {
+    // 1. Saare logs fetch karein, Latest (Naya) pehle aaye (desc order)
     const logs = await db
-      .select({
-        id: blockUnblockLogs.id,
-        employeeCode: blockUnblockLogs.employeeCode,
-        deviceId: blockUnblockLogs.deviceId,
-        type: blockUnblockLogs.type,
-        createdAt: blockUnblockLogs.createdAt,
-      })
+      .select()
       .from(blockUnblockLogs)
       .where(eq(blockUnblockLogs.employeeCode, employeeCode))
-      .orderBy(desc(blockUnblockLogs.createdAt));
-    const latestMap = new Map();
-    logs.forEach(log => {
-      if (!latestMap.has(log.deviceId)) {
-        latestMap.set(log.deviceId, log);
+      // Yahan ensure karein ki 'updatedAt' ya 'createdAt' jo bhi naya hai wo use ho
+      .orderBy(desc(blockUnblockLogs.updatedAt));
+
+    // 2. Map ka use karke sirf Latest entry rakhein
+    const latestMap = new Map<number, any>();
+
+    for (const log of logs) {
+      const dId = Number(log.deviceId);
+
+      // Agar is DeviceID ki entry Map mein nahi hai, 
+      // iska matlab yeh sabse latest entry hai (kyunki humne DESC order mein fetch kiya hai)
+      if (!latestMap.has(dId)) {
+        latestMap.set(dId, {
+          id: log.id,
+          deviceId: dId,
+          type: log.type, // 'block' ya 'unblock'
+          status: log.type === 'block' ? 'Blocked' : 'Active', // Readable status
+          timestamp: log.updatedAt || log.createdAt
+        });
       }
-    });
+    }
+
+    // 3. Map ko wapas array mein convert karke return karein
     return Array.from(latestMap.values());
   }
+  // async getEmployeeDeviceStatuses(employeeCode: string) {
+  //   const logs = await db
+  //     .select({
+  //       id: blockUnblockLogs.id,
+  //       employeeCode: blockUnblockLogs.employeeCode,
+  //       deviceId: blockUnblockLogs.deviceId,
+  //       type: blockUnblockLogs.type,
+  //       createdAt: blockUnblockLogs.createdAt,
+  //     })
+  //     .from(blockUnblockLogs)
+  //     .where(eq(blockUnblockLogs.employeeCode, employeeCode))
+  //     .orderBy(desc(blockUnblockLogs.createdAt));
+  //   const latestMap = new Map();
+  //   logs.forEach(log => {
+  //     if (!latestMap.has(log.deviceId)) {
+  //       latestMap.set(log.deviceId, log);
+  //     }
+  //   });
+  //   return Array.from(latestMap.values());
+  // }
   async toggleEmployeeDeviceAccess(params: {
     employeeCode: string;
     deviceId: number;

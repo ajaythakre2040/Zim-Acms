@@ -56,7 +56,7 @@ export async function runMainGateAuthSync(doorId: number) {
             if (emp && emp.roleId) {
                 const [roleData] = await db.select().from(roles).where(eq(roles.id, emp.roleId)).limit(1);
                 if (roleData) {
-                    allowedMsIds = roleData.deviceIds || [];
+                    allowedMsIds = roleData.doorIds || [];
                     hasValidRole = true;
                     console.log(`📜 [ROLE] ${roleData.name} | Allowed: [${allowedMsIds.join(", ")}]`);
                 }

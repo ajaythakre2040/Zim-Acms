@@ -1,161 +1,224 @@
 import { db, mssqlPool } from "../db";
-import { esslService } from "../essl-service";
-import { people, devices, doorDevices, blockUnblockLogs, roles, cronMaster } from "@shared/schema";
-import { eq, and, desc, gt, inArray } from "drizzle-orm";
-import { MAIN_GATE_SYNC } from "../constant";
+import {
+    devices,
+    doorDevices,
+    people,
+    roles,
+    cronMaster,
+    doors,
+    cabinLockouts
+} from "@shared/schema";
+import { eq, and, gt, lt, sql } from "drizzle-orm";
+import { ACCESS_RULES, ZONES, MAIN_GATE_SYNC, CABIN_LOCKOUT_CONFIG } from "../constant";
+import * as helpers from "./cronHelpers";
 
-export async function runMainGateAuthSync(mainDoorId: number) {
-    const cronCode = MAIN_GATE_SYNC.CODE;
-    const startTime = Date.now();
-    const timestamp = new Date().toLocaleTimeString();
+export async function runMasterAuthSync() {
+    const CRON_CODE = MAIN_GATE_SYNC.CODE; // 'MG_SYNC_01'
+
+    // Aaj ki date ka start (00:00:00) nikalne ke liye
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    const indianTime = new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
+    console.log(`\n--- [STEP 1] CRON START (IST): ${indianTime} ---`);
 
     try {
-        console.log(`\n--- 🔄 [CRON START: ${timestamp}] ---`);
+        // 1. Check Cron State
+        const [cronState] = await db.select()
+            .from(cronMaster)
+            .where(eq(cronMaster.code, CRON_CODE))
+            .limit(1);
 
-        // 1. SAFETY LOCK & STATE CHECK
-        const [cronState] = await db.select().from(cronMaster).where(eq(cronMaster.code, cronCode)).limit(1);
-        if (!cronState) return console.error(`❌ Cron code '${cronCode}' not found!`);
-
-        if (cronState.isRunning) {
-            const lastRunTime = cronState.lastRun ? new Date(cronState.lastRun).getTime() : 0;
-            if (Date.now() - lastRunTime < 5 * 60 * 1000) {
-                console.log(`⏳ [SKIP] Already running...`);
-                return;
-            }
-            console.log(`⚠️ [RESET] Overriding stuck lock.`);
-        }
-
-        // 2. CONFIG LOAD: Get ALL Doors (Main Gate + All Cabins)
-        const allDoorConfigs = await db.select().from(doorDevices);
-        if (allDoorConfigs.length === 0) return console.error(`❌ No doors configured!`);
-
-        // Saare Doors ki IN/OUT ids ka ek master list (For MS SQL Query)
-        const allMonitorDeviceIds = allDoorConfigs.flatMap(d => [...(d.inDeviceIds || []), ...(d.outDeviceIds || [])]);
-
-        // 🚀 LOCK DB
-        await db.update(cronMaster).set({ isRunning: true, lastRun: new Date() }).where(eq(cronMaster.code, cronCode));
-
-        // 3. FETCH NEW PUNCHES FROM MS SQL
-        let lastId = Number(cronState.lastProcessedId || 0);
-        const request = mssqlPool.request();
-
-        const activityQuery = lastId === 0
-            ? `SELECT EmployeeCode, DeviceId, DeviceLogId FROM DeviceLogs 
-               WHERE DeviceId IN (${allMonitorDeviceIds.join(",")}) AND LogDate >= DATEADD(minute, -10, GETDATE())
-               ORDER BY DeviceLogId ASC`
-            : `SELECT EmployeeCode, DeviceId, DeviceLogId FROM DeviceLogs 
-               WHERE DeviceLogId > ${lastId} AND DeviceId IN (${allMonitorDeviceIds.join(",")}) 
-               ORDER BY DeviceLogId ASC`;
-
-        const result = await request.query(activityQuery);
-        const activePunches = result.recordset;
-
-        if (activePunches.length === 0) {
-            await db.update(cronMaster).set({ isRunning: false }).where(eq(cronMaster.code, cronCode));
-            console.log("ℹ️ No new punches.");
+        if (!cronState || !cronState.isActive || cronState.isRunning) {
+            console.log("[SKIP] Cron already running or inactive.");
             return;
         }
 
-        // 4. BULK FETCH (People, Roles, Internal Machines)
-        const [allDevices, allPeople, allRoles] = await Promise.all([
+        console.log("[STEP 2] Fetching Master Data...");
+        const [allDoorDevices, allDevices, allPeople, allRoles, allDoors] = await Promise.all([
+            db.select().from(doorDevices),
             db.select().from(devices).where(gt(devices.msId, 0)),
             db.select().from(people),
-            db.select().from(roles)
+            db.select().from(roles),
+            db.select().from(doors)
         ]);
 
-        // Internal machines wo hain jo kisi bhi Door (Main/Cabin) ki entry/exit list mein nahi hain
-        const internalMachines = allDevices.filter(d => !allMonitorDeviceIds.includes(d.msId!));
-        let maxIdInThisRun = lastId;
+        const mainGateDoor = allDoors.find(d => d.code === CRON_CODE);
+        const mainGateConfig = allDoorDevices.find(dd => dd.doorId === mainGateDoor?.id);
 
-        // 5. SYNC LOOP (Strict Zone-Based Access)
-        for (const punch of activePunches) {
-            const empCode = punch.EmployeeCode;
-            const punchId = punch.DeviceId;
+        if (!mainGateConfig || !mainGateDoor) {
+            console.error(`[ERROR] Main Gate Configuration missing for code: ${CRON_CODE}`);
+            return;
+        }
 
-            // Identify Door & Direction
-            const currentDoor = allDoorConfigs.find(d =>
-                (d.inDeviceIds || []).includes(punchId) || (d.outDeviceIds || []).includes(punchId)
+        // Gate vs Internal Devices separation
+        const gateDeviceIds = [...(mainGateConfig.inDeviceIds || []), ...(mainGateConfig.outDeviceIds || [])];
+        const internalDevices = allDevices.filter(d => !gateDeviceIds.includes(d.msId!));
+
+        await db.update(cronMaster).set({ isRunning: true, lastRun: sql`NOW()` }).where(eq(cronMaster.code, CRON_CODE));
+
+        // 2. Fetch Punches from MS SQL (ESSL)
+        let lastId = Number(cronState.lastProcessedId || 0);
+        const result = await mssqlPool.request().query(`
+            SELECT EmployeeCode, DeviceId, DeviceLogId, LogDate 
+            FROM DeviceLogs WHERE DeviceLogId > ${lastId} ORDER BY DeviceLogId ASC
+        `);
+
+        const punches = result.recordset || [];
+        console.log(`[STEP 3] Processing ${punches.length} new punches.`);
+        let maxId = lastId;
+
+        for (const punch of punches) {
+            const empCode = (punch.EmployeeCode || "").trim();
+            if (!empCode) continue;
+
+            const punchId = Number(punch.DeviceId);
+            const punchTime = new Date(punch.LogDate);
+
+            // Find mapping & door details
+            const doorMapping = allDoorDevices.find(d =>
+                [...(d.inDeviceIds || []), ...(d.outDeviceIds || [])].includes(punchId)
             );
-            if (!currentDoor) continue;
+            if (!doorMapping) continue;
 
-            const isInsidePunch = (currentDoor.inDeviceIds || []).includes(punchId);
-            const isMainGate = currentDoor.doorId === mainDoorId;
+            const doorDetails = allDoors.find(d => d.id === doorMapping.doorId);
+            if (!doorDetails) continue;
 
             const emp = allPeople.find(p => p.employeeCode === empCode);
-            const role = allRoles.find(r => r.id === emp?.roleId);
-            const allowedMsIds = (role?.doorIds as number[]) || [];
+            if (!emp || !emp.employeeCode) continue;
 
-            console.log(`👤 Emp: ${empCode} | Door: ${currentDoor.doorId} | Dir: ${isInsidePunch ? 'IN' : 'OUT'}`);
+            // Logic Flags
+            const isMainGatePunch = doorDetails.code === CRON_CODE;
+            const isInside = (doorMapping.inDeviceIds || []).includes(punchId);
+            const role = allRoles.find(r => r.id === emp.roleId);
+            const allowedIds = (role?.doorIds as number[]) || [];
 
-            // Update Access for all internal machines
-            for (const machine of internalMachines) {
-                let shouldBlock = true;
+            // 🔥 DATE CHECK: Kya user ne AAJ Main Gate se entry li hai?
+            const lastSeen = emp.lastSeenTime ? new Date(emp.lastSeenTime) : null;
+            const hasEnteredToday = lastSeen && lastSeen >= todayStart && emp.currentZone !== ZONES.OUT;
 
-                if (isMainGate) {
-                    // CASE: Main Gate Entry/Exit
-                    if (isInsidePunch) {
-                        // IN: Building ke andar aaya -> Role access restore
-                        shouldBlock = !allowedMsIds.includes(machine.msId!);
+            console.log(`\n[LOG] Emp: ${empCode} | Door: ${doorDetails.code} | TodayEntry: ${hasEnteredToday}`);
+
+            let ruleToApply = ACCESS_RULES.MAIN_GATE_IN;
+            let currentZone = ZONES.IN;
+            let blockInternal = true; // Default: Blocked until Main Gate Entry
+
+            // --- STRICT RULE ENGINE ---
+            if (isMainGatePunch) {
+                if (isInside) {
+                    // Entry at Main Gate
+                    const activeLockout = await helpers.getLockoutStatus(emp.employeeCode!);
+                    if (!helpers.hasValidRole(emp)) {
+                        console.log(`   -> Rejected: No Valid Role.`);
+                        ruleToApply = ACCESS_RULES.NO_ROLE;
+                        blockInternal = true;
+                    } else if (activeLockout) {
+                        console.log(`   -> Rejected: Lockout Active.`);
+                        ruleToApply = ACCESS_RULES.LOCKOUT_ACTIVE;
+                        blockInternal = true;
                     } else {
-                        // OUT: Building se bahar -> Full Block
-                        shouldBlock = true;
+                        console.log(`   -> Accepted: Main Gate Entry. Internal Doors Unlocked.`);
+                        ruleToApply = ACCESS_RULES.MAIN_GATE_IN;
+                        currentZone = ZONES.IN;
+                        blockInternal = false; // Access Open
                     }
                 } else {
-                    // CASE: Cabin/Sensitive Area Entry/Exit
-                    if (isInsidePunch) {
-                        // 🔥 STRICT LOCK: Banda Cabin ke andar gaya.
-                        // Requirement: Jab tak OUT nahi hota, baaki sab block.
-                        shouldBlock = true;
-                    } else {
-                        // OUT: Cabin se bahar aaya -> Building access restore
-                        shouldBlock = !allowedMsIds.includes(machine.msId!);
-                    }
+                    // Exit at Main Gate
+                    console.log(`   -> Main Gate Exit. Internal Doors Blocked.`);
+                    ruleToApply = ACCESS_RULES.MAIN_GATE_OUT;
+                    currentZone = ZONES.OUT;
+                    blockInternal = true;
                 }
+            } else {
+                // Internal Door Punch (Cabin/Office)
+                if (!hasEnteredToday) {
+                    // ❌ BLOCK: Agar aaj Main Gate Entry nahi hui toh block hi rakho
+                    console.warn(`   -> SECURITY BLOCK: No Main Gate entry found for today. Access Denied.`);
+                    ruleToApply = ACCESS_RULES.MAIN_GATE_OUT;
+                    currentZone = ZONES.OUT;
+                    blockInternal = true;
+                } else {
+                    // ✅ Allow normal Cabin logic as user is already "IN" today
+                    if (isInside) {
+                        console.log(`   -> Cabin IN.`);
+                        ruleToApply = ACCESS_RULES.CABIN_IN;
+                        currentZone = ZONES.CABIN;
+                        blockInternal = true;
+                    } else {
+                        if (doorDetails.is_lockout_enabled) {
+                            console.log(`   -> Cabin Exit (Lockout Enabled).`);
+                            ruleToApply = ACCESS_RULES.LOCKOUT_ACTIVE;
+                            blockInternal = true;
 
-                const currentStatus = shouldBlock ? "block" : "unblock";
-
-                // Change Detection (Duplicate logs/commands check)
-                const [lastLog] = await db.select()
-                    .from(blockUnblockLogs)
-                    .where(and(eq(blockUnblockLogs.employeeCode, empCode), eq(blockUnblockLogs.deviceId, machine.msId!)))
-                    .orderBy(desc(blockUnblockLogs.createdAt)).limit(1);
-
-                if (lastLog && lastLog.type === currentStatus) continue;
-
-                try {
-                    console.log(`   🚨 [CMD] ${currentStatus.toUpperCase()} -> Dev ${machine.msId}`);
-                    await esslService.syncUserBlockStatus(empCode, machine.serialNumber!, shouldBlock);
-
-                    await db.insert(blockUnblockLogs).values({
-                        employeeCode: empCode,
-                        deviceId: machine.msId!,
-                        type: currentStatus,
-                        createdAt: new Date()
-                    });
-
-                    // Thoda sa delay hardware stability ke liye
-                    await new Promise(r => setTimeout(r, 500));
-                } catch (err: any) {
-                    console.error(`   ❌ Hardware Error (Dev ${machine.msId}): ${err.message}`);
+                            const durationMs = (cronState.lockoutHours || 2) * 3600000;
+                            await db.insert(cabinLockouts).values({
+                                employeeCode: emp.employeeCode!,
+                                doorId: doorMapping.doorId!,
+                                outPunchTime: punchTime,
+                                lockoutExpiry: new Date(punchTime.getTime() + durationMs),
+                                status: "active"
+                            });
+                        } else {
+                            console.log(`   -> Cabin Exit (Normal).`);
+                            ruleToApply = ACCESS_RULES.CABIN_OUT;
+                            currentZone = ZONES.IN;
+                            blockInternal = false;
+                        }
+                    }
                 }
             }
 
-            if (Number(punch.DeviceLogId) > maxIdInThisRun) maxIdInThisRun = Number(punch.DeviceLogId);
+            // 3. Hardware Sync
+            console.log(`   -> Syncing ${internalDevices.length} internal devices.`);
+            for (const machine of internalDevices) {
+                let shouldBlock = blockInternal ? true : !allowedIds.includes(machine.msId!);
+                await helpers.updateDeviceStatus(emp.employeeCode!, machine, shouldBlock);
+            }
+
+            // 4. Update People Table
+            await db.update(people).set({
+                lastSeenTime: punchTime,
+                ruleid: ruleToApply,
+                currentZone: currentZone,
+                lastPunchDoorId: doorMapping.doorId ?? 0,
+                updatedAt: new Date()
+            }).where(eq(people.employeeCode, emp.employeeCode!));
+
+            maxId = Number(punch.DeviceLogId);
         }
 
-        // 6. FINALIZE & UNLOCK
-        const duration = Math.floor((Date.now() - startTime) / 1000);
+        // 5. Cleanup Expired Lockouts
+        const expired = await db.update(cabinLockouts)
+            .set({ status: "expired" })
+            .where(and(eq(cabinLockouts.status, "active"), lt(cabinLockouts.lockoutExpiry, new Date())))
+            .returning();
+
+        if (expired.length > 0) {
+            console.log(`[STEP 4] Cleaned ${expired.length} expired lockouts.`);
+            for (const rec of expired) {
+                const emp = allPeople.find(p => p.employeeCode === rec.employeeCode);
+                if (emp && emp.employeeCode) {
+                    const role = allRoles.find(r => r.id === emp.roleId);
+                    const allowed = (role?.doorIds as number[]) || [];
+                    for (const m of internalDevices) {
+                        await helpers.updateDeviceStatus(emp.employeeCode!, m, !allowed.includes(m.msId!));
+                    }
+                }
+            }
+        }
+
+        // 6. Finish Cron
         await db.update(cronMaster).set({
             isRunning: false,
-            lastProcessedId: maxIdInThisRun,
-            lastRunDuration: duration,
-            lastStatus: "success"
-        }).where(eq(cronMaster.code, cronCode));
+            lastProcessedId: maxId,
+            lastStatus: "success",
+            lastMessage: `Processed ${punches.length} records.`
+        }).where(eq(cronMaster.code, CRON_CODE));
 
-        console.log(`✅ [FINISHED] Pointer: ${maxIdInThisRun} | Time: ${duration}s`);
+        console.log(`--- [STEP 5] CRON FINISHED SUCCESSFULLY ---`);
 
-    } catch (err: any) {
-        console.error("‼️ [FATAL ERROR]:", err.message);
-        await db.update(cronMaster).set({ isRunning: false, lastStatus: "failed" }).where(eq(cronMaster.code, cronCode));
+    } catch (e) {
+        console.error("\n[CRITICAL ERROR]:", e);
+        await db.update(cronMaster).set({ isRunning: false, lastStatus: "failed" }).where(eq(cronMaster.code, CRON_CODE));
     }
 }

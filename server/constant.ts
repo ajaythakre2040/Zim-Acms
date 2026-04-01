@@ -43,11 +43,17 @@ export const CABIN_LOCKOUT_CONFIG = {
 
 // gateConstants.js
 
-export const RULE_TYPES = {
-  MAIN_GATE_IN: 1,
-  MAIN_GATE_OUT: 2,
-  CIPLA_IN: 3,
-  CIPLA_OUT: 4,
-  OTHER_LAB_IN: 5,
-  OTHER_LAB_OUT: 6,
+export const ACCESS_RULES = {
+  NO_ROLE: 0,         // Jab employee ka koi role assigned na ho
+  MAIN_GATE_IN: 1,    // Main gate se entry, role restore
+  CABIN_IN: 2,        // Lab/Cabin ke andar (Strict block)
+  CABIN_OUT: 3,       // Normal cabin exit
+  LOCKOUT_ACTIVE: 4,  // Cipla cabin jaisa cooling period
+  MAIN_GATE_OUT: 5    // Building se bahar (Internal block)
+};
+
+export const ZONES = {
+  IN: "IN",
+  OUT: "OUT",
+  CABIN: "CABIN"
 };
