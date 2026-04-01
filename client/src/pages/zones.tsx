@@ -67,7 +67,7 @@ export default function ZonesDoorsPage() {
   const { data: devices = [] } = useQuery<any[]>({
     queryKey: ["/api/devices"],
   });
-
+  const [errors, setErrors] = useState<{ locationId?: string }>({});
   const currentMapping = mappingCrud.data?.find(
     (m: any) => m.doorId === selectedDoorForMapping?.id,
   );
@@ -131,83 +131,120 @@ export default function ZonesDoorsPage() {
     }
   };
 
-  const zoneFields: FieldConfig[] = useMemo(() => [
-    { key: "name", label: "Zone Name", required: true },
-    {
-      key: "code",
-      label: "Code",
-      disabled: !!editingZone,
-    },
-    {
-      key: "locationId",
-      label: "Site",
-      type: "select",
-      required: true,
-      options: sites.map((s) => ({ value: String(s.id), label: s.name })),
-    },
-    {
-      key: "securityLevel",
-      label: "Security Level (1-5)",
-      type: "number",
-      defaultValue: 1,
-    },
-    { key: "isHighRisk", label: "High Risk Zone", type: "switch" },
-    { key: "description", label: "Description", type: "textarea" },
-    { key: "isActive", label: "Active", type: "switch", defaultValue: true },
-  ], [sites, editingZone]);
+  const zoneFields: FieldConfig[] = useMemo(
+    () => [
+      { key: "name", label: "Zone Name", required: true },
+      {
+        key: "code",
+        label: "Code",
+        required: true,
+        disabled: !!editingZone,
+      },
+      // {
+      //   key: "locationId",
+      //   label: "Site",
+      //   type: "select",
+      //   required: true,
+      //   defaultValue: "placeholder", // 👈 empty nahi
+      //   options: [
+      //     { value: "placeholder", label: "Select Site" }, // 👈 change here
+      //     ...sites.map((s) => ({
+      //       value: String(s.id),
+      //       label: s.name,
+      //     })),
+      //   ],
+      // },
+      {
+        key: "locationId",
+        label: "Site",
+        type: "select",
+        required: true,
+        defaultValue: "placeholder",
+        options: [
+          { value: "placeholder", label: "Select Site" },
+          ...sites.map((s) => ({
+            value: String(s.id),
+            label: s.name,
+          })),
+        ],
 
-  const doorFields: FieldConfig[] = useMemo(() => [
-    { key: "name", label: "Door Name", required: true },
-    {
-      key: "code",
-      label: "Code",
-      disabled: !!editingDoor,
-    },
-    {
-      key: "locationId",
-      label: "Site",
-      type: "select",
-      options: sites.map((s) => ({ value: String(s.id), label: s.name })),
-    },
-    {
-      key: "zoneId",
-      label: "Zone",
-      type: "select",
-      options: zoneCrud.data.map((z) => ({
-        value: String(z.id),
-        label: z.name,
-      })),
-    },
-    {
-      key: "doorType",
-      label: "Type",
-      type: "select",
-      options: [
-        { value: "standard", label: "Standard" },
-        { value: "turnstile", label: "Turnstile" },
-        { value: "barrier", label: "Barrier" },
-        { value: "gate", label: "Gate" },
-        { value: "emergency", label: "Emergency" },
-      ],
-      defaultValue: "standard",
-    },
-    { key: "requires2FA", label: "Requires 2FA", type: "switch" },
-    { key: "isHighRisk", label: "High Risk", type: "switch" },
-    {
-      key: "status",
-      label: "Status",
-      type: "select",
-      options: [
-        { value: "normal", label: "Normal" },
-        { value: "locked", label: "Locked" },
-        { value: "unlocked", label: "Unlocked" },
-        { value: "alarm", label: "Alarm" },
-        { value: "maintenance", label: "Maintenance" },
-      ],
-      defaultValue: "normal",
-    },
-    { key: "isActive", label: "Active", type: "switch", defaultValue: true },
-  ], [sites, zoneCrud.data, editingDoor]);
+        // 👇 🔥 YE ADD KAR
+        validate: (value: string) => {
+          if (!value || value === "placeholder") {
+            return "Please select a site";
+          }
+          return true;
+        },
+      },
+      {
+        key: "securityLevel",
+        label: "Security Level (1-5)",
+        type: "number",
+        defaultValue: 1,
+      },
+      { key: "isHighRisk", label: "High Risk Zone", type: "switch" },
+      { key: "description", label: "Description", type: "textarea" },
+      { key: "isActive", label: "Active", type: "switch", defaultValue: true },
+    ],
+    [sites, editingZone],
+  );
+
+  const doorFields: FieldConfig[] = useMemo(
+    () => [
+      { key: "name", label: "Door Name", required: true },
+      {
+        key: "code",
+        label: "Code",
+        required: true,
+        disabled: !!editingDoor,
+      },
+      {
+        key: "locationId",
+        label: "Site",
+        type: "select",
+        options: sites.map((s) => ({ value: String(s.id), label: s.name })),
+      },
+      {
+        key: "zoneId",
+        label: "Zone",
+        type: "select",
+        options: zoneCrud.data.map((z) => ({
+          value: String(z.id),
+          label: z.name,
+        })),
+      },
+      {
+        key: "doorType",
+        label: "Type",
+        type: "select",
+        options: [
+          { value: "standard", label: "Standard" },
+          { value: "turnstile", label: "Turnstile" },
+          { value: "barrier", label: "Barrier" },
+          { value: "gate", label: "Gate" },
+          { value: "emergency", label: "Emergency" },
+        ],
+        defaultValue: "standard",
+      },
+      { key: "requires2FA", label: "Requires 2FA", type: "switch" },
+      { key: "isHighRisk", label: "High Risk", type: "switch" },
+      {
+        key: "status",
+        label: "Status",
+        type: "select",
+        options: [
+          { value: "normal", label: "Normal" },
+          { value: "locked", label: "Locked" },
+          { value: "unlocked", label: "Unlocked" },
+          { value: "alarm", label: "Alarm" },
+          { value: "maintenance", label: "Maintenance" },
+        ],
+        defaultValue: "normal",
+      },
+      { key: "isActive", label: "Active", type: "switch", defaultValue: true },
+    ],
+    [sites, zoneCrud.data, editingDoor],
+  );
 
   const secLevelColors = [
     "",
@@ -271,7 +308,7 @@ export default function ZonesDoorsPage() {
             variant="ghost"
             className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
             onClick={() => {
-              if (window.confirm("Delete this zone?")) zoneCrud.remove(z.id)
+              if (window.confirm("Delete this zone?")) zoneCrud.remove(z.id);
             }}
           >
             <Trash2 className="w-4 h-4" />
@@ -409,7 +446,8 @@ export default function ZonesDoorsPage() {
                   className="h-8 w-8 text-destructive hover:bg-destructive/10"
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (window.confirm("Delete this door?")) doorCrud.remove(d.id);
+                    if (window.confirm("Delete this door?"))
+                      doorCrud.remove(d.id);
                   }}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -478,9 +516,11 @@ export default function ZonesDoorsPage() {
       {/* Zone Dialog */}
       <CrudDialog
         open={zoneDialog}
+        errors={errors}
         onClose={() => {
           setZoneDialog(false);
           setEditingZone(null);
+          setErrors({}); // ✅ reset error on close
         }}
         title={editingZone ? "Edit Zone" : "Add Zone"}
         fields={zoneFields}
@@ -490,18 +530,35 @@ export default function ZonesDoorsPage() {
             : undefined
         }
         onSubmit={(data) => {
+          if (data.locationId === "placeholder") {
+            setErrors({ locationId: "Please select a site" });
+            return;
+          }
+
+          setErrors({}); // clear error
+
           data.locationId = Number(data.locationId);
+
           editingZone
             ? zoneCrud.update({ id: editingZone.id, data })
             : zoneCrud.create(data);
+
           setZoneDialog(false);
         }}
         isPending={zoneCrud.isCreating || zoneCrud.isUpdating}
       />
 
+      {/* ✅ ADD THIS RIGHT AFTER CrudDialog */}
+      {errors.locationId && (
+        <div className="fixed top-5 right-5 bg-red-500 text-white px-4 py-2 rounded shadow">
+          {errors.locationId}
+        </div>
+      )}
+
       {/* Door Dialog */}
       <CrudDialog
         open={doorDialog}
+        errors={errors}
         onClose={() => {
           setDoorDialog(false);
           setEditingDoor(null);

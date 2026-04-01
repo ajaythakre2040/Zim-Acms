@@ -141,6 +141,11 @@ export default function PeoplePage() {
     { key: "status", label: "Status", type: "select", options: [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }, { value: "suspended", label: "Suspended" }], defaultValue: "active" },
     { key: "riskTier", label: "Risk Tier (1-5)", type: "number" },
   ];
+  const hiddenOnEdit = ["departmentId", "designationId", "companyId", "riskTier"];
+
+  const filteredFields = fields.filter(
+    (f) => !(editing && hiddenOnEdit.includes(f.key))
+  );
   // const rolefields = Array.from({ length: 1 }, () => {
   //   return [
   //     {
@@ -497,7 +502,8 @@ export default function PeoplePage() {
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null); }}
         title={editing ? "Edit Person" : "Add Person"}
-        fields={fields}
+        // fields={fields}
+        fields={filteredFields}
         initialData={editing ? {
           ...editing,
           departmentId: editing.departmentId ? String(editing.departmentId) : "",
