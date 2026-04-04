@@ -503,7 +503,7 @@ export class DatabaseStorage implements IStorage {
 
   async createZone(data: InsertZone): Promise<Zone> {
     // 1. Type Guard: Ensure 'name' exists to avoid TS error 2769
-    if (!data.name) {
+    if (!data.code) {
       throw new Error("Zone name is required.");
     }
 
@@ -511,11 +511,11 @@ export class DatabaseStorage implements IStorage {
     const [existing] = await db
       .select()
       .from(zones)
-      .where(eq(zones.name, data.name));
+      .where(eq(zones.code, data.code));
 
     if (existing) {
       // 'already exists' use karna zaroori hai handleDbError trigger karne ke liye
-      throw new Error(`Zone name '${data.name}' already exists.`);
+      throw new Error(`Zone code '${data.code}' already exists.`);
     }
 
     // 3. Safe Insert
@@ -1651,11 +1651,11 @@ export class DatabaseStorage implements IStorage {
   }
   async getRoleEligibleDevices(): Promise<any[]> {
     try {
-      
+
       const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
       if (!msDataRaw || msDataRaw.length === 0) return [];
 
-      
+
       const gateConfig = await db.query.cronMaster.findFirst({
         where: eq(cronMaster.code, MAIN_GATE_SYNC.CODE)
       });
@@ -1667,12 +1667,12 @@ export class DatabaseStorage implements IStorage {
           .execute();
 
         mappings.forEach(m => {
-          
+
           [...(m.inDeviceIds || []), ...(m.outDeviceIds || [])].forEach(id => whitelistedIds.add(Number(id)));
         });
       }
 
-      
+
       return msDataRaw
         .filter(d => !whitelistedIds.has(Number(d.DeviceId || d.DeviceID)))
         .map(d => ({
@@ -1680,7 +1680,7 @@ export class DatabaseStorage implements IStorage {
           name: d.DeviceName || "Unnamed Device",
           serialNumber: d.SerialNumber || d.serialno,
           ipAddress: d.IpAddress || "",
-          status: "online" 
+          status: "online"
         }));
 
     } catch (error) {
@@ -1854,18 +1854,18 @@ export class DatabaseStorage implements IStorage {
       });
     return logEntry;
   }
-  
+
   async getLockoutEligibleDoors(search?: string): Promise<any[]> {
     const mainGateCode = MAIN_GATE_SYNC.CODE;
 
-    
+
     const query = db.select()
       .from(doors)
       .where(
         and(
           ne(doors.code, mainGateCode),
           eq(doors.isActive, true),
-          
+
           search ? ilike(doors.name, `%${search}%`) : undefined
         )
       )
@@ -1882,19 +1882,19 @@ export class DatabaseStorage implements IStorage {
 
     const updatedDoors = await db.update(doors)
       .set({
-        
+
         is_lockout_enabled: status,
         updatedAt: new Date()
       })
       .where(
         and(
-          inArray(doors.id, doorIds.map(id => Number(id))), 
+          inArray(doors.id, doorIds.map(id => Number(id))),
           ne(doors.code, mainGateCode)
         )
       )
       .returning();
 
-   
+
     return updatedDoors;
   }
   private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {

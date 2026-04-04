@@ -3,7 +3,8 @@ import {
   LayoutDashboard, Users, UserCheck, Clock, DoorOpen, Cpu,
   Building2, Shield, Key, CalendarDays, Calendar, Bell, FileWarning,
   Settings, UserCog, MapPin, Layers, CreditCard, BookOpen, LogOut, ChevronRight,
-  Zap, FileText, Timer, LucideIcon
+  Zap, FileText, Timer, LucideIcon,
+  Siren
 } from "lucide-react";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
@@ -104,6 +105,7 @@ const navGroups: NavGroup[] = [
       // { title: "Alerts", url: "/alerts", icon: Bell, iconColor: "text-rose-400" },
       { title: "Master Data", url: "/master-data", icon: Building2, iconColor: "text-slate-400" },
       { title: "User Admin", url: "/user-admin", icon: UserCog, iconColor: "text-sky-400" },
+      // { title: "Emergency Unblock", url: "/emergency_unblock", icon: Siren, iconColor: "text-rose-400" },
       { title: "Settings", url: "/settings", icon: Settings, iconColor: "text-zinc-400" },
     ],
   },
