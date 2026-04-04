@@ -216,41 +216,6 @@ export async function runMasterAuthSync() {
             }
             console.log(`    [LOGIC] ${actionMsg}`);
 
-            // --- 5. UPDATED HARDWARE SYNC (Fixes Device 36/37 blocking on Main Entry) ---
-            //   for (const machine of allDevices) {
-            //     const mMapping = allDoorDevices.find(
-            //       (dd) =>
-            //         (dd.inDeviceIds || []).includes(machine.msId!) ||
-            //         (dd.outDeviceIds || []).includes(machine.msId!),
-            //     );
-            //     const machineDoorId = mMapping?.doorId;
-            //     const isThisMachineMainGate = machineDoorId === mainGateDoor.id;
-
-            //     let shouldBlock = true;
-
-            //     // Case 1: Employee is in a CABIN (Isolate everything else)
-            //     if (currentZone === ZONES.CABIN) {
-            //       shouldBlock = machineDoorId !== doorDetails.id;
-            //     }
-            //     // Case 2: Employee is in Premises (IN Zone)
-            //     else if (currentZone === ZONES.IN && !blockAllInternal) {
-            //       if (isThisMachineMainGate) {
-            //         shouldBlock = false; // Main Gate kabhi block nahi hoga premise ke andar
-            //       } else if (machineDoorId) {
-            //         const isAllowed = allowedDoorIds.includes(Number(machineDoorId));
-            //         shouldBlock = !isAllowed;
-            //       }
-            //     }
-            //     // Case 3: Employee is OUT or Locked
-            //     else {
-            //       shouldBlock = true;
-            //     }
-
-            //     // Global Safety: Agar punch Main Gate ka hai, toh usi waqt use block nahi bhejenge
-            //     if (isMainGatePunch && isThisMachineMainGate) shouldBlock = false;
-
-            //     await helpers.updateDeviceStatus(empCodeRaw, machine, shouldBlock);
-            //   }
             // --- 5. UPDATED HARDWARE SYNC ---
             for (const machine of allDevices) {
                 const mMapping = allDoorDevices.find(
@@ -312,7 +277,7 @@ export async function runMasterAuthSync() {
                 .where(eq(cronMaster.code, CRON_CODE));
         }
 
-        // 7. EXPIRED LOCKOUTS CLEANUP
+        // --- 7. EXPIRED LOCKOUTS CLEANUP (Scenario A & B Recovery) ---
         const expired = await db
             .update(cabinLockouts)
             .set({ status: "expired" })
@@ -326,28 +291,50 @@ export async function runMasterAuthSync() {
 
         if (expired.length > 0) {
             for (const rec of expired) {
-                const p = allPeople.find((x) => x.employeeCode === rec.employeeCode);
-                const r = allRoles.find((x) => x.id === p?.roleId);
+                if (!rec.employeeCode) continue;
+
+                // RE-FETCH: Fresh data le rahe hain taaki agar isi cycle mein zone change hua ho toh pata chale
+                const [freshEmp] = await db.select().from(people).where(eq(people.employeeCode, rec.employeeCode)).limit(1);
+                if (!freshEmp) continue;
+
+                const r = allRoles.find((x) => x.id === freshEmp.roleId);
                 let allowed: number[] = [];
-                if (r?.doorIds)
+                if (r?.doorIds) {
                     allowed = Array.isArray(r.doorIds)
                         ? r.doorIds.map(Number)
                         : JSON.parse(r.doorIds as string).map(Number);
+                }
 
+                // Scenario A Logic: Agar banda abhi bhi building ke andar hai, toh DB update karo
+                if (freshEmp.currentZone !== ZONES.OUT) {
+                    await db.update(people)
+                        .set({
+                            currentZone: ZONES.IN,
+                            ruleid: ACCESS_RULES.MAIN_GATE_IN,
+                            updatedAt: sql`NOW()`
+                        })
+                        .where(eq(people.employeeCode, rec.employeeCode));
+
+                    console.log(`[CLEANUP] Access Restored (In-Premises) for: ${rec.employeeCode}`);
+                }
+
+                // Hardware Restore Logic
                 for (const m of allDevices) {
-                    const mDM = allDoorDevices.find(
-                        (dd) =>
-                            (dd.inDeviceIds || []).includes(m.msId!) ||
-                            (dd.outDeviceIds || []).includes(m.msId!),
+                    const mDM = allDoorDevices.find((dd) =>
+                        (dd.inDeviceIds || []).includes(m.msId!) || (dd.outDeviceIds || []).includes(m.msId!)
                     );
-                    const isAllowed =
-                        allowed.includes(Number(mDM?.doorId || 0)) ||
-                        mDM?.doorId === mainGateDoor.id;
-                    await helpers.updateDeviceStatus(rec.employeeCode, m, !isAllowed);
+
+                    const isMainGate = mDM?.doorId === mainGateDoor.id;
+                    const isAllowed = allowed.includes(Number(mDM?.doorId || 0)) || isMainGate;
+
+                    // Final Check: Agar banda bahar ja chuka hai, toh sirf Main Gate open rakho.
+                    // Agar building ke andar hai, toh uske role ke hisaab se doors kholo.
+                    const shouldBlock = (freshEmp.currentZone === ZONES.OUT) ? !isMainGate : !isAllowed;
+
+                    await helpers.updateDeviceStatus(rec.employeeCode, m, shouldBlock);
                 }
             }
         }
-
         await db
             .update(cronMaster)
             .set({ isRunning: false, lastStatus: "success" })

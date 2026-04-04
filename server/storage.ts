@@ -311,44 +311,87 @@ export class DatabaseStorage implements IStorage {
     return currentSites;
   }
   async createSite(data: InsertSite): Promise<Site> {
-    if (data.code) {
-      const [existing] = await db
+    // 1. Validation & Duplicate Name Check
+    if (data.name) {
+      const [existingName] = await db
         .select()
         .from(sites)
-        .where(eq(sites.code, data.code as string));
-      if (existing) {
-        throw new Error("Code is already in use. Please provide a unique value.");
+        .where(eq(sites.name, data.name));
+
+      if (existingName) {
+        throw new Error(`Site name '${data.name}' already exists.`);
       }
     }
+
+    // 2. Duplicate Code Check (Mandatory for Unique Constraint)
+    if (data.code) {
+      const [existingCode] = await db
+        .select()
+        .from(sites)
+        .where(eq(sites.code, data.code));
+
+      if (existingCode) {
+        throw new Error(`Site code '${data.code}' already exists.`);
+      }
+    }
+
+    // 3. PostgreSQL mein Insert karein
     const [created] = await db.insert(sites).values(data).returning();
+
+    // 4. MSSQL Synchronization (Optional Sync)
     try {
       const msData = SiteAdapter.toMsSql(created);
       await dbMsSql.insert({ dbName: 'Locations' }).values({
         Code: msData.Code,
         Description: msData.Description
       });
+      console.log(`[SYNC SUCCESS] Site ${created.code} synced to MSSQL.`);
     } catch (e) {
-      console.error("MSSQL Sync Error:", e);
+      // Sync fail hone par main operation (PG Insert) ko mat rokiye
+      console.error("[MSSQL Sync Error]:", e);
     }
+
     return created;
   }
   async updateSite(id: number, data: Partial<InsertSite>): Promise<Site> {
-    if (data.code) {
-      const [existing] = await db.select()
+    // 1. Update ke waqt Name check (current ID ko chhod kar)
+    if (data.name) {
+      const [existingName] = await db
+        .select()
         .from(sites)
-        .where(and(
-          eq(sites.code, data.code),
-          ne(sites.id, id)
-        ));
-      if (existing) {
-        throw new Error("DUPLICATE_CODE");
+        .where(and(eq(sites.name, data.name), ne(sites.id, id)));
+
+      if (existingName) {
+        throw new Error(`Site name '${data.name}' already exists.`);
       }
     }
+
+    // 2. Update ke waqt Code check (current ID ko chhod kar)
+    if (data.code) {
+      const [existingCode] = await db
+        .select()
+        .from(sites)
+        .where(and(eq(sites.code, data.code), ne(sites.id, id)));
+
+      if (existingCode) {
+        throw new Error(`Site code '${data.code}' already exists.`);
+      }
+    }
+
+    // 3. Destructure karke system fields ko remove karein taaki update crash na ho
     const { id: _, msId: __, createdAt: ___, ...updateData } = data as any;
-    const [updated] = await db.update(sites)
+
+    // 4. PostgreSQL mein Update karein
+    const [updated] = await db
+      .update(sites)
       .set(updateData)
       .where(eq(sites.id, id))
       .returning();
+
+    if (!updated) {
+      throw new Error("Site not found");
+    }
+
     return updated;
   }
   async deleteSite(id: number): Promise<void> {
@@ -370,11 +413,61 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(buildings);
   }
   async createBuilding(data: InsertBuilding): Promise<Building> {
+    // 1. Duplicate Name Check
+    if (data.name) {
+      const [existingName] = await db
+        .select()
+        .from(buildings)
+        .where(eq(buildings.name, data.name));
+      if (existingName) {
+        throw new Error(`Building name '${data.name}' already exists.`);
+      }
+    }
+
+    // 2. Duplicate Code Check
+    if (data.code) {
+      const [existingCode] = await db
+        .select()
+        .from(buildings)
+        .where(eq(buildings.code, data.code));
+      if (existingCode) {
+        throw new Error(`Building code '${data.code}' already exists.`);
+      }
+    }
+
     const [created] = await db.insert(buildings).values(data).returning();
     return created;
   }
   async updateBuilding(id: number, data: Partial<InsertBuilding>): Promise<Building> {
-    const [updated] = await db.update(buildings).set(data).where(eq(buildings.id, id)).returning();
+    // 1. Update ke waqt Name check (Current ID ko chhod kar)
+    if (data.name) {
+      const [existing] = await db
+        .select()
+        .from(buildings)
+        .where(and(eq(buildings.name, data.name), ne(buildings.id, id)));
+      if (existing) {
+        throw new Error(`Building name '${data.name}' already exists.`);
+      }
+    }
+
+    // 2. Update ke waqt Code check
+    if (data.code) {
+      const [existingCode] = await db
+        .select()
+        .from(buildings)
+        .where(and(eq(buildings.code, data.code), ne(buildings.id, id)));
+      if (existingCode) {
+        throw new Error(`Building code '${data.code}' already exists.`);
+      }
+    }
+
+    const [updated] = await db
+      .update(buildings)
+      .set(data)
+      .where(eq(buildings.id, id))
+      .returning();
+
+    if (!updated) throw new Error("Building not found");
     return updated;
   }
   async deleteBuilding(id: number): Promise<void> {
@@ -406,12 +499,59 @@ export class DatabaseStorage implements IStorage {
     }
     return await db.select().from(zones);
   }
+  // server/storage.ts
+
   async createZone(data: InsertZone): Promise<Zone> {
+    // 1. Type Guard: Ensure 'name' exists to avoid TS error 2769
+    if (!data.name) {
+      throw new Error("Zone name is required.");
+    }
+
+    // 2. Duplicate Check: Check if Zone name already exists
+    const [existing] = await db
+      .select()
+      .from(zones)
+      .where(eq(zones.name, data.name));
+
+    if (existing) {
+      // 'already exists' use karna zaroori hai handleDbError trigger karne ke liye
+      throw new Error(`Zone name '${data.name}' already exists.`);
+    }
+
+    // 3. Safe Insert
     const [created] = await db.insert(zones).values(data).returning();
     return created;
   }
   async updateZone(id: number, data: Partial<InsertZone>): Promise<Zone> {
-    const [updated] = await db.update(zones).set(data).where(eq(zones.id, id)).returning();
+    // 1. Agar name update ho raha hai, toh check karein ki wo duplicate na ho
+    if (data.name) {
+      const [existing] = await db
+        .select()
+        .from(zones)
+        .where(
+          and(
+            eq(zones.name, data.name),
+            ne(zones.id, id) // Apne aap ko chod kar baaki zones check karein
+          )
+        );
+
+      if (existing) {
+        // 'already exists' likhna handleDbError ke liye zaroori hai
+        throw new Error(`Zone name '${data.name}' already exists.`);
+      }
+    }
+
+    // 2. Data update karein
+    const [updated] = await db
+      .update(zones)
+      .set(data)
+      .where(eq(zones.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error("Zone not found");
+    }
+
     return updated;
   }
   async deleteZone(id: number): Promise<void> {
@@ -449,11 +589,61 @@ export class DatabaseStorage implements IStorage {
     }
   }
   async createDoor(data: InsertDoor): Promise<Door> {
+    // 1. Check for Duplicate Name
+    if (data.name) {
+      const [existingName] = await db
+        .select()
+        .from(doors)
+        .where(eq(doors.name, data.name));
+      if (existingName) {
+        throw new Error(`Door name '${data.name}' already exists.`);
+      }
+    }
+
+    // 2. Check for Duplicate Code (Kyunki code unique hai)
+    if (data.code) {
+      const [existingCode] = await db
+        .select()
+        .from(doors)
+        .where(eq(doors.code, data.code));
+      if (existingCode) {
+        throw new Error(`Door code '${data.code}' already exists.`);
+      }
+    }
+
     const [created] = await db.insert(doors).values(data).returning();
     return created;
   }
   async updateDoor(id: number, data: Partial<InsertDoor>): Promise<Door> {
-    const [updated] = await db.update(doors).set(data).where(eq(doors.id, id)).returning();
+    // 1. Update ke waqt Name check karein (current ID ko chhod kar)
+    if (data.name) {
+      const [existing] = await db
+        .select()
+        .from(doors)
+        .where(and(eq(doors.name, data.name), ne(doors.id, id)));
+      if (existing) {
+        throw new Error(`Door name '${data.name}' already exists.`);
+      }
+    }
+
+    // 2. Update ke waqt Code check karein
+    if (data.code) {
+      const [existingCode] = await db
+        .select()
+        .from(doors)
+        .where(and(eq(doors.code, data.code), ne(doors.id, id)));
+      if (existingCode) {
+        throw new Error(`Door code '${data.code}' already exists.`);
+      }
+    }
+
+    const [updated] = await db
+      .update(doors)
+      .set(data)
+      .where(eq(doors.id, id))
+      .returning();
+
+    if (!updated) throw new Error("Door not found");
     return updated;
   }
   async deleteDoor(id: number): Promise<void> {
@@ -617,6 +807,9 @@ export class DatabaseStorage implements IStorage {
             createdAt: new Date(),
           }).returning();
           currentPgData.push({ ...newRec, roleName: null });
+          if (newRec && newRec.employeeCode) {
+            this.executeHardwareSync(newRec.employeeCode, null, true);
+          }
         } catch (e) { }
       }
     }
@@ -730,12 +923,60 @@ export class DatabaseStorage implements IStorage {
   async getShifts(): Promise<Shift[]> {
     return await db.select().from(shifts);
   }
+  // async createShift(data: InsertShift): Promise<Shift> {
+  //   const [created] = await db.insert(shifts).values(data).returning();
+  //   return created;
+  // }
+  // server/storage.ts
+  // server/storage.ts
+
   async createShift(data: InsertShift): Promise<Shift> {
+    // Option 1: Type Guard (Sabse Safe aur Professional)
+    if (!data.code) {
+      throw new Error("Shift code is required.");
+    }
+
+    const [existing] = await db
+      .select()
+      .from(shifts)
+      .where(eq(shifts.code, data.code)); // Ab data.code pakka string hai
+
+    if (existing) {
+      throw new Error(`Shift code '${data.code}' already exists.`);
+    }
+
     const [created] = await db.insert(shifts).values(data).returning();
     return created;
   }
   async updateShift(id: number, data: Partial<InsertShift>): Promise<Shift> {
-    const [updated] = await db.update(shifts).set(data).where(eq(shifts.id, id)).returning();
+    // 1. Agar 'code' update ho raha hai, toh check karein ki wo duplicate na ho
+    if (data.code) {
+      const [existing] = await db
+        .select()
+        .from(shifts)
+        .where(
+          and(
+            eq(shifts.code, data.code),
+            ne(shifts.id, id) // Apne aap ko chod kar baaki records check karein
+          )
+        );
+
+      if (existing) {
+        throw new Error(`Shift code '${data.code}' already exists.`);
+      }
+    }
+
+    // 2. Data update karein
+    const [updated] = await db
+      .update(shifts)
+      .set(data)
+      .where(eq(shifts.id, id))
+      .returning();
+
+    if (!updated) {
+      throw new Error("Shift not found");
+    }
+
     return updated;
   }
   async deleteShift(id: number): Promise<void> {

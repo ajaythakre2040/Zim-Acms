@@ -90,7 +90,7 @@ export const sites = pgTable("sites", {
   id: serial("id").primaryKey(),
   msId: integer("ms_id").unique(),
   name: text("name").notNull(),
-  code: text("code").unique(),
+  code: text("code").unique().notNull(),
   address: text("address"),
   city: text("city"),
   state: text("state"),
@@ -104,7 +104,7 @@ export const sites = pgTable("sites", {
 export const buildings = pgTable("buildings", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  code: text("code"),
+  code: text("code").unique().notNull(),
   locationId: integer("location_id").notNull(),
   address: text("address"),
   floorCount: integer("floor_count").default(1),
@@ -127,7 +127,7 @@ export const floors = pgTable("floors", {
 export const zones = pgTable("zones", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
-  code: text("code"),
+  code: text("code").unique().notNull(),
   locationId: integer("location_id").notNull(),
   buildingId: integer("building_id"),
   floorId: integer("floor_id"),
@@ -264,8 +264,8 @@ export const accessCards = pgTable("access_cards", {
 // ==================== SHIFTS ====================
 export const shifts = pgTable("shifts", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  code: text("code"),
+  name: text("name").notNull().notNull(),
+  code: text("code").unique(),
   startTime: text("start_time").notNull(),
   endTime: text("end_time").notNull(),
   breakDuration: integer("break_duration").default(0),
@@ -600,8 +600,13 @@ export const blockUnblockLogs = pgTable("user_block_unblock_logs", {
   employeeCode: varchar("employee_code", { length: 20 }).notNull(),
   deviceId: integer("device_id").notNull(),
   type: text("type", { enum: ["block", "unblock"] }).notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow()
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .$defaultFn(() => new Date()) // TypeScript automatic handle kar lega
+    .notNull(),
+
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .$defaultFn(() => new Date())
+    .notNull(),
 });
 export const employeeRoles = pgTable("employee_roles", {
   id: serial("id").primaryKey(),

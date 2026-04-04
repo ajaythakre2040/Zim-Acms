@@ -1,12 +1,15 @@
-process.env.TZ = "Asia/Kolkata";
 import "dotenv/config";
+process.env.TZ = "Asia/Kolkata";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
-import { initDatabases } from "./db"; // DB initialization import karein
+import { db, initDatabases } from "./db"; // DB initialization import karein
 import { initCronSystem } from "./cron/scheduler"; // <-- Cron Scheduler Import
 import { processCabinLockout } from "./cron/cabinLockoutCron";
+import { MAIN_GATE_SYNC } from "./constant";
+import { cronMaster } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 const app = express();
 const httpServer = createServer(app);
 
@@ -78,8 +81,13 @@ app.use((req, res, next) => {
     // 1. Initialize Databases (Postgres + MS SQL)
     log("Initializing databases...", "startup");
     await initDatabases();
+    await db.execute(sql`SET timezone TO 'Asia/Kolkata'`);
+    log("Database Timezone set to Asia/Kolkata", "startup");
     // Isse aapka background task (30 sec wala) chalu ho jayega
     log("Starting Cron Scheduler...", "startup");
+    await db.update(cronMaster)
+      .set({ isRunning: false })
+      .where(eq(cronMaster.code, MAIN_GATE_SYNC.CODE));
     await initCronSystem();
     
     // 2. Register API Routes
@@ -116,6 +124,8 @@ app.use((req, res, next) => {
       },
       () => {
         log(`Server running on port ${port}`, "startup");
+        console.log(`\n🚀 Server is successfully running on http://localhost:${port}`);
+        console.log(`📅 Started at: ${new Date().toLocaleString("en-IN")}\n`);
       },
     );
   } catch (error) {

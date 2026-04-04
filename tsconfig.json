@@ -1,6 +1,4 @@
 {
-  "include": ["client/src/**/*", "shared/**/*", "server/**/*"],
-  "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "incremental": true,
     "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
@@ -12,12 +10,16 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "moduleResolution": "node",
-    "baseUrl": ".",
-    "types": ["node", "vite/client","mssql"],
+    
+    /* FIX 1: Modern module resolution for tools like Vite */
+    "moduleResolution": "Bundler", 
+    
+    /* FIX 2: BaseUrl hatakar direct paths use karein */
     "paths": {
       "@/*": ["./client/src/*"],
       "@shared/*": ["./shared/*"]
-    }
+    },
+    
+    "types": ["node", "vite/client", "mssql"]
   }
 }
