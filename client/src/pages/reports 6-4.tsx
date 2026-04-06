@@ -18,14 +18,25 @@ import {
   FileText,
   Clock,
   AlertTriangle,
+  UserX,
+  Timer,
+  DoorOpen,
+  UserCheck,
+  Users,
   Search,
   Download,
   Filter,
+  BarChart3,
+  CalendarDays,
   ArrowUpDown,
+  ChevronDown,
   RefreshCw,
 } from "lucide-react";
 import {
+  type Department,
+  type Site,
   type Person,
+  devices,
 } from "@shared/schema";
 
 const reportTypes = [
@@ -38,20 +49,60 @@ const reportTypes = [
     description: "Daily attendance records with clock in/out times",
   },
   {
-    id: "door-count",
-    label: "Door Count",
+    id: "late-coming",
+    label: "Late Coming",
     icon: AlertTriangle,
     color: "text-amber-500",
     bgColor: "bg-amber-50 dark:bg-amber-950/40",
-    description: "Door Wise Emp Count",
+    description: "Employees arriving after shift start time",
   },
   {
-    id: "cefalo-report",           // ← Naya Tab
-    label: "Cefalo Report",
-    icon: FileText,
+    id: "early-going",
+    label: "Early Going",
+    icon: Timer,
+    color: "text-orange-500",
+    bgColor: "bg-orange-50 dark:bg-orange-950/40",
+    description: "Employees leaving before shift end time",
+  },
+  {
+    id: "absentee",
+    label: "Absentee",
+    icon: UserX,
+    color: "text-rose-500",
+    bgColor: "bg-rose-50 dark:bg-rose-950/40",
+    description: "Absent employees for selected date range",
+  },
+  {
+    id: "overtime",
+    label: "Overtime",
+    icon: BarChart3,
     color: "text-violet-500",
     bgColor: "bg-violet-50 dark:bg-violet-950/40",
-    description: "Employee wise door access logs with direction",
+    description: "Overtime hours worked by employees",
+  },
+  {
+    id: "access-log",
+    label: "Access Log",
+    icon: DoorOpen,
+    color: "text-emerald-500",
+    bgColor: "bg-emerald-50 dark:bg-emerald-950/40",
+    description: "Door access events with entry/exit details",
+  },
+  {
+    id: "visitor",
+    label: "Visitor",
+    icon: UserCheck,
+    color: "text-teal-500",
+    bgColor: "bg-teal-50 dark:bg-teal-950/40",
+    description: "Visitor check-in/check-out records",
+  },
+  {
+    id: "employee-summary",
+    label: "Employee Summary",
+    icon: Users,
+    color: "text-indigo-500",
+    bgColor: "bg-indigo-50 dark:bg-indigo-950/40",
+    description: "Employee directory with department & status",
   },
 ];
 
@@ -60,14 +111,22 @@ function formatDateTime(dt: string | null | undefined) {
   const d = new Date(dt);
   return d.toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
 }
+// function formatTime(dt: string | null | undefined) {
+//   if (!dt) return "-";
+//   const d = new Date(dt);
+//   return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+// }
 
 function formatTime(dt: string | null | undefined) {
   if (!dt || dt === "N/A") return "-";
 
   const d = new Date(dt);
 
+  // Agar Date object invalid ban raha hai toh "-" return karein
   if (isNaN(d.getTime())) return "-";
 
+  // 'en-US' aur hour12: true use karne se proper AM/PM aayega
+  // 'en-IN' default mein kabhi-kabhi 24-hour format de deta hai browser settings ke hisab se
   return d.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -75,7 +134,10 @@ function formatTime(dt: string | null | undefined) {
     timeZone: "UTC", // Yeh sabse important hai: Yeh browser ko conversion karne se rokega
   });
 }
-
+// function formatHours(h: number | null | undefined) {
+//   if (h === null || h === undefined) return "-";
+//   return `${h.toFixed(1)}h`;
+// }
 function formatHours(h: string | number | undefined) {
   if (h === null || h === undefined || h === "0.00") return "-";
   return `${Number(h).toFixed(1)}h`;
@@ -156,9 +218,7 @@ function ReportFilters({
               <Input
                 type="date"
                 value={filters.dateFrom || ""}
-                onChange={(e) =>
-                  setFilters({ ...filters, dateFrom: e.target.value })
-                }
+                onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
               />
             </div>
 
@@ -170,9 +230,7 @@ function ReportFilters({
               <Input
                 type="date"
                 value={filters.dateTo || ""}
-                onChange={(e) =>
-                  setFilters({ ...filters, dateTo: e.target.value })
-                }
+                onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
               />
             </div>
 
@@ -193,12 +251,8 @@ function ReportFilters({
                 <SelectContent>
                   <SelectItem value="all">All Employees</SelectItem>
                   {people.map((p) => (
-                    <SelectItem
-                      key={p.id}
-                      value={String(p.employeeCode || p.id)}
-                    >
-                      {p.employeeName}{" "}
-                      {p.employeeCode ? `(${p.employeeCode})` : ""}
+                    <SelectItem key={p.id} value={String(p.employeeCode || p.id)}>
+                      {p.employeeName} {p.employeeCode ? `(${p.employeeCode})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -259,6 +313,7 @@ function ReportFilters({
             </div>
           </div>
 
+          {/* Buttons - Aligned to the right */}
           <div className="flex gap-2 shrink-0">
             <Button onClick={onApply} size="sm" className="px-6">
               <Search className="w-4 h-4 mr-2" />
@@ -349,35 +404,47 @@ function AttendanceTable({ data }: { data: any[] }) {
   );
 }
 
-// ... purana code upar rahega (imports, format functions, statusBadge, etc.)
-
-// Naya Table for Door Count
-function DoorCountTable({ data }: { data: any[] }) {
+function AccessLogTable({ data }: { data: any[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs" data-testid="table-door-count">
+      <table className="w-full text-xs" data-testid="table-report">
         <thead>
           <tr className="border-b bg-muted/30">
-            <th className="text-left p-3 font-medium">Door Name</th>
-            <th className="text-left p-3 font-medium text-center">IN Emp Count</th>
-            <th className="text-left p-3 font-medium text-center">OUT Emp Count</th>
+            <th className="text-left p-2 font-medium">Employee</th>
+            <th className="text-left p-2 font-medium">ID</th>
+            <th className="text-left p-2 font-medium">Event</th>
+            <th className="text-left p-2 font-medium">Method</th>
+            <th className="text-left p-2 font-medium">Authorized</th>
+            <th className="text-left p-2 font-medium">Timestamp</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((row: any, index: number) => (
+          {data.map((r: any) => (
             <tr
-              key={index} // ya row.deviceId ya koi unique id agar ho
-              className="border-b border-border/50 hover:bg-muted/50"
+              key={r.id}
+              className="border-b border-border/50 hover-elevate"
+              data-testid={`row-report-${r.id}`}
             >
-              <td className="p-3 font-medium">
-                {row.deviceName || row.DoorName || row.name || "Unknown Door"}
+              <td className="p-2 font-medium">
+                {r.firstName || "Unknown"} {r.lastName || ""}
               </td>
-              <td className="p-3 text-center font-semibold text-emerald-600 dark:text-emerald-400">
-                {row.inCount ?? row.IN ?? 0}
+              <td className="p-2 text-muted-foreground">
+                {r.employeeId || "-"}
               </td>
-              <td className="p-3 text-center font-semibold text-blue-600 dark:text-blue-400">
-                {row.outCount ?? row.OUT ?? 0}
+              <td className="p-2">{statusBadge(r.eventType)}</td>
+              <td className="p-2 capitalize">{r.accessMethod || "-"}</td>
+              <td className="p-2">
+                {r.isAuthorized ? (
+                  <Badge className="text-[10px] bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 no-default-hover-elevate no-default-active-elevate">
+                    Yes
+                  </Badge>
+                ) : (
+                  <Badge className="text-[10px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 no-default-hover-elevate no-default-active-elevate">
+                    No
+                  </Badge>
+                )}
               </td>
+              <td className="p-2">{formatDateTime(r.timestamp)}</td>
             </tr>
           ))}
         </tbody>
@@ -386,50 +453,78 @@ function DoorCountTable({ data }: { data: any[] }) {
   );
 }
 
-// ==================== CEFALO REPORT TABLE ====================
-function CefaloReportTable({ data }: { data: any[] }) {
+function VisitorTable({ data }: { data: any[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs" data-testid="table-cefalo-report">
+      <table className="w-full text-xs" data-testid="table-report">
         <thead>
           <tr className="border-b bg-muted/30">
-            <th className="text-left p-3 font-medium">Employee Name</th>
-            <th className="text-left p-3 font-medium">Emp Code</th>
-            <th className="text-left p-3 font-medium">Log Date & Time</th>
-            <th className="text-left p-3 font-medium">Door Name</th>
-            <th className="text-left p-3 font-medium">Direction</th>
+            <th className="text-left p-2 font-medium">Visitor</th>
+            <th className="text-left p-2 font-medium">Company</th>
+            <th className="text-left p-2 font-medium">Phone</th>
+            <th className="text-left p-2 font-medium">Purpose</th>
+            <th className="text-left p-2 font-medium">Check In</th>
+            <th className="text-left p-2 font-medium">Check Out</th>
+            <th className="text-left p-2 font-medium">Status</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((row: any, index: number) => (
+          {data.map((r: any) => (
             <tr
-              key={row.id || index}
-              className="border-b border-border/50 hover:bg-muted/50"
+              key={r.id}
+              className="border-b border-border/50 hover-elevate"
+              data-testid={`row-report-${r.id}`}
             >
-              <td className="p-3 font-medium">
-                {row.employeeName || row.firstName || row.name || "Unknown"}
+              <td className="p-2 font-medium">
+                {r.firstName} {r.lastName || ""}
               </td>
-              <td className="p-3 text-muted-foreground">
-                {row.employeeCode || row.empCode || row.employeeId || "-"}
+              <td className="p-2 text-muted-foreground">{r.company || "-"}</td>
+              <td className="p-2">{r.phone || "-"}</td>
+              <td className="p-2">{r.purpose || "-"}</td>
+              <td className="p-2">{formatDateTime(r.checkInAt)}</td>
+              <td className="p-2">{formatDateTime(r.checkOutAt)}</td>
+              <td className="p-2">{statusBadge(r.status)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function EmployeeTable({ data }: { data: any[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs" data-testid="table-report">
+        <thead>
+          <tr className="border-b bg-muted/30">
+            <th className="text-left p-2 font-medium">Name</th>
+            <th className="text-left p-2 font-medium">Emp Code</th>
+            <th className="text-left p-2 font-medium">Email</th>
+            <th className="text-left p-2 font-medium">Phone</th>
+            <th className="text-left p-2 font-medium">Type</th>
+            <th className="text-left p-2 font-medium">Joining Date</th>
+            <th className="text-left p-2 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((r: any) => (
+            <tr
+              key={r.id}
+              className="border-b border-border/50 hover-elevate"
+              data-testid={`row-report-${r.id}`}
+            >
+              <td className="p-2 font-medium">
+                {r.firstName} {r.lastName || ""}
               </td>
-              <td className="p-3 font-medium">
-                {formatDateTime(row.logDate || row.logTime || row.createdAt || row.timestamp)}
+              <td className="p-2 text-muted-foreground">
+                {r.employeeId || r.employeeCode || "-"}
               </td>
-              <td className="p-3">
-                {row.doorName || row.deviceName || row.DoorName || row.device || "Unknown Door"}
-              </td>
-              <td className="p-3">
-                <Badge
-                  variant="outline"
-                  className={`text-xs font-medium ${(row.direction || "").toLowerCase() === "in" ||
-                      (row.direction || "").toLowerCase() === "entry"
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border-emerald-200"
-                      : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border-blue-200"
-                    }`}
-                >
-                  {(row.direction || row.deviceDirection || "-").toUpperCase()}
-                </Badge>
-              </td>
+              <td className="p-2">{r.email || "-"}</td>
+              <td className="p-2">{r.phone || "-"}</td>
+              <td className="p-2 capitalize">{r.personType || "-"}</td>
+              <td className="p-2">{r.dateOfJoining || "-"}</td>
+              <td className="p-2">{statusBadge(r.status)}</td>
             </tr>
           ))}
         </tbody>
@@ -477,37 +572,25 @@ function ReportDataView({
     );
   }
 
-  // const renderTable = () => {
-  //   switch (reportId) {
-  //     case "attendance":
-  //     case "door-count":
-  //     case "early-going":
-  //     case "absentee":
-  //     case "overtime":
-  //       return <AttendanceTable data={data} />;
-  //     default:
-  //       return <AttendanceTable data={data} />;
-  //   }
-  // };
-
   const renderTable = () => {
     switch (reportId) {
       case "attendance":
+      case "late-coming":
       case "early-going":
       case "absentee":
       case "overtime":
         return <AttendanceTable data={data} />;
-
-      case "door-count":
-        return <DoorCountTable data={data} />;
-
-      case "cefalo-report":
-        return <CefaloReportTable data={data} />;
-
+      case "access-log":
+        return <AccessLogTable data={data} />;
+      case "visitor":
+        return <VisitorTable data={data} />;
+      case "employee-summary":
+        return <EmployeeTable data={data} />;
       default:
         return <AttendanceTable data={data} />;
     }
   };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
@@ -579,14 +662,28 @@ export default function ReportsPage() {
   });
   const qs = queryParams.toString();
 
+  // const { data: reportData = [], isLoading } = useQuery<any[]>({
+  //   queryKey: [`/api/reports/${activeReport}`, qs],
+  //   queryFn: async () => {
+  //     const res = await fetch(`/api/reports/${activeReport}${qs ? `?${qs}` : ""}`, { credentials: "include" });
+  //     if (!res.ok) throw new Error("Failed to fetch report");
+  //     return res.json();
+  //   },
+  // });
+  // Replace your existing useQuery for reportData with this:
+  // 1. Generic mein <any[], Error> specify karein
+  // 2. queryFn ke return type ko Promise<any[]> banayein
   const {
     data: reportData = [],
     isLoading,
+    refetch,
   } = useQuery<any[], Error>({
     queryKey: ["reports", activeReport, appliedFilters],
     queryFn: async (): Promise<any[]> => {
+      // <-- Return type yahan define karein
       const params = new URLSearchParams();
 
+      // Type casting: String(v) zaroori hai URLSearchParams ke liye
       Object.entries(appliedFilters).forEach(([k, v]) => {
         if (v && k !== "_refresh") params.set(k, String(v));
       });
@@ -599,11 +696,13 @@ export default function ReportsPage() {
 
       const result = await res.json();
 
+      // Final Safety Check: Ensure karein ki result hamesha array ho
       return Array.isArray(result) ? result : [];
     },
+    // FIXED TYPO: 'stateTime' nahi, 'staleTime' hota hai
     staleTime: 0,
   });
-
+  // const handleApply = () => setAppliedFilters({ ...filters });
   const handleApply = () => {
     setAppliedFilters({
       ...filters,
@@ -656,10 +755,11 @@ export default function ReportsPage() {
             <button
               key={rt.id}
               onClick={() => handleReportChange(rt.id)}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 text-center ${isActive
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 text-center ${
+                isActive
                   ? `${rt.bgColor} border-current/20 ring-1 ring-current/10`
                   : "bg-card border-border/50 hover-elevate"
-                }`}
+              }`}
               data-testid={`button-report-${rt.id}`}
             >
               <div
@@ -710,11 +810,13 @@ export default function ReportsPage() {
 function getGradientForReport(id: string): string {
   const gradients: Record<string, string> = {
     attendance: "from-blue-500 to-indigo-500",
-    "door-count": "from-amber-500 to-orange-500",
-    "cefalo-report": "from-violet-500 to-purple-500",   // ← Naya
+    "late-coming": "from-amber-500 to-orange-500",
     "early-going": "from-orange-500 to-red-500",
     absentee: "from-rose-500 to-pink-500",
     overtime: "from-violet-500 to-purple-500",
+    "access-log": "from-emerald-500 to-teal-500",
+    visitor: "from-teal-500 to-cyan-500",
+    "employee-summary": "from-indigo-500 to-blue-500",
   };
   return gradients[id] || "from-blue-500 to-indigo-500";
 }

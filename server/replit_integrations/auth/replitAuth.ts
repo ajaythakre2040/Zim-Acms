@@ -84,6 +84,7 @@ export async function setupAuth(app: Express) {
       });
 
       (req.session as any).userId = user.id;
+      (req.session as any).username = user.username; // Ye line add kar dein
       (req.session as any).authenticated = true;
 
       const { password: _, ...safeUser } = user;

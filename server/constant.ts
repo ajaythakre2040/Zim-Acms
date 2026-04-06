@@ -57,3 +57,50 @@ export const ZONES = {
   OUT: "OUT",
   CABIN: "CABIN"
 };
+
+
+export const ALERT_TYPES = {
+  SECURITY: "security",
+  DEVICE: "device",
+  SYSTEM: "system",
+  VISITOR: "visitor",
+  ATTENDANCE: "attendance"
+} as const;
+
+export const SEVERITY_LEVELS = {
+  LOW: "low",
+  MEDIUM: "medium",
+  HIGH: "high",
+  CRITICAL: "critical"
+} as const;
+
+export const ALERT_TEMPLATES = {
+  // Security
+  EMERGENCY_BULK_UNBLOCK: {
+    type: ALERT_TYPES.SECURITY,
+    severity: SEVERITY_LEVELS.CRITICAL,
+    title: "🚨 EMERGENCY BULK UNBLOCK EXECUTED",
+    message: (count: number, userName: string) =>
+      `System-wide unblock triggered for ${count} commands. Action performed by: ${userName}.`
+  },
+  UNAUTHORIZED_ACCESS: {
+    type: ALERT_TYPES.SECURITY,
+    severity: SEVERITY_LEVELS.HIGH,
+    title: "⚠️ Unauthorized Access Attempt",
+    message: (emp: string, dev: string) => `Employee ${emp} tried to access restricted area: ${dev}.`
+  },
+  // Device
+  DEVICE_OFFLINE: {
+    type: ALERT_TYPES.DEVICE,
+    severity: SEVERITY_LEVELS.HIGH,
+    title: "📡 Device Connection Lost",
+    message: (dev: string) => `Device ${dev} is not responding to heartbeat/ping.`
+  },
+  // System
+  DATABASE_SYNC_ERROR: {
+    type: ALERT_TYPES.SYSTEM,
+    severity: SEVERITY_LEVELS.MEDIUM,
+    title: "🗄️ Database Sync Issue",
+    message: "Failed to synchronize data between PostgreSQL and MS SQL Server."
+  }
+};

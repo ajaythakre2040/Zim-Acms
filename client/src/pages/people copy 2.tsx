@@ -68,29 +68,6 @@ export default function PeoplePage() {
       refetchLogs();
     }
   }, [deviceStatusOpen]);
-  const bulkEmergencyUnblockMut = useMutation({
-    mutationFn: async () => {
-      const r = await apiRequest("POST", "/api/emergency/bulk-unblock", {});
-      return r.json();
-    },
-    onSuccess: (response) => {
-      // Queries invalidate karein taaki UI refresh ho jaye
-      queryClient.invalidateQueries({ queryKey: ["/api/people"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/alerts"] });
-
-      toast({
-        title: "Emergency Action Success",
-        // FIXED: Backend se aane wali 'message' property ko direct use karein
-        // Kyunki backend ne '56' ko pehle hi is string mein insert kar diya hai
-        description: response.message || "Commands dispatched successfully."
-      });
-    },
-    onError: (e: Error) => toast({
-      title: "Emergency Action Failed",
-      description: e.message,
-      variant: "destructive"
-    }),
-  });
   const emergencyToggleMut = useMutation({
     mutationFn: async (data: any) => {
       const r = await apiRequest("POST", "/api/people/emergency-toggle", data);
@@ -347,71 +324,29 @@ export default function PeoplePage() {
       <PageHeader
         title="People"
         description="Manage employees, contractors, and personnel"
-        // action={
-        //   <Button
-        //     onClick={async () => {
-        //       try {
-        //         await refetch();
-        //         toast({
-        //           title: "Data Synced",
-        //           description: "The people list has been refreshed successfully."
-        //         });
-        //       } catch (error) {
-        //         toast({
-        //           title: "Sync Failed",
-        //           description: "Could not refresh data. Please try again.",
-        //           variant: "destructive"
-        //         });
-        //       }
-        //     }}
-        //     disabled={isFetching}
-        //     data-testid="button-sync-person"
-        //   >
-        //     <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
-        //     {isFetching ? "Syncing..." : "Sync"}
-        //   </Button>
-        // }
         action={
-          <div className="flex gap-2">
-            {/* --- NEW EMERGENCY BUTTON --- */}
-            <Button
-              variant="destructive"
-              onClick={() => {
-                if (window.confirm("⚠️ ALERT: This will UNBLOCK ALL active employees on ALL devices. Proceed?")) {
-                  bulkEmergencyUnblockMut.mutate();
-                }
-              }}
-              disabled={bulkEmergencyUnblockMut.isPending}
-            >
-              <RefreshCw className={`w-4 h-4 mr-1 ${bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""}`} />
-              {bulkEmergencyUnblockMut.isPending ? "Unblocking..." : "Emergency Unblock All"}
-            </Button>
-
-            {/* --- EXISTING SYNC BUTTON --- */}
-            <Button
-              variant="outline"
-              onClick={async () => {
-                try {
-                  await refetch();
-                  toast({
-                    title: "Data Synced",
-                    description: "The people list has been refreshed successfully."
-                  });
-                } catch (error) {
-                  toast({
-                    title: "Sync Failed",
-                    description: "Could not refresh data.",
-                    variant: "destructive"
-                  });
-                }
-              }}
-              disabled={isFetching}
-              data-testid="button-sync-person"
-            >
-              <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
-              {isFetching ? "Syncing..." : "Sync"}
-            </Button>
-          </div>
+          <Button
+            onClick={async () => {
+              try {
+                await refetch();
+                toast({
+                  title: "Data Synced",
+                  description: "The people list has been refreshed successfully."
+                });
+              } catch (error) {
+                toast({
+                  title: "Sync Failed",
+                  description: "Could not refresh data. Please try again.",
+                  variant: "destructive"
+                });
+              }
+            }}
+            disabled={isFetching}
+            data-testid="button-sync-person"
+          >
+            <RefreshCw className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Syncing..." : "Sync"}
+          </Button>
         }
       />
       <DataTable

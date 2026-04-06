@@ -49,7 +49,7 @@ import { db, dbMsSql, mssqlPool } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
-import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS } from './constant';
+import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES } from './constant';
 import { esslService } from "./essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
 export interface IStorage {
@@ -178,8 +178,7 @@ export interface IStorage {
   getDashboardStats(): Promise<object>;
   getLockoutEligibleDoors(search?: string): Promise<any[]>;
   updateDoorLockoutStatusBulk(doorIds: number[], status: boolean): Promise<any[]>;
-
-}
+  executeEmergencybulkUnblock(userId: string | number, userName: string): Promise<any>; }
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     return authStorage.getUser(id);
@@ -776,16 +775,34 @@ export class DatabaseStorage implements IStorage {
       db.select({
         person: people,
         roleName: roles.name,
+        departmentName: departments.name,
+        lastPunchDoorName: doors.name,
       })
         .from(people)
-        .leftJoin(roles, eq(people.roleId, roles.id)),
+        .leftJoin(roles, eq(people.roleId, roles.id))
+        .leftJoin(departments, eq(people.departmentId, departments.id))
+        .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
+
       dbMsSql.select().from({ dbName: 'Employees' }).execute()
     ]);
     const msIds = new Set();
-    const currentPgData = pgDataRaw.map(row => ({
-      ...row.person,
-      roleName: row.roleName || null
-    }));
+    // 2. Rule ID to Rule Name Mapping (Using your Constants)
+    // Inverse mapping: ID se Key nikalne ke liye
+    const ruleIdToName = Object.fromEntries(
+      Object.entries(ACCESS_RULES).map(([key, value]) => [value, key])
+    );
+
+    const currentPgData = pgDataRaw.map(row => {
+      const p = row.person;
+      return {
+        ...p,
+        roleName: row.roleName || null,
+        departmentName: row.departmentName || "N/A",
+        lastPunchDoorName: row.lastPunchDoorName || "No Door",
+        // Rule Name mapping from constant file
+        ruleName: p.ruleid !== null ? (ruleIdToName[p.ruleid] || "UNKNOWN_RULE") : "NO_ROLE"
+      };
+    });
     for (const msRow of (msDataRaw || [])) {
       const mapped = PersonAdapter.toPostgres(msRow);
       msIds.add(mapped.msId);
@@ -806,11 +823,17 @@ export class DatabaseStorage implements IStorage {
             updatedAt: new Date(),
             createdAt: new Date(),
           }).returning();
-          currentPgData.push({ ...newRec, roleName: null });
+          currentPgData.push({
+            ...newRec,
+            roleName: null,
+            departmentName: "N/A",
+            lastPunchDoorName: "No Door",
+            ruleName: "NO_ROLE"
+          });
           if (newRec && newRec.employeeCode) {
             this.executeHardwareSync(newRec.employeeCode, null, true);
           }
-        } catch (e) { }
+        } catch (e) { console.error("Sync insert error"); }
       }
     }
     for (const pgRow of currentPgData) {
@@ -820,23 +843,89 @@ export class DatabaseStorage implements IStorage {
         } catch (e) { }
       }
     }
-    let results = currentPgData.map(p => ({
-      ...p,
-      roleId: p.roleName ? p.roleId : null
-    }));
+    // 5. Filtering & Sorting
+    let results = currentPgData;
     if (search) {
       const term = search.toLowerCase();
       results = results.filter(p =>
         p.employeeName.toLowerCase().includes(term) ||
         (p.employeeCode && p.employeeCode.toLowerCase().includes(term)) ||
-        (p.roleName && p.roleName.toLowerCase().includes(term))
+        (p.roleName && p.roleName.toLowerCase().includes(term)) ||
+        (p.departmentName && p.departmentName.toLowerCase().includes(term)) ||
+        (p.ruleName && p.ruleName.toLowerCase().includes(term))
       );
     }
-    const sortedResults = results.sort((a, b) => (b.id || 0) - (a.id || 0));
-    return Array.from(
+    // Sorting: Newest first
+    results.sort((a, b) => (b.id || 0) - (a.id || 0));    return Array.from(
       new Map(results.map(p => [`${p.msId || p.employeeCode || p.id}`, p])).values()
     );
   }
+  // async getPeople(search?: string): Promise<Person[]> {
+  //   const [pgDataRaw, msDataRaw] = await Promise.all([
+  //     db.select({
+  //       person: people,
+  //       roleName: roles.name,
+  //     })
+  //       .from(people)
+  //       .leftJoin(roles, eq(people.roleId, roles.id)),
+  //     dbMsSql.select().from({ dbName: 'Employees' }).execute()
+  //   ]);
+  //   const msIds = new Set();
+  //   const currentPgData = pgDataRaw.map(row => ({
+  //     ...row.person,
+  //     roleName: row.roleName || null
+  //   }));
+  //   for (const msRow of (msDataRaw || [])) {
+  //     const mapped = PersonAdapter.toPostgres(msRow);
+  //     msIds.add(mapped.msId);
+  //     const exists = currentPgData.find(p => p.msId === mapped.msId);
+  //     if (mapped.msId && !exists) {
+  //       try {
+  //         const [newRec] = await db.insert(people).values({
+  //           msId: mapped.msId,
+  //           employeeName: mapped.employeeName ?? "Unknown",
+  //           employeeCode: mapped.employeeCode,
+  //           locationId: mapped.locationId,
+  //           address: mapped.address,
+  //           overtimeEligible: mapped.overtimeEligible,
+  //           personType: "employee",
+  //           status: "active",
+  //           sourceSystem: "mssql_bio",
+  //           externalId: mapped.externalId,
+  //           updatedAt: new Date(),
+  //           createdAt: new Date(),
+  //         }).returning();
+  //         currentPgData.push({ ...newRec, roleName: null });
+  //         if (newRec && newRec.employeeCode) {
+  //           this.executeHardwareSync(newRec.employeeCode, null, true);
+  //         }
+  //       } catch (e) { }
+  //     }
+  //   }
+  //   for (const pgRow of currentPgData) {
+  //     if (pgRow.msId && !msIds.has(pgRow.msId)) {
+  //       try {
+  //         await db.delete(people).where(eq(people.msId, pgRow.msId));
+  //       } catch (e) { }
+  //     }
+  //   }
+  //   let results = currentPgData.map(p => ({
+  //     ...p,
+  //     roleId: p.roleName ? p.roleId : null
+  //   }));
+  //   if (search) {
+  //     const term = search.toLowerCase();
+  //     results = results.filter(p =>
+  //       p.employeeName.toLowerCase().includes(term) ||
+  //       (p.employeeCode && p.employeeCode.toLowerCase().includes(term)) ||
+  //       (p.roleName && p.roleName.toLowerCase().includes(term))
+  //     );
+  //   }
+  //   const sortedResults = results.sort((a, b) => (b.id || 0) - (a.id || 0));
+  //   return Array.from(
+  //     new Map(results.map(p => [`${p.msId || p.employeeCode || p.id}`, p])).values()
+  //   );
+  // }
   async getPerson(id: number): Promise<Person | undefined> {
     const [person] = await db.select().from(people).where(eq(people.id, id));
     return person;
@@ -1984,69 +2073,172 @@ export class DatabaseStorage implements IStorage {
       console.error("💀 Hardware Sync Engine Failure:", error.message);
     }
   }
-  // private async executeHardwareSync(employeeCode: string, roleId: number | null, blockAll: boolean = false) {
-  //   try {
-  //     const taskConfig = await db.query.cronMaster.findFirst({
-  //       where: eq(cronMaster.code, MAIN_GATE_SYNC.CODE)
-  //     });
-  //     if (!taskConfig?.doorId) return;
-  //     const activeGateId = taskConfig.doorId;
-  //     const [role, msDevicesRaw, gateMappings] = await Promise.all([
-  //       (roleId && roleId > 0) ? this.getRole(roleId) : Promise.resolve(null),
-  //       dbMsSql.select().from({ dbName: 'Devices' }).execute(),
-  //       db.select().from(doorDevices)
-  //         .where(eq(doorDevices.doorId, activeGateId))
-  //         .execute()
-  //     ]);
-  //     if (!msDevicesRaw || msDevicesRaw.length === 0) {
-  //       console.warn("⚠️ No devices found in MS SQL.");
-  //       return;
+
+
+  // async executeEmergencybulkUnblock(userId: string, userName: string): Promise<any> {
+  //   // 1. Data Fetch logic
+  //   const allPeople = await db.select().from(people).where(eq(people.status, "active"));
+  //   const allDevices = await db.select().from(devices).where(eq(devices.isActive, true));
+
+  //   // 2. Task Queue Build
+  //   const taskQueue = [];
+  //   for (const person of allPeople) {
+  //     if (!person.employeeCode) continue;
+  //     for (const device of allDevices) {
+  //       if (device.serialNumber && device.msId !== null) {
+  //         taskQueue.push({
+  //           employeeCode: person.employeeCode,
+  //           deviceMsId: device.msId,
+  //           serialNumber: device.serialNumber
+  //         });
+  //       }
   //     }
-  //     const mainGateWhitelistedIds = new Set<number>();
-  //     gateMappings.forEach(mapping => {
-  //       if (mapping.isActive) {
-  //         (mapping.inDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
-  //         (mapping.outDeviceIds || []).forEach(id => mainGateWhitelistedIds.add(Number(id)));
-  //       }
-  //     });
-  //     let allowedFromRole: number[] = [];
-  //     if (!blockAll && role) {
-  //       allowedFromRole = (role.doorIds as unknown as number[]) || [];
-  //     }
-  //     const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
-  //       const msDeviceId = Number(msDevice.DeviceId || msDevice.Id);
-  //       const serialNumber = msDevice.SerialNumber || msDevice.serialno;
-  //       const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
-  //       let shouldBlock: boolean;
-  //       if (isMainGate) {
-  //         shouldBlock = false;
-  //       } else {
-  //         const isAllowedByRole = allowedFromRole.includes(msDeviceId);
-  //         shouldBlock = blockAll || !isAllowedByRole;
-  //       }
-  //       const actionType = shouldBlock ? "block" : "unblock";
-  //       if (!serialNumber) return;
-  //       try {
-  //         await esslService.syncUserBlockStatus(
-  //           employeeCode,
-  //           serialNumber.toString(),
-  //           shouldBlock
-  //         );
-  //         await db.insert(blockUnblockLogs).values({
-  //           employeeCode,
-  //           deviceId: msDeviceId,
-  //           type: actionType,
-  //           createdAt: new Date()
-  //         }).catch(() => { });
-  //         console.log(`${isMainGate ? '🛡️ [GATEWAY]' : '🚀 [SYNC]'} Device: ${msDeviceId} | Action: ${actionType}`);
-  //       } catch (err: any) {
-  //         console.error(`❌ [SYNC FAILED] Device ${msDeviceId}: ${err.message}`);
-  //       }
-  //     });
-  //     await Promise.all(syncPromises);
-  //   } catch (error: any) {
-  //     console.error("💀 Hardware Sync Engine Failure:", error.message);
   //   }
+
+  //   // 3. INSERT ALERT (No personId used)
+  //   const [alertEntry] = await db.insert(alerts).values({
+  //     alertType: "security",
+  //     severity: "critical",
+  //     title: "🚨 EMERGENCY BULK UNBLOCK",
+  //     message: `System-wide unblock triggered by ${userName} for ${taskQueue.length} records.`,
+
+  //     // User tracking (UUID direct store hogi agar schema varchar hai)
+  //     createdBy: userId,
+  //     resolvedBy: userName,
+
+  //     // In fields ko skip kar dein ya default null rehne dein
+  //     isRead: false,
+  //     isResolved: true,
+  //     resolvedAt: new Date(),
+  //     createdAt: new Date()
+  //   }).returning();
+
+  //   // 5. Batch Processing (50 at a time)
+  //   const BATCH_SIZE = 50;
+  //   let processedCount = 0;
+
+  //   for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
+  //     const batch = taskQueue.slice(i, i + BATCH_SIZE);
+
+  //     await Promise.all(batch.map(async (task) => {
+  //       try {
+  //         // Insert Log
+  //         await db.insert(blockUnblockLogs).values({
+  //           employeeCode: task.employeeCode,
+  //           deviceId: task.deviceMsId,
+  //           type: "unblock",
+  //           createdAt: new Date(),
+  //           updatedAt: new Date()
+  //         });
+
+  //         // eSSL Hardware Sync (Non-blocking)
+  //         esslService.syncUserBlockStatus(
+  //           task.employeeCode,
+  //           task.serialNumber,
+  //           false
+  //         ).catch(err => console.error(`Sync Fail for ${task.employeeCode}:`, err));
+
+  //         processedCount++;
+  //       } catch (err) {
+  //         console.error(`Log Error for ${task.employeeCode}:`, err);
+  //       }
+  //     }));
+
+  //     // Small delay to prevent database/network congestion
+  //     await new Promise(res => setTimeout(res, 100));
+  //   }
+
+  //   return {
+  //     status: "Success",
+  //     processedCount: processedCount,
+  //     alertId: alertEntry.id
+  //   };
   // }
+
+
+  async executeEmergencybulkUnblock(userId: string, userName: string): Promise<any> {
+    // 1. Data Fetch: Active users aur devices nikalna
+    const allPeople = await db.select().from(people).where(eq(people.status, "active"));
+    const allDevices = await db.select().from(devices).where(eq(devices.isActive, true));
+    console.log(`Found People: ${allPeople.length}, Found Devices: ${allDevices.length}`);
+    // 2. Task Queue Build
+    const taskQueue = [];
+    for (const person of allPeople) {
+      if (!person.employeeCode) continue;
+      for (const device of allDevices) {
+        // Ensure deviceMsId exists and is a valid number
+        if (device.serialNumber && device.msId !== null && device.msId !== undefined) {
+          taskQueue.push({
+            employeeCode: person.employeeCode,
+            deviceMsId: Number(device.msId), // Explicitly convert to number for integer column
+            serialNumber: device.serialNumber
+          });
+        }
+      }
+    }
+
+    if (taskQueue.length === 0) {
+      return { status: "Empty", processedCount: 0, message: "No active records found." };
+    }
+
+    // 3. PostgreSQL Alert Entry (Audit Trail)
+    // createdBy: varchar hone ki wajah se UUID accept ho jayegi
+    const [alertEntry] = await db.insert(alerts).values({
+      alertType: "security",
+      severity: "critical",
+      title: "🚨 EMERGENCY BULK UNBLOCK",
+      message: `System-wide unblock triggered by ${userName} for ${taskQueue.length} records.`,
+      createdBy: userId,
+      resolvedBy: userName,
+      isRead: false,
+      isResolved: true,
+      resolvedAt: new Date(),
+      createdAt: new Date()
+    }).returning();
+
+    // 4. Batch Processing (50 at a time)
+    const BATCH_SIZE = 50;
+    let processedCount = 0;
+
+    for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
+      const batch = taskQueue.slice(i, i + BATCH_SIZE);
+
+      await Promise.all(batch.map(async (task) => {
+        try {
+          // A. PostgreSQL Log (user_block_unblock_logs)
+          // Yahan deviceId integer hai, isliye task.deviceMsId number hona chahiye
+          await db.insert(blockUnblockLogs).values({
+            employeeCode: task.employeeCode,
+            deviceId: task.deviceMsId,
+            type: "unblock",
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+
+          // B. eSSL Hardware Sync (Non-blocking call)
+          // Yeh call internals ke through MS SQL mein entry handle karta hai
+          esslService.syncUserBlockStatus(
+            task.employeeCode,
+            task.serialNumber,
+            false // false = unblock
+          ).catch(err => console.error(`API Sync Fail for ${task.employeeCode}:`, err));
+
+          processedCount++;
+        } catch (err) {
+          // Agar PG log fail ho toh yahan detail dikhegi
+          console.error(`PG Log Error for ${task.employeeCode}:`, err);
+        }
+      }));
+
+      // Small delay for stability
+      await new Promise(res => setTimeout(res, 100));
+    }
+
+    return {
+      status: "Success",
+      processedCount: processedCount,
+      alertId: alertEntry.id
+    };
+  }
 }
 export const storage = new DatabaseStorage();

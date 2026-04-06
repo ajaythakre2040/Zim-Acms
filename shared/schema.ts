@@ -192,6 +192,7 @@ export const people = pgTable("people", {
   phone: text("phone"),
   employeeCode: text("employee_code").unique(),
   departmentId: integer("department_id"),
+  shiftId: integer("shift_id"),
   designationId: integer("designation_id"),
   companyId: integer("company_id"),
   locationId: integer("location_id"),
@@ -223,12 +224,18 @@ export const people = pgTable("people", {
   shiftType: text("shift_type", { enum: ["fixed", "rotational", "flexible"] }).default("fixed"),
   externalId: text("external_id"),
   sourceSystem: text("source_system"),
-  createdAt: timestamp("created_at", { withTimezone: false }).defaultNow(),
-  updatedAt: timestamp("updated_at", { withTimezone: false }).defaultNow(),
-  lastSeenTime: timestamp("last_seen_time", { withTimezone: false }),
+   lastSeenTime: timestamp("last_seen_time", { withTimezone: false }),
   currentZone: text("current_zone").default("OUT"),
   lastPunchDoorId: integer("last_punch_door_id"),
   ruleid: integer("rule_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .$defaultFn(() => new Date()) // TypeScript automatic handle kar lega
+    .notNull(),
+
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .$defaultFn(() => new Date())
+    .notNull(),
+
 });
 
 
@@ -469,6 +476,7 @@ export const alerts = pgTable("alerts", {
   resolvedBy: varchar("resolved_by"),
   resolvedAt: timestamp("resolved_at"),
   createdAt: timestamp("created_at").defaultNow(),
+  createdBy: varchar("created_by"),
 });
 
 // ==================== EXCEPTIONS ====================

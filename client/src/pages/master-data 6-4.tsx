@@ -234,13 +234,12 @@ export default function MasterDataPage() {
 
       <Tabs defaultValue="companies" className="space-y-4">
         <TabsList className="flex-wrap">
-
+          {/* <TabsTrigger value="departments">Departments</TabsTrigger> */}
           {/* <TabsTrigger value="designations">Designations</TabsTrigger> */}
           {/* <TabsTrigger value="categories">Categories</TabsTrigger> */}
           <TabsTrigger value="companies">Companies</TabsTrigger>
           {/* <TabsTrigger value="vendors">Vendors</TabsTrigger> */}
           <TabsTrigger value="roles">Roles</TabsTrigger>
-          <TabsTrigger value="departments">Departments</TabsTrigger>
         </TabsList>
 
         <TabsContent value="departments">

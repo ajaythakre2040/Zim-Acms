@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import type { Server } from "http";
-import { setupAuth, registerAuthRoutes } from "./replit_integrations/auth";
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { storage } from "./storage";
 import { z } from "zod";
 import {
@@ -847,6 +847,43 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ success: false, message: "Failed to sync doors" });
     }
   });
+  app.post("/api/emergency/bulk-unblock", isAuthenticated, async (req, res) => {
+    try {
+      const session = req.session as any;
 
+      // 1. Session check
+      const loginId = session.userId;
+      if (!loginId) {
+        return res.status(401).json({ message: "User session not found. Please re-login." });
+      }
+
+      // 2. User fetch (Audit ke liye username zaroori hai)
+      // loginId agar UUID hai toh .toString() safe hai
+      const user = await storage.getUser(loginId.toString());
+      const userName = user?.username || "Admin User";
+
+      // 3. Storage call
+      // Ensure karein ki executeEmergencybulkUnblock (loginId, userName) accept kar raha hai
+      const result = await storage.executeEmergencybulkUnblock(loginId, userName);
+
+      // 4. Response
+      res.json({
+        success: true,
+        // Result se processedCount lein jo humne storage mein return kiya hai
+        message: `Emergency unblock initiated for ${result.processedCount} records.`,
+        audit: {
+          performedBy: userName,
+          alertId: result.alertId
+        }
+      });
+
+    } catch (error: any) {
+      console.error("Route Error:", error);
+      // User-friendly error message
+      res.status(500).json({
+        message: error.message || "Failed to execute emergency unblock"
+      });
+    }
+  });
   return httpServer;
 }

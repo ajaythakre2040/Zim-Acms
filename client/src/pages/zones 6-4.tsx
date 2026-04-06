@@ -67,8 +67,7 @@ export default function ZonesDoorsPage() {
   const { data: devices = [] } = useQuery<any[]>({
     queryKey: ["/api/devices"],
   });
-  // const [errors, setErrors] = useState<{ locationId?: string }>({});
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<{ locationId?: string }>({});
   const currentMapping = mappingCrud.data?.find(
     (m: any) => m.doorId === selectedDoorForMapping?.id,
   );
@@ -530,57 +529,21 @@ export default function ZonesDoorsPage() {
             ? { ...editingZone, locationId: String(editingZone.locationId) }
             : undefined
         }
-        // onSubmit={(data) => {
-        //   if (data.locationId === "placeholder") {
-        //     setErrors({ locationId: "Please select a site" });
-        //     return;
-        //   }
-
-        //   setErrors({}); // clear error
-
-        //   data.locationId = Number(data.locationId);
-
-        //   editingZone
-        //     ? zoneCrud.update({ id: editingZone.id, data })
-        //     : zoneCrud.create(data);
-
-        //   setZoneDialog(false);
-        // }}
-        // isPending={zoneCrud.isCreating || zoneCrud.isUpdating}
-        onSubmit={async (data) => {
-          try {
-            setErrors({}); // Reset previous errors
-
-            if (data.locationId === "placeholder") {
-              setErrors({ locationId: "Please select a site" });
-              return;
-            }
-
-            const payload = {
-              ...data,
-              locationId: Number(data.locationId),
-            };
-
-            // Yahan 'await' lagane se code response ka wait karega
-            if (editingZone) {
-              await zoneCrud.update({ id: editingZone.id, data: payload });
-            } else {
-              await zoneCrud.create(payload);
-            }
-
-            // Agar error nahi aaya, tabhi close hoga
-            setZoneDialog(false);
-            setEditingZone(null);
-          } catch (err: any) {
-            // Agar duplicate code ka error aaya
-            const msg = err.response?.data?.message || err.message || "";
-            if (msg.toLowerCase().includes("unique") || msg.toLowerCase().includes("code")) {
-              setErrors({ code: "This code is already in use. Please use a unique code." });
-            } else {
-              setErrors({ general: "Failed to save zone." });
-            }
-            // Dialog close nahi hoga, user error dekh payega
+        onSubmit={(data) => {
+          if (data.locationId === "placeholder") {
+            setErrors({ locationId: "Please select a site" });
+            return;
           }
+
+          setErrors({}); // clear error
+
+          data.locationId = Number(data.locationId);
+
+          editingZone
+            ? zoneCrud.update({ id: editingZone.id, data })
+            : zoneCrud.create(data);
+
+          setZoneDialog(false);
         }}
         isPending={zoneCrud.isCreating || zoneCrud.isUpdating}
       />
@@ -613,43 +576,13 @@ export default function ZonesDoorsPage() {
             }
             : undefined
         }
-        // onSubmit={(data) => {
-        //   if (data.locationId) data.locationId = Number(data.locationId);
-        //   if (data.zoneId) data.zoneId = Number(data.zoneId);
-        //   editingDoor
-        //     ? doorCrud.update({ id: editingDoor.id, data })
-        //     : doorCrud.create(data);
-        //   setDoorDialog(false);
-        // }}
-        // isPending={doorCrud.isCreating || doorCrud.isUpdating}
-        onSubmit={async (data) => {
-          try {
-            setErrors({}); // Reset errors
-
-            const payload = {
-              ...data,
-              locationId: data.locationId ? Number(data.locationId) : null,
-              zoneId: data.zoneId ? Number(data.zoneId) : null,
-            };
-
-            // Yahan bhi 'await' lagaya hai
-            if (editingDoor) {
-              await doorCrud.update({ id: editingDoor.id, data: payload });
-            } else {
-              await doorCrud.create(payload);
-            }
-
-            // Success hone par hi close hoga
-            setDoorDialog(false);
-            setEditingDoor(null);
-          } catch (err: any) {
-            const msg = err.response?.data?.message || err.message || "";
-            if (msg.toLowerCase().includes("unique") || msg.toLowerCase().includes("code")) {
-              setErrors({ code: "Duplicate door code. Please enter a unique one." });
-            } else {
-              setErrors({ general: "Error saving door details." });
-            }
-          }
+        onSubmit={(data) => {
+          if (data.locationId) data.locationId = Number(data.locationId);
+          if (data.zoneId) data.zoneId = Number(data.zoneId);
+          editingDoor
+            ? doorCrud.update({ id: editingDoor.id, data })
+            : doorCrud.create(data);
+          setDoorDialog(false);
         }}
         isPending={doorCrud.isCreating || doorCrud.isUpdating}
       />

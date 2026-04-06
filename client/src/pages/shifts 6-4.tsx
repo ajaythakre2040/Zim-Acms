@@ -11,7 +11,6 @@ import type { Shift } from "@shared/schema";
 export default function ShiftsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Shift | null>(null);
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const { data = [], isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Shift>("/api/shifts", "Shift");
 
   const fields: FieldConfig[] = [
@@ -98,7 +97,7 @@ export default function ShiftsPage() {
         emptyMessage="No shifts configured"
       />
 
-      {/* <CrudDialog
+      <CrudDialog
         open={dialogOpen}
         onClose={() => { setDialogOpen(false); setEditing(null); }}
         title={editing ? "Edit Shift" : "Add Shift"}
@@ -112,84 +111,6 @@ export default function ShiftsPage() {
           }
           setDialogOpen(false);
           setEditing(null);
-        }}
-        isPending={isCreating || isUpdating}
-      />
-      <CrudDialog
-        open={dialogOpen}
-        errors={errors} // 👈 Ye prop add karna mat bhulna
-        onClose={() => { 
-          setDialogOpen(false); 
-          setEditing(null); 
-          setErrors({}); // Close hone par errors clear karein
-        }}
-        title={editing ? "Edit Shift" : "Add Shift"}
-        fields={fields}
-        initialData={editing || undefined}
-        onSubmit={async (formData) => { // 👈 async banaya
-          try {
-            setErrors({}); // Purane errors saaf karein
-
-            // await lagaya taaki backend response ka wait ho
-            if (editing) {
-              await update({ id: editing.id, data: formData });
-            } else {
-              await create(formData);
-            }
-
-            // ✅ Success par hi close hoga
-            setDialogOpen(false);
-            setEditing(null);
-          } catch (err: any) {
-            // ❌ Error hone par yahan aayega
-            console.error("Shift save error:", err);
-            
-            const msg = err.response?.data?.message || err.message || "";
-            if (msg.toLowerCase().includes("unique") || msg.toLowerCase().includes("code")) {
-              setErrors({ code: "This shift code is already in use." });
-            } else {
-              setErrors({ general: "Failed to save shift details." });
-            }
-          }
-        }}
-        isPending={isCreating || isUpdating}
-      /> */}
-      <CrudDialog
-        open={dialogOpen}
-        errors={errors} // 👈 Ye prop add karna mat bhulna
-        onClose={() => {
-          setDialogOpen(false);
-          setEditing(null);
-          setErrors({}); // Close hone par errors clear karein
-        }}
-        title={editing ? "Edit Shift" : "Add Shift"}
-        fields={fields}
-        initialData={editing || undefined}
-        onSubmit={async (formData) => { // 👈 async banaya
-          try {
-            setErrors({}); // Purane errors saaf karein
-
-            // await lagaya taaki backend response ka wait ho
-            if (editing) {
-              await update({ id: editing.id, data: formData });
-            } else {
-              await create(formData);
-            }
-
-            // ✅ Success par hi close hoga
-            setDialogOpen(false);
-            setEditing(null);
-          } catch (err: any) {
-            // ❌ Error hone par yahan aayega
-            console.error("Shift save error:", err);
-
-            const msg = err.response?.data?.message || err.message || "";
-            if (msg.toLowerCase().includes("unique") || msg.toLowerCase().includes("code")) {
-              setErrors({ code: "This shift code is already in use." });
-            } else {
-              setErrors({ general: "Failed to save shift details." });
-            }
-          }
         }}
         isPending={isCreating || isUpdating}
       />
