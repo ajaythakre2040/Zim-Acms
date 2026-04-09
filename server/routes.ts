@@ -885,5 +885,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+
+  app.get("/api/reports/door-count", async (req, res) => {
+    try {
+      const { dateFrom, dateTo, deviceId, employeeCode } = req.query;
+
+      const data = await storage.getAttendanceByDoor({
+        dateFrom: dateFrom as string,
+        dateTo: dateTo as string,
+        deviceId: deviceId ? Number(deviceId) : undefined,
+        employeeCode: employeeCode as string,
+      });
+
+      res.json(data);
+    } catch (error) {
+      console.error("API Report Error:", error);
+      res.status(500).json({ message: "Failed to fetch report data" });
+    }
+  });
+
+  // app.get("/api/reports/cefalo-report", async (req, res) => {
+  //   const { dateFrom, dateTo, personId, deviceId } = req.query;
+  //   const data = await storage.getCefaloReport({
+  //     dateFrom: dateFrom as string,
+  //     dateTo: dateTo as string,
+  //     personId: personId ? Number(personId) : undefined,
+  //     deviceId: deviceId ? Number(deviceId) : undefined,
+  //   });
+  //   res.json(data);
+  // });
   return httpServer;
 }

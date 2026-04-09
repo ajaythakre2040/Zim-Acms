@@ -45,7 +45,8 @@ import {
   BlockUnblockLog,
   InsertBlockUnblockLog,
 } from "@shared/schema";
-import { db, dbMsSql, mssqlPool } from "./db";
+import * as schema from "@shared/schema";
+import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
@@ -1675,25 +1676,81 @@ export class DatabaseStorage implements IStorage {
       .where(eq(employeeRoles.id, id));
     return result;
   }
+  // async createEmployeeRole(insertData: InsertEmployeeRole): Promise<EmployeeRole> {
+  //   return await db.transaction(async (tx) => {
+  //     await tx
+  //       .delete(employeeRoles)
+  //       .where(eq(employeeRoles.employeeCode, insertData.employeeCode));
+  //     const [newMapping] = await tx
+  //       .insert(employeeRoles)
+  //       .values(insertData)
+  //       .returning();
+  //     if (newMapping) {
+  //       await tx
+  //         .update(people)
+  //         .set({
+  //           roleId: Number(newMapping.roleId),
+  //           updatedAt: new Date()
+  //         })
+  //         .where(eq(people.employeeCode, newMapping.employeeCode));
+  //       const roleForSync = Number(newMapping.roleId) === 0 ? null : Number(newMapping.roleId);
+  //       this.executeHardwareSync(newMapping.employeeCode, roleForSync, false);
+  //     }
+  //     return newMapping;
+  //   });
+  // }
   async createEmployeeRole(insertData: InsertEmployeeRole): Promise<EmployeeRole> {
     return await db.transaction(async (tx) => {
+      // 1. Purani mapping delete karein
       await tx
         .delete(employeeRoles)
         .where(eq(employeeRoles.employeeCode, insertData.employeeCode));
+
+      // 2. Nayi role mapping insert karein
       const [newMapping] = await tx
         .insert(employeeRoles)
         .values(insertData)
         .returning();
+
       if (newMapping) {
-        await tx
-          .update(people)
-          .set({
-            roleId: Number(newMapping.roleId),
-            updatedAt: new Date()
-          })
-          .where(eq(people.employeeCode, newMapping.employeeCode));
-        const roleForSync = Number(newMapping.roleId) === 0 ? null : Number(newMapping.roleId);
-        this.executeHardwareSync(newMapping.employeeCode, roleForSync, false);
+        // 3. Employee ka current status check karein (People Table se)
+        const [empData] = await tx
+          .select()
+          .from(people)
+          .where(eq(people.employeeCode, newMapping.employeeCode))
+          .limit(1);
+
+        if (empData) {
+          // --- Nayi Requirement ka Logic ---
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+
+          // Check karein kya aaj Main Gate entry hui hai?
+          // Hum check kar rahe hain lastSeenTime aaj ka hai aur Zone 'IN' ya 'CABIN' hai
+          const hasEnteredToday =
+            empData.lastSeenTime &&
+            new Date(empData.lastSeenTime) >= todayStart &&
+            (empData.currentZone === 'IN' || empData.currentZone === 'CABIN');
+
+          console.log(`[Role Assignment] Emp: ${empData.employeeCode} | HasEnteredToday: ${hasEnteredToday}`);
+
+          // 4. Role Update karein People table mein
+          await tx
+            .update(people)
+            .set({
+              roleId: Number(newMapping.roleId),
+              updatedAt: new Date()
+            })
+            .where(eq(people.employeeCode, newMapping.employeeCode));
+
+          // 5. Hardware Sync Trigger
+          // Agar aaj entry NAHI hui hai, toh hum 'null' role pass karenge sync mein 
+          // taaki hardware manager use block kar de (Except Main Gate)
+          const roleForSync = hasEnteredToday ? Number(newMapping.roleId) : null;
+
+          console.log(`[Sync] Triggering Hardware Sync with RoleID: ${roleForSync}`);
+          this.executeHardwareSync(newMapping.employeeCode, roleForSync, false);
+        }
       }
       return newMapping;
     });
@@ -1900,26 +1957,7 @@ export class DatabaseStorage implements IStorage {
     // 3. Map ko wapas array mein convert karke return karein
     return Array.from(latestMap.values());
   }
-  // async getEmployeeDeviceStatuses(employeeCode: string) {
-  //   const logs = await db
-  //     .select({
-  //       id: blockUnblockLogs.id,
-  //       employeeCode: blockUnblockLogs.employeeCode,
-  //       deviceId: blockUnblockLogs.deviceId,
-  //       type: blockUnblockLogs.type,
-  //       createdAt: blockUnblockLogs.createdAt,
-  //     })
-  //     .from(blockUnblockLogs)
-  //     .where(eq(blockUnblockLogs.employeeCode, employeeCode))
-  //     .orderBy(desc(blockUnblockLogs.createdAt));
-  //   const latestMap = new Map();
-  //   logs.forEach(log => {
-  //     if (!latestMap.has(log.deviceId)) {
-  //       latestMap.set(log.deviceId, log);
-  //     }
-  //   });
-  //   return Array.from(latestMap.values());
-  // }
+ 
   async toggleEmployeeDeviceAccess(params: {
     employeeCode: string;
     deviceId: number;
@@ -2074,88 +2112,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-
-  // async executeEmergencybulkUnblock(userId: string, userName: string): Promise<any> {
-  //   // 1. Data Fetch logic
-  //   const allPeople = await db.select().from(people).where(eq(people.status, "active"));
-  //   const allDevices = await db.select().from(devices).where(eq(devices.isActive, true));
-
-  //   // 2. Task Queue Build
-  //   const taskQueue = [];
-  //   for (const person of allPeople) {
-  //     if (!person.employeeCode) continue;
-  //     for (const device of allDevices) {
-  //       if (device.serialNumber && device.msId !== null) {
-  //         taskQueue.push({
-  //           employeeCode: person.employeeCode,
-  //           deviceMsId: device.msId,
-  //           serialNumber: device.serialNumber
-  //         });
-  //       }
-  //     }
-  //   }
-
-  //   // 3. INSERT ALERT (No personId used)
-  //   const [alertEntry] = await db.insert(alerts).values({
-  //     alertType: "security",
-  //     severity: "critical",
-  //     title: "🚨 EMERGENCY BULK UNBLOCK",
-  //     message: `System-wide unblock triggered by ${userName} for ${taskQueue.length} records.`,
-
-  //     // User tracking (UUID direct store hogi agar schema varchar hai)
-  //     createdBy: userId,
-  //     resolvedBy: userName,
-
-  //     // In fields ko skip kar dein ya default null rehne dein
-  //     isRead: false,
-  //     isResolved: true,
-  //     resolvedAt: new Date(),
-  //     createdAt: new Date()
-  //   }).returning();
-
-  //   // 5. Batch Processing (50 at a time)
-  //   const BATCH_SIZE = 50;
-  //   let processedCount = 0;
-
-  //   for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
-  //     const batch = taskQueue.slice(i, i + BATCH_SIZE);
-
-  //     await Promise.all(batch.map(async (task) => {
-  //       try {
-  //         // Insert Log
-  //         await db.insert(blockUnblockLogs).values({
-  //           employeeCode: task.employeeCode,
-  //           deviceId: task.deviceMsId,
-  //           type: "unblock",
-  //           createdAt: new Date(),
-  //           updatedAt: new Date()
-  //         });
-
-  //         // eSSL Hardware Sync (Non-blocking)
-  //         esslService.syncUserBlockStatus(
-  //           task.employeeCode,
-  //           task.serialNumber,
-  //           false
-  //         ).catch(err => console.error(`Sync Fail for ${task.employeeCode}:`, err));
-
-  //         processedCount++;
-  //       } catch (err) {
-  //         console.error(`Log Error for ${task.employeeCode}:`, err);
-  //       }
-  //     }));
-
-  //     // Small delay to prevent database/network congestion
-  //     await new Promise(res => setTimeout(res, 100));
-  //   }
-
-  //   return {
-  //     status: "Success",
-  //     processedCount: processedCount,
-  //     alertId: alertEntry.id
-  //   };
-  // }
-
-
   async executeEmergencybulkUnblock(userId: string, userName: string): Promise<any> {
     // 1. Data Fetch: Active users aur devices nikalna
     const allPeople = await db.select().from(people).where(eq(people.status, "active"));
@@ -2240,5 +2196,119 @@ export class DatabaseStorage implements IStorage {
       alertId: alertEntry.id
     };
   }
-}
+  // --- Filtered Door & Employee Report ---
+  async getAttendanceByDoor(filters: {
+    dateFrom?: string;
+    dateTo?: string;
+    deviceId?: number;
+    employeeCode?: string;
+  }) {
+    const today = new Date().toISOString().split('T')[0];
+    const start = filters.dateFrom || today;
+    const end = filters.dateTo || today;
+
+    try {
+      // 1. Direct MS SQL Fetch (No schema dependency)
+      // Humne { dbName: 'DeviceLogs' } pass kiya hai jo db.ts handle kar lega
+      const logs = await dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute();
+
+      // People/Employees table agar MS SQL mein hai toh use bhi aise hi fetch karein
+      const employees = await dbMsSql.select().from({ dbName: 'Employees' }).execute();
+      // Devices (Postgres se, kyunki ye sync ho chuke hain)
+      const devices = await db.select().from(schema.devices).execute();
+
+      // 2. Filter & Map Logic
+      return logs
+        .filter((log: any) => {
+          // MS SQL mein column names 'LogDate' ya 'LogDateTime' ho sakte hain
+          const rawDate = log.LogDate || log.logDate || log.LogDateTime;
+          const logDateStr = rawDate ? new Date(rawDate).toISOString().split('T')[0] : null;
+
+          const isDateMatch = logDateStr && logDateStr >= start && logDateStr <= end;
+
+          // DeviceId/Door filter (Standardized check)
+          const currentLogDeviceId = log.DeviceId || log.deviceId;
+          const isDoorMatch = filters.deviceId && Number(filters.deviceId) !== 0
+            ? Number(currentLogDeviceId) === Number(filters.deviceId)
+            : true;
+
+          const currentEmpCode = log.EmployeeCode || log.employeeCode;
+          const isEmployeeMatch = filters.employeeCode
+            ? currentEmpCode?.toString().includes(filters.employeeCode)
+            : true;
+
+          return isDateMatch && isDoorMatch && isEmployeeMatch;
+        })
+        .map((log: any) => {
+          const currentEmpCode = log.EmployeeCode || log.employeeCode;
+          const currentLogDeviceId = log.DeviceId || log.deviceId;
+
+          const emp = employees.find((e: any) => (e.EmployeeCode || e.employeeCode) === currentEmpCode);
+          const dev = devices.find((d: any) => d.msId === currentLogDeviceId);
+
+          return {
+            id: log.DeviceLogId || log.id,
+            employeeName: emp?.EmployeeName || emp?.employeeName || "Unknown Employee",
+            employeeCode: currentEmpCode,
+            logTime: log.LogDate || log.logDate,
+            direction: (log.Direction || log.direction || "N/A").toUpperCase(),
+            doorName: dev?.name || `Door ${currentLogDeviceId}`,
+            doorId: currentLogDeviceId
+          };
+        })
+        .sort((a, b) => new Date(b.logTime).getTime() - new Date(a.logTime).getTime());
+
+    } catch (error) {
+      console.error("Direct MS SQL Fetch Error:", error);
+      return [];
+    }
+  }
+  // --- 2. CEFALO REPORT (Using your Custom Builder Format) ---
+  // async getCefaloReport(filters: { dateFrom?: string; dateTo?: string; deviceId?: number }) {
+  //   const today = new Date().toISOString().split('T')[0];
+  //   const start = filters.dateFrom || today;
+  //   const end = filters.dateTo || today;
+
+  //   // A. standard builder for metadata (Small tables)
+  //   const peopleList = await dbMsSql.select().from(schema.people).execute();
+  //   const devicesList = await dbMsSql.select().from(schema.devices).execute();
+
+  //   // B. Logs fetch with TOP 5000 (To handle 10M rows)
+  //   const request = mssqlPool.request();
+  //   request.input('start', mssql.DateTime, `${start} 00:00:00`);
+  //   request.input('end', mssql.DateTime, `${end} 23:59:59`);
+
+  //   let query = `
+  //     SELECT TOP 5000 * FROM DeviceLog 
+  //     WHERE LogDate >= @start AND LogDate <= @end
+  //   `;
+  //   if (filters.deviceId) {
+  //     query += ` AND DeviceId = @deviceId`;
+  //     request.input('deviceId', mssql.Int, filters.deviceId);
+  //   }
+  //   query += ` ORDER BY LogDate DESC`;
+
+  //   const logResult = await request.query(query);
+
+  //   // C. Map MS SQL rows to Schema (Using your helper function)
+  //   const mappedLogs = logResult.recordset.map(row => mapMsSqlToSchema(row, schema.deviceLogs));
+
+  //   // D. Manual Join (Drizzle style)
+  //   return mappedLogs.map((log: any) => {
+  //     const person = peopleList.find((p: any) => p.employeeCode === log.employeeCode);
+  //     const device = devicesList.find((d: any) => d.id === log.deviceId || d.msId === log.deviceId);
+
+  //     return {
+  //       id: log.deviceLogId,
+  //       employeeName: person?.employeeName || "Unknown",
+  //       employeeCode: log.employeeCode,
+  //       logTime: log.logDate,
+  //       doorName: device?.name || "Unknown Door",
+  //       direction: log.direction,
+  //       doorId: log.deviceId
+  //     };
+  //   });
+  // }
+
+};
 export const storage = new DatabaseStorage();

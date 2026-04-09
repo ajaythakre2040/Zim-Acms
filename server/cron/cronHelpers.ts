@@ -41,25 +41,25 @@ export async function getLockoutStatus(empCode: string) {
  */
 export async function updateDeviceStatus(empCode: string, machine: any, shouldBlock: boolean) {
     const type = shouldBlock ? "block" : "unblock";
-
+    const machineId = machine.msId ?? 0;
     // Check last log to avoid unnecessary API calls to hardware
     const lastLog = await db.query.blockUnblockLogs.findFirst({
         where: and(
             eq(blockUnblockLogs.employeeCode, empCode),
-            eq(blockUnblockLogs.deviceId, machine.msId!)
+            eq(blockUnblockLogs.deviceId, machineId)
         ),
         orderBy: [desc(blockUnblockLogs.createdAt)]
     });
 
     // Agar hardware pehle se hi desired state mein hai, toh skip karo
     if (lastLog && lastLog.type === type) {
-        // console.log(`[SKIP] ${empCode} already ${type}ed on ${machine.msId}`);
+        // console.log(`[SKIP] ${empCode} already ${type}ed on ${machineId}`);
         return;
     }
 
     try {
         if (!machine.serialNumber) {
-            console.error(`[SERIAL MISSING] Machine ID ${machine.msId} has no serial number.`);
+            console.error(`[SERIAL MISSING] Machine ID ${machineId} has no serial number.`);
             return;
         }
 
@@ -69,13 +69,13 @@ export async function updateDeviceStatus(empCode: string, machine: any, shouldBl
         // Success Log in DB
         await db.insert(blockUnblockLogs).values({
             employeeCode: empCode,
-            deviceId: machine.msId!,
+            deviceId: machineId,
             type,
             createdAt: new Date()
         });
 
-        console.log(`[HARDWARE SYNC] ${empCode} -> ${type} on ${machine.msId}`);
+        console.log(`[HARDWARE SYNC] ${empCode} -> ${type} on ${machineId}`);
     } catch (e) {
-        console.error(`[HARDWARE ERROR] Failed to ${type} ${empCode} on ${machine.msId}:`, e);
+        console.error(`[HARDWARE ERROR] Failed to ${type} ${empCode} on ${machineId}:`, e);
     }
 }

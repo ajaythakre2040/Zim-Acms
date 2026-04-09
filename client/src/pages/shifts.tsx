@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Shift } from "@shared/schema";
+import { validateNoHtml } from "./validation";
 
 export default function ShiftsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -165,18 +166,26 @@ export default function ShiftsPage() {
         title={editing ? "Edit Shift" : "Add Shift"}
         fields={fields}
         initialData={editing || undefined}
-        onSubmit={async (formData) => { // 👈 async banaya
+        onSubmit={async (formData) => {
           try {
-            setErrors({}); // Purane errors saaf karein
+            setErrors({}); // Purane errors clear
 
-            // await lagaya taaki backend response ka wait ho
+            // :fire: COMMON VALIDATION (ALL FIELDS)
+            const validationErrors = validateNoHtml(formData);
+
+            if (Object.keys(validationErrors).length > 0) {
+              setErrors(validationErrors);
+              return; // :x: API call rok do
+            }
+
+            // :white_check_mark: Backend call
             if (editing) {
               await update({ id: editing.id, data: formData });
             } else {
               await create(formData);
             }
 
-            // ✅ Success par hi close hoga
+            // :white_check_mark: Success par close
             setDialogOpen(false);
             setEditing(null);
           } catch (err: any) {

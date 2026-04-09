@@ -8,7 +8,7 @@ import {
     doors,
     cabinLockouts,
 } from "@shared/schema";
-import { eq, and, gt, lt, sql } from "drizzle-orm";
+import { eq, and, gt, lt, sql, desc } from "drizzle-orm";
 import {
     ACCESS_RULES,
     ZONES,
@@ -21,342 +21,348 @@ export async function runMasterAuthSync() {
     const CRON_CODE = MAIN_GATE_SYNC.CODE;
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+    const startTime = Date.now();
 
-    const indianTime = new Date().toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-    });
-    console.log(
-        `\n=============================================================`,
-    );
-    console.log(`>>>>> [START] CRON EXECUTION: ${indianTime} <<<<<`);
-    console.log(`=============================================================`);
+    console.log(`\n[${new Date().toLocaleString("en-IN")}] >>> [START] CRON INITIATED: ${CRON_CODE} <<<`);
 
     try {
-        // 1. CRON STATE & RECOVERY
-        const [cronState] = await db
-            .select()
-            .from(cronMaster)
-            .where(eq(cronMaster.code, CRON_CODE))
-            .limit(1);
+        // --- STEP 1: CRON STATE & STUCK LOCK CHECK ---
+        const [cronState] = await db.select().from(cronMaster).where(eq(cronMaster.code, CRON_CODE)).limit(1);
 
         if (!cronState || !cronState.isActive) {
-            console.log("[-] ABORTED: Cron is marked INACTIVE.");
+            console.log("⚠️ Skip: Cron is inactive or not found.");
             return;
         }
 
-        if (cronState.isRunning) {
-            const lastRun = cronState.lastRun
-                ? new Date(cronState.lastRun).getTime()
-                : 0;
-            const diffInMins = (new Date().getTime() - lastRun) / 60000;
-            if (diffInMins < 5) {
-                console.log("[-] SKIP: Cron already running.");
-                return;
-            }
+        // Stuck Lock Prevention (Smart Timeout)
+        const now = new Date();
+        const lastRunTime = cronState.lastRun ? new Date(cronState.lastRun) : new Date(0);
+        const timeoutThreshold = (cronState.timeoutMinutes || 10) * 60000;
+
+        if (cronState.isRunning && (now.getTime() - lastRunTime.getTime()) < timeoutThreshold) {
+            console.log(`[-] Skip: Already running. (Started at: ${lastRunTime.toLocaleTimeString()})`);
+            return;
         }
 
-        await db
-            .update(cronMaster)
-            .set({ isRunning: true, lastRun: sql`NOW()` })
+        // Lock the cron
+        await db.update(cronMaster)
+            .set({ isRunning: true, lastRun: sql`NOW()`, lastStatus: 'processing' })
             .where(eq(cronMaster.code, CRON_CODE));
+        console.log("✅ [1/5] Cron Locked.");
 
-        // 2. FETCH MASTER DATA
-        const [allDoorDevices, allDevices, allPeople, allRoles, allDoors] =
-            await Promise.all([
-                db.select().from(doorDevices),
-                db.select().from(devices).where(gt(devices.msId, 0)),
-                db.select().from(people),
-                db.select().from(roles),
-                db.select().from(doors),
-            ]);
+        // --- STEP 2: FETCH PUNCHES ---
+        const lastProcessedId = Number(cronState.lastProcessedId || 0);
+        const punchResult = await mssqlPool.request().query(`
+            SELECT EmployeeCode, DeviceId, DeviceLogId, LogDate 
+            FROM DeviceLogs WHERE DeviceLogId > ${lastProcessedId} ORDER BY DeviceLogId ASC
+        `);
+        const punches = punchResult.recordset || [];
+
+        if (punches.length === 0) {
+            console.log("😴 [2/5] No new punches. Releasing lock.");
+            await db.update(cronMaster).set({ isRunning: false, lastStatus: "success" }).where(eq(cronMaster.code, CRON_CODE));
+            return;
+        }
+        console.log(`📡 [2/5] Found ${punches.length} new punches.`);
+
+        // --- STEP 3: MASTER DATA FETCH ---
+        const uniqueEmpCodes = [...new Set(punches.map(p => (p.EmployeeCode || "").toString().trim()))].filter(Boolean);
+        const [allDoorDevices, allDevices, allDoors, allRoles, punchingPeople] = await Promise.all([
+            db.select().from(doorDevices),
+            db.select().from(devices).where(gt(devices.msId, 0)),
+            db.select().from(doors),
+            db.select().from(roles),
+            db.select().from(people).where(sql`${people.employeeCode} IN ${uniqueEmpCodes.length > 0 ? uniqueEmpCodes : ['-1']}`)
+        ]);
 
         const mainGateDoor = allDoors.find((d) => d.code === CRON_CODE);
-        if (!mainGateDoor)
-            throw new Error(`CRITICAL: Main Gate Configuration missing.`);
+        if (!mainGateDoor) throw new Error("Main Gate configuration missing.");
 
-        // 3. FETCH PUNCHES
-        let lastId = Number(cronState.lastProcessedId || 0);
-        const result = await mssqlPool.request().query(`
-            SELECT EmployeeCode, DeviceId, DeviceLogId, LogDate 
-            FROM DeviceLogs WHERE DeviceLogId > ${lastId} ORDER BY DeviceLogId ASC
-        `);
-
-        const punches = result.recordset || [];
-        let maxId = lastId;
-
-        // 4. PROCESS EACH PUNCH
+        // --- STEP 4: PROCESSING LOOP ---
+        console.log(`🔄 [3/5] Processing Punches...`);
         for (const punch of punches) {
-            const empCodeRaw = (punch.EmployeeCode || "").toString().trim();
-            if (!empCodeRaw) continue;
-
-            const punchDeviceId = Number(punch.DeviceId);
-            const punchTime = new Date(punch.LogDate);
             const currentLogId = Number(punch.DeviceLogId);
+            const empCode = (punch.EmployeeCode || "").toString().trim();
+            const punchDeviceId = Number(punch.DeviceId);
 
-            console.log(`\n--- [PUNCH] ID: ${currentLogId} | Emp: ${empCodeRaw} ---`);
+            // Pointer update hamesha sabse pehle (taaki fasa na rahe)
+            const updatePointer = async () => {
+                await db.update(cronMaster).set({ lastProcessedId: currentLogId }).where(eq(cronMaster.code, CRON_CODE));
+            };
 
-            const doorMapping = allDoorDevices.find((d) =>
-                [...(d.inDeviceIds || []), ...(d.outDeviceIds || [])].includes(
-                    punchDeviceId,
-                ),
-            );
+            const doorMapping = allDoorDevices.find((d) => [...(d.inDeviceIds || []), ...(d.outDeviceIds || [])].includes(punchDeviceId));
             const doorDetails = allDoors.find((d) => d.id === doorMapping?.doorId);
-            const emp = allPeople.find(
-                (p) => p.employeeCode?.toString().trim() === empCodeRaw,
-            );
+            const emp = punchingPeople.find((p) => p.employeeCode?.toString().trim() === empCode);
 
             if (!emp || !doorDetails) {
-                maxId = currentLogId;
+                console.log(`   ⚠️ Skip LogID ${currentLogId}: Emp(${empCode}) or Device(${punchDeviceId}) mapping missing.`);
+                await updatePointer(); // Pointer aage badhao taaki loop break ho
                 continue;
             }
 
+            // --- RULE ENGINE ---
             const isMainGatePunch = doorDetails.code === CRON_CODE;
-            const isEntryPunch = (doorMapping!.inDeviceIds || []).includes(
-                punchDeviceId,
-            );
-            const role = allRoles.find((r) => r.id === emp.roleId);
-
-            let allowedDoorIds: number[] = [];
-            if (role?.doorIds) {
-                try {
-                    allowedDoorIds = Array.isArray(role.doorIds)
-                        ? role.doorIds.map(Number)
-                        : JSON.parse(role.doorIds as string).map(Number);
-                } catch (e) {
-                    console.log("Role parse error");
-                }
-            }
+            const isEntryPunch = (doorMapping!.inDeviceIds || []).includes(punchDeviceId);
+            const hasMainEntryToday = helpers.hasEnteredToday(emp, todayStart);
 
             let ruleToApply = emp.ruleid;
             let currentZone = emp.currentZone;
             let blockAllInternal = true;
-            let actionMsg = "";
 
-            // --- RULE ENGINE (Old Logic Maintained + Cabin Isolation Added) ---
             if (isMainGatePunch) {
                 if (isEntryPunch) {
-                    const activeLockout = await helpers.getLockoutStatus(empCodeRaw);
-                    if (!helpers.hasValidRole(emp)) {
-                        ruleToApply = ACCESS_RULES.NO_ROLE;
-                        blockAllInternal = true;
-                        actionMsg = "REJECTED (No Role)";
-                    } else if (activeLockout) {
-                        ruleToApply = ACCESS_RULES.LOCKOUT_ACTIVE;
-                        blockAllInternal = true;
-                        actionMsg = "REJECTED (Lockout)";
-                    } else {
-                        ruleToApply = ACCESS_RULES.MAIN_GATE_IN;
-                        currentZone = ZONES.IN;
-                        blockAllInternal = false;
-                        actionMsg = "MAIN GATE ENTRY";
+                    // 🔥 LATEST LOCKOUT CHECK (Real-time)
+                    const [latestLockout] = await db.select()
+                        .from(cabinLockouts)
+                        .where(and(eq(cabinLockouts.employeeCode, empCode), eq(cabinLockouts.status, "active")))
+                        .orderBy(desc(cabinLockouts.createdAt))
+                        .limit(1);
+
+                    let isStillLocked = false;
+                    if (latestLockout) {
+                        if (new Date() < new Date(latestLockout.lockoutExpiry)) {
+                            isStillLocked = true;
+                        } else {
+                            // Expire all active lockouts for this user
+                            await db.update(cabinLockouts).set({ status: 'expired' })
+                                .where(and(eq(cabinLockouts.employeeCode, empCode), eq(cabinLockouts.status, "active")));
+                        }
                     }
+
+                    if (!helpers.hasValidRole(emp)) { ruleToApply = ACCESS_RULES.NO_ROLE; blockAllInternal = true; }
+                    else if (isStillLocked) { ruleToApply = ACCESS_RULES.LOCKOUT_ACTIVE; blockAllInternal = true; }
+                    else { ruleToApply = ACCESS_RULES.MAIN_GATE_IN; currentZone = ZONES.IN; blockAllInternal = false; }
                 } else {
-                    ruleToApply = ACCESS_RULES.MAIN_GATE_OUT;
-                    currentZone = ZONES.OUT;
-                    blockAllInternal = true;
-                    actionMsg = "MAIN GATE EXIT";
+                    ruleToApply = ACCESS_RULES.MAIN_GATE_OUT; currentZone = ZONES.OUT; blockAllInternal = true;
                 }
             } else {
-                if (!helpers.hasEnteredToday(emp, todayStart)) {
+                // Agar punch Main Gate ka nahi hai (Internal/Cabin door hai)
+                if (!hasMainEntryToday) {
                     ruleToApply = ACCESS_RULES.MAIN_GATE_OUT;
                     currentZone = ZONES.OUT;
                     blockAllInternal = true;
-                    actionMsg = "SECURITY BLOCK";
                 } else {
                     if (isEntryPunch) {
-                        // CABIN IN: Isolate to this door
+                        // Banda Cabin ke andar ja raha hai
                         ruleToApply = ACCESS_RULES.CABIN_IN;
                         currentZone = ZONES.CABIN;
                         blockAllInternal = true;
-                        actionMsg = `CABIN ENTRY: ${doorDetails.name}`;
-                    } else {
-                        // CABIN OUT
-                        if (doorDetails.is_lockout_enabled) {
-                            ruleToApply = ACCESS_RULES.LOCKOUT_ACTIVE;
-                            currentZone = ZONES.IN;
-                            blockAllInternal = true;
-                            actionMsg = "CABIN EXIT (Lockout)";
-                            // const [lockout_time] = await db.select().from(cronMaster).where(eq(cronMaster.code, CABIN_LOCKOUT_CONFIG.CODE)).limit(1);
-                            // await db.insert(cabinLockouts).values({
-                            //     employeeCode: empCodeRaw, doorId: doorDetails.id, outPunchTime: punchTime,
-                            //     lockoutExpiry: new Date(punchTime.getTime() + (lockout_time.lockoutHours || 2) * 3600000),
-                            //     status: "active"
-                            // });
+                    }
+                    else if (doorDetails.is_lockout_enabled) {
+                        // 1. Rule aur Zone set karein
+                        ruleToApply = ACCESS_RULES.LOCKOUT_ACTIVE;
+                        currentZone = ZONES.IN;
+                        blockAllInternal = true;
+
+                        // 2. Cron Master se Lockout Config fetch karein
+                        const [lockoutConfig] = await db
+                            .select()
+                            .from(cronMaster)
+                            .where(eq(cronMaster.code, CABIN_LOCKOUT_CONFIG.CODE))
+                            .limit(1);
+
+                        // 3. Dynamic Duration calculate karein (Hours + Minutes)
+
+                        // // 4. STEP: Purani entry expire karo agar uska waqt (expiry time) nikal gaya hai
+                        // await db.update(cabinLockouts)
+                        //     .set({
+                        //         status: 'expired',
+                        //         updatedAt: sql`NOW()`
+                        //     })
+                        //     .where(and(
+                        //         eq(cabinLockouts.employeeCode, empCode),
+                        //         eq(cabinLockouts.status, "active"),
+                        //         // NOW() database ka current time lega jo direct lockoutExpiry se compare hoga
+                        //         sql`${cabinLockouts.lockoutExpiry} <= NOW()`
+                        //     ));
+                        // Cleanup check
+                        // --- 4. STEP: Purani entry expire karo (SQL Native Fix) ---
+                        const cleanupResult = await db.update(cabinLockouts)
+                            .set({
+                                status: 'expired',
+                                updatedAt: sql`NOW()`
+                            })
+                            .where(and(
+                                eq(cabinLockouts.employeeCode, empCode),
+                                eq(cabinLockouts.status, "active"),
+                                // Database se hi pucho: "Kya Expiry ka time nikal gaya?"
+                                sql`"lockoutExpiry" <= NOW()`
+                            ));
+
+                        const rowsAffected = cleanupResult?.rowCount ?? 0;
+                        if (rowsAffected > 0) {
+                            console.log(`🧹 [CLEANUP] Success! Expired ${rowsAffected} entries for ${empCode}`);
+                        } else {
+                            // Ye log tab aayega jab koi record expiry time tak nahi pahuncha hai
+                            console.log(`ℹ️ [CLEANUP] No lockouts reached expiry yet for ${empCode}`);
+                        }
+
+                        // --- 5. STEP: Check karo kya abhi bhi koi ACTIVE entry hai ---
+                        const [stillActive] = await db.select()
+                            .from(cabinLockouts)
+                            .where(and(
+                                eq(cabinLockouts.employeeCode, empCode),
+                                eq(cabinLockouts.status, "active")
+                            ))
+                            .limit(1);
+                      
+                        
+                        // 6. STEP: Agar koi active entry nahi hai, tabhi Nayi Row insert hogi
+                        if (!stillActive) {
+                            // 1. Config fetch karna
                             const [lockoutConfig] = await db
                                 .select()
                                 .from(cronMaster)
-                                .where(eq(cronMaster.code, CABIN_LOCKOUT_CONFIG.CODE)) // Aapka current config code
+                                .where(eq(cronMaster.code, CABIN_LOCKOUT_CONFIG.CODE))
                                 .limit(1);
 
-                            // 2. Default values set karo agar DB mein null ho
-                            const hours = lockoutConfig?.lockoutHours || 0; // Maan lo 1
-                            const minutes = lockoutConfig?.lockoutMinutes || 30; // Maan lo 30
+                            // 2. Default values
+                            const hours = lockoutConfig?.lockoutHours || 0;
+                            const minutes = lockoutConfig?.lockoutMinutes || 30;
+                            const totalLockoutMs = (hours * 3600000) + (minutes * 60000);
 
-                            // 3. Milliseconds calculate karo
-                            // 1 Hour = 3,600,000 ms | 1 Minute = 60,000 ms
-                            const totalLockoutMs = hours * 3600000 + minutes * 60000;
+                            // 2. Date Objects (System Local Time)
+                            const punchTime = new Date(punch.LogDate);
+                            const expiryTime = new Date(punchTime.getTime() + totalLockoutMs);
 
-                            // 4. Insert karo new Expiry time ke saath
-                            await db.insert(cabinLockouts).values({
-                                employeeCode: empCodeRaw,
-                                doorId: doorDetails.id,
-                                outPunchTime: punchTime,
-                                // Punch time + calculated hours & minutes
-                                lockoutExpiry: new Date(punchTime.getTime() + totalLockoutMs),
-                                status: "active",
-                            });
+                            // 🔥 PRECISION DEBUGGING LOGS
+                            console.log("------------------ LOCKOUT SYSTEM DEBUG ------------------");
+                            console.log(`👤 Employee Code    : ${empCode}`);
+                            console.log(`🕒 DB Raw LogDate   : ${punch.LogDate}`);
+                            console.log(`📅 Parsed Punch     : ${punchTime.toLocaleString('en-IN')}`);
+                            console.log(`⏳ Lockout Duration : ${hours}h ${minutes}m`);
+                            console.log(`🏁 Calculated Expiry: ${expiryTime.toLocaleString('en-IN')}`);
+                            console.log(`🔢 Duration (Int)   : ${Math.ceil(hours + (minutes / 60))}`);
+                            console.log("----------------------------------------------------------");
+
+                            try {
+                                // 3. Simple Insert (Postgres will treat these as raw timestamps)
+                                await db.insert(cabinLockouts).values({
+                                    employeeCode: empCode,
+                                    doorId: doorDetails.id,
+                                    outPunchTime: punchTime,
+                                    lockoutExpiry: expiryTime, // Ab ye exact 3 min aage jayega bina offset ke
+                                    status: "active",
+                                    durationHours: Math.ceil(hours + (minutes / 60)) // Integer crash fix
+                                });
+
+                                console.log(`✅ [DATABASE] Lockout record saved for ${empCode}`);
+                            } catch (error) {
+                                console.error(`❌ [DB ERROR] Insert failed for ${empCode}:`, error);
+                            }
                         } else {
-                            ruleToApply = ACCESS_RULES.CABIN_OUT;
-                            currentZone = ZONES.IN;
-                            blockAllInternal = false;
-                            actionMsg = "CABIN EXIT (Access Restored)";
+                            console.log(`⏳ [SKIP] Emp ${empCode} has an existing active lockout. No new row created.`);
                         }
+                    } else {
+                        // Normal Cabin Exit (agar lockout enabled nahi hai)
+                        ruleToApply = ACCESS_RULES.CABIN_OUT;
+                        currentZone = ZONES.IN;
+                        blockAllInternal = false;
                     }
                 }
             }
-            console.log(`    [LOGIC] ${actionMsg}`);
 
-            // --- 5. UPDATED HARDWARE SYNC (Fixes Device 36/37 blocking on Main Entry) ---
-            //   for (const machine of allDevices) {
-            //     const mMapping = allDoorDevices.find(
-            //       (dd) =>
-            //         (dd.inDeviceIds || []).includes(machine.msId!) ||
-            //         (dd.outDeviceIds || []).includes(machine.msId!),
-            //     );
-            //     const machineDoorId = mMapping?.doorId;
-            //     const isThisMachineMainGate = machineDoorId === mainGateDoor.id;
 
-            //     let shouldBlock = true;
+            // --- HARDWARE SYNC ---
+            const role = allRoles.find((r) => r.id === emp.roleId);
+            let allowedIds = role?.doorIds ? (Array.isArray(role.doorIds) ? role.doorIds.map(Number) : JSON.parse(role.doorIds as string).map(Number)) : [];
 
-            //     // Case 1: Employee is in a CABIN (Isolate everything else)
-            //     if (currentZone === ZONES.CABIN) {
-            //       shouldBlock = machineDoorId !== doorDetails.id;
-            //     }
-            //     // Case 2: Employee is in Premises (IN Zone)
-            //     else if (currentZone === ZONES.IN && !blockAllInternal) {
-            //       if (isThisMachineMainGate) {
-            //         shouldBlock = false; // Main Gate kabhi block nahi hoga premise ke andar
-            //       } else if (machineDoorId) {
-            //         const isAllowed = allowedDoorIds.includes(Number(machineDoorId));
-            //         shouldBlock = !isAllowed;
-            //       }
-            //     }
-            //     // Case 3: Employee is OUT or Locked
-            //     else {
-            //       shouldBlock = true;
-            //     }
-
-            //     // Global Safety: Agar punch Main Gate ka hai, toh usi waqt use block nahi bhejenge
-            //     if (isMainGatePunch && isThisMachineMainGate) shouldBlock = false;
-
-            //     await helpers.updateDeviceStatus(empCodeRaw, machine, shouldBlock);
-            //   }
-            // --- 5. UPDATED HARDWARE SYNC ---
             for (const machine of allDevices) {
-                const mMapping = allDoorDevices.find(
-                    (dd) =>
-                        (dd.inDeviceIds || []).includes(machine.msId!) ||
-                        (dd.outDeviceIds || []).includes(machine.msId!),
-                );
-                const machineDoorId = mMapping?.doorId;
-                const isThisMachineMainGate = machineDoorId === mainGateDoor.id;
-
+                const mDM = allDoorDevices.find((dd) => [...(dd.inDeviceIds || []), ...(dd.outDeviceIds || [])].includes(machine.msId!));
+                const mDoorId = mDM?.doorId;
+                const isMainMachine = mDoorId === mainGateDoor.id;
                 let shouldBlock = true;
 
-                // Case 1: Employee is in a CABIN (Isolation mode - Only this cabin door open)
-                if (currentZone === ZONES.CABIN) {
-                    shouldBlock = machineDoorId !== doorDetails.id;
-                }
-                // Case 2: Employee is in Premises (Normal IN Zone)
-                else if (currentZone === ZONES.IN && !blockAllInternal) {
-                    if (isThisMachineMainGate) {
-                        shouldBlock = false;
-                    } else if (machineDoorId) {
-                        const isAllowed = allowedDoorIds.includes(Number(machineDoorId));
-                        shouldBlock = !isAllowed;
-                    }
-                }
-                // Case 3: CABIN EXIT / LOCKOUT / MAIN GATE OUT
-                else {
-                    // FIX: Agar banda Lockout mein hai (CABIN OUT punch ke baad), 
-                    // toh use Main Gate allow karo taaki wo bahar ja sake, 
-                    // par baaki saare internal doors block rakho.
-                    if (ruleToApply === ACCESS_RULES.LOCKOUT_ACTIVE && isThisMachineMainGate) {
-                        shouldBlock = false;
-                    } else {
-                        shouldBlock = true;
-                    }
-                }
+                if (currentZone === ZONES.CABIN) shouldBlock = mDoorId !== doorDetails.id;
+                else if (currentZone === ZONES.IN && !blockAllInternal) shouldBlock = !isMainMachine && !allowedIds.includes(Number(mDoorId));
+                else if (ruleToApply === ACCESS_RULES.LOCKOUT_ACTIVE && isMainMachine) shouldBlock = false;
+                else shouldBlock = true;
 
-                // Global Safety: Punch ke waqt usi machine ko block command nahi bhejni
-                if (isMainGatePunch && isThisMachineMainGate) shouldBlock = false;
-
-                await helpers.updateDeviceStatus(empCodeRaw, machine, shouldBlock);
+                if (isMainGatePunch && isMainMachine) shouldBlock = false;
+                await helpers.updateDeviceStatus(empCode, machine, shouldBlock);
             }
-            // --- 6. DB UPDATE ---
-            await db
-                .update(people)
-                .set({
-                    lastSeenTime: punchTime,
-                    ruleid: ruleToApply,
-                    currentZone: currentZone,
-                    lastPunchDoorId: doorDetails.id,
-                    updatedAt: sql`NOW()`,
-                })
-                .where(eq(people.employeeCode, empCodeRaw));
 
-            maxId = currentLogId;
-            await db
-                .update(cronMaster)
-                .set({ lastProcessedId: maxId })
-                .where(eq(cronMaster.code, CRON_CODE));
+            // Update Emp and Pointer
+            await db.update(people).set({
+                lastSeenTime: new Date(punch.LogDate),
+                ruleid: ruleToApply,
+                currentZone,
+                lastPunchDoorId: doorDetails.id,
+                updatedAt: sql`NOW()`
+            }).where(eq(people.employeeCode, empCode));
+
+            await updatePointer();
+            console.log(`   ✅ LogID ${currentLogId} processed for Emp ${empCode}`);
         }
+        // --- STEP 4.5: BACKGROUND CLEANUP (Auto-Unlock) ---
+        console.log("🧹 [4/5] Background Cleanup: Checking for expired lockouts...");
 
-        // 7. EXPIRED LOCKOUTS CLEANUP
-        const expired = await db
-            .update(cabinLockouts)
-            .set({ status: "expired" })
-            .where(
-                and(
-                    eq(cabinLockouts.status, "active"),
-                    lt(cabinLockouts.lockoutExpiry, new Date()),
-                ),
-            )
-            .returning();
+        // Database se directly un logo ko uthao jinka time khatam ho gaya hai
+        // sql`NOW()` database ke server ka current time use karega
+        const expiredLockouts = await db.select()
+            .from(cabinLockouts)
+            .where(and(
+                eq(cabinLockouts.status, "active"),
+                sql`${cabinLockouts.lockoutExpiry}::timestamp <= (NOW() AT TIME ZONE 'Asia/Kolkata')::timestamp`
+            ));
 
-        if (expired.length > 0) {
-            for (const rec of expired) {
-                const p = allPeople.find((x) => x.employeeCode === rec.employeeCode);
-                const r = allRoles.find((x) => x.id === p?.roleId);
-                let allowed: number[] = [];
-                if (r?.doorIds)
-                    allowed = Array.isArray(r.doorIds)
-                        ? r.doorIds.map(Number)
-                        : JSON.parse(r.doorIds as string).map(Number);
+        if (expiredLockouts.length > 0) {
+            console.log(`🔍 Found ${expiredLockouts.length} lockouts to expire.`);
 
-                for (const m of allDevices) {
-                    const mDM = allDoorDevices.find(
-                        (dd) =>
-                            (dd.inDeviceIds || []).includes(m.msId!) ||
-                            (dd.outDeviceIds || []).includes(m.msId!),
-                    );
-                    const isAllowed =
-                        allowed.includes(Number(mDM?.doorId || 0)) ||
-                        mDM?.doorId === mainGateDoor.id;
-                    await helpers.updateDeviceStatus(rec.employeeCode, m, !isAllowed);
+            for (const lockout of expiredLockouts) {
+                const empCode = lockout.employeeCode;
+
+                // 1. Employee fetch karo
+                const [emp] = await db.select().from(people).where(eq(people.employeeCode, empCode)).limit(1);
+                if (!emp) continue;
+
+                // 2. Original Role Fetch for Access Restoration
+                const role = allRoles.find((r) => r.id === emp.roleId);
+                let allowedDoorIds: number[] = [];
+                try {
+                    allowedDoorIds = role?.doorIds ? (Array.isArray(role.doorIds) ? role.doorIds.map(Number) : JSON.parse(role.doorIds as string).map(Number)) : [];
+                } catch (e) { console.log("JSON Parse Error for Emp Role"); }
+
+                // 3. HARDWARE SYNC: Restore access to all machines
+                for (const machine of allDevices) {
+                    const mDM = allDoorDevices.find((dd) => [...(dd.inDeviceIds || []), ...(dd.outDeviceIds || [])].includes(machine.msId!));
+                    const mDoorId = Number(mDM?.doorId);
+                    if (!mDoorId) continue;
+
+                    const isMainMachine = mDoorId === mainGateDoor.id;
+
+                    // Lockout expire hone ke baad: Main Gate Open + Allowed Doors Open
+                    let shouldBlock = !isMainMachine && !allowedDoorIds.includes(mDoorId);
+
+                    await helpers.updateDeviceStatus(empCode, machine, shouldBlock);
                 }
-            }
-        }
 
-        await db
-            .update(cronMaster)
-            .set({ isRunning: false, lastStatus: "success" })
-            .where(eq(cronMaster.code, CRON_CODE));
-    } catch (e) {
-        console.error("CRON ERROR:", e);
-        await db
-            .update(cronMaster)
-            .set({ isRunning: false, lastStatus: "failed", lastMessage: String(e) })
-            .where(eq(cronMaster.code, CRON_CODE));
+                // 4. DATABASE UPDATE: Reset status and rule
+                await db.update(people)
+                    .set({ ruleid: ACCESS_RULES.MAIN_GATE_IN, updatedAt: sql`NOW()` })
+                    .where(eq(people.employeeCode, empCode));
+
+                await db.update(cabinLockouts)
+                    .set({ status: 'expired', updatedAt: sql`NOW()` })
+                    .where(eq(cabinLockouts.id, lockout.id));
+
+                console.log(`✅ Access Restored for Emp ${empCode}`);
+            }
+        } else {
+            console.log("      ✅ No pending lockouts to expire.");
+        }
+        // --- STEP 5: WRAP UP ---
+        const duration = Math.floor((Date.now() - startTime) / 1000);
+        await db.update(cronMaster).set({
+            isRunning: false,
+            lastStatus: "success",
+            lastRunDuration: duration
+        }).where(eq(cronMaster.code, CRON_CODE));
+
+        console.log(`✅ [4/5] CRON COMPLETED in ${duration}s`);
+
+    } catch (e: any) {
+        console.error("❌ CRON FATAL ERROR:", e);
+        await db.update(cronMaster).set({ isRunning: false, lastStatus: "failed", lastMessage: e.message }).where(eq(cronMaster.code, CRON_CODE));
     }
 }

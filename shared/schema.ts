@@ -724,12 +724,20 @@ export const cabinLockouts = pgTable("cabin_lockouts", {
   outPunchTime: timestamp("out_punch_time"),     // Jab cabin se bahar nikla (Trigger point)
 
   // Lockout logic
-  lockoutExpiry: timestamp("lockoutExpiry").notNull(), // outPunchTime + 24 Hours
+  lockoutExpiry: timestamp("lockoutExpiry").notNull(),
   durationHours: integer("duration_hours").default(24), // Custom duration agar kabhi badalna ho
 
-  status: text("status").default("active"),      // 'active', 'expired', 'manual_release'
-  createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
+  status: text("status").default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .$defaultFn(() => new Date()) // TypeScript automatic handle kar lega
+    .notNull(),
+
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .$defaultFn(() => new Date())
+    .notNull(),
+   
+  // createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
+  // updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
 });
 // ==================== INSERT SCHEMAS ====================
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });

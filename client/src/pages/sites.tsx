@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Site, Building } from "@shared/schema";
+import { validateNoHtml } from "./validation";
 
 export default function SitesPage() {
   const [siteDialog, setSiteDialog] = useState(false);
@@ -119,6 +120,15 @@ export default function SitesPage() {
         onSubmit={async (data) => {
           try {
             setFieldErrors({});
+
+            // :fire: 1. HTML Validation (Shift ki tarah)
+            const validationErrors = validateNoHtml(data);
+            if (Object.keys(validationErrors).length > 0) {
+              setFieldErrors(validationErrors);
+              return; // :x: API call nahi hogi
+            }
+
+            // 2. :white_check_mark: Main Logic
             if (editingSite) {
               const { id, msId, createdAt, ...updateData } = data as any;
               await siteCrud.update({ id: editingSite.id, data: updateData });
@@ -159,6 +169,15 @@ export default function SitesPage() {
         onSubmit={async (data) => {
           try {
             setFieldErrors({});
+
+            // :fire: 1. HTML Validation for Building
+            const validationErrors = validateNoHtml(data);
+            if (Object.keys(validationErrors).length > 0) {
+              setFieldErrors(validationErrors);
+              return; // :x: API call nahi hogi
+            }
+
+            // 2. :white_check_mark: Main Logic
             const { id, createdAt, ...formData } = data as any;
             formData.locationId = Number(formData.locationId);
             if (editingBuilding) {

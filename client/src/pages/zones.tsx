@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { Zone, Door, Site } from "@shared/schema";
 import { useQueryClient } from "@tanstack/react-query";
+import { validateNoHtml } from "./validation";
 
 export default function ZonesDoorsPage() {
   const queryClient = useQueryClient();
@@ -530,45 +531,38 @@ export default function ZonesDoorsPage() {
             ? { ...editingZone, locationId: String(editingZone.locationId) }
             : undefined
         }
-        // onSubmit={(data) => {
-        //   if (data.locationId === "placeholder") {
-        //     setErrors({ locationId: "Please select a site" });
-        //     return;
-        //   }
-
-        //   setErrors({}); // clear error
-
-        //   data.locationId = Number(data.locationId);
-
-        //   editingZone
-        //     ? zoneCrud.update({ id: editingZone.id, data })
-        //     : zoneCrud.create(data);
-
-        //   setZoneDialog(false);
-        // }}
-        // isPending={zoneCrud.isCreating || zoneCrud.isUpdating}
+       
         onSubmit={async (data) => {
           try {
             setErrors({}); // Reset previous errors
 
+            // :fire: 1. HTML Validation Check (Jaise Shift/Site mein kiya tha)
+            const validationErrors = validateNoHtml(data);
+            if (Object.keys(validationErrors).length > 0) {
+              setErrors(validationErrors);
+              return; // :x: Agar HTML mila toh yahi stop kar do
+            }
+
+            // 2. Specific field check (Location selection)
             if (data.locationId === "placeholder") {
               setErrors({ locationId: "Please select a site" });
               return;
             }
 
+            // 3. Payload preparation
             const payload = {
               ...data,
               locationId: Number(data.locationId),
             };
 
-            // Yahan 'await' lagane se code response ka wait karega
+            // 4. API Calls
             if (editingZone) {
               await zoneCrud.update({ id: editingZone.id, data: payload });
             } else {
               await zoneCrud.create(payload);
             }
 
-            // Agar error nahi aaya, tabhi close hoga
+            // :white_check_mark: Success: Error nahi aaya toh hi close hoga
             setZoneDialog(false);
             setEditingZone(null);
           } catch (err: any) {
@@ -613,33 +607,33 @@ export default function ZonesDoorsPage() {
             }
             : undefined
         }
-        // onSubmit={(data) => {
-        //   if (data.locationId) data.locationId = Number(data.locationId);
-        //   if (data.zoneId) data.zoneId = Number(data.zoneId);
-        //   editingDoor
-        //     ? doorCrud.update({ id: editingDoor.id, data })
-        //     : doorCrud.create(data);
-        //   setDoorDialog(false);
-        // }}
-        // isPending={doorCrud.isCreating || doorCrud.isUpdating}
+     
         onSubmit={async (data) => {
           try {
             setErrors({}); // Reset errors
 
+            // :fire: 1. HTML Validation Check (Consistent with other pages)
+            const validationErrors = validateNoHtml(data);
+            if (Object.keys(validationErrors).length > 0) {
+              setErrors(validationErrors);
+              return; // :x: Stop if HTML is found
+            }
+
+            // 2. Prepare Payload (Converting IDs to Numbers)
             const payload = {
               ...data,
               locationId: data.locationId ? Number(data.locationId) : null,
               zoneId: data.zoneId ? Number(data.zoneId) : null,
             };
 
-            // Yahan bhi 'await' lagaya hai
+            // 3. API Operation with 'await'
             if (editingDoor) {
               await doorCrud.update({ id: editingDoor.id, data: payload });
             } else {
               await doorCrud.create(payload);
             }
 
-            // Success hone par hi close hoga
+            // :white_check_mark: Success path
             setDoorDialog(false);
             setEditingDoor(null);
           } catch (err: any) {

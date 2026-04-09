@@ -42,7 +42,7 @@ export const mssqlPool = new mssql.ConnectionPool(mssqlConfig);
 /**
  * MS SQL Row ko Drizzle Schema ke format mein map karta hai
  */
-function mapMsSqlToSchema(msRow: any, schemaTable: any): any {
+export function mapMsSqlToSchema(msRow: any, schemaTable: any): any {
   if (!msRow) return null;
   const mappedRow: any = {};
 
