@@ -506,7 +506,7 @@ export default function PeoplePage() {
       },
     },
     {
-      key: "lastSeenTime",
+      key: "f",
       label: "Last Seen",
       hideOnMobile: true,
       render: (p: any) => {
@@ -530,12 +530,12 @@ export default function PeoplePage() {
         return (
           <div className="text-sm">
             <span className="font-medium text-foreground">{formattedTime}</span>
-
+{/* 
             {p.currentZone && (
               <div className="text-[10px] text-blue-600 font-bold uppercase">
                 Zone: {p.currentZone}
               </div>
-            )}
+            )} */}
           </div>
         );
       },

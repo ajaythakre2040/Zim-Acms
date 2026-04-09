@@ -35,7 +35,7 @@ import MasterDataPage from "@/pages/master-data";
 import UserAdminPage from "@/pages/user-admin";
 import SettingsPage from "@/pages/settings";
 import ReportsPage from "@/pages/reports";
-import CronMasterPage from "@/pages/CronMasterPage";
+import CronMasterPage from "@/pages/cronMasterPage";
 
 function Router() {
   return (

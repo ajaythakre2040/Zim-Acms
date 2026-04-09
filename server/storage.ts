@@ -774,10 +774,15 @@ export class DatabaseStorage implements IStorage {
   async getPeople(search?: string): Promise<Person[]> {
     const [pgDataRaw, msDataRaw] = await Promise.all([
       db.select({
-        person: people,
+        person: {
+          ...people,
+          // 🔥 FIX: lastSeenTime ko string mein convert kar rahe hain taaki 'Z' na aaye
+          lastSeenTime: sql<string>`TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')`
+        },
         roleName: roles.name,
         departmentName: departments.name,
         lastPunchDoorName: doors.name,
+       
       })
         .from(people)
         .leftJoin(roles, eq(people.roleId, roles.id))
@@ -2197,118 +2202,160 @@ export class DatabaseStorage implements IStorage {
     };
   }
   // --- Filtered Door & Employee Report ---
-  async getAttendanceByDoor(filters: {
-    dateFrom?: string;
-    dateTo?: string;
-    deviceId?: number;
-    employeeCode?: string;
-  }) {
+  // async getAttendanceByDoor(filters: {
+  //   dateFrom?: string;
+  //   dateTo?: string;
+  //   deviceId?: number;
+  //   employeeCode?: string;
+  // }) {
+  //   const today = new Date().toISOString().split('T')[0];
+  //   const start = filters.dateFrom || today;
+  //   const end = filters.dateTo || today;
+
+  //   try {
+  //     // 1. Direct MS SQL Fetch (No schema dependency)
+  //     // Humne { dbName: 'DeviceLogs' } pass kiya hai jo db.ts handle kar lega
+  //     const logs = await dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute();
+
+  //     // People/Employees table agar MS SQL mein hai toh use bhi aise hi fetch karein
+  //     const employees = await dbMsSql.select().from({ dbName: 'Employees' }).execute();
+  //     // Devices (Postgres se, kyunki ye sync ho chuke hain)
+  //     const devices = await db.select().from(schema.devices).execute();
+
+  //     // 2. Filter & Map Logic
+  //     return logs
+  //       .filter((log: any) => {
+  //         // MS SQL mein column names 'LogDate' ya 'LogDateTime' ho sakte hain
+  //         const rawDate = log.LogDate || log.logDate || log.LogDateTime;
+  //         const logDateStr = rawDate ? new Date(rawDate).toISOString().split('T')[0] : null;
+
+  //         const isDateMatch = logDateStr && logDateStr >= start && logDateStr <= end;
+
+  //         // DeviceId/Door filter (Standardized check)
+  //         const currentLogDeviceId = log.DeviceId || log.deviceId;
+  //         const isDoorMatch = filters.deviceId && Number(filters.deviceId) !== 0
+  //           ? Number(currentLogDeviceId) === Number(filters.deviceId)
+  //           : true;
+
+  //         const currentEmpCode = log.EmployeeCode || log.employeeCode;
+  //         const isEmployeeMatch = filters.employeeCode
+  //           ? currentEmpCode?.toString().includes(filters.employeeCode)
+  //           : true;
+
+  //         return isDateMatch && isDoorMatch && isEmployeeMatch;
+  //       })
+  //       .map((log: any) => {
+  //         const currentEmpCode = log.EmployeeCode || log.employeeCode;
+  //         const currentLogDeviceId = log.DeviceId || log.deviceId;
+
+  //         const emp = employees.find((e: any) => (e.EmployeeCode || e.employeeCode) === currentEmpCode);
+  //         const dev = devices.find((d: any) => d.msId === currentLogDeviceId);
+
+  //         return {
+  //           id: log.DeviceLogId || log.id,
+  //           employeeName: emp?.EmployeeName || emp?.employeeName || "Unknown Employee",
+  //           employeeCode: currentEmpCode,
+  //           logTime: log.LogDate || log.logDate,
+  //           direction: (log.Direction || log.direction || "N/A").toUpperCase(),
+  //           doorName: dev?.name || `Door ${currentLogDeviceId}`,
+  //           doorId: currentLogDeviceId
+  //         };
+  //       })
+  //       .sort((a, b) => new Date(b.logTime).getTime() - new Date(a.logTime).getTime());
+
+  //   } catch (error) {
+  //     console.error("Direct MS SQL Fetch Error:", error);
+  //     return [];
+  //   }
+  // }
+  async getDoorWiseCount(filters: { dateFrom?: string; dateTo?: string; deviceId?: number }) {
     const today = new Date().toISOString().split('T')[0];
     const start = filters.dateFrom || today;
     const end = filters.dateTo || today;
 
     try {
-      // 1. Direct MS SQL Fetch (No schema dependency)
-      // Humne { dbName: 'DeviceLogs' } pass kiya hai jo db.ts handle kar lega
-      const logs = await dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute();
+      // 1. Pehle data ko .execute() karke array nikalna hoga
+      const logs = await dbMsSql.select()
+        .from({ dbName: 'DeviceLogs' })
+        .execute(); // Yeh call karna zaroori hai data lene ke liye
 
-      // People/Employees table agar MS SQL mein hai toh use bhi aise hi fetch karein
-      const employees = await dbMsSql.select().from({ dbName: 'Employees' }).execute();
-      // Devices (Postgres se, kyunki ye sync ho chuke hain)
       const devices = await db.select().from(schema.devices).execute();
 
-      // 2. Filter & Map Logic
-      return logs
-        .filter((log: any) => {
-          // MS SQL mein column names 'LogDate' ya 'LogDateTime' ho sakte hain
-          const rawDate = log.LogDate || log.logDate || log.LogDateTime;
-          const logDateStr = rawDate ? new Date(rawDate).toISOString().split('T')[0] : null;
+      // 2. Grouping Object
+      const doorGroups: Record<string, { deviceName: string, inCount: number, outCount: number }> = {};
 
-          const isDateMatch = logDateStr && logDateStr >= start && logDateStr <= end;
+      // 3. Array par loop chalayein
+      logs.forEach((log: any) => {
+        // Date Filter
+        const rawDate = log.LogDate || log.logDate;
+        const logDateStr = rawDate ? new Date(rawDate).toISOString().split('T')[0] : null;
+        if (!(logDateStr && logDateStr >= start && logDateStr <= end)) return;
 
-          // DeviceId/Door filter (Standardized check)
-          const currentLogDeviceId = log.DeviceId || log.deviceId;
-          const isDoorMatch = filters.deviceId && Number(filters.deviceId) !== 0
-            ? Number(currentLogDeviceId) === Number(filters.deviceId)
-            : true;
+        // Device ID Check
+        const dId = log.DeviceId || log.deviceId;
+        if (filters.deviceId && Number(dId) !== Number(filters.deviceId)) return;
 
-          const currentEmpCode = log.EmployeeCode || log.employeeCode;
-          const isEmployeeMatch = filters.employeeCode
-            ? currentEmpCode?.toString().includes(filters.employeeCode)
-            : true;
+        // Device Info nikalna
+        const deviceObj = devices.find(d => Number(d.msId) === Number(dId));
+        if (!deviceObj) return;
 
-          return isDateMatch && isDoorMatch && isEmployeeMatch;
-        })
-        .map((log: any) => {
-          const currentEmpCode = log.EmployeeCode || log.employeeCode;
-          const currentLogDeviceId = log.DeviceId || log.deviceId;
+        // Name Cleaning (e.g., "Main IN" -> "Main")
+        const cleanName = deviceObj.name.replace(/\s+(IN|OUT)$/i, "").trim();
+        const direction = (log.Direction || "").toUpperCase();
 
-          const emp = employees.find((e: any) => (e.EmployeeCode || e.employeeCode) === currentEmpCode);
-          const dev = devices.find((d: any) => d.msId === currentLogDeviceId);
+        if (!doorGroups[cleanName]) {
+          doorGroups[cleanName] = { deviceName: cleanName, inCount: 0, outCount: 0 };
+        }
 
-          return {
-            id: log.DeviceLogId || log.id,
-            employeeName: emp?.EmployeeName || emp?.employeeName || "Unknown Employee",
-            employeeCode: currentEmpCode,
-            logTime: log.LogDate || log.logDate,
-            direction: (log.Direction || log.direction || "N/A").toUpperCase(),
-            doorName: dev?.name || `Door ${currentLogDeviceId}`,
-            doorId: currentLogDeviceId
-          };
-        })
-        .sort((a, b) => new Date(b.logTime).getTime() - new Date(a.logTime).getTime());
+        // 4. Property Name Fix: outTotal ki jagah outCount use karein
+        if (direction === "IN") {
+          doorGroups[cleanName].inCount++;
+        } else if (direction === "OUT") {
+          doorGroups[cleanName].outCount++; // Fixed here
+        }
+      });
+
+      return Object.values(doorGroups);
 
     } catch (error) {
-      console.error("Direct MS SQL Fetch Error:", error);
+      console.error("Door Count Error:", error);
       return [];
     }
   }
   // --- 2. CEFALO REPORT (Using your Custom Builder Format) ---
-  // async getCefaloReport(filters: { dateFrom?: string; dateTo?: string; deviceId?: number }) {
-  //   const today = new Date().toISOString().split('T')[0];
-  //   const start = filters.dateFrom || today;
-  //   const end = filters.dateTo || today;
+  async getCabinLockoutReport(filters: { dateFrom?: string; dateTo?: string }) {
+    try {
+      const results = await db
+        .select({
+          id: schema.cabinLockouts.id,
+          employeeCode: schema.cabinLockouts.employeeCode,
+          employeeName: schema.people.employeeName, // Joined from people table
+          doorName: schema.doors.name,             // Joined from doors table
+          inPunchTime: schema.cabinLockouts.inPunchTime,
+          outPunchTime: schema.cabinLockouts.outPunchTime,
+          lockoutExpiry: schema.cabinLockouts.lockoutExpiry,
+          status: schema.cabinLockouts.status,
+        })
+        .from(schema.cabinLockouts)
+        // Employee join: matching employee_code
+        .leftJoin(
+          schema.people,
+          eq(schema.cabinLockouts.employeeCode, schema.people.employeeCode)
+        )
+        // Door join: matching door_id from lockout table to id in doors table
+        .leftJoin(
+          schema.doors,
+          eq(schema.cabinLockouts.doorId, schema.doors.id)
+        )
+        .orderBy(desc(schema.cabinLockouts.createdAt))
+        .execute();
 
-  //   // A. standard builder for metadata (Small tables)
-  //   const peopleList = await dbMsSql.select().from(schema.people).execute();
-  //   const devicesList = await dbMsSql.select().from(schema.devices).execute();
-
-  //   // B. Logs fetch with TOP 5000 (To handle 10M rows)
-  //   const request = mssqlPool.request();
-  //   request.input('start', mssql.DateTime, `${start} 00:00:00`);
-  //   request.input('end', mssql.DateTime, `${end} 23:59:59`);
-
-  //   let query = `
-  //     SELECT TOP 5000 * FROM DeviceLog 
-  //     WHERE LogDate >= @start AND LogDate <= @end
-  //   `;
-  //   if (filters.deviceId) {
-  //     query += ` AND DeviceId = @deviceId`;
-  //     request.input('deviceId', mssql.Int, filters.deviceId);
-  //   }
-  //   query += ` ORDER BY LogDate DESC`;
-
-  //   const logResult = await request.query(query);
-
-  //   // C. Map MS SQL rows to Schema (Using your helper function)
-  //   const mappedLogs = logResult.recordset.map(row => mapMsSqlToSchema(row, schema.deviceLogs));
-
-  //   // D. Manual Join (Drizzle style)
-  //   return mappedLogs.map((log: any) => {
-  //     const person = peopleList.find((p: any) => p.employeeCode === log.employeeCode);
-  //     const device = devicesList.find((d: any) => d.id === log.deviceId || d.msId === log.deviceId);
-
-  //     return {
-  //       id: log.deviceLogId,
-  //       employeeName: person?.employeeName || "Unknown",
-  //       employeeCode: log.employeeCode,
-  //       logTime: log.logDate,
-  //       doorName: device?.name || "Unknown Door",
-  //       direction: log.direction,
-  //       doorId: log.deviceId
-  //     };
-  //   });
-  // }
+      return results;
+    } catch (error) {
+      console.error("Lockout Join Report Error:", error);
+      throw error;
+    }
+  }
 
 };
 export const storage = new DatabaseStorage();

@@ -888,31 +888,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.get("/api/reports/door-count", async (req, res) => {
     try {
-      const { dateFrom, dateTo, deviceId, employeeCode } = req.query;
-
-      const data = await storage.getAttendanceByDoor({
+      const { dateFrom, dateTo, deviceId } = req.query;
+      const data = await storage.getDoorWiseCount({
         dateFrom: dateFrom as string,
         dateTo: dateTo as string,
         deviceId: deviceId ? Number(deviceId) : undefined,
-        employeeCode: employeeCode as string,
+      });
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch door count" });
+    }
+  });
+
+  app.get("/api/reports/cabin-lockout", async (req, res) => {
+    try {
+      const { dateFrom, dateTo } = req.query;
+
+      const data = await storage.getCabinLockoutReport({
+        dateFrom: dateFrom as string,
+        dateTo: dateTo as string,
       });
 
       res.json(data);
     } catch (error) {
-      console.error("API Report Error:", error);
-      res.status(500).json({ message: "Failed to fetch report data" });
+      res.status(500).json({ message: "Failed to fetch lockout report" });
     }
   });
-
-  // app.get("/api/reports/cefalo-report", async (req, res) => {
-  //   const { dateFrom, dateTo, personId, deviceId } = req.query;
-  //   const data = await storage.getCefaloReport({
-  //     dateFrom: dateFrom as string,
-  //     dateTo: dateTo as string,
-  //     personId: personId ? Number(personId) : undefined,
-  //     deviceId: deviceId ? Number(deviceId) : undefined,
-  //   });
-  //   res.json(data);
-  // });
   return httpServer;
 }

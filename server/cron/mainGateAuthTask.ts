@@ -112,23 +112,51 @@ export async function runMasterAuthSync() {
             if (isMainGatePunch) {
                 if (isEntryPunch) {
                     // 🔥 LATEST LOCKOUT CHECK (Real-time)
+                    // const [latestLockout] = await db.select()
+                    //     .from(cabinLockouts)
+                    //     .where(and(eq(cabinLockouts.employeeCode, empCode), eq(cabinLockouts.status, "active")))
+                    //     .orderBy(desc(cabinLockouts.createdAt))
+                    //     .limit(1);
+
+                    // let isStillLocked = false;
+                    // if (latestLockout) {
+                    //     if (new Date() < new Date(latestLockout.lockoutExpiry)) {
+                    //         isStillLocked = true;
+                    //     } else {
+                    //         // Expire all active lockouts for this user
+                    //         await db.update(cabinLockouts).set({ status: 'expired' })
+                    //             .where(and(eq(cabinLockouts.employeeCode, empCode), eq(cabinLockouts.status, "active")));
+                    //     }
+                    // }
+                    // 1. Latest record fetch karein (Status ignore karke)
                     const [latestLockout] = await db.select()
                         .from(cabinLockouts)
-                        .where(and(eq(cabinLockouts.employeeCode, empCode), eq(cabinLockouts.status, "active")))
-                        .orderBy(desc(cabinLockouts.createdAt))
+                        .where(eq(cabinLockouts.employeeCode, empCode))
+                        .orderBy(desc(cabinLockouts.lockoutExpiry)) // Sabse naya expiry upar
                         .limit(1);
 
                     let isStillLocked = false;
+
                     if (latestLockout) {
-                        if (new Date() < new Date(latestLockout.lockoutExpiry)) {
+                        const now = new Date();
+                        const expiry = new Date(latestLockout.lockoutExpiry);
+
+                        // 🔥 Direct Time Comparison
+                        if (now < expiry) {
                             isStillLocked = true;
+                            console.log(`🚫 Access Denied: Locked until ${expiry.toLocaleString('en-IN')}`);
                         } else {
-                            // Expire all active lockouts for this user
-                            await db.update(cabinLockouts).set({ status: 'expired' })
-                                .where(and(eq(cabinLockouts.employeeCode, empCode), eq(cabinLockouts.status, "active")));
+                            isStillLocked = false;
+                            console.log(`✅ Access Granted: Expiry time (${expiry.toLocaleTimeString()}) passed.`);
+
+                            // Optional: Background mein status update kardo audit ke liye
+                            if (latestLockout.status === 'active') {
+                                await db.update(cabinLockouts)
+                                    .set({ status: 'expired' })
+                                    .where(eq(cabinLockouts.id, latestLockout.id));
+                            }
                         }
                     }
-
                     if (!helpers.hasValidRole(emp)) { ruleToApply = ACCESS_RULES.NO_ROLE; blockAllInternal = true; }
                     else if (isStillLocked) { ruleToApply = ACCESS_RULES.LOCKOUT_ACTIVE; blockAllInternal = true; }
                     else { ruleToApply = ACCESS_RULES.MAIN_GATE_IN; currentZone = ZONES.IN; blockAllInternal = false; }
@@ -161,21 +189,7 @@ export async function runMasterAuthSync() {
                             .where(eq(cronMaster.code, CABIN_LOCKOUT_CONFIG.CODE))
                             .limit(1);
 
-                        // 3. Dynamic Duration calculate karein (Hours + Minutes)
-
-                        // // 4. STEP: Purani entry expire karo agar uska waqt (expiry time) nikal gaya hai
-                        // await db.update(cabinLockouts)
-                        //     .set({
-                        //         status: 'expired',
-                        //         updatedAt: sql`NOW()`
-                        //     })
-                        //     .where(and(
-                        //         eq(cabinLockouts.employeeCode, empCode),
-                        //         eq(cabinLockouts.status, "active"),
-                        //         // NOW() database ka current time lega jo direct lockoutExpiry se compare hoga
-                        //         sql`${cabinLockouts.lockoutExpiry} <= NOW()`
-                        //     ));
-                        // Cleanup check
+                       
                         // --- 4. STEP: Purani entry expire karo (SQL Native Fix) ---
                         const cleanupResult = await db.update(cabinLockouts)
                             .set({
@@ -243,7 +257,7 @@ export async function runMasterAuthSync() {
                                     outPunchTime: punchTime,
                                     lockoutExpiry: expiryTime, // Ab ye exact 3 min aage jayega bina offset ke
                                     status: "active",
-                                    durationHours: Math.ceil(hours + (minutes / 60)) // Integer crash fix
+                                    // durationHours: lockoutConfig.lockoutMinutes // Integer crash fix
                                 });
 
                                 console.log(`✅ [DATABASE] Lockout record saved for ${empCode}`);

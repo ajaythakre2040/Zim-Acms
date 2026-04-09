@@ -725,7 +725,7 @@ export const cabinLockouts = pgTable("cabin_lockouts", {
 
   // Lockout logic
   lockoutExpiry: timestamp("lockoutExpiry").notNull(),
-  durationHours: integer("duration_hours").default(24), // Custom duration agar kabhi badalna ho
+  // durationHours: integer("duration_hours").default(24), // Custom duration agar kabhi badalna ho
 
   status: text("status").default("active"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -739,6 +739,7 @@ export const cabinLockouts = pgTable("cabin_lockouts", {
   // createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
   // updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
 });
+
 // ==================== INSERT SCHEMAS ====================
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });

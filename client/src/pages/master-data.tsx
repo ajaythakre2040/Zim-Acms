@@ -10,6 +10,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
+import { validateNoHtml } from "./validation";
 
 // MasterTab updated to accept fields as a function or array
 function MasterTab({
@@ -120,17 +121,32 @@ function MasterTab({
   ];
 
   const handleSubmit = async (formData: any) => {
-    setFormErrors({});
-    const finalData = { ...formData };
-
-    // ✅ only doorIds logic
-    if (Array.isArray(formData.doorIds)) {
-      finalData.doorIds = formData.doorIds
-        .map((id: string) => Number(id))
-        .filter((id: number) => !isNaN(id));
-    }
-
     try {
+      setFormErrors({}); // 1. Reset errors pehle
+
+      // 2. HTML Validation Check (Tumhare function ke hisaab se)
+      // Ye function ab pura object check karega aur error object return karega
+      const validationErrors = validateNoHtml(formData);
+
+      if (Object.keys(validationErrors).length > 0) {
+        setFormErrors(validationErrors);
+        toast({
+          variant: "destructive",
+          title: "Validation Error",
+          description: "HTML tags are not allowed in the fields.",
+        });
+        return; // Stop if HTML is found
+      }
+
+      // 3. Prepare Payload (Converting IDs to Numbers)
+      const finalData = { ...formData };
+      if (Array.isArray(formData.doorIds)) {
+        finalData.doorIds = formData.doorIds
+          .map((id: string) => Number(id))
+          .filter((id: number) => !isNaN(id));
+      }
+
+      // 4. API Operation
       if (editing) {
         await update({ id: editing.id, data: finalData });
         toast({
@@ -145,6 +161,7 @@ function MasterTab({
         });
       }
 
+      // 5. Success path
       setDialogOpen(false);
       setEditing(null);
     } catch (error: any) {

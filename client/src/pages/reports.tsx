@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn, formatDateTime, formatTime } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -13,7 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   FileText,
   Clock,
@@ -21,13 +21,12 @@ import {
   Search,
   Download,
   Filter,
-  ArrowUpDown,
   RefreshCw,
+  DoorOpen,
 } from "lucide-react";
-import {
-  type Person,
-} from "@shared/schema";
+import { type Person } from "@shared/schema";
 
+// 1. Updated Report Configuration
 const reportTypes = [
   {
     id: "attendance",
@@ -40,86 +39,59 @@ const reportTypes = [
   {
     id: "door-count",
     label: "Door Count",
-    icon: AlertTriangle,
+    icon: DoorOpen,
     color: "text-amber-500",
     bgColor: "bg-amber-50 dark:bg-amber-950/40",
-    description: "Door Wise Emp Count",
+    description: "Door-wise total employee entry and exit counts",
   },
   {
-    id: "cefalo-report",           // ← Naya Tab
-    label: "Cefalo Report",
-    icon: FileText,
-    color: "text-violet-500",
-    bgColor: "bg-violet-50 dark:bg-violet-950/40",
-    description: "Employee wise door access logs with direction",
+    id: "cabin-lockout", // Cefalo replaced with Lockout
+    label: "Cabin Lockout",
+    icon: AlertTriangle,
+    color: "text-rose-500",
+    bgColor: "bg-rose-50 dark:bg-rose-950/40",
+    description: "Real-time employee cabin block and lockout status",
   },
 ];
 
-function formatDateTime(dt: string | null | undefined) {
-  if (!dt) return "-";
-  const d = new Date(dt);
-  return d.toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
-}
+// // --- Formatting Helpers ---
+// function formatDateTime(dt: string | null | undefined) {
+//   if (!dt) return "-";
+//   const d = new Date(dt);
+//   return d.toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" });
+// }
 
-function formatTime(dt: string | null | undefined) {
-  if (!dt || dt === "N/A") return "-";
-
-  const d = new Date(dt);
-
-  if (isNaN(d.getTime())) return "-";
-
-  return d.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-    timeZone: "UTC", // Yeh sabse important hai: Yeh browser ko conversion karne se rokega
-  });
-}
+// function formatTime(dt: string | null | undefined) {
+//   if (!dt || dt === "N/A") return "-";
+//   const d = new Date(dt);
+//   if (isNaN(d.getTime())) return "-";
+//   return d.toLocaleTimeString("en-US", {
+//     hour: "2-digit",
+//     minute: "2-digit",
+//     hour12: true,
+//   });
+// }
 
 function formatHours(h: string | number | undefined) {
   if (h === null || h === undefined || h === "0.00") return "-";
   return `${Number(h).toFixed(1)}h`;
 }
+
 function statusBadge(status: string) {
   const styles: Record<string, string> = {
-    present:
-      "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
+    present: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
     late: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
     absent: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
-    half_day:
-      "bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400",
-    on_leave: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
-    checked_in:
-      "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
-    checked_out:
-      "bg-slate-50 text-slate-700 dark:bg-slate-950/40 dark:text-slate-400",
-    scheduled:
-      "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
-    cancelled:
-      "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
-    no_show: "bg-zinc-50 text-zinc-700 dark:bg-zinc-950/40 dark:text-zinc-400",
-    active:
-      "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
-    inactive:
-      "bg-slate-50 text-slate-700 dark:bg-slate-950/40 dark:text-slate-400",
-    suspended:
-      "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
-    entry:
-      "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
-    exit: "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
-    denied: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
   };
   return (
-    <Badge
-      className={`text-[10px] no-default-hover-elevate no-default-active-elevate ${styles[status] || "bg-muted text-muted-foreground"}`}
-    >
+    <Badge className={`text-[10px] shadow-none border-none ${styles[status?.toLowerCase()] || "bg-muted text-muted-foreground"}`}>
       {status?.replace(/_/g, " ")}
     </Badge>
   );
 }
 
+// 2. Filter Component
 function ReportFilters({
-  reportId,
   filters,
   setFilters,
   setAppliedFilters,
@@ -127,7 +99,6 @@ function ReportFilters({
   people,
   devices,
 }: {
-  reportId: string;
   filters: Record<string, string>;
   setFilters: (f: Record<string, string>) => void;
   setAppliedFilters: (f: Record<string, string>) => void;
@@ -136,147 +107,71 @@ function ReportFilters({
   devices: any[];
 }) {
   return (
-    <Card>
+    <Card className="border-border/40 shadow-sm">
       <CardContent className="pt-4 pb-4">
         <div className="flex items-center gap-2 mb-4">
-          <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
-            <Filter className="w-3.5 h-3.5 text-primary" />
-          </div>
-          <span className="text-xs font-semibold">Filters</span>
+          <Filter className="w-3.5 h-3.5 text-primary" />
+          <span className="text-xs font-semibold uppercase tracking-wider">Report Filters</span>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-4 items-end">
-          {/* Filters Fields */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 flex-1">
-            {/* From Date */}
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                FROM DATE
-              </Label>
-              <Input
-                type="date"
-                value={filters.dateFrom || ""}
-                onChange={(e) =>
-                  setFilters({ ...filters, dateFrom: e.target.value })
-                }
-              />
+              <Label className="text-[10px] text-muted-foreground">FROM DATE</Label>
+              <Input type="date" value={filters.dateFrom || ""} onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })} />
             </div>
 
-            {/* To Date */}
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                TO DATE
-              </Label>
-              <Input
-                type="date"
-                value={filters.dateTo || ""}
-                onChange={(e) =>
-                  setFilters({ ...filters, dateTo: e.target.value })
-                }
-              />
+              <Label className="text-[10px] text-muted-foreground">TO DATE</Label>
+              <Input type="date" value={filters.dateTo || ""} onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })} />
             </div>
 
-            {/* Employee */}
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                EMPLOYEE
-              </Label>
-              <Select
-                value={filters.personId || "all"}
-                onValueChange={(v) =>
-                  setFilters({ ...filters, personId: v === "all" ? "" : v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All Employees" />
-                </SelectTrigger>
+              <Label className="text-[10px] text-muted-foreground">EMPLOYEE</Label>
+              <Select value={filters.personId || "all"} onValueChange={(v) => setFilters({ ...filters, personId: v === "all" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="All Employees" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Employees</SelectItem>
                   {people.map((p) => (
-                    <SelectItem
-                      key={p.id}
-                      value={String(p.employeeCode || p.id)}
-                    >
-                      {p.employeeName}{" "}
-                      {p.employeeCode ? `(${p.employeeCode})` : ""}
+                    <SelectItem key={p.id} value={String(p.employeeCode || p.id)}>
+                      {p.employeeName} {p.employeeCode ? `(${p.employeeCode})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Status */}
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                STATUS
-              </Label>
-              <Select
-                value={filters.status || "all"}
-                onValueChange={(v) =>
-                  setFilters({ ...filters, status: v === "all" ? "" : v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All Status" />
-                </SelectTrigger>
+              <Label className="text-[10px] text-muted-foreground">DOOR / DEVICE</Label>
+              <Select value={filters.deviceId || "all"} onValueChange={(v) => setFilters({ ...filters, deviceId: v === "all" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="All Doors" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Status</SelectItem>
-                  <SelectItem value="present">Present</SelectItem>
-                  <SelectItem value="late">Late</SelectItem>
-                  <SelectItem value="absent">Absent</SelectItem>
-                  <SelectItem value="half_day">Half Day</SelectItem>
-                  <SelectItem value="on_leave">On Leave</SelectItem>
+                  <SelectItem value="all">All Doors</SelectItem>
+                  {devices?.map((d) => (
+                    <SelectItem key={d.id || d.DeviceId} value={String(d.DeviceId || d.id)}>
+                      {d.DeviceName || d.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
-            {/* Door */}
             <div className="space-y-1">
-              <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                DOOR
-              </Label>
-              <Select
-                value={filters.deviceId ? String(filters.deviceId) : "all"}
-                onValueChange={(v) =>
-                  setFilters({ ...filters, deviceId: v === "all" ? "" : v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="All Door" />
-                </SelectTrigger>
+              <Label className="text-[10px] text-muted-foreground">STATUS</Label>
+              <Select value={filters.status || "all"} onValueChange={(v) => setFilters({ ...filters, status: v === "all" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="All Status" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Door</SelectItem>
-                  {devices?.map((d) => {
-                    const dId = String(d.DeviceId || d.id);
-                    return (
-                      <SelectItem key={dId} value={dId}>
-                        {d.DeviceName || d.name || "Unknown Device"}
-                      </SelectItem>
-                    );
-                  })}
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active Lockout</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="flex gap-2 shrink-0">
-            <Button onClick={onApply} size="sm" className="px-6">
-              <Search className="w-4 h-4 mr-2" />
-              Apply
-            </Button>
-
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => {
-                setFilters({});
-                setAppliedFilters({});
-              }}
-              className="px-6"
-            >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Clear
-            </Button>
+            <Button onClick={onApply} size="sm" className="px-5 shadow-sm"><Search className="w-4 h-4 mr-2" />Apply</Button>
+            <Button variant="secondary" size="sm" onClick={() => { setFilters({}); setAppliedFilters({}); }} className="px-5"><RefreshCw className="w-4 h-4 mr-2" />Clear</Button>
           </div>
         </div>
       </CardContent>
@@ -284,63 +179,32 @@ function ReportFilters({
   );
 }
 
+// 3. Tables
 function AttendanceTable({ data }: { data: any[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs" data-testid="table-report">
+      <table className="w-full text-xs">
         <thead>
           <tr className="border-b bg-muted/30">
-            <th className="text-left p-2 font-medium">Employee</th>
-            <th className="text-left p-2 font-medium">Emp Code</th>
-            <th className="text-left p-2 font-medium">Date</th>
-            <th className="text-left p-2 font-medium">Clock In</th>
-            <th className="text-left p-2 font-medium">Clock Out</th>
-            <th className="text-left p-2 font-medium">Working Hrs</th>
-            <th className="text-left p-2 font-medium">OT Hrs</th>
-            <th className="text-left p-2 font-medium">Late Coming (min)</th>
-            <th className="text-left p-2 font-medium">Early Going (min)</th>
-            <th className="text-left p-2 font-medium">Status</th>
+            <th className="text-left p-3 font-medium">Employee</th>
+            <th className="text-left p-3 font-medium">Code</th>
+            <th className="text-left p-3 font-medium">Date</th>
+            <th className="text-left p-3 font-medium">In</th>
+            <th className="text-left p-3 font-medium">Out</th>
+            <th className="text-left p-3 font-medium">Hrs</th>
+            <th className="text-left p-3 font-medium">Status</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((r: any) => (
-            <tr
-              key={r.id}
-              className="border-b border-border/50 hover-elevate"
-              data-testid={`row-report-${r.id}`}
-            >
-              <td className="p-2 font-medium">
-                {r.firstName} {r.lastName || ""}
-              </td>
-              <td className="p-2 text-muted-foreground">
-                {r.employeeId || r.employeeCode || "-"}
-              </td>
-              <td className="p-2">{r.date}</td>
-              <td className="p-2">{formatTime(r.clockIn || r.firstIn)}</td>
-              <td className="p-2">{formatTime(r.clockOut || r.lastOut)}</td>
-              <td className="p-2">
-                {formatHours(r.workingHours || r.totalHours)}
-              </td>
-              <td className="p-2">{formatHours(r.overtimeHours)}</td>
-              <td className="p-2">
-                {r.lateByMins > 0 ? (
-                  <span className="text-amber-600 dark:text-amber-400 font-medium">
-                    {r.lateByMins}
-                  </span>
-                ) : (
-                  "-"
-                )}
-              </td>
-              <td className="p-2">
-                {r.earlyByMins > 0 ? (
-                  <span className="text-orange-600 dark:text-orange-400 font-medium">
-                    {r.earlyByMins}
-                  </span>
-                ) : (
-                  "-"
-                )}
-              </td>
-              <td className="p-2">{statusBadge(r.status)}</td>
+          {data.map((r, i) => (
+            <tr key={i} className="border-b border-border/50 hover:bg-muted/20">
+              <td className="p-3 font-medium">{r.firstName || r.employeeName}</td>
+              <td className="p-3 text-muted-foreground">{r.employeeCode || "-"}</td>
+              <td className="p-3">{r.date}</td>
+              <td className="p-3 font-medium text-emerald-600">{formatTime(r.clockIn)}</td>
+              <td className="p-3 font-medium text-blue-600">{formatTime(r.clockOut)}</td>
+              <td className="p-3">{formatHours(r.workingHours)}</td>
+              <td className="p-3">{statusBadge(r.status)}</td>
             </tr>
           ))}
         </tbody>
@@ -349,34 +213,26 @@ function AttendanceTable({ data }: { data: any[] }) {
   );
 }
 
-// ... purana code upar rahega (imports, format functions, statusBadge, etc.)
-
-// Naya Table for Door Count
 function DoorCountTable({ data }: { data: any[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs" data-testid="table-door-count">
+      <table className="w-full text-xs">
         <thead>
           <tr className="border-b bg-muted/30">
-            <th className="text-left p-3 font-medium">Door Name</th>
-            <th className="text-left p-3 font-medium text-center">IN Emp Count</th>
-            <th className="text-left p-3 font-medium text-center">OUT Emp Count</th>
+            <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider">Door Name</th>
+            <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider">Employees IN</th>
+            <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider">Employees OUT</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((row: any, index: number) => (
-            <tr
-              key={index} // ya row.deviceId ya koi unique id agar ho
-              className="border-b border-border/50 hover:bg-muted/50"
-            >
-              <td className="p-3 font-medium">
-                {row.deviceName || row.DoorName || row.name || "Unknown Door"}
+          {data.map((row, i) => (
+            <tr key={i} className="border-b border-border/40 hover:bg-muted/20">
+              <td className="p-4 font-bold text-sm">{row.deviceName || "Unknown"}</td>
+              <td className="p-4 text-center">
+                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">{row.inCount ?? 0}</Badge>
               </td>
-              <td className="p-3 text-center font-semibold text-emerald-600 dark:text-emerald-400">
-                {row.inCount ?? row.IN ?? 0}
-              </td>
-              <td className="p-3 text-center font-semibold text-blue-600 dark:text-blue-400">
-                {row.outCount ?? row.OUT ?? 0}
+              <td className="p-4 text-center">
+                <Badge className="bg-blue-50 text-blue-700 border-blue-200">{row.outCount ?? 0}</Badge>
               </td>
             </tr>
           ))}
@@ -386,49 +242,36 @@ function DoorCountTable({ data }: { data: any[] }) {
   );
 }
 
-// ==================== CEFALO REPORT TABLE ====================
-function CefaloReportTable({ data }: { data: any[] }) {
+// Replacement for CefaloReportTable
+function LockoutReportTable({ data }: { data: any[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs" data-testid="table-cefalo-report">
+      <table className="w-full text-xs">
         <thead>
           <tr className="border-b bg-muted/30">
-            <th className="text-left p-3 font-medium">Employee Name</th>
-            <th className="text-left p-3 font-medium">Emp Code</th>
-            <th className="text-left p-3 font-medium">Log Date & Time</th>
-            <th className="text-left p-3 font-medium">Door Name</th>
-            <th className="text-left p-3 font-medium">Direction</th>
+            <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider">Employee</th>
+            <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider">Cabin / Door</th>
+            <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider">Status</th>
+            <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider">Expiry Time</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((row: any, index: number) => (
-            <tr
-              key={row.id || index}
-              className="border-b border-border/50 hover:bg-muted/50"
-            >
-              <td className="p-3 font-medium">
-                {row.employeeName || row.firstName || row.name || "Unknown"}
+          {data.map((row, i) => (
+            <tr key={i} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
+              <td className="p-4">
+                <div className="font-bold text-sm">{row.employeeName}</div>
+                <div className="text-[10px] text-muted-foreground">{row.employeeCode}</div>
               </td>
-              <td className="p-3 text-muted-foreground">
-                {row.employeeCode || row.empCode || row.employeeId || "-"}
+              <td className="p-4 font-semibold text-slate-700">{row.doorName}</td>
+              <td className="p-4 text-center">
+                {row.status === "active" ? (
+                  <Badge className="bg-rose-500 hover:bg-rose-600 border-none text-[10px] px-3">🔴 ACTIVE</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-muted-foreground text-[10px] px-3">Inactive</Badge>
+                )}
               </td>
-              <td className="p-3 font-medium">
-                {formatDateTime(row.logDate || row.logTime || row.createdAt || row.timestamp)}
-              </td>
-              <td className="p-3">
-                {row.doorName || row.deviceName || row.DoorName || row.device || "Unknown Door"}
-              </td>
-              <td className="p-3">
-                <Badge
-                  variant="outline"
-                  className={`text-xs font-medium ${(row.direction || "").toLowerCase() === "in" ||
-                      (row.direction || "").toLowerCase() === "entry"
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border-emerald-200"
-                      : "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border-blue-200"
-                    }`}
-                >
-                  {(row.direction || row.deviceDirection || "-").toUpperCase()}
-                </Badge>
+              <td className="p-4 text-center font-mono text-muted-foreground">
+                {row.lockoutExpiry ? formatDateTime(row.lockoutExpiry) : "-"}
               </td>
             </tr>
           ))}
@@ -438,258 +281,52 @@ function CefaloReportTable({ data }: { data: any[] }) {
   );
 }
 
-function ReportDataView({
-  reportId,
-  data,
-  isLoading,
-}: {
-  reportId: string;
-  data: any[];
-  isLoading: boolean;
-}) {
-  if (isLoading) {
-    return (
-      <Card>
-        <CardContent className="p-6 space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-10 w-full" />
-          ))}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!data || data.length === 0) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="w-14 h-14 rounded-xl bg-muted/60 flex items-center justify-center mb-3">
-            <FileText className="w-7 h-7 text-muted-foreground/50" />
-          </div>
-          <p className="text-sm font-medium text-muted-foreground">
-            No records found
-          </p>
-          <p className="text-xs text-muted-foreground/70 mt-1">
-            Adjust filters or select a different date range
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // const renderTable = () => {
-  //   switch (reportId) {
-  //     case "attendance":
-  //     case "door-count":
-  //     case "early-going":
-  //     case "absentee":
-  //     case "overtime":
-  //       return <AttendanceTable data={data} />;
-  //     default:
-  //       return <AttendanceTable data={data} />;
-  //   }
-  // };
-
-  const renderTable = () => {
-    switch (reportId) {
-      case "attendance":
-      case "early-going":
-      case "absentee":
-      case "overtime":
-        return <AttendanceTable data={data} />;
-
-      case "door-count":
-        return <DoorCountTable data={data} />;
-
-      case "cefalo-report":
-        return <CefaloReportTable data={data} />;
-
-      default:
-        return <AttendanceTable data={data} />;
-    }
-  };
-  return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <div className="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
-            <ArrowUpDown className="w-3.5 h-3.5 text-primary" />
-          </div>
-          Results
-          <Badge variant="secondary" className="text-[10px]">
-            {data.length} records
-          </Badge>
-        </CardTitle>
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={() => exportCSV(reportId, data)}
-          data-testid="button-export-csv"
-        >
-          <Download className="w-3.5 h-3.5 mr-1" />
-          Export CSV
-        </Button>
-      </CardHeader>
-      <CardContent className="p-0">{renderTable()}</CardContent>
-    </Card>
-  );
-}
-
-function exportCSV(reportId: string, data: any[]) {
-  if (!data.length) return;
-  const keys = Object.keys(data[0]);
-  const header = keys.join(",");
-  const rows = data.map((r) =>
-    keys
-      .map((k) => {
-        const val = r[k];
-        if (val === null || val === undefined) return "";
-        const str = String(val);
-        return str.includes(",") || str.includes('"')
-          ? `"${str.replace(/"/g, '""')}"`
-          : str;
-      })
-      .join(","),
-  );
-  const csv = [header, ...rows].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${reportId}-report-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
+// 4. Main Page Component
 export default function ReportsPage() {
   const [activeReport, setActiveReport] = useState("attendance");
   const [filters, setFilters] = useState<Record<string, string>>({});
-  const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>(
-    {},
-  );
-  const { data: people = [] } = useQuery<Person[]>({
-    queryKey: ["/api/people"],
-  });
-  const { data: doorData = [] } = useQuery<any[]>({
-    queryKey: ["/api/doors"],
-  });
-  const queryParams = new URLSearchParams();
-  Object.entries(appliedFilters).forEach(([k, v]) => {
-    if (v) queryParams.set(k, v);
-  });
-  const qs = queryParams.toString();
+  const [appliedFilters, setAppliedFilters] = useState<Record<string, string>>({});
 
-  const {
-    data: reportData = [],
-    isLoading,
-  } = useQuery<any[], Error>({
+  const { data: people = [] } = useQuery<Person[]>({ queryKey: ["/api/people"] });
+  const { data: doorData = [] } = useQuery<any[]>({ queryKey: ["/api/doors"] });
+
+  const { data: reportData = [], isLoading } = useQuery<any[]>({
     queryKey: ["reports", activeReport, appliedFilters],
-    queryFn: async (): Promise<any[]> => {
+    queryFn: async () => {
       const params = new URLSearchParams();
-
-      Object.entries(appliedFilters).forEach(([k, v]) => {
-        if (v && k !== "_refresh") params.set(k, String(v));
-      });
-
-      const finalQs = params.toString();
-      const url = `/api/reports/${activeReport}${finalQs ? `?${finalQs}` : ""}`;
-
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch report");
-
-      const result = await res.json();
-
-      return Array.isArray(result) ? result : [];
+      Object.entries(appliedFilters).forEach(([k, v]) => { if (v && k !== "_refresh") params.set(k, String(v)); });
+      const res = await fetch(`/api/reports/${activeReport}?${params.toString()}`);
+      if (!res.ok) throw new Error("Fetch failed");
+      return res.json();
     },
-    staleTime: 0,
   });
 
-  const handleApply = () => {
-    setAppliedFilters({
-      ...filters,
-      _refresh: Date.now().toString(), // Yeh har click par state change trigger karega
-    });
-  };
-  const handleReportChange = (id: string) => {
-    setActiveReport(id);
-    setFilters({});
-    setAppliedFilters({});
-  };
-
+  const handleApply = () => setAppliedFilters({ ...filters, _refresh: Date.now().toString() });
   const currentReport = reportTypes.find((r) => r.id === activeReport)!;
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
+      <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-md glow-primary">
-            <FileText className="w-5 h-5 text-white" />
-          </div>
-          <div>
-            <h1
-              className="text-2xl font-bold tracking-tight"
-              data-testid="text-page-title"
-            >
-              Reports
-            </h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Generate and export attendance, access, and employee reports
-            </p>
-          </div>
+          <div className="p-2 bg-primary rounded-lg text-white"><FileText className="w-6 h-6" /></div>
+          <h1 className="text-2xl font-bold">Reports Center</h1>
         </div>
-        <Badge
-          variant="secondary"
-          className="self-start sm:self-auto"
-          data-testid="badge-report-name"
-        >
-          <currentReport.icon
-            className={`w-3 h-3 mr-1 ${currentReport.color}`}
-          />
-          {currentReport.label} Report
-        </Badge>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
-        {reportTypes.map((rt) => {
-          const isActive = activeReport === rt.id;
-          return (
-            <button
-              key={rt.id}
-              onClick={() => handleReportChange(rt.id)}
-              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 text-center ${isActive
-                  ? `${rt.bgColor} border-current/20 ring-1 ring-current/10`
-                  : "bg-card border-border/50 hover-elevate"
-                }`}
-              data-testid={`button-report-${rt.id}`}
-            >
-              <div
-                className={`w-8 h-8 rounded-lg ${isActive ? `bg-gradient-to-br ${getGradientForReport(rt.id)}` : "bg-muted/60"} flex items-center justify-center`}
-              >
-                <rt.icon
-                  className={`w-4 h-4 ${isActive ? "text-white" : "text-muted-foreground"}`}
-                />
-              </div>
-              <span
-                className={`text-[10px] font-medium leading-tight ${isActive ? rt.color : "text-muted-foreground"}`}
-              >
-                {rt.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/30 dark:bg-muted/15 border border-border/30">
-        <currentReport.icon
-          className={`w-4 h-4 ${currentReport.color} mt-0.5 flex-shrink-0`}
-        />
-        <p className="text-xs text-muted-foreground">
-          {currentReport.description}
-        </p>
+      <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+        {reportTypes.map((rt) => (
+          <button
+            key={rt.id}
+            onClick={() => { setActiveReport(rt.id); setFilters({}); setAppliedFilters({}); }}
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20` : "bg-card hover:bg-muted/50"}`}
+          >
+            <rt.icon className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`} />
+            <span className="text-[10px] font-bold uppercase">{rt.label}</span>
+          </button>
+        ))}
       </div>
 
       <ReportFilters
-        reportId={activeReport}
         filters={filters}
         setFilters={setFilters}
         setAppliedFilters={setAppliedFilters}
@@ -698,23 +335,41 @@ export default function ReportsPage() {
         devices={doorData}
       />
 
-      <ReportDataView
-        reportId={activeReport}
-        data={reportData}
-        isLoading={isLoading}
-      />
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between border-b py-3">
+          <CardTitle className="text-sm font-semibold">
+            {currentReport.label} Results ({reportData.length})
+          </CardTitle>
+          <Button size="sm" variant="outline" onClick={() => exportCSV(activeReport, reportData)}>
+            <Download className="w-4 h-4 mr-2" /> Export
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-8 space-y-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          ) : reportData.length === 0 ? (
+            <div className="p-12 text-center text-muted-foreground">No records found for the selected filters.</div>
+          ) : (
+            <>
+              {activeReport === "attendance" && <AttendanceTable data={reportData} />}
+              {activeReport === "door-count" && <DoorCountTable data={reportData} />}
+              {activeReport === "cabin-lockout" && <LockoutReportTable data={reportData} />}
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function getGradientForReport(id: string): string {
-  const gradients: Record<string, string> = {
-    attendance: "from-blue-500 to-indigo-500",
-    "door-count": "from-amber-500 to-orange-500",
-    "cefalo-report": "from-violet-500 to-purple-500",   // ← Naya
-    "early-going": "from-orange-500 to-red-500",
-    absentee: "from-rose-500 to-pink-500",
-    overtime: "from-violet-500 to-purple-500",
-  };
-  return gradients[id] || "from-blue-500 to-indigo-500";
+function exportCSV(id: string, data: any[]) {
+  if (!data.length) return;
+  const header = Object.keys(data[0]).join(",");
+  const rows = data.map(r => Object.values(r).map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([header + "\n" + rows], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${id}-report.csv`;
+  a.click();
 }

@@ -58,14 +58,18 @@ export const getQueryFn: <T>(options: {
     await throwIfResNotOk(res);
     return await res.json();
   };
-
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+
+      // --- Auto-refresh settings ---
+      refetchInterval: 3000,          // Har 3 second mein data refresh hoga
+      refetchIntervalInBackground: true, // Doosri tab open ho tab bhi sync chalta rahega
+      refetchOnWindowFocus: true,     // Tab par wapas aate hi refresh karega
+      refetchOnReconnect: true,      // Internet wapas aane par sync karega
+
+      staleTime: 0,                   // Data ko hamesha fresh rakhega
       retry: false,
     },
     mutations: {
@@ -73,3 +77,17 @@ export const queryClient = new QueryClient({
     },
   },
 });
+// export const queryClient = new QueryClient({
+//   defaultOptions: {
+//     queries: {
+//       queryFn: getQueryFn({ on401: "throw" }),
+//       refetchInterval: false,
+//       refetchOnWindowFocus: false,
+//       staleTime: Infinity,
+//       retry: false,
+//     },
+//     mutations: {
+//       retry: false,
+//     },
+//   },
+// });
