@@ -623,6 +623,17 @@ export const employeeRoles = pgTable("employee_roles", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
+export const employeeDoorAssignments = pgTable("employee_door_assignments", {
+  id: serial("id").primaryKey(),
+  employeeCode: varchar("employee_code", { length: 100 })
+    .notNull()
+    .unique()
+    .references(() => people.employeeCode, { onDelete: 'cascade' }),
+  doorIds: integer("door_ids").array().notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow()
+});
+
 
 // --- Main Gate Activity Logs Table ---
 export const mainGateLogs = pgTable("main_gate_logs", {
@@ -778,7 +789,7 @@ export const insertEmployeeRoleSchema = createInsertSchema(employeeRoles).omit({
 export const insertMainGateLogSchema = createInsertSchema(mainGateLogs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCronMasterSchema = createInsertSchema(cronMaster).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDoorDeviceSchema = createInsertSchema(doorDevices).omit({ id: true, createdAt: true });
-
+export const insertEmployeeDoorAssignmentSchema = createInsertSchema(employeeDoorAssignments).omit({ id: true, createdAt: true, updatedAt: true }).extend({doorIds: z.array(z.number())});
 
 // ==================== TYPES ====================
 export type UserProfile = typeof userProfiles.$inferSelect;
@@ -855,5 +866,7 @@ export type CronMaster = typeof cronMaster.$inferSelect;
 export type InsertCronMaster = z.infer<typeof insertCronMasterSchema>;
 export type DoorDevice = typeof doorDevices.$inferSelect;
 export type InsertDoorDevice = z.infer<typeof insertDoorDeviceSchema>;
+export type EmployeeDoorAssignment = typeof employeeDoorAssignments.$inferSelect;
+export type InsertEmployeeDoorAssignment = z.infer<typeof insertEmployeeDoorAssignmentSchema>;
 
 

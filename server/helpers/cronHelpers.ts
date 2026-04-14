@@ -1,7 +1,7 @@
 import { db } from "../db";
 import { people, blockUnblockLogs, cabinLockouts } from "@shared/schema";
 import { eq, and, desc, gt } from "drizzle-orm";
-import { esslService } from "../essl-service";
+import { esslService } from "../services/essl-service";
 import { ZONES } from "../constant";
 
 /**

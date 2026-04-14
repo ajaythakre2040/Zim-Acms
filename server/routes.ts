@@ -689,68 +689,68 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     (id, data) => storage.updateRole(id, data),
     (id) => storage.deleteRole(id)
   );
-    crudRoutes(
-      app,
-      "/api/employee-roles",
-      insertEmployeeRoleSchema,
-      () => storage.getEmployeeRoles(),
-      async (data: any) => {
-        const existing = await storage.getEmployeeRoles();
-        const isDuplicate = existing.some(
-          (r) => r.employeeCode === data.employeeCode && Number(r.roleId) === Number(data.roleId)
-        );
-        if (isDuplicate) {
-          const error: any = new Error("This role is already assigned to this employee.");
-          error.status = 400;
-          throw error;
-        }
-        return await storage.createEmployeeRole(data);
-      },
-      async (id, data) => {
-        return await storage.updateEmployeeRole(id, data);
-      },
-      async (id) => {
-        return await storage.deleteEmployeeRole(id);
+  crudRoutes(
+    app,
+    "/api/employee-roles",
+    insertEmployeeRoleSchema,
+    () => storage.getEmployeeRoles(),
+    async (data: any) => {
+      const existing = await storage.getEmployeeRoles();
+      const isDuplicate = existing.some(
+        (r) => r.employeeCode === data.employeeCode && Number(r.roleId) === Number(data.roleId)
+      );
+      if (isDuplicate) {
+        const error: any = new Error("This role is already assigned to this employee.");
+        error.status = 400;
+        throw error;
       }
-    );
+      return await storage.createEmployeeRole(data);
+    },
+    async (id, data) => {
+      return await storage.updateEmployeeRole(id, data);
+    },
+    async (id) => {
+      return await storage.deleteEmployeeRole(id);
+    }
+  );
   // routes.ts mein ye add karein
   crudRoutes(
-  app,
-  "/api/cron-lists",
-  insertCronMasterSchema,
-  () => storage.getCronMasters(),
-  async (data: any) => {
-    // 1. Check for Duplicate Code
-    const existing = await storage.getCronMasters();
-    const isDuplicate = existing.some(
-      (c) => c.code.toLowerCase() === data.code.toLowerCase()
-    );
+    app,
+    "/api/cron-lists",
+    insertCronMasterSchema,
+    () => storage.getCronMasters(),
+    async (data: any) => {
+      // 1. Check for Duplicate Code
+      const existing = await storage.getCronMasters();
+      const isDuplicate = existing.some(
+        (c) => c.code.toLowerCase() === data.code.toLowerCase()
+      );
 
-    if (isDuplicate) {
-      const error: any = new Error("This Cron Key is already defined. Please use a unique key.");
-      error.status = 400;
-      throw error;
+      if (isDuplicate) {
+        const error: any = new Error("This Cron Key is already defined. Please use a unique key.");
+        error.status = 400;
+        throw error;
+      }
+
+      // 2. Default Config ensure karna (Optional but Recommended)
+      // Agar user ne config nahi bheja, toh empty object set kar dein
+      const cronData = {
+        ...data,
+        config: data.config || {},
+        isActive: data.isActive ?? false,
+        lastRun: null
+      };
+
+      return await storage.createCronMaster(cronData);
+    },
+    async (id, data) => {
+      // Update ke waqt bhi logic check kar sakte hain agar code change ho raha ho
+      return await storage.updateCronMaster(id, data);
+    },
+    async (id) => {
+      return await storage.deleteCronMaster(id);
     }
-
-    // 2. Default Config ensure karna (Optional but Recommended)
-    // Agar user ne config nahi bheja, toh empty object set kar dein
-    const cronData = {
-      ...data,
-      config: data.config || {},
-      isActive: data.isActive ?? false,
-      lastRun: null
-    };
-
-    return await storage.createCronMaster(cronData);
-  },
-  async (id, data) => {
-    // Update ke waqt bhi logic check kar sakte hain agar code change ho raha ho
-    return await storage.updateCronMaster(id, data);
-  },
-  async (id) => {
-    return await storage.deleteCronMaster(id);
-  }
-);
+  );
   // 1. Main Gate Specific Route
   app.get("/api/cron-jobs/main-gate", async (_req, res) => {
     const allCrons = await storage.getCronMasters();
@@ -793,20 +793,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   );
   crudRoutes(
-  app,
-  "/api/block-unblock-logs",
-  insertBlockUnblockLogSchema,
-  () => storage.getBlockUnblockLogs(),
-  async (data: any) => {
-    return await storage.createBlockUnblockLog(data);
-  },
-  async (id, data) => {
-    return await storage.updateBlockUnblockLog(id, data);
-  },
-  async (id) => {
-    return await storage.deleteBlockUnblockLog(id);
-  }
-);
+    app,
+    "/api/block-unblock-logs",
+    insertBlockUnblockLogSchema,
+    () => storage.getBlockUnblockLogs(),
+    async (data: any) => {
+      return await storage.createBlockUnblockLog(data);
+    },
+    async (id, data) => {
+      return await storage.updateBlockUnblockLog(id, data);
+    },
+    async (id) => {
+      return await storage.deleteBlockUnblockLog(id);
+    }
+  );
   app.get("/api/devices/role-eligible", async (_req, res) => {
     try {
       const devices = await storage.getRoleEligibleDevices();
@@ -912,6 +912,70 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(data);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch lockout report" });
+    }
+  });
+  app.get("/api/employee-door-assignments", async (req, res) => {
+    try {
+      const data = await storage.getEmployeeDoorAssignments();
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch door assignments" });
+    }
+  });
+
+  // Get doors for a specific employee
+  app.get("/api/employee-door-assignments/:code", async (req, res) => {
+    try {
+      const data = await storage.getEmployeeDoorAssignmentByCode(req.params.code);
+      if (!data) {
+        return res.status(404).json({ message: "Assignment not found for this employee" });
+      }
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch employee door assignment" });
+    }
+  });
+
+  // Create or Update door assignment (Single entry, Multiple doors)
+  app.post("/api/employee-door-assignments", async (req, res) => {
+    try {
+      const { employeeCode, doorIds } = req.body;
+
+      // Payload validation
+      if (!employeeCode || !Array.isArray(doorIds)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Required data missing: employeeCode (string) and doorIds (array) are mandatory."
+        });
+      }
+
+      const result = await storage.upsertEmployeeDoorAssignment({ employeeCode, doorIds });
+
+      res.status(200).json({
+        status: "success",
+        message: "Access privileges updated successfully.",
+        data: result
+      });
+
+    } catch (error: any) {
+      // Yahan hum storage se phenka gaya professional message pakad rahe hain
+      console.error("Assignment Error Log:", error.message);
+
+      // 400 Bad Request bhejenge specific message ke saath
+      res.status(400).json({
+        status: "error",
+        message: error.message || "An unexpected error occurred during assignment."
+      });
+    }
+  });
+
+  // Delete an assignment
+  app.delete("/api/employee-door-assignments/:id", async (req, res) => {
+    try {
+      await storage.deleteEmployeeDoorAssignment(Number(req.params.id));
+      res.json({ message: "Assignment deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete assignment" });
     }
   });
   return httpServer;

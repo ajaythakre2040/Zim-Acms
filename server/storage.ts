@@ -44,6 +44,7 @@ import {
   DoorDevice,
   BlockUnblockLog,
   InsertBlockUnblockLog,
+
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
@@ -51,7 +52,7 @@ import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray } from "d
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES } from './constant';
-import { esslService } from "./essl-service";
+import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -179,7 +180,12 @@ export interface IStorage {
   getDashboardStats(): Promise<object>;
   getLockoutEligibleDoors(search?: string): Promise<any[]>;
   updateDoorLockoutStatusBulk(doorIds: number[], status: boolean): Promise<any[]>;
-  executeEmergencybulkUnblock(userId: string | number, userName: string): Promise<any>; }
+  executeEmergencybulkUnblock(userId: string | number, userName: string): Promise<any>;
+  getEmployeeDoorAssignments(): Promise<any[]>;
+  getEmployeeDoorAssignmentByCode(employeeCode: string): Promise<any | undefined>;
+  upsertEmployeeDoorAssignment(data: any): Promise<any>;
+  deleteEmployeeDoorAssignment(id: number): Promise<void>;
+}
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
     return authStorage.getUser(id);
@@ -647,6 +653,12 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
   async deleteDoor(id: number): Promise<void> {
+    await db.execute(sql`
+    UPDATE ${schema.employeeDoorAssignments} 
+    SET door_ids = array_remove(door_ids, ${id}),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE ${id} = ANY(door_ids)
+  `);
     await db.delete(doors).where(eq(doors.id, id));
   }
   async getDevices(): Promise<any[]> {
@@ -782,7 +794,7 @@ export class DatabaseStorage implements IStorage {
         roleName: roles.name,
         departmentName: departments.name,
         lastPunchDoorName: doors.name,
-       
+
       })
         .from(people)
         .leftJoin(roles, eq(people.roleId, roles.id))
@@ -862,7 +874,7 @@ export class DatabaseStorage implements IStorage {
       );
     }
     // Sorting: Newest first
-    results.sort((a, b) => (b.id || 0) - (a.id || 0));    return Array.from(
+    results.sort((a, b) => (b.id || 0) - (a.id || 0)); return Array.from(
       new Map(results.map(p => [`${p.msId || p.employeeCode || p.id}`, p])).values()
     );
   }
@@ -970,17 +982,25 @@ export class DatabaseStorage implements IStorage {
     }
     return updated;
   }
+
   async deletePerson(id: number): Promise<void> {
     const [record] = await db.select().from(people).where(eq(people.id, id));
+
     if (record) {
-      if (record.msId) {
-        try {
-          await dbMsSql.delete({ dbName: 'Employees', pk: 'EmployeeId' })
-            .where({ value: record.msId });
-        } catch (e) {
-          console.error("MS SQL Person Delete Error:", e);
+      try {
+
+        if (record.employeeCode) {
+          await esslService.deleteEmployee(record.employeeCode.toString());
         }
+      } catch (e) {
+        console.error("eSSL Deletion Failed:", e);
       }
+      if (record.employeeCode) {
+        await db
+          .delete(schema.employeeDoorAssignments)
+          .where(eq(schema.employeeDoorAssignments.employeeCode, record.employeeCode));
+      }
+      // Local Postgres se delete
       await db.delete(people).where(eq(people.id, id));
     }
   }
@@ -1962,7 +1982,7 @@ export class DatabaseStorage implements IStorage {
     // 3. Map ko wapas array mein convert karke return karein
     return Array.from(latestMap.values());
   }
- 
+
   async toggleEmployeeDeviceAccess(params: {
     employeeCode: string;
     deviceId: number;
@@ -2356,6 +2376,127 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
+  async getEmployeeDoorAssignments(): Promise<any[]> {
+    // 1. Assignments aur Employee details fetch karein
+    const assignments = await db
+      .select({
+        id: schema.employeeDoorAssignments.id,
+        employeeCode: schema.employeeDoorAssignments.employeeCode,
+        employeeName: schema.people.employeeName,
+        doorIds: schema.employeeDoorAssignments.doorIds,
+        updatedAt: schema.employeeDoorAssignments.updatedAt
+      })
+      .from(schema.employeeDoorAssignments)
+      .leftJoin(schema.people, eq(schema.employeeDoorAssignments.employeeCode, schema.people.employeeCode));
+
+    // 2. Door names ko resolve karne ke liye mapping (Check karein: schema.doors.name hai ya schema.doors.doorName)
+    const doorList = await db.select({
+      id: schema.doors.id,
+      name: schema.doors.name // Yahan dhyan dein, aapke schema mein 'doorName' ho sakta hai
+    }).from(schema.doors);
+
+    // Object ki jagah Map use karein (Type safety ke liye)
+    const doorMap = new Map(doorList.map(d => [d.id, d.name]));
+
+    // 3. Data ko format karein
+    return assignments.map(asgn => ({
+      ...asgn,
+      doors: (asgn.doorIds || []).map(id => {
+        const doorId = Number(id); // Force convert to number
+        return {
+          id: doorId,
+          name: doorMap.get(doorId) || "Unknown Door"
+        };
+      })
+    }));
+  }
+
+  async getEmployeeDoorAssignmentByCode(employeeCode: string): Promise<any | undefined> {
+    // 1. Assignment aur Employee Name fetch karein
+    const [assignment] = await db
+      .select({
+        id: schema.employeeDoorAssignments.id,
+        employeeCode: schema.employeeDoorAssignments.employeeCode,
+        employeeName: schema.people.employeeName, // Make sure 'employeeName' is correct in your schema
+        doorIds: schema.employeeDoorAssignments.doorIds,
+        updatedAt: schema.employeeDoorAssignments.updatedAt,
+      })
+      .from(schema.employeeDoorAssignments)
+      .leftJoin(schema.people, eq(schema.employeeDoorAssignments.employeeCode, schema.people.employeeCode))
+      .where(eq(schema.employeeDoorAssignments.employeeCode, employeeCode));
+
+    // Agar record nahi milta toh undefined return karein
+    if (!assignment) return undefined;
+
+    // 2. Agar doorIds hain, toh unke names resolve karein
+    if (assignment.doorIds && assignment.doorIds.length > 0) {
+      const doorList = await db
+        .select({ id: schema.doors.id, name: schema.doors.name }) // 'doorName' ya 'name' jo aapke schema mein ho
+        .from(schema.doors)
+        .where(inArray(schema.doors.id, assignment.doorIds));
+
+      // Map door details back to the assignment
+      return {
+        ...assignment,
+        doors: doorList
+      };
+    }
+
+    return { ...assignment, doors: [] };
+  }
+  async upsertEmployeeDoorAssignment(data: { employeeCode: string; doorIds: number[] }) {
+    // 1. Array se duplicates hatayein (Set use karke)
+    const uniqueDoorIds = [...new Set(data.doorIds)];
+
+    // 2. Employee Verification
+    const [person] = await db
+      .select()
+      .from(schema.people)
+      .where(eq(schema.people.employeeCode, data.employeeCode));
+
+    if (!person) {
+      throw new Error(`User Verification Failed: Employee code "${data.employeeCode}" is not registered in the system.`);
+    }
+
+    // 3. Doors Validation
+    if (uniqueDoorIds.length > 0) {
+      const validDoors = await db
+        .select({ id: schema.doors.id })
+        .from(schema.doors)
+        .where(inArray(schema.doors.id, uniqueDoorIds));
+
+      const validDoorIds = validDoors.map(d => d.id);
+      const invalidIds = uniqueDoorIds.filter(id => !validDoorIds.includes(id));
+
+      if (invalidIds.length > 0) {
+        throw new Error(`Resource Conflict: Door IDs [${invalidIds.join(", ")}] are invalid or do not exist in the database.`);
+      }
+    }
+
+    // 4. Final Execution
+    const [result] = await db
+      .insert(schema.employeeDoorAssignments)
+      .values({
+        employeeCode: data.employeeCode,
+        doorIds: uniqueDoorIds,
+      })
+      .onConflictDoUpdate({
+        target: schema.employeeDoorAssignments.employeeCode,
+        set: {
+          doorIds: uniqueDoorIds,
+          updatedAt: sql`CURRENT_TIMESTAMP`
+        },
+      })
+      .returning();
+
+    return result;
+  }
+  async deleteEmployeeDoorAssignment(id: number): Promise<void> {
+    await db
+      .delete(schema.employeeDoorAssignments)
+      .where(eq(schema.employeeDoorAssignments.id, id));
+  }
+
 
 };
 export const storage = new DatabaseStorage();
