@@ -360,22 +360,22 @@ export default function PeoplePage() {
       render: (p: Person) =>
         departments.find((d) => d.id === p.departmentId)?.name || "-",
     },
-    {
-      key: "roleName",
-      label: "Role",
-      hideOnMobile: true,
-      render: (p: any) => (
-        <span
-          className={
-            p.roleName
-              ? "text-sm text-foreground"
-              : "text-sm text-muted-foreground"
-          }
-        >
-          {p.roleName || "No Role Assigned"}
-        </span>
-      ),
-    },
+    // {
+    //   key: "roleName",
+    //   label: "Role",
+    //   hideOnMobile: true,
+    //   render: (p: any) => (
+    //     <span
+    //       className={
+    //         p.roleName
+    //           ? "text-sm text-foreground"
+    //           : "text-sm text-muted-foreground"
+    //       }
+    //     >
+    //       {p.roleName || "No Role Assigned"}
+    //     </span>
+    //   ),
+    // },
 
     {
       key: "currentAccessRule",
