@@ -142,7 +142,13 @@ export default function Dashboard() {
           </Card>
         ))}
       </div>
+      <DoorAttendanceTable doors={doors} refreshInterval={REFRESH_MS} />
+      <ShiftWiseEmpCount doors={doors} refreshInterval={REFRESH_MS} />
 
+      {/* Main Details Grid (Today's Attendance & System Health) */}
+      <div className="grid md:grid-cols-2 gap-4">
+
+      </div>
       {/* Main Details Grid */}
       <div className="grid md:grid-cols-2 gap-4">
         <AttendanceCard refreshInterval={REFRESH_MS} />
@@ -153,6 +159,221 @@ export default function Dashboard() {
 }
 
 // --- Sub-Components ---
+// function DoorAttendanceTable({ doors, refreshInterval }: { doors: Door[], refreshInterval: number }) {
+//   // Yahan hum door-wise attendance ka data fetch karenge
+//   const { data: doorStats } = useQuery<any[]>({
+//     queryKey: ["/api/attendance/door-wise-stats"], 
+//     refetchInterval: refreshInterval
+//   });
+
+//   return (
+//     <Card className="col-span-full">
+//       <CardHeader className="pb-3">
+//         <CardTitle className="text-sm font-medium flex items-center gap-2">
+//           <DoorOpen className="w-4 h-4 text-blue-500" /> Door-wise Attendance Summary
+//         </CardTitle>
+//       </CardHeader>
+//       <CardContent>
+//         <div className="rounded-md border overflow-hidden">
+//           <table className="w-full text-sm">
+//             <thead className="bg-muted/50 border-b">
+//               <tr className="text-[11px] uppercase tracking-wider text-muted-foreground">
+//                 <th className="px-4 py-3 text-left font-bold">Door Name</th>
+//                 <th className="px-4 py-3 text-center font-bold">Total Manpower</th>
+//                 <th className="px-4 py-3 text-center font-bold text-emerald-600">Total Present</th>
+//                 <th className="px-4 py-3 text-center font-bold text-rose-600">Total Absent</th>
+//               </tr>
+//             </thead>
+//             <tbody className="divide-y">
+//               {doors.map((door) => {
+//                 // Door-wise data find karein (agar API se aa raha ho)
+//                 const stats = doorStats?.find(s => s.doorId === door.id);
+
+//                 return (
+//                   <tr key={door.id} className="hover:bg-muted/30 transition-colors">
+//                     <td className="px-4 py-3 font-medium">{door.name}</td>
+//                     <td className="px-4 py-3 text-center">{stats?.total || 0}</td>
+//                     <td className="px-4 py-3 text-center font-semibold text-emerald-500">
+//                       {stats?.present || 0}
+//                     </td>
+//                     <td className="px-4 py-3 text-center font-semibold text-rose-500">
+//                       {stats?.absent || 0}
+//                     </td>
+//                   </tr>
+//                 );
+//               })}
+//               {doors.length === 0 && (
+//                 <tr>
+//                   <td colSpan={4} className="px-4 py-8 text-center text-muted-foreground">
+//                     No doors found in the system.
+//                   </td>
+//                 </tr>
+//               )}
+//             </tbody>
+//           </table>
+//         </div>
+//       </CardContent>
+//     </Card>
+//   );
+// }
+
+function DoorAttendanceTable({ doors, refreshInterval }: { doors: Door[], refreshInterval: number }) {
+  // Pure dashboard ka combined stats fetch karne ke liye
+  const { data: stats } = useQuery<any>({
+    queryKey: ["/api/dashboard/stats"],
+    refetchInterval: refreshInterval
+  });
+
+  // Door-wise counts fetch karne ke liye
+  const { data: doorStats } = useQuery<any[]>({
+    queryKey: ["/api/attendance/door-wise-stats"],
+    refetchInterval: refreshInterval
+  });
+
+  return (
+    <Card className="col-span-full border-none shadow-sm ring-1 ring-border overflow-hidden">
+      <CardHeader className="pb-3 border-b bg-muted/10">
+        <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <Users className="w-4 h-4 text-blue-500" /> Door-wise Attendance Summary
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-muted/30 border-b">
+                {/* 1. Dynamic Door Columns */}
+                {doors.map((door) => (
+                  <th key={door.id} className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r min-w-[120px]">
+                    {door.name}
+                  </th>
+                ))}
+
+                {/* 2. Final Static Columns */}
+                <th className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-emerald-600 border-r bg-emerald-50/50 dark:bg-emerald-900/20 min-w-[140px]">
+                  Total Present
+                </th>
+                <th className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-rose-600 border-r bg-rose-50/50 dark:bg-rose-900/20 min-w-[140px]">
+                  Total Absent
+                </th>
+                <th className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-blue-600 bg-blue-50/50 dark:bg-blue-900/20 min-w-[140px]">
+                  Total Manpower
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="divide-x">
+                {/* Door-wise Counts */}
+                {doors.map((door) => {
+                  const currentDoorStat = doorStats?.find(s => s.doorId === door.id);
+                  return (
+                    <td key={door.id} className="px-4 py-6 text-center text-xl font-bold text-slate-700 dark:text-slate-200">
+                      {currentDoorStat?.present || 0}
+                    </td>
+                  );
+                })}
+
+                {/* Final Summary Counts */}
+                <td className="px-4 py-6 text-center text-2xl font-black text-emerald-500 bg-emerald-50/10">
+                  {stats?.activePeople || 0}
+                </td>
+                <td className="px-4 py-6 text-center text-2xl font-black text-rose-500 bg-rose-50/10">
+                  {(stats?.totalPeople || 0) - (stats?.activePeople || 0)}
+                </td>
+                <td className="px-4 py-6 text-center text-2xl font-black text-blue-600 bg-blue-50/10">
+                  {stats?.totalPeople || 0}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ShiftWiseEmpCount({ doors, refreshInterval }: { doors: Door[], refreshInterval: number }) {
+  // 1. Shifts fetch karein columns banane ke liye
+  const { data: shifts = [] } = useQuery<any[]>({
+    queryKey: ["/api/shifts"],
+  });
+
+  // 2. Shift-wise data fetch karein (Backend se doorId aur shiftId ke basis par count)
+  const { data: shiftStats } = useQuery<any[]>({
+    queryKey: ["/api/attendance/shift-door-stats"],
+    refetchInterval: refreshInterval
+  });
+
+  return (
+    <Card className="col-span-full border-none shadow-sm ring-1 ring-border overflow-hidden">
+      <CardHeader className="pb-3 border-b bg-muted/10">
+        <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-violet-500" /> Shift-wise Employee Count
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-muted/30 border-b">
+                {/* Fixed First Column */}
+                <th className="px-4 py-3 text-left font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r w-48">
+                  Door Name
+                </th>
+
+                {/* Dynamic Shift Columns */}
+                {shifts.map((shift) => (
+                  <th key={shift.id} className="px-4 py-3 text-center font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r min-w-[100px]">
+                    {shift.name}
+                  </th>
+                ))}
+
+                {/* Last Total Column */}
+                <th className="px-4 py-3 text-center font-bold text-[10px] uppercase tracking-wider text-blue-600 bg-blue-50/30 dark:bg-blue-900/10 min-w-[100px]">
+                  Total Emp
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {doors.map((door) => {
+                let doorTotal = 0;
+
+                return (
+                  <tr key={door.id} className="hover:bg-muted/10 transition-colors">
+                    <td className="px-4 py-3 font-medium border-r bg-muted/5">
+                      {door.name}
+                    </td>
+
+                    {/* Har shift ke liye count dikhayenge */}
+                    {shifts.map((shift) => {
+                      // Stats array se matching door aur shift ka count nikalna
+                      const count = shiftStats?.find(
+                        (s) => s.doorId === door.id && s.shiftId === shift.id
+                      )?.count || 0;
+
+                      doorTotal += count;
+
+                      return (
+                        <td key={shift.id} className="px-4 py-3 text-center border-r font-semibold">
+                          {count}
+                        </td>
+                      );
+                    })}
+
+                    {/* Row ka total (Total Emp in all shifts for this door) */}
+                    <td className="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50/10">
+                      {doorTotal}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function AttendanceCard({ refreshInterval }: { refreshInterval: number }) {
   const { data: summary } = useQuery<any>({

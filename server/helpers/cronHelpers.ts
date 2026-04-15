@@ -1,72 +1,34 @@
 import { db } from "../db";
-import { people, blockUnblockLogs, cabinLockouts } from "@shared/schema";
-import { eq, and, desc, gt } from "drizzle-orm";
-import { esslService } from "../services/essl-service";
+import { people, blockUnblockLogs } from "@shared/schema"; // Purana schema use kiya
+import { eq, and, desc, sql } from "drizzle-orm";
+import { esslService } from "../services/essl-service"; // Aapki existing service
 import { ZONES } from "../constant";
 
 /**
- * 1. Check if User entered from Main Gate TODAY
- */
-export function hasEnteredToday(emp: any, todayStart: Date): boolean {
-    if (!emp || !emp.lastSeenTime) return false;
-
-    const lastSeen = new Date(emp.lastSeenTime);
-    // Condition: Aaj ki date honi chaiye aur zone OUT nahi hona chahiye
-    return lastSeen >= todayStart && emp.currentZone !== ZONES.OUT;
-}
-
-/**
- * 2. Role Validation Logic
- */
-export function hasValidRole(emp: any): boolean {
-    return !!(emp && emp.roleId !== null && emp.roleId !== undefined && emp.status === "active");
-}
-
-/**
- * 3. Lockout Status Check (Expired logic handled)
- */
-export async function getLockoutStatus(empCode: string) {
-    const lockout = await db.query.cabinLockouts.findFirst({
-        where: and(
-            eq(cabinLockouts.employeeCode, empCode),
-            eq(cabinLockouts.status, "active"),
-            gt(cabinLockouts.lockoutExpiry, new Date())
-        )
-    });
-    return lockout ? true : false;
-}
-
-/**
- * 4. Hardware Sync Logic (Redundant logs avoid karne ke liye)
+ * Hardware Sync Logic: Purane blockUnblockLogs ke logic ke saath
  */
 export async function updateDeviceStatus(empCode: string, machine: any, shouldBlock: boolean) {
     const type = shouldBlock ? "block" : "unblock";
     const machineId = machine.msId ?? 0;
-    // Check last log to avoid unnecessary API calls to hardware
-    const lastLog = await db.query.blockUnblockLogs.findFirst({
-        where: and(
-            eq(blockUnblockLogs.employeeCode, empCode),
-            eq(blockUnblockLogs.deviceId, machineId)
-        ),
-        orderBy: [desc(blockUnblockLogs.createdAt)]
-    });
-
-    // Agar hardware pehle se hi desired state mein hai, toh skip karo
-    if (lastLog && lastLog.type === type) {
-        // console.log(`[SKIP] ${empCode} already ${type}ed on ${machineId}`);
-        return;
-    }
 
     try {
-        if (!machine.serialNumber) {
-            console.error(`[SERIAL MISSING] Machine ID ${machineId} has no serial number.`);
-            return;
-        }
+        // Redundancy Check: Baar-baar hardware call se bachne ke liye
+        const lastLog = await db.query.blockUnblockLogs.findFirst({
+            where: and(
+                eq(blockUnblockLogs.employeeCode, empCode),
+                eq(blockUnblockLogs.deviceId, machineId)
+            ),
+            orderBy: [desc(blockUnblockLogs.createdAt)]
+        });
 
-        // Real Hardware Sync
+        if (lastLog && lastLog.type === type) return;
+
+        if (!machine.serialNumber) return;
+
+        // ACTUAL HARDWARE COMMAND
         await esslService.syncUserBlockStatus(empCode, machine.serialNumber.trim(), shouldBlock);
 
-        // Success Log in DB
+        // Success Entry in DB
         await db.insert(blockUnblockLogs).values({
             employeeCode: empCode,
             deviceId: machineId,
@@ -74,8 +36,16 @@ export async function updateDeviceStatus(empCode: string, machine: any, shouldBl
             createdAt: new Date()
         });
 
-        console.log(`[HARDWARE SYNC] ${empCode} -> ${type} on ${machineId}`);
     } catch (e) {
-        console.error(`[HARDWARE ERROR] Failed to ${type} ${empCode} on ${machineId}:`, e);
+        console.error(`[SYNC ERROR] ${empCode} on Machine ${machineId}:`, e);
     }
+}
+/**
+ * Aaj ke active employees check karne ke liye helper
+ * (Aapke purane hasEnteredToday ka refined version)
+ */
+export function isUserActiveToday(emp: any, todayStart: Date): boolean {
+    if (!emp || !emp.lastSeenTime) return false;
+    const lastSeen = new Date(emp.lastSeenTime);
+    return lastSeen >= todayStart && emp.currentZone !== ZONES.OUT;
 }

@@ -2444,52 +2444,126 @@ export class DatabaseStorage implements IStorage {
 
     return { ...assignment, doors: [] };
   }
+  // async upsertEmployeeDoorAssignment(data: { employeeCode: string; doorIds: number[] }) {
+  //   // 1. Array se duplicates hatayein (Set use karke)
+  //   const uniqueDoorIds = [...new Set(data.doorIds)];
+
+  //   // 2. Employee Verification
+  //   const [person] = await db
+  //     .select()
+  //     .from(schema.people)
+  //     .where(eq(schema.people.employeeCode, data.employeeCode));
+
+  //   if (!person) {
+  //     throw new Error(`User Verification Failed: Employee code "${data.employeeCode}" is not registered in the system.`);
+  //   }
+
+  //   // 3. Doors Validation
+  //   if (uniqueDoorIds.length > 0) {
+  //     const validDoors = await db
+  //       .select({ id: schema.doors.id })
+  //       .from(schema.doors)
+  //       .where(inArray(schema.doors.id, uniqueDoorIds));
+
+  //     const validDoorIds = validDoors.map(d => d.id);
+  //     const invalidIds = uniqueDoorIds.filter(id => !validDoorIds.includes(id));
+
+  //     if (invalidIds.length > 0) {
+  //       throw new Error(`Resource Conflict: Door IDs [${invalidIds.join(", ")}] are invalid or do not exist in the database.`);
+  //     }
+  //   }
+
+  //   // 4. Final Execution
+  //   const [result] = await db
+  //     .insert(schema.employeeDoorAssignments)
+  //     .values({
+  //       employeeCode: data.employeeCode,
+  //       doorIds: uniqueDoorIds,
+  //     })
+  //     .onConflictDoUpdate({
+  //       target: schema.employeeDoorAssignments.employeeCode,
+  //       set: {
+  //         doorIds: uniqueDoorIds,
+  //         updatedAt: sql`CURRENT_TIMESTAMP`
+  //       },
+  //     })
+  //     .returning();
+
+  //   return result;
+  // }
   async upsertEmployeeDoorAssignment(data: { employeeCode: string; doorIds: number[] }) {
-    // 1. Array se duplicates hatayein (Set use karke)
-    const uniqueDoorIds = [...new Set(data.doorIds)];
+    return await db.transaction(async (tx) => {
+      // 1. Data Cleaning: Duplicate IDs remove karein
+      const uniqueDoorIds = [...new Set(data.doorIds.map(id => Number(id)))];
 
-    // 2. Employee Verification
-    const [person] = await db
-      .select()
-      .from(schema.people)
-      .where(eq(schema.people.employeeCode, data.employeeCode));
+      // 2. Employee Verification: People table me check karein
+      const [person] = await tx
+        .select()
+        .from(schema.people)
+        .where(eq(schema.people.employeeCode, data.employeeCode.toString()))
+        .limit(1);
 
-    if (!person) {
-      throw new Error(`User Verification Failed: Employee code "${data.employeeCode}" is not registered in the system.`);
-    }
-
-    // 3. Doors Validation
-    if (uniqueDoorIds.length > 0) {
-      const validDoors = await db
-        .select({ id: schema.doors.id })
-        .from(schema.doors)
-        .where(inArray(schema.doors.id, uniqueDoorIds));
-
-      const validDoorIds = validDoors.map(d => d.id);
-      const invalidIds = uniqueDoorIds.filter(id => !validDoorIds.includes(id));
-
-      if (invalidIds.length > 0) {
-        throw new Error(`Resource Conflict: Door IDs [${invalidIds.join(", ")}] are invalid or do not exist in the database.`);
+      if (!person) {
+        throw new Error(`User Verification Failed: Employee code "${data.employeeCode}" is not registered in the system.`);
       }
-    }
 
-    // 4. Final Execution
-    const [result] = await db
-      .insert(schema.employeeDoorAssignments)
-      .values({
-        employeeCode: data.employeeCode,
-        doorIds: uniqueDoorIds,
-      })
-      .onConflictDoUpdate({
-        target: schema.employeeDoorAssignments.employeeCode,
-        set: {
+      // 3. Doors Validation: Kya saare IDs doors table me hain?
+      if (uniqueDoorIds.length > 0) {
+        const validDoors = await tx
+          .select({ id: schema.doors.id })
+          .from(schema.doors)
+          .where(inArray(schema.doors.id, uniqueDoorIds));
+
+        const validDoorIds = validDoors.map(d => d.id);
+        const invalidIds = uniqueDoorIds.filter(id => !validDoorIds.includes(id));
+
+        if (invalidIds.length > 0) {
+          throw new Error(`Resource Conflict: Door IDs [${invalidIds.join(", ")}] exist nahi karte.`);
+        }
+      }
+
+      // 4. Final Upsert: Image ke column names (employee_code, door_ids) use karte hue
+      const [result] = await tx
+        .insert(schema.employeeDoorAssignments)
+        .values({
+          employeeCode: data.employeeCode.toString(),
           doorIds: uniqueDoorIds,
-          updatedAt: sql`CURRENT_TIMESTAMP`
-        },
-      })
-      .returning();
+        })
+        .onConflictDoUpdate({
+          target: schema.employeeDoorAssignments.employeeCode,
+          set: {
+            doorIds: uniqueDoorIds,
+            updatedAt: sql`CURRENT_TIMESTAMP`
+          },
+        })
+        .returning();
 
-    return result;
+      // 5. Hardware Sync Logic (Professional Block/Unblock Logic)
+      try {
+        const todayStart = new Date();
+        todayStart.setHours(0, 0, 0, 0);
+
+        // Kya employee ne aaj office me entry li hai?
+        const hasEnteredToday =
+          person.lastSeenTime &&
+          new Date(person.lastSeenTime) >= todayStart &&
+          (person.currentZone === 'IN' || person.currentZone === 'CABIN');
+
+        console.log(`[Door Auth Sync] Emp: ${data.employeeCode} | HasEnteredToday: ${hasEnteredToday}`);
+
+        // Sync Role: Agar bahar hai toh block (null), andar hai toh active role
+        const roleToSync = hasEnteredToday ? Number(person.roleId) : null;
+
+        // Trigger Hardware Manager
+        console.log(`[Hardware] Notifying devices for Emp: ${data.employeeCode} | Role Status: ${roleToSync ? 'Unblocked' : 'Blocked'}`);
+        this.executeHardwareSync(data.employeeCode.toString(), roleToSync, false);
+
+      } catch (syncError) {
+        console.error(`[Background Task] Hardware sync notification failed for ${data.employeeCode}:`, syncError);
+      }
+
+      return result;
+    });
   }
   async deleteEmployeeDoorAssignment(id: number): Promise<void> {
     await db

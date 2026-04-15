@@ -6,7 +6,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { db, initDatabases } from "./db"; // DB initialization import karein
 import { initCronSystem } from "./cron/scheduler"; // <-- Cron Scheduler Import
-import { processCabinLockout } from "./cron/cabinLockoutCron";
+// import { processCabinLockout } from "./cron/cabinLockoutCron";
 import { MAIN_GATE_SYNC } from "./constant";
 import { cronMaster } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
@@ -84,7 +84,7 @@ app.use((req, res, next) => {
     await db.execute(sql`SET timezone TO 'Asia/Kolkata'`);
     log("Database Timezone set to Asia/Kolkata", "startup");
     // Isse aapka background task (30 sec wala) chalu ho jayega
-    
+
     try {
       log("Cleaning up stale cron locks...", "startup");
       await db.update(cronMaster)
@@ -95,11 +95,11 @@ app.use((req, res, next) => {
         })
         .where(eq(cronMaster.code, MAIN_GATE_SYNC.CODE));
 
-      // await initCronSystem();
+      await initCronSystem();
     } catch (e) {
       log("Cron reset failed: " + e, "error");
     }
-    
+
     // 2. Register API Routes
     await registerRoutes(httpServer, app);
 

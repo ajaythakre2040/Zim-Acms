@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RefreshCw, Pencil, Eye, Trash2, UserPlus } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import type {
   Person,
   Department,
@@ -52,7 +53,10 @@ export default function PeoplePage() {
   const [roledialogOpen, setRoleDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Person | null>(null);
   const [roleassign, setRoleAssign] = useState<Person | null>(null);
+  const [roleSearch, setRoleSearch] = useState("");
   const { toast } = useToast();
+  const [selectedDoorIds, setSelectedDoorIds] = useState<number[]>([]);
+  const [doorSearch, setDoorSearch] = useState("");
   const {
     data: people = [],
     isLoading,
@@ -72,8 +76,12 @@ export default function PeoplePage() {
     queryKey: ["/api/categories"],
   });
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
-  const { data: roles = [] } = useQuery<RoleWithDoors[]>({
-    queryKey: ["/api/roles"],
+  // const { data: roles = [] } = useQuery<RoleWithDoors[]>({
+  //   queryKey: ["/api/roles"],
+  // });
+
+  const { data: doors = [], isLoading: isLoadingDoors } = useQuery<any[]>({
+    queryKey: ["/api/doors"],
   });
   const { data: allDevices = [] } = useQuery<Device[]>({
     queryKey: ["/api/devices"],
@@ -102,6 +110,16 @@ export default function PeoplePage() {
       refetchLogs();
     }
   }, [deviceStatusOpen]);
+
+  useEffect(() => {
+    if (roledialogOpen && roleassign) {
+      const existingDoors = (roleassign as any)?.doorIds || [];
+
+      console.log("Existing Doors:", existingDoors); // 🔍 debug
+
+      setSelectedDoorIds(existingDoors);
+    }
+  }, [roledialogOpen, roleassign]);
 
   const bulkEmergencyUnblockMut = useMutation({
     mutationFn: async () => {
@@ -135,8 +153,6 @@ export default function PeoplePage() {
       queryClient.setQueryData(
         ["/api/device-status", deviceViewPerson?.employeeCode],
         (oldData: any) => {
-          // Agar pehle se logs hain, toh naye log ko purane ke saath merge karo
-          // Agar same device ka log hai, toh use update kar do
           const newLog = response.data?.[0] || response.data; // Ensure we get the log object
           if (!oldData) return [newLog];
 
@@ -147,7 +163,6 @@ export default function PeoplePage() {
         },
       );
 
-      // 2. Background mein server se fresh data fetch karo
       queryClient.invalidateQueries({
         queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
       });
@@ -200,49 +215,29 @@ export default function PeoplePage() {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     },
   });
-  const createRoleAssign = useMutation({
-    mutationFn: async (data: any) => {
-      const r = await apiRequest("POST", "/api/employee-roles", data);
-      return r.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/people"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/employee-roles"] });
-      setRoleDialogOpen(false);
-      toast({ title: "Role assigned successfully" });
-    },
-    onError: (e: Error) =>
-      toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-  const updateRoleAssign = useMutation({
-    mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const r = await apiRequest("PUT", `/api/employee-roles/${id}`, data);
-      return r.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/employee-roles"] });
-      setRoleDialogOpen(false);
-      setRoleAssign(null);
-      toast({ title: "Role updated" });
-    },
-    onError: (e: Error) =>
-      toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
-  const deleteRoleAssign = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/employee-roles/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/people"] });
-      setRoleDialogOpen(false);
-      toast({
-        title: "Role removed",
-        description: "Employee now has full device access.",
-      });
-    },
-    onError: (e: Error) =>
-      toast({ title: "Error", description: e.message, variant: "destructive" }),
-  });
+
+  const fetchAssignedDoors = async () => {
+    try {
+      const res = await apiRequest(
+        "GET",
+        `/api/employee-door-assignments/${roleassign?.employeeCode}`,
+      );
+
+      const data = await res.json();
+
+      setSelectedDoorIds(data?.doorIds || []);
+    } catch (err) {
+      console.error("Fetch Assigned Doors Error:", err);
+      setSelectedDoorIds([]);
+    }
+  };
+
+  useEffect(() => {
+    if (roledialogOpen && roleassign) {
+      fetchAssignedDoors();
+    }
+  }, [roledialogOpen, roleassign]);
+
   const fields: FieldConfig[] = [
     { key: "employeeName", label: "Employee Name", required: true },
     {
@@ -255,7 +250,7 @@ export default function PeoplePage() {
     } as any,
     { key: "email", label: "Email", type: "email" },
     { key: "phone", label: "Phone" },
-    
+
     {
       key: "personType",
       label: "Type",
@@ -276,7 +271,6 @@ export default function PeoplePage() {
         { value: "other", label: "Other" },
       ],
     },
-    // Department Dropdown
     {
       key: "departmentId",
       label: "Department",
@@ -284,7 +278,6 @@ export default function PeoplePage() {
       options: departments.map((d) => ({ value: String(d.id), label: d.name })),
     },
 
-    // Shift Dropdown
     {
       key: "shiftId",
       label: "Shift",
@@ -294,7 +287,6 @@ export default function PeoplePage() {
         label: s.name || s.code || `Shift ${s.id}`,
       })),
     },
-    // { key: "departmentId", label: "Department", type: "select", options: departments.map((d) => ({ value: String(d.id), label: d.name })) },
     {
       key: "designationId",
       label: "Designation",
@@ -342,73 +334,7 @@ export default function PeoplePage() {
   const filteredFields = fields.filter(
     (f) => !(editing && hiddenOnEdit.includes(f.key)),
   );
-  // const rolefields = Array.from({ length: 1 }, () => {
-  //   return [
-  //     {
-  //       key: "roleId",
-  //       label: "Role Name",
-  //       type: "select",
-  //       options: roles?.map((r: any) => ({ value: String(r.id), label: r.name })) || [],
-  //       onChange: (val, currentForm, updateForm) => {
-  //         const selectedRole = roles.find((r: any) => String(r.id) === String(val));
-  //         updateForm({
-  //           ...currentForm,
-  //           roleId: val,
-  //           displayDevices: selectedRole?.assignedDeviceNames || "No devices assigned"
-  //         });
-  //       }
-  //     },
-  //     {
-  //       key: "displayDevices",
-  //       label: "Associated Devices",
-  //       type: "text",
-  //       readOnly: true,
-  //       placeholder: "Select a role to see devices"
-  //     },
-  //   ] as FieldConfig[];
-  // })[0];
-  const rolefields = [
-    {
-      key: "roleId",
-      label: "Role Name",
-      type: "select",
-      options: [
-        { value: "0", label: "None / Remove Role" },
-        ...(roles?.map((r: any) => ({
-          value: String(r.id),
-          label: r.name,
-        })) || []),
-      ],
-      onChange: (val, currentForm, updateForm) => {
-        if (val === "0" || !val) {
-          updateForm({
-            ...currentForm,
-            roleId: "0",
-            displayDoors: "No doors assigned (Role will be removed)",
-          });
-          return;
-        }
 
-        const selectedRole = roles.find(
-          (r: any) => String(r.id) === String(val),
-        );
-
-        updateForm({
-          ...currentForm,
-          roleId: val,
-          displayDoors: selectedRole?.assignedDoorNames || "No doors assigned",
-        });
-      },
-    },
-    {
-      key: "displayDoors",
-      label: "Associated Doors",
-      type: "text",
-      readOnly: true,
-      placeholder: "Select a role to see doors",
-    },
-  ] as FieldConfig[];
-  // })[0];
   const columns = [
     {
       key: "employeeName",
@@ -422,7 +348,6 @@ export default function PeoplePage() {
           </Avatar>
           <div className="min-w-0">
             <p className="text-sm font-medium truncate">{p.employeeName}</p>
-            {/* <p className="text-xs text-muted-foreground truncate">{p.employeeCode || p.email || ""}</p> */}
           </div>
         </div>
       ),
@@ -452,22 +377,20 @@ export default function PeoplePage() {
       ),
     },
 
-    // ==================== CURRENT RULE (Simple) ====================
     {
       key: "currentAccessRule",
       label: "Current Rule",
       hideOnMobile: true,
       render: (p: any) => {
-        // Backend JSON mein 'ruleid' small letters mein hai
         const ruleId = p.ruleid ?? 0;
 
         const ruleNames: Record<number, string> = {
           0: "No Rule Assigned",
-          1: "Main Gate Entry",
-          2: "Cabin Entry",
-          3: "Cabin Exit",
+          1: "Main Gate In",
+          2: "Cabin In",
+          3: "Cabin Out",
           4: "Lockout Active",
-          5: "Main Gate Exit",
+          5: "Main Gate Out",
         };
 
         return (
@@ -484,12 +407,9 @@ export default function PeoplePage() {
       label: "Last Door Access",
       hideOnMobile: true,
       render: (p: any) => {
-        // Agar lastPunchDoorId null hai toh "Never" dikhayenge
         if (!p.lastPunchDoorId) {
           return <span className="text-sm text-muted-foreground">Never</span>;
         }
-
-        // Door ID ke saath timestamp (updatedAt use kar rahe hain kyunki punch ke baad update hua hoga)
         const formattedTime = new Date(p.updatedAt).toLocaleString("en-IN", {
           day: "2-digit",
           month: "short",
@@ -500,7 +420,6 @@ export default function PeoplePage() {
         return (
           <div className="text-sm">
             <div className="font-medium">{p.lastPunchDoorName}</div>
-            {/* <div className="text-xs text-muted-foreground">{formattedTime}</div> */}
           </div>
         );
       },
@@ -516,7 +435,6 @@ export default function PeoplePage() {
           return <span className="text-sm text-muted-foreground">No Logs</span>;
         }
 
-        // ✅ Proper timezone handling (IST)
         const formattedTime = new Date(timestamp).toLocaleString("en-IN", {
           timeZone: "Asia/Kolkata", // 🔥 important fix
           day: "2-digit",
@@ -530,17 +448,11 @@ export default function PeoplePage() {
         return (
           <div className="text-sm">
             <span className="font-medium text-foreground">{formattedTime}</span>
-{/* 
-            {p.currentZone && (
-              <div className="text-[10px] text-blue-600 font-bold uppercase">
-                Zone: {p.currentZone}
-              </div>
-            )} */}
           </div>
         );
       },
     },
-  
+
     {
       key: "status",
       label: "Status",
@@ -582,7 +494,6 @@ export default function PeoplePage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setRoleAssign(p);
-                    setSelectedRoleId(p.roleId ? String(p.roleId) : null);
                     setRoleDialogOpen(true);
                   }}
                 >
@@ -640,6 +551,7 @@ export default function PeoplePage() {
       ),
     },
   ];
+
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <PageHeader
@@ -650,6 +562,7 @@ export default function PeoplePage() {
             {/* 🔴 EMERGENCY BUTTON */}
             <Button
               variant="destructive"
+              className="w-[220px] flex items-center justify-center gap-2"
               onClick={() => {
                 if (
                   window.confirm(
@@ -662,18 +575,18 @@ export default function PeoplePage() {
               disabled={bulkEmergencyUnblockMut.isPending}
             >
               <RefreshCw
-                className={`w-4 h-4 mr-1 ${
-                  bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""
-                }`}
+                className={`w-4 h-4 ${bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""
+                  }`}
               />
-              {bulkEmergencyUnblockMut.isPending
-                ? "Unblocking..."
-                : "Emergency Unblock All"}
+              <span className="w-[130px] text-center">
+                Emergency Unblock All
+              </span>
             </Button>
 
             {/* 🔄 SYNC BUTTON (existing) */}
-            <Button
+            {/* <Button
               variant="outline"
+              className="w-[140px] flex items-center justify-center gap-2"
               onClick={async () => {
                 try {
                   await refetch();
@@ -696,6 +609,32 @@ export default function PeoplePage() {
                 className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`}
               />
               {isFetching ? "Syncing..." : "Sync"}
+            </Button> */}
+            <Button
+              variant="outline"
+              className="w-[140px] flex items-center justify-center gap-2"
+              onClick={async () => {
+                try {
+                  await refetch();
+                  toast({
+                    title: "Data Synced",
+                    description:
+                      "The people list has been refreshed successfully.",
+                  });
+                } catch (error) {
+                  toast({
+                    title: "Sync Failed",
+                    description: "Could not refresh data.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              disabled={isFetching}
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
+              />
+              <span className="w-[80px] text-center">Sync</span>
             </Button>
           </div>
         }
@@ -753,18 +692,15 @@ export default function PeoplePage() {
                       });
 
                       // ROLE MATCH
-                      const userRole = roles.find(
-                        (r) => r.id === deviceViewPerson?.roleId,
-                      );
-
-                      const isRoleAssigned = Array.isArray(userRole?.doorIds)
-                        ? userRole.doorIds.includes(Number(dev.msId))
-                        : false;
+                      const isDoorAssigned =
+                        ((deviceViewPerson as any)?.doorIds || [])?.includes(
+                          Number(dev.msId),
+                        ) ?? false;
 
                       // FINAL STATUS
                       const isUnblocked = latestLog
                         ? latestLog.type === "unblock"
-                        : isRoleAssigned;
+                        : isDoorAssigned;
 
                       return (
                         <tr key={dev.id} className="hover:bg-muted/30">
@@ -782,11 +718,10 @@ export default function PeoplePage() {
                           <td className="p-3 text-center">
                             <Badge
                               variant={isUnblocked ? "outline" : "destructive"}
-                              className={`text-[9px] font-bold px-2 ${
-                                isUnblocked
+                              className={`text-[9px] font-bold px-2 ${isUnblocked
                                   ? "border-green-500 text-green-600 bg-green-50"
                                   : ""
-                              }`}
+                                }`}
                             >
                               {isUnblocked ? "ALLOWED" : "BLOCKED"}
                             </Badge>
@@ -829,15 +764,15 @@ export default function PeoplePage() {
                         .toLowerCase()
                         .includes(deviceSearch.toLowerCase()),
                   ).length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="text-center p-6 text-muted-foreground"
-                      >
-                        No devices found
-                      </td>
-                    </tr>
-                  )}
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="text-center p-6 text-muted-foreground"
+                        >
+                          No devices found
+                        </td>
+                      </tr>
+                    )}
                 </tbody>
               </table>
             </div>
@@ -862,28 +797,28 @@ export default function PeoplePage() {
         initialData={
           editing
             ? {
-                ...editing,
-                departmentId: editing.departmentId
-                  ? String(editing.departmentId)
-                  : "",
-                shiftId: editing.shiftId ? String(editing.shiftId) : "",
-                designationId: editing.designationId
-                  ? String(editing.designationId)
-                  : "",
-                companyId: editing.companyId ? String(editing.companyId) : "",
-                locationId: editing.locationId
-                  ? String(editing.locationId)
-                  : "",
-                riskTier: editing.riskTier ?? 1,
-              }
+              ...editing,
+              departmentId: editing.departmentId
+                ? String(editing.departmentId)
+                : "",
+              shiftId: editing.shiftId ? String(editing.shiftId) : "",
+              designationId: editing.designationId
+                ? String(editing.designationId)
+                : "",
+              companyId: editing.companyId ? String(editing.companyId) : "",
+              locationId: editing.locationId
+                ? String(editing.locationId)
+                : "",
+              riskTier: editing.riskTier ?? 1,
+            }
             : {
-                companyId: String(
-                  companies.find((c) => c.name.toLowerCase().includes("zim"))
-                    ?.id || "",
-                ),
-                status: "active",
-                personType: "employee",
-              }
+              companyId: String(
+                companies.find((c) => c.name.toLowerCase().includes("zim"))
+                  ?.id || "",
+              ),
+              status: "active",
+              personType: "employee",
+            }
         }
         onSubmit={(data) => {
           const numericFields = [
@@ -903,33 +838,164 @@ export default function PeoplePage() {
         }}
         isPending={createMut.isPending || updateMut.isPending}
       />
-      <CrudDialog
-        open={roledialogOpen}
-        onClose={() => {
-          setRoleDialogOpen(false);
-          setRoleAssign(null);
-          setSelectedRoleId(null);
-        }}
-        title="Assign Role"
-        fields={rolefields}
-        initialData={(() => {
-          if (!roleassign) return {};
-          const currentId = selectedRoleId || String(roleassign.roleId || "");
-          const roleData = roles.find((r: any) => String(r.id) === currentId);
-          return {
-            ...roleassign,
-            roleId: currentId,
-            displayDoors: roleData?.assignedDoorNames || "No doors assigned",
-          };
-        })()}
-        onSubmit={(data) => {
-          createRoleAssign.mutate({
-            employeeCode: roleassign?.employeeCode,
-            roleId: Number(data.roleId),
-          });
-        }}
-        isPending={createRoleAssign.isPending}
-      />
+      <Dialog open={roledialogOpen} onOpenChange={setRoleDialogOpen}>
+        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+          {/* HEADER */}
+          <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <UserPlus className="w-6 h-6" />
+              <div>
+                <h2 className="text-xl font-bold leading-none">Assign Door</h2>
+                <p className="text-blue-100 text-xs mt-1">
+                  Assign doors to employee
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* BODY */}
+          <div className="p-6 space-y-4">
+            {/* SEARCH */}
+            <div className="relative">
+              <input
+                placeholder="Search role..."
+                value={doorSearch}
+                onChange={(e) => setDoorSearch(e.target.value)}
+                className="w-full px-4 py-3 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div className="flex justify-between items-center px-1 mb-2">
+              <span className="text-xs font-bold text-slate-400 uppercase">
+                {selectedDoorIds.length} Selected
+              </span>
+
+              <div className="flex gap-3">
+                <button
+                  className="text-[11px] font-bold text-blue-600"
+                  onClick={() => setSelectedDoorIds(doors.map((d) => d.id))}
+                >
+                  Select All
+                </button>
+
+                <button
+                  className="text-[11px] font-bold text-slate-400"
+                  onClick={() => setSelectedDoorIds([])}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            {/* ROLE LIST */}
+            <div className="h-[300px] overflow-y-auto rounded-xl border bg-slate-50 p-2">
+              {isLoadingDoors ? (
+                <p className="text-center text-sm text-muted-foreground">
+                  Loading doors...
+                </p>
+              ) : (
+                doors
+                  ?.filter((d) =>
+                    d.name.toLowerCase().includes(doorSearch.toLowerCase()),
+                  )
+                  .map((door) => (
+                    <div
+                      key={door.id}
+                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id)
+                          ? "bg-white border-blue-200 shadow-sm"
+                          : "border-transparent hover:bg-white hover:border-slate-200"
+                        }`}
+                      onClick={() =>
+                        setSelectedDoorIds((prev) => {
+                          const safePrev = Array.isArray(prev) ? prev : [];
+
+                          return safePrev.includes(door.id)
+                            ? safePrev.filter((id) => id !== door.id)
+                            : [...safePrev, door.id];
+                        })
+                      }
+                    >
+                      {/* ✅ CHECKBOX */}
+                      {/* <Checkbox
+                        checked={selectedDoorIds.includes(door.id)}
+                        className="pointer-events-none"
+                      /> */}
+                      <Checkbox
+                        checked={
+                          Array.isArray(selectedDoorIds) &&
+                          selectedDoorIds.includes(Number(door.id))
+                        }
+                        className="pointer-events-none"
+                      />
+
+                      {/* DOOR NAME */}
+                      <span
+                        className={`text-sm ${selectedDoorIds.includes(door.id)
+                            ? "font-bold text-blue-700"
+                            : "text-slate-600"
+                          }`}
+                      >
+                        {door.name}
+                      </span>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+
+          {/* FOOTER */}
+          <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              className="rounded-xl px-6"
+              onClick={() => {
+                setRoleDialogOpen(false);
+                setRoleAssign(null);
+                setSelectedRoleId(null);
+              }}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
+              onClick={async () => {
+                try {
+                  const response = await apiRequest(
+                    "POST",
+                    "/api/employee-door-assignments",
+                    {
+                      employeeCode: roleassign?.employeeCode,
+                      doorIds: selectedDoorIds,
+                    },
+                  );
+
+                  if (response) {
+                    // ✅ Shadcn style success notification
+                    toast({
+                      title: "Success",
+                      description: "Doors assigned successfully!",
+                      variant: "default", // Ya "success" agar aapne custom banaya hai
+                    });
+
+                    setRoleDialogOpen(false);
+                    setRoleAssign(null);
+                  }
+                } catch (error) {
+                  console.error("Assignment Error:", error);
+                  // ❌ Shadcn style error notification
+                  toast({
+                    title: "Error",
+                    description: "Failed to assign doors. Please try again.",
+                    variant: "destructive", // Ye red color ka dikhega
+                  });
+                }
+              }}
+            >
+              Assign Door
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
