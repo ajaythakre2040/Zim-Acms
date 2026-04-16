@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatDateTime } from "@/lib/utils";
 type RoleWithDoors = Role & {
   assignedDoorNames?: string;
 };
@@ -354,11 +355,24 @@ export default function PeoplePage() {
     },
     { key: "employeeCode", label: "Emp Code", hideOnMobile: true },
     {
-      key: "departmentId",
-      label: "Department",
+      key: "is_lockout_enabled",
+      label: "Cabin Lockout",
       hideOnMobile: true,
-      render: (p: Person) =>
-        departments.find((d) => d.id === p.departmentId)?.name || "-",
+      render: (p: any) => {
+        const isEnabled = p.is_lockout_enabled;
+
+        return (
+          <Badge
+            variant={isEnabled ? "destructive" : "outline"}
+            className={`text-xs font-bold ${isEnabled
+                ? "bg-red-50 text-red-600 border-red-300"
+                : "bg-green-50 text-green-600 border-green-300"
+              }`}
+          >
+            {isEnabled ? "ACTIVE" : "INACTIVE"}
+          </Badge>
+        );
+      },
     },
     // {
     //   key: "roleName",
@@ -424,35 +438,46 @@ export default function PeoplePage() {
         );
       },
     },
+    // {
+    //   key: "f",
+    //   label: "Last Seen",
+    //   hideOnMobile: true,
+    //   render: (p: any) => {
+    //     const timestamp = p.lastSeenTime;
+
+    //     if (!timestamp) {
+    //       return <span className="text-sm text-muted-foreground">No Logs</span>;
+    //     }
+
+    //     const formattedTime = new Date(timestamp).toLocaleString("en-IN", {
+    //       timeZone: "Asia/Kolkata", // 🔥 important fix
+    //       day: "2-digit",
+    //       month: "short",
+    //       year: "numeric",
+    //       hour: "2-digit",
+    //       minute: "2-digit",
+    //       hour12: true,
+    //     });
+
+    //     return (
+    //       <div className="text-sm">
+    //         <span className="font-medium text-foreground">{formattedTime}</span>
+    //       </div>
+    //     );
+    //   },
+    // },
     {
-      key: "f",
+      key: "lastSeenTime", // 'f' ki jagah sahi key 'lastSeenTime' use karein
       label: "Last Seen",
       hideOnMobile: true,
-      render: (p: any) => {
-        const timestamp = p.lastSeenTime;
-
-        if (!timestamp) {
-          return <span className="text-sm text-muted-foreground">No Logs</span>;
-        }
-
-        const formattedTime = new Date(timestamp).toLocaleString("en-IN", {
-          timeZone: "Asia/Kolkata", // 🔥 important fix
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        });
-
-        return (
-          <div className="text-sm">
-            <span className="font-medium text-foreground">{formattedTime}</span>
-          </div>
-        );
-      },
+      render: (p: any) => (
+        <div className="text-sm">
+          <span className="font-medium text-foreground">
+            {formatDateTime(p?.lastSeenTime)}
+          </span>
+        </div>
+      ),
     },
-
     {
       key: "status",
       label: "Status",
@@ -719,8 +744,8 @@ export default function PeoplePage() {
                             <Badge
                               variant={isUnblocked ? "outline" : "destructive"}
                               className={`text-[9px] font-bold px-2 ${isUnblocked
-                                  ? "border-green-500 text-green-600 bg-green-50"
-                                  : ""
+                                ? "border-green-500 text-green-600 bg-green-50"
+                                : ""
                                 }`}
                             >
                               {isUnblocked ? "ALLOWED" : "BLOCKED"}
@@ -901,8 +926,8 @@ export default function PeoplePage() {
                     <div
                       key={door.id}
                       className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id)
-                          ? "bg-white border-blue-200 shadow-sm"
-                          : "border-transparent hover:bg-white hover:border-slate-200"
+                        ? "bg-white border-blue-200 shadow-sm"
+                        : "border-transparent hover:bg-white hover:border-slate-200"
                         }`}
                       onClick={() =>
                         setSelectedDoorIds((prev) => {
@@ -930,8 +955,8 @@ export default function PeoplePage() {
                       {/* DOOR NAME */}
                       <span
                         className={`text-sm ${selectedDoorIds.includes(door.id)
-                            ? "font-bold text-blue-700"
-                            : "text-slate-600"
+                          ? "font-bold text-blue-700"
+                          : "text-slate-600"
                           }`}
                       >
                         {door.name}
