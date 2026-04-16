@@ -228,6 +228,7 @@ export const people = pgTable("people", {
   currentZone: text("current_zone").default("OUT"),
   lastPunchDoorId: integer("last_punch_door_id"),
   ruleid: integer("rule_id"),
+  is_lockout_enabled: boolean("is_lockout_enabled").default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .$defaultFn(() => new Date()) // TypeScript automatic handle kar lega
     .notNull(),
