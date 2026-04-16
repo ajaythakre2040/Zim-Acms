@@ -1668,57 +1668,84 @@ export class DatabaseStorage implements IStorage {
       todayAccessLogs: accessLogsCount.count,
     };
   }
-  async getDoorWiseStats(date: string) {
-    // 1. PG DB se Door-Device mapping nikalna
-    const mappings = await db.select({
-      doorId: doors.id,
-      doorName: doors.name,
-      inIds: doorDevices.inDeviceIds,
-      outIds: doorDevices.outDeviceIds,
-    })
-      .from(doors)
-      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-    const allDeviceIds = mappings.flatMap(m => [...(m.inIds || []), ...(m.outIds || [])]);
-    if (allDeviceIds.length === 0) return [];
+async getDoorWiseStats(date: string) {
+  // 1. PG DB: Total Manpower (Total registered people)
+  const [totalPeopleResult] = await db.select({
+    count: sql<number>`count(*)`
+  }).from(people);
 
-    // 2. MS SQL Query: Aaj ke data ke liye aur Unique EmployeeCode ke liye
-    // Hum Direction column ka use kar rahe hain jo aapke screenshot mein dikh raha hai
-    const msSqlData = await mssqlPool.request()
-      .input('filterDate', date)
-      .query(`
-        SELECT 
-          DeviceId, 
-          Direction,
-          COUNT(DISTINCT EmployeeCode) as uniqueCount 
-        FROM DeviceLogs 
-        WHERE CAST(LogDate AS DATE) = @filterDate
-        AND DeviceId IN (${allDeviceIds.join(',')})
-        GROUP BY DeviceId, Direction
-      `);
+  const totalManpower = Number(totalPeopleResult.count) || 0;
 
-    const logMap = msSqlData.recordset;
+  // 2. PG DB: Door-Device mapping (Mapping door code also)
+  const mappings = await db.select({
+    doorId: doors.id,
+    doorName: doors.name,
+    doorCode: doors.code, // Constant se match karne ke liye
+    inIds: doorDevices.inDeviceIds,
+    outIds: doorDevices.outDeviceIds,
+    isMainGate: doorDevices.isMainGate,
+  })
+    .from(doors)
+    .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-    // 3. Final Calculation
-    return mappings.map(m => {
-      const inCount = (m.inIds || []).reduce((acc, id) => {
-        const found = logMap.find(l => l.DeviceId === id && l.Direction === 'IN');
-        return acc + (found?.uniqueCount || 0);
-      }, 0);
+  const allDeviceIds = mappings.flatMap(m => [...(m.inIds || []), ...(m.outIds || [])]);
 
-      const outCount = (m.outIds || []).reduce((acc, id) => {
-        const found = logMap.find(l => l.DeviceId === id && l.Direction === 'OUT');
-        return acc + (found?.uniqueCount || 0);
-      }, 0);
-
-      return {
-        doorName: m.doorName,
-        inCount,
-        outCount,
-        balance: Math.max(0, inCount - outCount)
-      };
-    });
+  if (allDeviceIds.length === 0) {
+    return { doorStats: [], totalPresent: 0, totalAbsent: totalManpower, totalManpower };
   }
+
+  // 3. MS SQL Query: Unique EmployeeCode counting
+  const msSqlData = await mssqlPool.request()
+    .input('filterDate', date)
+    .query(`
+      SELECT 
+        DeviceId, 
+        Direction,
+        COUNT(DISTINCT EmployeeCode) as uniqueCount 
+      FROM DeviceLogs 
+      WHERE CAST(LogDate AS DATE) = @filterDate
+      AND DeviceId IN (${allDeviceIds.join(',')})
+      GROUP BY DeviceId, Direction
+    `);
+
+  const logMap = msSqlData.recordset;
+
+  // 4. Calculations
+  let calculatedPresent = 0;
+
+  const doorStats = mappings.map(m => {
+    const inCount = (m.inIds || []).reduce((acc, id) => {
+      const found = logMap.find(l => l.DeviceId === id && l.Direction === 'IN');
+      return acc + (found?.uniqueCount || 0);
+    }, 0);
+
+    const outCount = (m.outIds || []).reduce((acc, id) => {
+      const found = logMap.find(l => l.DeviceId === id && l.Direction === 'OUT');
+      return acc + (found?.uniqueCount || 0);
+    }, 0);
+
+    // 🔥 DYNAMIC IDENTIFICATION: Constant file ke code se match karein
+    // Agar door ka code mapping mein MAIN_GATE_SYNC.CODE se milta hai
+    if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
+      calculatedPresent += inCount;
+    }
+
+    return {
+      doorName: m.doorName,
+      inCount,
+      outCount,
+      balance: Math.max(0, inCount - outCount)
+    };
+  });
+
+  return {
+    doorStats,
+    totalPresent: calculatedPresent,
+    totalAbsent: Math.max(0, totalManpower - calculatedPresent),
+    totalManpower
+  };
+}
   async getShiftWiseStats() {
     const today = new Date().toISOString().split("T")[0];
 

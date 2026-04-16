@@ -319,8 +319,16 @@ function DoorAttendanceTable({
     refetchInterval: refreshInterval,
   });
 
+  const doorMap = React.useMemo(() => {
+    const map: Record<number, any> = {};
+    doorStats?.forEach((d) => {
+      map[d.doorId] = d;
+    });
+    return map;
+  }, [doorStats]);
+
   const getDoorData = (doorId: number) => {
-    const d = doorStats?.find((s) => s.doorId === doorId);
+    const d = doorMap[doorId];
     return {
       in: d?.inCount || 0,
       out: d?.outCount || 0,
@@ -339,106 +347,76 @@ function DoorAttendanceTable({
 
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="min-w-max text-sm border-collapse">
-            {/* HEADER */}
+          {/* FIX: width-full use kiya hai taaki doors kam hon tab bhi design clean dikhe */}
+          <table className="w-full min-w-max text-sm border-collapse">
             <thead>
               <tr className="bg-muted/30 border-b">
-                {/* LEFT FIXED COLUMN */}
-                <th className="min-w-[100px] px-3 py-3 text-left font-bold text-xs uppercase border-r">
+                <th className="px-4 py-3 text-left font-bold text-xs uppercase border-r text-muted-foreground">
                   Direction
                 </th>
 
-                {/* DOORS */}
                 {doors.map((door) => (
                   <th
                     key={door.id}
-                    className="min-w-[120px] px-3 py-3 text-center font-bold text-xs uppercase border-r whitespace-nowrap"
+                    className="px-4 py-3 text-center font-bold text-xs uppercase border-r whitespace-nowrap"
                   >
                     {door.name}
                   </th>
                 ))}
 
-                {/* SUMMARY */}
-                <th className="min-w-[140px] text-center text-emerald-600 border-l border-gray-300">
+                {/* Right side static columns */}
+                <th className="px-6 py-3 text-center text-emerald-600 border-l font-bold uppercase text-xs">
                   Total Present
                 </th>
-
-                <th className="min-w-[140px] text-center text-rose-600 border-l border-gray-300">
+                <th className="px-6 py-3 text-center text-rose-600 border-l font-bold uppercase text-xs">
                   Total Absent
                 </th>
-
-                <th className="min-w-[140px] text-center text-blue-600 border-l border-gray-300">
+                <th className="px-6 py-3 text-center text-blue-600 border-l font-bold uppercase text-xs">
                   Total Manpower
                 </th>
               </tr>
             </thead>
 
-            {/* BODY */}
             <tbody>
               {/* IN ROW */}
-              <tr className="border-b">
-                <td className="px-3 py-4 font-bold text-blue-600">IN</td>
-                {doors.map((door) => {
-                  const d = getDoorData(door.id);
-                  return (
-                    <td
-                      key={door.id}
-                      className="text-center text-lg font-semibold text-blue-600"
-                    >
-                      {d.in}
-                    </td>
-                  );
-                })}
-                <td
-                  rowSpan={3}
-                  className="text-center text-2xl font-black text-emerald-500 border-l border-gray-300"
-                >
-                  {" "}
+              <tr className="border-b hover:bg-muted/5 transition-colors">
+                <td className="px-4 py-4 font-bold text-blue-600 bg-blue-50/30">IN</td>
+                {doors.map((door) => (
+                  <td key={door.id} className="px-4 text-center text-lg font-semibold text-blue-600">
+                    {getDoorData(door.id).in}
+                  </td>
+                ))}
+
+                {/* Stats with rowSpan */}
+                <td rowSpan={3} className="px-4 text-center text-3xl font-black text-emerald-500 border-l bg-emerald-50/10">
                   {stats?.activePeople || 0}
                 </td>
-                <td
-                  rowSpan={3}
-                  className="text-center text-2xl font-black text-rose-500 border-l border-gray-300"
-                >
-                  {" "}
+                <td rowSpan={3} className="px-4 text-center text-3xl font-black text-rose-500 border-l bg-rose-50/10">
                   {(stats?.totalPeople || 0) - (stats?.activePeople || 0)}
                 </td>
-                <td
-                  rowSpan={3}
-                  className="text-center text-2xl font-black text-blue-600 border-l border-gray-300"
-                >
-                  {" "}
+                <td rowSpan={3} className="px-4 text-center text-3xl font-black text-blue-600 border-l bg-blue-50/10">
                   {stats?.totalPeople || 0}
                 </td>
               </tr>
 
               {/* OUT ROW */}
-              <tr className="border-b">
-                <td className="px-3 py-4 font-bold text-orange-500">OUT</td>
-                {doors.map((door) => {
-                  const d = getDoorData(door.id);
-                  return (
-                    <td
-                      key={door.id}
-                      className="text-center text-lg font-semibold text-orange-500"
-                    >
-                      {d.out}
-                    </td>
-                  );
-                })}
+              <tr className="border-b hover:bg-muted/5 transition-colors">
+                <td className="px-4 py-4 font-bold text-orange-500 bg-orange-50/30">OUT</td>
+                {doors.map((door) => (
+                  <td key={door.id} className="px-4 text-center text-lg font-semibold text-orange-500">
+                    {getDoorData(door.id).out}
+                  </td>
+                ))}
               </tr>
 
               {/* BAL ROW */}
-              <tr>
-                <td className="px-3 py-4 font-bold text-slate-700">BAL</td>
-                {doors.map((door) => {
-                  const d = getDoorData(door.id);
-                  return (
-                    <td key={door.id} className="text-center text-lg font-bold">
-                      {d.bal}
-                    </td>
-                  );
-                })}
+              <tr className="hover:bg-muted/5 transition-colors">
+                <td className="px-4 py-4 font-bold text-slate-700 bg-slate-50/30">BAL</td>
+                {doors.map((door) => (
+                  <td key={door.id} className="px-4 text-center text-lg font-bold text-slate-900">
+                    {getDoorData(door.id).bal}
+                  </td>
+                ))}
               </tr>
             </tbody>
           </table>
@@ -447,6 +425,7 @@ function DoorAttendanceTable({
     </Card>
   );
 }
+
 function ShiftWiseEmpCount({
   doors,
   refreshInterval,
