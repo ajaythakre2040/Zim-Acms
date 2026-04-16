@@ -1,42 +1,38 @@
 import { useQuery } from "@tanstack/react-query";
+import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Users,
   UserCheck,
-  TrendingUp,
   DoorOpen,
-  ShieldCheck,
   Sparkles,
   Wifi,
   WifiOff,
   Server,
+  TrendingUp,
+  ShieldCheck,
 } from "lucide-react";
 import type { Device, Door } from "@shared/schema";
 
 export default function Dashboard() {
-  // Auto-refresh interval (5 seconds)
   const REFRESH_MS = 5000;
 
-  // 1. Dashboard General Stats
   const { data: stats, isLoading: statsLoading } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
-    refetchInterval: REFRESH_MS, // Automatically refresh every 5s
+    refetchInterval: REFRESH_MS,
   });
 
-  // 2. Devices Data
   const { data: devices = [], isLoading: devicesLoading } = useQuery<Device[]>({
     queryKey: ["/api/devices"],
     refetchInterval: REFRESH_MS,
   });
 
-  // 3. Doors Data
   const { data: doors = [], isLoading: doorsLoading } = useQuery<Door[]>({
     queryKey: ["/api/doors"],
     refetchInterval: REFRESH_MS,
   });
 
-  // Logic: Calculations
   const totalDevices = devices.length;
   const onlineDevices = devices.filter((d) => d.status === "online").length;
   const offlineDevices = devices.filter((d) => d.status === "offline").length;
@@ -44,112 +40,126 @@ export default function Dashboard() {
 
   const isLoading = statsLoading || devicesLoading || doorsLoading;
 
-  // Stat Cards Configuration
+  const [selectedDate, setSelectedDate] = React.useState(
+    new Date().toISOString().split("T")[0],
+  );
   const statCards = [
     {
       title: "Total People",
       value: stats?.totalPeople || 0,
       icon: Users,
       lightBg: "bg-blue-50 dark:bg-blue-950/40",
-      textColor: "text-blue-600 dark:text-blue-400",
-      ring: "ring-blue-200 dark:ring-blue-800/40",
+      textColor: "text-blue-600",
+      ring: "ring-blue-200",
       gradient: "from-blue-500 to-indigo-500",
     },
     {
       title: "Active People",
       value: stats?.activePeople || 0,
       icon: UserCheck,
-      lightBg: "bg-emerald-50 dark:bg-emerald-950/40",
-      textColor: "text-emerald-600 dark:text-emerald-400",
-      ring: "ring-emerald-200 dark:ring-emerald-800/40",
+      lightBg: "bg-emerald-50",
+      textColor: "text-emerald-600",
+      ring: "ring-emerald-200",
       gradient: "from-emerald-500 to-teal-500",
     },
     {
       title: "Total Doors",
       value: totalDoors,
       icon: DoorOpen,
-      lightBg: "bg-orange-50 dark:bg-orange-950/40",
-      textColor: "text-orange-600 dark:text-orange-400",
-      ring: "ring-orange-200 dark:ring-orange-800/40",
+      lightBg: "bg-orange-50",
+      textColor: "text-orange-600",
+      ring: "ring-orange-200",
       gradient: "from-orange-500 to-amber-500",
     },
     {
       title: "Total Devices",
       value: totalDevices,
       icon: Server,
-      lightBg: "bg-violet-50 dark:bg-violet-950/40",
-      textColor: "text-violet-600 dark:text-violet-400",
-      ring: "ring-violet-200 dark:ring-violet-800/40",
+      lightBg: "bg-violet-50",
+      textColor: "text-violet-600",
+      ring: "ring-violet-200",
       gradient: "from-violet-500 to-purple-500",
     },
     {
       title: "Online Devices",
       value: onlineDevices,
       icon: Wifi,
-      lightBg: "bg-cyan-50 dark:bg-cyan-950/40",
-      textColor: "text-cyan-600 dark:text-cyan-400",
-      ring: "ring-cyan-200 dark:ring-cyan-800/40",
+      lightBg: "bg-cyan-50",
+      textColor: "text-cyan-600",
+      ring: "ring-cyan-200",
       gradient: "from-cyan-500 to-blue-500",
     },
     {
       title: "Offline Devices",
       value: offlineDevices,
       icon: WifiOff,
-      lightBg: "bg-slate-100 dark:bg-slate-900",
-      textColor: "text-slate-600 dark:text-slate-400",
-      ring: "ring-slate-200 dark:ring-slate-800",
+      lightBg: "bg-slate-100",
+      textColor: "text-slate-600",
+      ring: "ring-slate-200",
       gradient: "from-slate-400 to-slate-600",
     },
   ];
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header - Simple Title (System Live badge removed) */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-          <Sparkles className="w-5 h-5 text-white" />
+      {/* HEADER WITH DATE FILTER */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        {/* LEFT SIDE */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg">
+            <Sparkles className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Real-time monitoring of {totalDoors} doors and {totalDevices}{" "}
+              devices.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Real-time monitoring of {totalDoors} doors and {totalDevices} devices.
-          </p>
+
+        {/* RIGHT SIDE DATE FILTER */}
+        <div className="flex items-center mt-1">
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="border rounded-md px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       </div>
 
-      {/* 6-Card Stats Grid */}
+      {/* STAT CARDS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 md:gap-4">
         {statCards.map((card, i) => (
-          <Card key={i} className="overflow-hidden border-none shadow-sm ring-1 ring-border relative">
-            <CardContent className="p-4 relative z-10">
+          <Card key={i} className="shadow-sm ring-1 ring-border">
+            <CardContent className="p-4">
               {isLoading ? (
                 <Skeleton className="h-16 w-full" />
               ) : (
                 <div className="space-y-3">
-                  <div className={`w-9 h-9 rounded-lg ${card.lightBg} flex items-center justify-center ring-1 ${card.ring}`}>
+                  <div
+                    className={`w-9 h-9 rounded-lg ${card.lightBg} flex items-center justify-center ring-1 ${card.ring}`}
+                  >
                     <card.icon className={`w-5 h-5 ${card.textColor}`} />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold tracking-tight">{card.value}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                    <p className="text-2xl font-bold">{card.value}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">
                       {card.title}
                     </p>
                   </div>
                 </div>
               )}
             </CardContent>
-            <div className={`absolute -top-6 -right-6 w-20 h-20 rounded-full bg-gradient-to-br ${card.gradient} opacity-[0.07]`} />
           </Card>
         ))}
       </div>
+
+      {/* YOUR EXISTING COMPONENTS */}
       <DoorAttendanceTable doors={doors} refreshInterval={REFRESH_MS} />
       <ShiftWiseEmpCount doors={doors} refreshInterval={REFRESH_MS} />
 
-      {/* Main Details Grid (Today's Attendance & System Health) */}
-      <div className="grid md:grid-cols-2 gap-4">
-
-      </div>
-      {/* Main Details Grid */}
       <div className="grid md:grid-cols-2 gap-4">
         <AttendanceCard refreshInterval={REFRESH_MS} />
         <SystemHealthCard total={totalDevices} online={onlineDevices} />
@@ -162,7 +172,7 @@ export default function Dashboard() {
 // function DoorAttendanceTable({ doors, refreshInterval }: { doors: Door[], refreshInterval: number }) {
 //   // Yahan hum door-wise attendance ka data fetch karenge
 //   const { data: doorStats } = useQuery<any[]>({
-//     queryKey: ["/api/attendance/door-wise-stats"], 
+//     queryKey: ["/api/attendance/door-wise-stats"],
 //     refetchInterval: refreshInterval
 //   });
 
@@ -217,72 +227,218 @@ export default function Dashboard() {
 //   );
 // }
 
-function DoorAttendanceTable({ doors, refreshInterval }: { doors: Door[], refreshInterval: number }) {
-  // Pure dashboard ka combined stats fetch karne ke liye
+// function DoorAttendanceTable({ doors, refreshInterval }: { doors: Door[], refreshInterval: number }) {
+//   // Pure dashboard ka combined stats fetch karne ke liye
+//   const { data: stats } = useQuery<any>({
+//     queryKey: ["/api/dashboard/stats"],
+//     refetchInterval: refreshInterval
+//   });
+
+//   // Door-wise counts fetch karne ke liye
+//   const { data: doorStats } = useQuery<any[]>({
+//     queryKey: ["/api/attendance/door-wise-stats"],
+//     refetchInterval: refreshInterval
+//   });
+
+//   return (
+//     <Card className="col-span-full border-none shadow-sm ring-1 ring-border overflow-hidden">
+//       <CardHeader className="pb-3 border-b bg-muted/10">
+//         <CardTitle className="text-sm font-bold flex items-center gap-2">
+//           <Users className="w-4 h-4 text-blue-500" /> Door-wise Attendance Summary
+//         </CardTitle>
+//       </CardHeader>
+//       <CardContent className="p-0">
+//         <div className="overflow-x-auto">
+//           <table className="w-full text-sm border-collapse">
+//             <thead>
+//               <tr className="bg-muted/30 border-b">
+//                 {/* 1. Dynamic Door Columns */}
+//                 {doors.map((door) => (
+//                   <th key={door.id} className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r min-w-[120px]">
+//                     {door.name}
+//                   </th>
+//                 ))}
+
+//                 {/* 2. Final Static Columns */}
+//                 <th className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-emerald-600 border-r bg-emerald-50/50 dark:bg-emerald-900/20 min-w-[140px]">
+//                   Total Present
+//                 </th>
+//                 <th className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-rose-600 border-r bg-rose-50/50 dark:bg-rose-900/20 min-w-[140px]">
+//                   Total Absent
+//                 </th>
+//                 <th className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-blue-600 bg-blue-50/50 dark:bg-blue-900/20 min-w-[140px]">
+//                   Total Manpower
+//                 </th>
+//               </tr>
+//             </thead>
+//             <tbody>
+//               <tr className="divide-x">
+//                 {/* Door-wise Counts */}
+//                 {doors.map((door) => {
+//                   const currentDoorStat = doorStats?.find(s => s.doorId === door.id);
+//                   return (
+//                     <td key={door.id} className="px-4 py-6 text-center text-xl font-bold text-slate-700 dark:text-slate-200">
+//                       {currentDoorStat?.present || 0}
+//                     </td>
+//                   );
+//                 })}
+
+//                 {/* Final Summary Counts */}
+//                 <td className="px-4 py-6 text-center text-2xl font-black text-emerald-500 bg-emerald-50/10">
+//                   {stats?.activePeople || 0}
+//                 </td>
+//                 <td className="px-4 py-6 text-center text-2xl font-black text-rose-500 bg-rose-50/10">
+//                   {(stats?.totalPeople || 0) - (stats?.activePeople || 0)}
+//                 </td>
+//                 <td className="px-4 py-6 text-center text-2xl font-black text-blue-600 bg-blue-50/10">
+//                   {stats?.totalPeople || 0}
+//                 </td>
+//               </tr>
+//             </tbody>
+//           </table>
+//         </div>
+//       </CardContent>
+//     </Card>
+//   );
+// }
+
+function DoorAttendanceTable({
+  doors,
+  refreshInterval,
+}: {
+  doors: Door[];
+  refreshInterval: number;
+}) {
   const { data: stats } = useQuery<any>({
     queryKey: ["/api/dashboard/stats"],
-    refetchInterval: refreshInterval
+    refetchInterval: refreshInterval,
   });
 
-  // Door-wise counts fetch karne ke liye
   const { data: doorStats } = useQuery<any[]>({
     queryKey: ["/api/attendance/door-wise-stats"],
-    refetchInterval: refreshInterval
+    refetchInterval: refreshInterval,
   });
+
+  const getDoorData = (doorId: number) => {
+    const d = doorStats?.find((s) => s.doorId === doorId);
+    return {
+      in: d?.inCount || 0,
+      out: d?.outCount || 0,
+      bal: (d?.inCount || 0) - (d?.outCount || 0),
+    };
+  };
 
   return (
     <Card className="col-span-full border-none shadow-sm ring-1 ring-border overflow-hidden">
       <CardHeader className="pb-3 border-b bg-muted/10">
         <CardTitle className="text-sm font-bold flex items-center gap-2">
-          <Users className="w-4 h-4 text-blue-500" /> Door-wise Attendance Summary
+          <Users className="w-4 h-4 text-blue-500" />
+          Door-wise Attendance Summary
         </CardTitle>
       </CardHeader>
+
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
+          <table className="min-w-max text-sm border-collapse">
+            {/* HEADER */}
             <thead>
               <tr className="bg-muted/30 border-b">
-                {/* 1. Dynamic Door Columns */}
+                {/* LEFT FIXED COLUMN */}
+                <th className="min-w-[100px] px-3 py-3 text-left font-bold text-xs uppercase border-r">
+                  Direction
+                </th>
+
+                {/* DOORS */}
                 {doors.map((door) => (
-                  <th key={door.id} className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r min-w-[120px]">
+                  <th
+                    key={door.id}
+                    className="min-w-[120px] px-3 py-3 text-center font-bold text-xs uppercase border-r whitespace-nowrap"
+                  >
                     {door.name}
                   </th>
                 ))}
 
-                {/* 2. Final Static Columns */}
-                <th className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-emerald-600 border-r bg-emerald-50/50 dark:bg-emerald-900/20 min-w-[140px]">
+                {/* SUMMARY */}
+                <th className="min-w-[140px] text-center text-emerald-600 border-l border-gray-300">
                   Total Present
                 </th>
-                <th className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-rose-600 border-r bg-rose-50/50 dark:bg-rose-900/20 min-w-[140px]">
+
+                <th className="min-w-[140px] text-center text-rose-600 border-l border-gray-300">
                   Total Absent
                 </th>
-                <th className="px-4 py-4 text-center font-bold text-[10px] uppercase tracking-wider text-blue-600 bg-blue-50/50 dark:bg-blue-900/20 min-w-[140px]">
+
+                <th className="min-w-[140px] text-center text-blue-600 border-l border-gray-300">
                   Total Manpower
                 </th>
               </tr>
             </thead>
+
+            {/* BODY */}
             <tbody>
-              <tr className="divide-x">
-                {/* Door-wise Counts */}
+              {/* IN ROW */}
+              <tr className="border-b">
+                <td className="px-3 py-4 font-bold text-blue-600">IN</td>
                 {doors.map((door) => {
-                  const currentDoorStat = doorStats?.find(s => s.doorId === door.id);
+                  const d = getDoorData(door.id);
                   return (
-                    <td key={door.id} className="px-4 py-6 text-center text-xl font-bold text-slate-700 dark:text-slate-200">
-                      {currentDoorStat?.present || 0}
+                    <td
+                      key={door.id}
+                      className="text-center text-lg font-semibold text-blue-600"
+                    >
+                      {d.in}
                     </td>
                   );
                 })}
-
-                {/* Final Summary Counts */}
-                <td className="px-4 py-6 text-center text-2xl font-black text-emerald-500 bg-emerald-50/10">
+                <td
+                  rowSpan={3}
+                  className="text-center text-2xl font-black text-emerald-500 border-l border-gray-300"
+                >
+                  {" "}
                   {stats?.activePeople || 0}
                 </td>
-                <td className="px-4 py-6 text-center text-2xl font-black text-rose-500 bg-rose-50/10">
+                <td
+                  rowSpan={3}
+                  className="text-center text-2xl font-black text-rose-500 border-l border-gray-300"
+                >
+                  {" "}
                   {(stats?.totalPeople || 0) - (stats?.activePeople || 0)}
                 </td>
-                <td className="px-4 py-6 text-center text-2xl font-black text-blue-600 bg-blue-50/10">
+                <td
+                  rowSpan={3}
+                  className="text-center text-2xl font-black text-blue-600 border-l border-gray-300"
+                >
+                  {" "}
                   {stats?.totalPeople || 0}
                 </td>
+              </tr>
+
+              {/* OUT ROW */}
+              <tr className="border-b">
+                <td className="px-3 py-4 font-bold text-orange-500">OUT</td>
+                {doors.map((door) => {
+                  const d = getDoorData(door.id);
+                  return (
+                    <td
+                      key={door.id}
+                      className="text-center text-lg font-semibold text-orange-500"
+                    >
+                      {d.out}
+                    </td>
+                  );
+                })}
+              </tr>
+
+              {/* BAL ROW */}
+              <tr>
+                <td className="px-3 py-4 font-bold text-slate-700">BAL</td>
+                {doors.map((door) => {
+                  const d = getDoorData(door.id);
+                  return (
+                    <td key={door.id} className="text-center text-lg font-bold">
+                      {d.bal}
+                    </td>
+                  );
+                })}
               </tr>
             </tbody>
           </table>
@@ -291,8 +447,13 @@ function DoorAttendanceTable({ doors, refreshInterval }: { doors: Door[], refres
     </Card>
   );
 }
-
-function ShiftWiseEmpCount({ doors, refreshInterval }: { doors: Door[], refreshInterval: number }) {
+function ShiftWiseEmpCount({
+  doors,
+  refreshInterval,
+}: {
+  doors: Door[];
+  refreshInterval: number;
+}) {
   // 1. Shifts fetch karein columns banane ke liye
   const { data: shifts = [] } = useQuery<any[]>({
     queryKey: ["/api/shifts"],
@@ -301,14 +462,15 @@ function ShiftWiseEmpCount({ doors, refreshInterval }: { doors: Door[], refreshI
   // 2. Shift-wise data fetch karein (Backend se doorId aur shiftId ke basis par count)
   const { data: shiftStats } = useQuery<any[]>({
     queryKey: ["/api/attendance/shift-door-stats"],
-    refetchInterval: refreshInterval
+    refetchInterval: refreshInterval,
   });
 
   return (
     <Card className="col-span-full border-none shadow-sm ring-1 ring-border overflow-hidden">
       <CardHeader className="pb-3 border-b bg-muted/10">
         <CardTitle className="text-sm font-bold flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-violet-500" /> Shift-wise Employee Count
+          <TrendingUp className="w-4 h-4 text-violet-500" /> Shift-wise Employee
+          Count
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
@@ -323,7 +485,10 @@ function ShiftWiseEmpCount({ doors, refreshInterval }: { doors: Door[], refreshI
 
                 {/* Dynamic Shift Columns */}
                 {shifts.map((shift) => (
-                  <th key={shift.id} className="px-4 py-3 text-center font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r min-w-[100px]">
+                  <th
+                    key={shift.id}
+                    className="px-4 py-3 text-center font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r min-w-[100px]"
+                  >
                     {shift.name}
                   </th>
                 ))}
@@ -339,7 +504,10 @@ function ShiftWiseEmpCount({ doors, refreshInterval }: { doors: Door[], refreshI
                 let doorTotal = 0;
 
                 return (
-                  <tr key={door.id} className="hover:bg-muted/10 transition-colors">
+                  <tr
+                    key={door.id}
+                    className="hover:bg-muted/10 transition-colors"
+                  >
                     <td className="px-4 py-3 font-medium border-r bg-muted/5">
                       {door.name}
                     </td>
@@ -347,14 +515,18 @@ function ShiftWiseEmpCount({ doors, refreshInterval }: { doors: Door[], refreshI
                     {/* Har shift ke liye count dikhayenge */}
                     {shifts.map((shift) => {
                       // Stats array se matching door aur shift ka count nikalna
-                      const count = shiftStats?.find(
-                        (s) => s.doorId === door.id && s.shiftId === shift.id
-                      )?.count || 0;
+                      const count =
+                        shiftStats?.find(
+                          (s) => s.doorId === door.id && s.shiftId === shift.id,
+                        )?.count || 0;
 
                       doorTotal += count;
 
                       return (
-                        <td key={shift.id} className="px-4 py-3 text-center border-r font-semibold">
+                        <td
+                          key={shift.id}
+                          className="px-4 py-3 text-center border-r font-semibold"
+                        >
                           {count}
                         </td>
                       );
@@ -378,7 +550,7 @@ function ShiftWiseEmpCount({ doors, refreshInterval }: { doors: Door[], refreshI
 function AttendanceCard({ refreshInterval }: { refreshInterval: number }) {
   const { data: summary } = useQuery<any>({
     queryKey: ["/api/attendance/summary"],
-    refetchInterval: refreshInterval
+    refetchInterval: refreshInterval,
   });
 
   const items = [
@@ -415,12 +587,19 @@ function AttendanceCard({ refreshInterval }: { refreshInterval: number }) {
   );
 }
 
-function SystemHealthCard({ total, online }: { total: number; online: number }) {
+function SystemHealthCard({
+  total,
+  online,
+}: {
+  total: number;
+  online: number;
+}) {
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-500" /> Device Connectivity
+          <ShieldCheck className="w-4 h-4 text-emerald-500" /> Device
+          Connectivity
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -434,9 +613,13 @@ function SystemHealthCard({ total, online }: { total: number; online: number }) 
         <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
           <div className="flex items-center gap-2">
             <Wifi className="w-4 h-4 text-emerald-500" />
-            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Active Sync</span>
+            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              Active Sync
+            </span>
           </div>
-          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">{online}</span>
+          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+            {online}
+          </span>
         </div>
         <p className="text-[10px] text-center text-muted-foreground pt-1 uppercase font-bold tracking-tighter">
           Hardware Status: <span className="text-emerald-500">Stable</span>

@@ -121,6 +121,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(stats);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+  app.get("/api/dashboard/attendance/door-wise-stats", async (req, res) => {
+    try {
+     
+      const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
+      const doorStats = await storage.getDoorWiseStats(date);
+      res.json(doorStats);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+  app.get("/api/dashboard/attendance/shift-door-stats", async (_req, res) => {
+    try {
+      const shiftStats = await storage.getShiftWiseStats();
+      res.json(shiftStats);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
   app.get("/api/user-profiles", requireAuth, async (_req, res) => {
     try { res.json(await storage.getUserProfiles()); }
     catch (e: any) { res.status(500).json({ message: e.message }); }
