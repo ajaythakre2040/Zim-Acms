@@ -21,47 +21,20 @@ export async function runMasterAuthSync() {
     console.log(`\n--- 🛠️  STARTING AUTH SYNC [${now.toLocaleTimeString()}] ---`);
 
     try {
-        // STEP 1: AUTO-EXPIRE & MIDNIGHT HARDWARE RESET
+        // STEP 1: AUTO-EXPIRE OLD LOCKOUTS
+        // Purane records ko expire mark karein
         const expiredRecords = await db.update(cabinLockouts)
             .set({ status: 'expired', updatedAt: now })
             .where(and(eq(cabinLockouts.status, 'active'), lt(cabinLockouts.lockoutExpiry, now)))
             .returning({ empCode: cabinLockouts.employeeCode });
-        console.log(`⏰ [MIDNIGHT CHECK] Expired lockouts: ${expiredRecords.length}`);
+
+        // Unke people table mein flag ko false karein
         if (expiredRecords.length > 0) {
             const codes = expiredRecords.map(r => r.empCode);
-            console.log(`🔓 [MIDNIGHT CHECK] Expired lockouts for employees: ${codes.join(", ")}`);
-            // 1. Database flag reset karein
             await db.update(people)
                 .set({ is_lockout_enabled: false })
                 .where(inArray(people.employeeCode, codes));
-
-            // 2. FETCH DATA FOR RE-SYNC
-            // Humein un logon ko sync karna hai jo Building ke ANDAR (IN) hain
-            const [allDevicesReset, allDoorDevicesReset, peopleToSync, assignments] = await Promise.all([
-                db.select().from(devices).where(gt(devices.msId, 0)),
-                db.select().from(doorDevices),
-                db.select().from(people).where(and(inArray(people.employeeCode, codes), eq(people.currentZone, ZONES.IN))),
-                db.select().from(employeeDoorAssignments).where(inArray(employeeDoorAssignments.employeeCode, codes))
-            ]);
-
-            // MIDNIGHT LOGIC:
-            // Agar banda building ke andar hai, toh midnight hote hi lockout expiry par 
-            // use uske saare assigned doors ka access auto-mil jayega (bina punch kiye).
-            for (const person of peopleToSync) {
-                const userAssignment = assignments.find(a => a.employeeCode === person.employeeCode);
-                await helpers.syncEmployeeHardware(
-                    person.employeeCode ?? "", allDevicesReset,
-                    allDoorDevicesReset,
-                    userAssignment,
-                    false // Lockout expire ho gaya hai
-                );
-            }
-
-            // NOTE: Jo log Building ke BAHAR (OUT) hain, unka lockout toh expire ho gaya hai table mein,
-            // lekin unka hardware sync nahi kiya humne. Unhe access tabhi milega jab wo 
-            // Main Gate par IN punch karenge (Jo niche Step 5 & 6 mein handle ho jayega).
-
-            console.log(`✅ [MIDNIGHT] Hardware restored for ${peopleToSync.length} employees inside building.`);
+            console.log(`🧹 [STEP 1] Reset lockout flags for ${codes.length} employees.`);
         }
 
         // STEP 2: CRON STATUS & LOCKING
@@ -122,18 +95,15 @@ export async function runMasterAuthSync() {
 
             // --- Updated Logic: Rule ID & Lockout Enabled Flag ---
             let ruleIdToStore = ACCESS_RULES.NO_RULE;
-            let updatedLockoutFlag = emp.is_lockout_enabled ?? false;
+            let lockoutFlag = emp.is_lockout_enabled || false; // Purana state carry karein
+
             if (isMainGateDoor) {
                 ruleIdToStore = isEntry ? ACCESS_RULES.MAIN_GATE_IN : ACCESS_RULES.MAIN_GATE_OUT;
-                // if (!isEntry) {
-                //     updatedLockoutFlag = false;
-                // }
+                lockoutFlag = false; // Main gate se out/in par lockout clear
             } else {
                 if (isEntry) {
                     ruleIdToStore = ACCESS_RULES.CABIN_IN;
-                    if (doorDetails.is_lockout_enabled) {
-                        updatedLockoutFlag = true;
-                    }
+                    if (doorDetails.is_lockout_enabled) lockoutFlag = true;
                 } else {
                     ruleIdToStore = ACCESS_RULES.CABIN_OUT;
                     // Exit par flag false nahi karenge, kyuki restricted cabin se 
@@ -198,7 +168,7 @@ export async function runMasterAuthSync() {
                 currentZone: newZone,
                 lastPunchDoorId: doorDetails.id,
                 ruleid: ruleIdToStore,
-                is_lockout_enabled: updatedLockoutFlag, // Naya flag update ho raha hai
+                is_lockout_enabled: lockoutFlag, // Naya flag update ho raha hai
                 updatedAt: new Date()
             }).where(eq(people.employeeCode, empCode));
 
