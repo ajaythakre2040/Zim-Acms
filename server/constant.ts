@@ -44,7 +44,7 @@ export const CABIN_LOCKOUT_CONFIG = {
 // gateConstants.js
 
 export const ACCESS_RULES = {
-  NO_ROLE: 0,         // Jab employee ka koi role assigned na ho
+  NO_RULE: 0,         // Jab employee ka koi role assigned na ho
   MAIN_GATE_IN: 1,    // Main gate se entry, role restore
   CABIN_IN: 2,        // Lab/Cabin ke andar (Strict block)
   CABIN_OUT: 3,       // Normal cabin exit

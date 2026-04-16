@@ -864,7 +864,7 @@ export class DatabaseStorage implements IStorage {
               .set({
                 employeeName: mapped.employeeName ?? "Unknown",
                 employeeCode: mapped.employeeCode,
-                ruleid: mapped.ruleid ?? null,
+                // ruleid: mapped.ruleid ?? null,
                 address: mapped.address ?? null,
                 updatedAt: new Date()
               })
