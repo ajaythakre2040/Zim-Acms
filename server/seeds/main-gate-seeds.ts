@@ -1,6 +1,6 @@
 import { cronMaster, doors } from "@shared/schema";
-import { MAIN_GATE_SYNC } from "server/constant";
-import { db } from "server/db";
+import { MAIN_GATE_SYNC } from "../constant";
+import { db } from "../db";
 
 export async function seedCronMaster() {
     console.log("🌱 Seeding Main Gate Task...");

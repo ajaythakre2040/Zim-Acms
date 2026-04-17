@@ -246,7 +246,7 @@ export default function MasterDataPage() {
       {/* <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, vendors,  and roles" /> */}
       <PageHeader
         title="Master Data"
-        description="Manage companies and roles"
+        description="Manage Master Data"
       />
 
       <Tabs defaultValue="companies" className="space-y-4">
@@ -256,7 +256,7 @@ export default function MasterDataPage() {
           {/* <TabsTrigger value="categories">Categories</TabsTrigger> */}
           <TabsTrigger value="companies">Companies</TabsTrigger>
           {/* <TabsTrigger value="vendors">Vendors</TabsTrigger> */}
-          <TabsTrigger value="roles">Roles</TabsTrigger>
+          {/* <TabsTrigger value="roles">Roles</TabsTrigger> */}
           <TabsTrigger value="departments">Departments</TabsTrigger>
         </TabsList>
 
@@ -373,7 +373,7 @@ export default function MasterDataPage() {
           />
         </TabsContent>
 
-        <TabsContent value="roles">
+        {/* <TabsContent value="roles">
           <MasterTab
             endpoint="/api/roles"
             label="Role"
@@ -399,7 +399,7 @@ export default function MasterDataPage() {
               },
             ]}
           />
-        </TabsContent>
+        </TabsContent> */}
       </Tabs>
     </div>
   );

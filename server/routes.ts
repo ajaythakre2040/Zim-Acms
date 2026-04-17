@@ -3,6 +3,7 @@ import type { Server } from "http";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { storage } from "./storage";
 import { z } from "zod";
+import dayjs from "dayjs";
 import {
   insertCompanySchema, insertDepartmentSchema, insertDesignationSchema,
   insertCategorySchema, insertVendorSchema, insertSiteSchema, insertBuildingSchema,
@@ -131,14 +132,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/dashboard/attendance/shift-door-stats", async (_req, res) => {
-    try {
-      const shiftStats = await storage.getShiftWiseStats();
-      res.json(shiftStats);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
+app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
+  try {
+    // dayjs() ki jagah standard JS use karein agar import error de raha hai
+    const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+    
+    const shiftStats = await storage.getShiftWiseStats(date);
+    res.json(shiftStats);
+  } catch (e: any) {
+    console.error("Shift Stats Error:", e.message);
+    res.status(500).json({ message: "Error fetching shift stats" });
+  }
+});
   app.get("/api/user-profiles", requireAuth, async (_req, res) => {
     try { res.json(await storage.getUserProfiles()); }
     catch (e: any) { res.status(500).json({ message: e.message }); }

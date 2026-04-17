@@ -43,6 +43,7 @@ npm run db:push
 npx drizzle-kit push
 
 npm run db:seed     
+npm run db:seed-shifts
 4. Start dev server (PowerShell-friendly):
 
 ```powershell

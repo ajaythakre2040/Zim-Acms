@@ -2,6 +2,8 @@ import { db } from "../db";
 import { shifts } from "../../shared/schema";
 import { eq } from "drizzle-orm";
 
+
+
 export async function seedShifts() {
     console.log("🚀 Starting Shift Seeder...");
 
@@ -12,7 +14,7 @@ export async function seedShifts() {
             startTime: "07:30",
             endTime: "16:00",
             workingHours: 8.5,
-            thresholdMins: 30, // Flexibility ±30 mins
+            thresholdMins: 30,
             isActive: true,
         },
         {
@@ -73,22 +75,26 @@ export async function seedShifts() {
 
     try {
         for (const data of shiftData) {
-            // Check if shift already exists by code
-            const existing = await db.select().from(shifts).where(eq(shifts.code, data.code));
+            // 🔥 Upsert Logic: Agar code match kare toh update karo, warna insert
+            await db.insert(shifts)
+                .values(data)
+                .onConflictDoUpdate({
+                    target: shifts.code, // Unique key jahan conflict check karna hai
+                    set: {
+                        name: data.name,
+                        startTime: data.startTime,
+                        endTime: data.endTime,
+                        workingHours: data.workingHours,
+                        thresholdMins: data.thresholdMins,
+                        isActive: data.isActive
+                    }
+                });
 
-            if (existing.length === 0) {
-                await db.insert(shifts).values(data);
-                console.log(`✅ Inserted: ${data.name}`);
-            } else {
-                await db.update(shifts).set(data).where(eq(shifts.code, data.code));
-                console.log(`🔄 Updated: ${data.name}`);
-            }
+            console.log(`✅ Processed: ${data.name}`);
         }
         console.log("✨ Shift seeding completed successfully!");
     } catch (error) {
         console.error("❌ Seeding failed:", error);
-        process.exit(1);
+        throw error; // Isse main-seed.ts ko error ka pata chalega
     }
 }
-
-seedShifts();

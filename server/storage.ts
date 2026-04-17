@@ -1,3 +1,6 @@
+import dayjs from "dayjs";
+import isBetween from "dayjs/plugin/isBetween";
+import customParseFormat from "dayjs/plugin/customParseFormat";
 import {
   userProfiles, companies, departments, designations, categories, vendors,
   sites, buildings, floors, zones, doors, devices, people, credentials,
@@ -54,6 +57,8 @@ import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shar
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES } from './constant';
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
+dayjs.extend(isBetween);
+dayjs.extend(customParseFormat);
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -185,6 +190,9 @@ export interface IStorage {
   getEmployeeDoorAssignmentByCode(employeeCode: string): Promise<any | undefined>;
   upsertEmployeeDoorAssignment(data: any): Promise<any>;
   deleteEmployeeDoorAssignment(id: number): Promise<void>;
+  getShiftWiseStats(date: string): Promise<any[]>;
+  getDoorWiseStats(date: string): Promise<any[]>;
+  
 }
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
@@ -1748,20 +1756,105 @@ export class DatabaseStorage implements IStorage {
       totalManpower
     };
   }
-  async getShiftWiseStats() {
-    const today = new Date().toISOString().split("T")[0];
+  async getShiftWiseStats(date: string): Promise<any[]> {
+    try {
+      // 1. Parallel fetch using Drizzle for speed
+      const [allShifts, allDoors] = await Promise.all([
+        db.select().from(shifts).where(eq(shifts.isActive, true)),
+        db.select({
+          id: doors.id,
+          name: doors.name,
+          inIds: doorDevices.inDeviceIds,
+        })
+        .from(doors)
+        .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId))
+      ]);
 
-    const result = await db.select({
-      doorId: accessLogs.doorId,
-      shiftId: people.shiftId,
-      count: count(accessLogs.id)
-    })
-      .from(accessLogs)
-      .innerJoin(people, eq(accessLogs.personId, people.id))
-      .where(sql`DATE(${accessLogs.timestamp}) = ${today}`)
-      .groupBy(accessLogs.doorId, people.shiftId);
+      const deviceIds = allDoors.flatMap(d => d.inIds || []);
+      if (deviceIds.length === 0) return [];
 
-    return result;
+      // 2. Fetch Logs from MS SQL (Optimized for 10k+ records)
+      const request = mssqlPool.request();
+      request.timeout = 60000; // 60s timeout for large data
+      
+      const logsResult = await request
+        .input('d', date)
+        .query(`
+          SELECT DISTINCT EmployeeCode, DeviceId, LogDate 
+          FROM DeviceLogs WITH (NOLOCK)
+          WHERE CAST(LogDate AS DATE) = @d 
+          AND Direction = 'IN'
+          AND DeviceId IN (${deviceIds.join(',')})
+        `);
+
+      const rawLogs = logsResult.recordset;
+
+      // 3. Pre-calculate Shift Windows (Buffer Logic)
+      const windows = allShifts.map(s => {
+        const start = dayjs(`${date} ${s.startTime}`, "YYYY-MM-DD HH:mm").subtract(30, 'm');
+        let end = dayjs(`${date} ${s.endTime}`, "YYYY-MM-DD HH:mm").add(30, 'm');
+        
+        // Overnight shift handling (e.g., 22:00 to 06:00)
+        if (end.isBefore(start)) end = end.add(1, 'day');
+        
+        return { code: s.code, start, end };
+      });
+
+      // 4. Initialize Stats Map
+      const deviceToDoorMap: Record<number, string> = {};
+      allDoors.forEach(d => d.inIds?.forEach(id => { deviceToDoorMap[id] = d.name; }));
+
+      const statsMap: Record<string, any> = {};
+      allDoors.forEach(d => {
+        statsMap[d.name] = { doorName: d.name, totalEmp: 0 };
+        allShifts.forEach(s => { statsMap[d.name][s.code] = 0; });
+      });
+
+      // 5. Fast Pass Processing (10k records loop)
+      for (const log of rawLogs) {
+        const doorName = deviceToDoorMap[log.DeviceId];
+        if (!doorName) continue;
+
+        const punchTime = dayjs(log.LogDate);
+        if (!punchTime.isValid()) continue;
+
+        for (const win of windows) {
+          if (punchTime.isBetween(win.start, win.end, null, '[]')) {
+            statsMap[doorName][win.code]++;
+            statsMap[doorName].totalEmp++;
+            break; 
+          }
+        }
+      }
+
+      return Object.values(statsMap);
+    } catch (error: any) {
+      console.error("DEBUG_ERROR_SHIFT_STATS:", error);
+      throw new Error(`Shift stats processing failed: ${error.message}`);
+    }
+  }
+
+  // --- DOOR-WISE STATS (IN/OUT/BALANCE) ---
+  async getDoorWiseStats(date: string): Promise<any[]> {
+    try {
+      const request = mssqlPool.request();
+      const result = await request
+        .input('d', date)
+        .query(`
+          SELECT 
+            DeviceId,
+            COUNT(CASE WHEN Direction = 'IN' THEN 1 END) as InCount,
+            COUNT(CASE WHEN Direction = 'OUT' THEN 1 END) as OutCount
+          FROM DeviceLogs WITH (NOLOCK)
+          WHERE CAST(LogDate AS DATE) = @d
+          GROUP BY DeviceId
+        `);
+
+      // Yahan aap is data ko door names ke saath map karke return karein
+      return result.recordset;
+    } catch (e: any) {
+      throw new Error(`Door stats failed: ${e.message}`);
+    }
   }
   async getRoles(): Promise<any[]> {
     // 1. Saare roles fetch karein
