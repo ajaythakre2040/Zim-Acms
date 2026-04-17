@@ -1771,7 +1771,6 @@ export class DatabaseStorage implements IStorage {
       if (deviceIds.length === 0) return [];
 
       const request = mssqlPool.request();
-      // ✅ Fix 1: Type casting for 'timeout'
       (request as any).timeout = 60000;
 
       const logsResult = await request
@@ -1786,42 +1785,45 @@ export class DatabaseStorage implements IStorage {
 
       const rawLogs = logsResult.recordset;
 
+      // 1. Shift Windows: Code ki jagah Name store karein
       const windows = allShifts.map(s => {
         const start = dayjs(`${date} ${s.startTime}`, "YYYY-MM-DD HH:mm").subtract(30, 'm');
         let end = dayjs(`${date} ${s.endTime}`, "YYYY-MM-DD HH:mm").add(30, 'm');
         if (end.isBefore(start)) end = end.add(1, 'day');
-        return { code: s.code, start, end };
+
+        // Yahan s.code ki jagah s.name use kar rahe hain
+        return { shiftName: s.name, start, end };
       });
 
       const deviceToDoorMap: Record<number, string> = {};
       allDoors.forEach(d => {
-        if (d.name) { // ✅ Null Check
+        if (d.name) {
           d.inIds?.forEach(id => { deviceToDoorMap[id] = d.name!; });
         }
       });
 
       const statsMap: Record<string, any> = {};
       allDoors.forEach(d => {
-        // ✅ Fix 2: Ensuring door name is not null before using as index
         const doorName = d.name ?? "Unknown Door";
         statsMap[doorName] = { doorName: doorName, totalEmp: 0 };
+
+        // 2. Map Initialization: s.code ki jagah s.name se keys banayein
         allShifts.forEach(s => {
-          if (s.code) statsMap[doorName][s.code] = 0;
+          if (s.name) statsMap[doorName][s.name] = 0;
         });
       });
 
       for (const log of rawLogs) {
         const doorName = deviceToDoorMap[log.DeviceId];
-        // ✅ Fix 3: Safety check for doorName and statsMap index
         if (!doorName || !statsMap[doorName]) continue;
 
         const punchTime = dayjs(log.LogDate);
         if (!punchTime.isValid()) continue;
 
         for (const win of windows) {
-          // ✅ Double check win.code is not null
-          if (win.code && punchTime.isBetween(win.start, win.end, null, '[]')) {
-            statsMap[doorName][win.code]++;
+          // 3. Increment logic: win.shiftName use karein
+          if (win.shiftName && punchTime.isBetween(win.start, win.end, null, '[]')) {
+            statsMap[doorName][win.shiftName]++;
             statsMap[doorName].totalEmp++;
             break;
           }

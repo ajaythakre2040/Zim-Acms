@@ -462,7 +462,7 @@ function DaliyPerformanceOvertimeSummaryTable({ data }: { data: any[] }) {
 
     const date = new Date(r.date).getDate(); // 1-31
     grouped[key].days[date] = r.status;
-    
+
     // Total hours calculate ho rahe hain (workingHours ko number mein convert karke)
     if (r.workingHours) {
       grouped[key].totalWorkingHrs += Number(r.workingHours) || 0;
@@ -684,11 +684,10 @@ export default function ReportsPage() {
               setFilters({});
               setAppliedFilters({});
             }}
-            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
-              activeReport === rt.id 
-                ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20` 
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
+                ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
                 : "bg-card hover:bg-muted/50"
-            }`}
+              }`}
           >
             <rt.icon className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`} />
             <span className="text-[10px] font-bold uppercase">{rt.label}</span>
@@ -716,7 +715,7 @@ export default function ReportsPage() {
           </Card>
         ) : (
           <div className={cn("space-y-6 transition-opacity", isFetching ? "opacity-70" : "opacity-100")}>
-            
+
             {/* 1. Attendance Report */}
             {activeReport === "attendance" && (
               <Card className="shadow-sm border">
