@@ -15,19 +15,14 @@ import {
 } from "lucide-react";
 import type { Device, Door } from "@shared/schema";
 
+// MOCK OR IMPORT THESE COMPONENTS
+// import ShiftWiseEmpCount from "./ShiftWiseEmpCount"; 
+// import AttendanceCard from "./AttendanceCard";
+// import SystemHealthCard from "./SystemHealthCard";
+
 export default function Dashboard() {
   const REFRESH_MS = 5000;
-  React.useEffect(() => {
-    const handler = (e: any) => {
-      setSelectedDate(e.detail);
-    };
 
-    window.addEventListener("dateChange", handler);
-
-    return () => {
-      window.removeEventListener("dateChange", handler);
-    };
-  }, []);
   const [selectedDate, setSelectedDate] = React.useState(
     new Date().toISOString().split("T")[0],
   );
@@ -134,7 +129,14 @@ export default function Dashboard() {
           </div>
         </div>
 
-
+        <div className="flex items-center mt-1">
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            className="border rounded-md px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-900"
+          />
+        </div>
       </div>
 
       {/* STAT CARDS */}
@@ -171,8 +173,8 @@ export default function Dashboard() {
       <ShiftWiseEmpCount doors={doors} refreshInterval={REFRESH_MS} />
 
       <div className="grid md:grid-cols-2 gap-4">
-        {/* <AttendanceCard refreshInterval={REFRESH_MS} />
-        <SystemHealthCard total={totalDevices} online={onlineDevices} /> */}
+        <AttendanceCard refreshInterval={REFRESH_MS} />
+        <SystemHealthCard total={totalDevices} online={onlineDevices} />
       </div>
     </div>
   );
@@ -212,24 +214,11 @@ function DoorAttendanceTable({
 
   return (
     <Card className="col-span-full border-none shadow-sm ring-1 ring-border overflow-hidden">
-      <CardHeader className="pb-3 border-b bg-muted/10 flex flex-row items-center justify-between">
+      <CardHeader className="pb-3 border-b bg-muted/10">
         <CardTitle className="text-sm font-bold flex items-center gap-2">
           <Users className="w-4 h-4 text-blue-500" />
           Door-wise Attendance Summary
         </CardTitle>
-
-        {/* ✅ DATE FILTER RIGHT SIDE */}
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) => {
-            // 👇 IMPORTANT: parent ko update karna padega
-            window.dispatchEvent(
-              new CustomEvent("dateChange", { detail: e.target.value })
-            );
-          }}
-          className="border rounded-md px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-slate-900"
-        />
       </CardHeader>
 
       <CardContent className="p-0">
@@ -407,3 +396,84 @@ function ShiftWiseEmpCount({
   );
 }
 
+function AttendanceCard({ refreshInterval }: { refreshInterval: number }) {
+  const { data: summary } = useQuery<any>({
+    queryKey: ["/api/attendance/summary"],
+    refetchInterval: refreshInterval,
+  });
+
+  const items = [
+    { label: "Present", value: summary?.present || 0, color: "bg-emerald-500" },
+    { label: "Late", value: summary?.late || 0, color: "bg-amber-500" },
+    { label: "Absent", value: summary?.absent || 0, color: "bg-rose-500" },
+  ];
+  const total = summary?.total || 1;
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-amber-500" /> Today's Attendance
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {items.map((item) => (
+          <div key={item.label} className="space-y-1">
+            <div className="flex justify-between text-[11px] font-medium">
+              <span className="text-muted-foreground">{item.label}</span>
+              <span>{item.value}</span>
+            </div>
+            <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+              <div
+                className={`h-full ${item.color} transition-all duration-700`}
+                style={{ width: `${(item.value / total) * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SystemHealthCard({
+  total,
+  online,
+}: {
+  total: number;
+  online: number;
+}) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-emerald-500" /> Device
+          Connectivity
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30 border border-border">
+          <div className="flex items-center gap-2">
+            <Server className="w-4 h-4 text-blue-500" />
+            <span className="text-xs font-medium">Total Controllers</span>
+          </div>
+          <span className="text-xs font-bold">{total}</span>
+        </div>
+        <div className="flex items-center justify-between p-3 rounded-lg bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+          <div className="flex items-center gap-2">
+            <Wifi className="w-4 h-4 text-emerald-500" />
+            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              Active Sync
+            </span>
+          </div>
+          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">
+            {online}
+          </span>
+        </div>
+        <p className="text-[10px] text-center text-muted-foreground pt-1 uppercase font-bold tracking-tighter">
+          Hardware Status: <span className="text-emerald-500">Stable</span>
+        </p>
+      </CardContent>
+    </Card>
+  );
+}

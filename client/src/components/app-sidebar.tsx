@@ -65,7 +65,7 @@ const navGroups: NavGroup[] = [
     color: "text-amber-400",
     bgColor: "bg-amber-500/15",
     items: [
-      { title: "Attendance", url: "/attendance", icon: Clock, iconColor: "text-amber-400" },
+      // { title: "Attendance", url: "/attendance", icon: Clock, iconColor: "text-amber-400" },
       { title: "Shifts", url: "/shifts", icon: CalendarDays, iconColor: "text-orange-400" },
       { title: "Holidays", url: "/holidays", icon: Calendar, iconColor: "text-yellow-400" },
       // { title: "Exceptions", url: "/exceptions", icon: FileWarning, iconColor: "text-red-400" },

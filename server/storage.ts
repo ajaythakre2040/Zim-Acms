@@ -1105,7 +1105,7 @@ export class DatabaseStorage implements IStorage {
 
   async deletePerson(id: number): Promise<void> {
     const [record] = await db.select().from(people).where(eq(people.id, id));
-        if (record) {
+    if (record) {
       try {
 
         if (record.employeeCode) {
@@ -1651,54 +1651,56 @@ export class DatabaseStorage implements IStorage {
     }
     return await query.limit(500);
   }
-  async getDashboardStats(): Promise<object> {
-    const today = new Date().toISOString().split("T")[0];
+ 
+  async getDashboardStats(date?: string): Promise<object> {
+
     const [peopleCount] = await db.select({ count: count() }).from(people);
-    const [visitorsCount] = await db.select({ count: count() }).from(visitors);
+    const [doorsCount] = await db.select({ count: count() }).from(doors);
     const [devicesCount] = await db.select({ count: count() }).from(devices);
-    const [todayAttendance] = await db.select({ count: count() }).from(attendance).where(eq(attendance.date, today));
-    const [alertsCount] = await db.select({ count: count() }).from(alerts).where(eq(alerts.isResolved, false));
-    const [accessLogsCount] = await db.select({ count: count() }).from(accessLogs).where(sql`DATE(${accessLogs.timestamp}) = ${today}`);
+    const [shiftsCount] = await db.select({ count: count() }).from(shifts);
+    const [onlineCount] = await db.select({ count: count() })
+      .from(devices)
+      .where(eq(devices.status, 'online'));
+
     return {
       totalPeople: peopleCount.count,
-      totalVisitors: visitorsCount.count,
-      totalDevices: devicesCount.count,
-      todayAttendance: todayAttendance.count,
-      unresolvedAlerts: alertsCount.count,
-      todayAccessLogs: accessLogsCount.count,
+      totalshift: shiftsCount.count,      // Dashboard ka 2nd Card: TOTAL SHIFTS
+      totalDoors: doorsCount.count,         // 3rd Card
+      totalDevices: devicesCount.count,     // 4th Card
+      onlineDevices: onlineCount.count,     // 5th Card
+      offlineDevices: Math.max(0, devicesCount.count - onlineCount.count) // 6th Card
     };
   }
+  async getDoorWiseStats(date: string) {
+    // 1. PG DB: Total Manpower (Total registered people)
+    const [totalPeopleResult] = await db.select({
+      count: sql<number>`count(*)`
+    }).from(people);
 
-async getDoorWiseStats(date: string) {
-  // 1. PG DB: Total Manpower (Total registered people)
-  const [totalPeopleResult] = await db.select({
-    count: sql<number>`count(*)`
-  }).from(people);
+    const totalManpower = Number(totalPeopleResult.count) || 0;
 
-  const totalManpower = Number(totalPeopleResult.count) || 0;
+    // 2. PG DB: Door-Device mapping (Mapping door code also)
+    const mappings = await db.select({
+      doorId: doors.id,
+      doorName: doors.name,
+      doorCode: doors.code, // Constant se match karne ke liye
+      inIds: doorDevices.inDeviceIds,
+      outIds: doorDevices.outDeviceIds,
+      isMainGate: doorDevices.isMainGate,
+    })
+      .from(doors)
+      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-  // 2. PG DB: Door-Device mapping (Mapping door code also)
-  const mappings = await db.select({
-    doorId: doors.id,
-    doorName: doors.name,
-    doorCode: doors.code, // Constant se match karne ke liye
-    inIds: doorDevices.inDeviceIds,
-    outIds: doorDevices.outDeviceIds,
-    isMainGate: doorDevices.isMainGate,
-  })
-    .from(doors)
-    .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+    const allDeviceIds = mappings.flatMap(m => [...(m.inIds || []), ...(m.outIds || [])]);
 
-  const allDeviceIds = mappings.flatMap(m => [...(m.inIds || []), ...(m.outIds || [])]);
+    if (allDeviceIds.length === 0) {
+      return { doorStats: [], totalPresent: 0, totalAbsent: totalManpower, totalManpower };
+    }
 
-  if (allDeviceIds.length === 0) {
-    return { doorStats: [], totalPresent: 0, totalAbsent: totalManpower, totalManpower };
-  }
-
-  // 3. MS SQL Query: Unique EmployeeCode counting
-  const msSqlData = await mssqlPool.request()
-    .input('filterDate', date)
-    .query(`
+    // 3. MS SQL Query: Unique EmployeeCode counting
+    const msSqlData = await mssqlPool.request()
+      .input('filterDate', date)
+      .query(`
       SELECT 
         DeviceId, 
         Direction,
@@ -1709,43 +1711,43 @@ async getDoorWiseStats(date: string) {
       GROUP BY DeviceId, Direction
     `);
 
-  const logMap = msSqlData.recordset;
+    const logMap = msSqlData.recordset;
 
-  // 4. Calculations
-  let calculatedPresent = 0;
+    // 4. Calculations
+    let calculatedPresent = 0;
 
-  const doorStats = mappings.map(m => {
-    const inCount = (m.inIds || []).reduce((acc, id) => {
-      const found = logMap.find(l => l.DeviceId === id && l.Direction === 'IN');
-      return acc + (found?.uniqueCount || 0);
-    }, 0);
+    const doorStats = mappings.map(m => {
+      const inCount = (m.inIds || []).reduce((acc, id) => {
+        const found = logMap.find(l => l.DeviceId === id && l.Direction === 'IN');
+        return acc + (found?.uniqueCount || 0);
+      }, 0);
 
-    const outCount = (m.outIds || []).reduce((acc, id) => {
-      const found = logMap.find(l => l.DeviceId === id && l.Direction === 'OUT');
-      return acc + (found?.uniqueCount || 0);
-    }, 0);
+      const outCount = (m.outIds || []).reduce((acc, id) => {
+        const found = logMap.find(l => l.DeviceId === id && l.Direction === 'OUT');
+        return acc + (found?.uniqueCount || 0);
+      }, 0);
 
-    // 🔥 DYNAMIC IDENTIFICATION: Constant file ke code se match karein
-    // Agar door ka code mapping mein MAIN_GATE_SYNC.CODE se milta hai
-    if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
-      calculatedPresent += inCount;
-    }
+      // 🔥 DYNAMIC IDENTIFICATION: Constant file ke code se match karein
+      // Agar door ka code mapping mein MAIN_GATE_SYNC.CODE se milta hai
+      if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
+        calculatedPresent += inCount;
+      }
+
+      return {
+        doorName: m.doorName,
+        inCount,
+        outCount,
+        balance: Math.max(0, inCount - outCount)
+      };
+    });
 
     return {
-      doorName: m.doorName,
-      inCount,
-      outCount,
-      balance: Math.max(0, inCount - outCount)
+      doorStats,
+      totalPresent: calculatedPresent,
+      totalAbsent: Math.max(0, totalManpower - calculatedPresent),
+      totalManpower
     };
-  });
-
-  return {
-    doorStats,
-    totalPresent: calculatedPresent,
-    totalAbsent: Math.max(0, totalManpower - calculatedPresent),
-    totalManpower
-  };
-}
+  }
   async getShiftWiseStats() {
     const today = new Date().toISOString().split("T")[0];
 

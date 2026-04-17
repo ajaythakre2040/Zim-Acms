@@ -1,6 +1,6 @@
 import { cronMaster } from "@shared/schema";
-import { CABIN_LOCKOUT_CONFIG } from "server/constant";
-import { db } from "server/db";
+import { CABIN_LOCKOUT_CONFIG } from "../constant";
+import { db } from "../db";
 
 export async function seedCabinLockout() {
     console.log("🌱 Seeding Cabin Lockout Policy...");
