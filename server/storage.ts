@@ -190,8 +190,6 @@ export interface IStorage {
   getEmployeeDoorAssignmentByCode(employeeCode: string): Promise<any | undefined>;
   upsertEmployeeDoorAssignment(data: any): Promise<any>;
   deleteEmployeeDoorAssignment(id: number): Promise<void>;
-  getShiftWiseStats(date: string): Promise<any[]>;
-  getDoorWiseStats(date: string): Promise<any[]>;
   
 }
 export class DatabaseStorage implements IStorage {
@@ -1758,7 +1756,6 @@ export class DatabaseStorage implements IStorage {
   }
   async getShiftWiseStats(date: string): Promise<any[]> {
     try {
-      // 1. Parallel fetch using Drizzle for speed
       const [allShifts, allDoors] = await Promise.all([
         db.select().from(shifts).where(eq(shifts.isActive, true)),
         db.select({
@@ -1766,63 +1763,67 @@ export class DatabaseStorage implements IStorage {
           name: doors.name,
           inIds: doorDevices.inDeviceIds,
         })
-        .from(doors)
-        .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId))
+          .from(doors)
+          .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId))
       ]);
 
       const deviceIds = allDoors.flatMap(d => d.inIds || []);
       if (deviceIds.length === 0) return [];
 
-      // 2. Fetch Logs from MS SQL (Optimized for 10k+ records)
       const request = mssqlPool.request();
-      request.timeout = 60000; // 60s timeout for large data
-      
+      // ✅ Fix 1: Type casting for 'timeout'
+      (request as any).timeout = 60000;
+
       const logsResult = await request
         .input('d', date)
         .query(`
-          SELECT DISTINCT EmployeeCode, DeviceId, LogDate 
-          FROM DeviceLogs WITH (NOLOCK)
-          WHERE CAST(LogDate AS DATE) = @d 
-          AND Direction = 'IN'
-          AND DeviceId IN (${deviceIds.join(',')})
-        `);
+        SELECT DISTINCT EmployeeCode, DeviceId, LogDate 
+        FROM DeviceLogs WITH (NOLOCK)
+        WHERE CAST(LogDate AS DATE) = @d 
+        AND Direction = 'IN'
+        AND DeviceId IN (${deviceIds.join(',')})
+      `);
 
       const rawLogs = logsResult.recordset;
 
-      // 3. Pre-calculate Shift Windows (Buffer Logic)
       const windows = allShifts.map(s => {
         const start = dayjs(`${date} ${s.startTime}`, "YYYY-MM-DD HH:mm").subtract(30, 'm');
         let end = dayjs(`${date} ${s.endTime}`, "YYYY-MM-DD HH:mm").add(30, 'm');
-        
-        // Overnight shift handling (e.g., 22:00 to 06:00)
         if (end.isBefore(start)) end = end.add(1, 'day');
-        
         return { code: s.code, start, end };
       });
 
-      // 4. Initialize Stats Map
       const deviceToDoorMap: Record<number, string> = {};
-      allDoors.forEach(d => d.inIds?.forEach(id => { deviceToDoorMap[id] = d.name; }));
+      allDoors.forEach(d => {
+        if (d.name) { // ✅ Null Check
+          d.inIds?.forEach(id => { deviceToDoorMap[id] = d.name!; });
+        }
+      });
 
       const statsMap: Record<string, any> = {};
       allDoors.forEach(d => {
-        statsMap[d.name] = { doorName: d.name, totalEmp: 0 };
-        allShifts.forEach(s => { statsMap[d.name][s.code] = 0; });
+        // ✅ Fix 2: Ensuring door name is not null before using as index
+        const doorName = d.name ?? "Unknown Door";
+        statsMap[doorName] = { doorName: doorName, totalEmp: 0 };
+        allShifts.forEach(s => {
+          if (s.code) statsMap[doorName][s.code] = 0;
+        });
       });
 
-      // 5. Fast Pass Processing (10k records loop)
       for (const log of rawLogs) {
         const doorName = deviceToDoorMap[log.DeviceId];
-        if (!doorName) continue;
+        // ✅ Fix 3: Safety check for doorName and statsMap index
+        if (!doorName || !statsMap[doorName]) continue;
 
         const punchTime = dayjs(log.LogDate);
         if (!punchTime.isValid()) continue;
 
         for (const win of windows) {
-          if (punchTime.isBetween(win.start, win.end, null, '[]')) {
+          // ✅ Double check win.code is not null
+          if (win.code && punchTime.isBetween(win.start, win.end, null, '[]')) {
             statsMap[doorName][win.code]++;
             statsMap[doorName].totalEmp++;
-            break; 
+            break;
           }
         }
       }
@@ -1833,29 +1834,7 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Shift stats processing failed: ${error.message}`);
     }
   }
-
-  // --- DOOR-WISE STATS (IN/OUT/BALANCE) ---
-  async getDoorWiseStats(date: string): Promise<any[]> {
-    try {
-      const request = mssqlPool.request();
-      const result = await request
-        .input('d', date)
-        .query(`
-          SELECT 
-            DeviceId,
-            COUNT(CASE WHEN Direction = 'IN' THEN 1 END) as InCount,
-            COUNT(CASE WHEN Direction = 'OUT' THEN 1 END) as OutCount
-          FROM DeviceLogs WITH (NOLOCK)
-          WHERE CAST(LogDate AS DATE) = @d
-          GROUP BY DeviceId
-        `);
-
-      // Yahan aap is data ko door names ke saath map karke return karein
-      return result.recordset;
-    } catch (e: any) {
-      throw new Error(`Door stats failed: ${e.message}`);
-    }
-  }
+  
   async getRoles(): Promise<any[]> {
     // 1. Saare roles fetch karein
     const allRoles = await db.select().from(roles).orderBy(desc(roles.id));
