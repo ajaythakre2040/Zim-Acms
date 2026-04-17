@@ -1,6 +1,12 @@
-import dayjs from "dayjs";
-import isBetween from "dayjs/plugin/isBetween";
-import customParseFormat from "dayjs/plugin/customParseFormat";
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import isBetween from 'dayjs/plugin/isBetween';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
+// Plugins register karna mandatory hai
+dayjs.extend(utc);
+dayjs.extend(isBetween);
+dayjs.extend(customParseFormat);
 import {
   userProfiles, companies, departments, designations, categories, vendors,
   sites, buildings, floors, zones, doors, devices, people, credentials,
@@ -58,7 +64,7 @@ import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
 dayjs.extend(isBetween);
-dayjs.extend(customParseFormat);
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -190,7 +196,7 @@ export interface IStorage {
   getEmployeeDoorAssignmentByCode(employeeCode: string): Promise<any | undefined>;
   upsertEmployeeDoorAssignment(data: any): Promise<any>;
   deleteEmployeeDoorAssignment(id: number): Promise<void>;
-  
+
 }
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
@@ -1657,7 +1663,7 @@ export class DatabaseStorage implements IStorage {
     }
     return await query.limit(500);
   }
- 
+
   async getDashboardStats(date?: string): Promise<object> {
 
     const [peopleCount] = await db.select({ count: count() }).from(people);
@@ -1754,7 +1760,11 @@ export class DatabaseStorage implements IStorage {
       totalManpower
     };
   }
+
+
   async getShiftWiseStats(date: string): Promise<any[]> {
+    console.log(`\n🚀 === START SHIFT STATS DEBUG [${date}] ===`);
+
     try {
       const [allShifts, allDoors] = await Promise.all([
         db.select().from(shifts).where(eq(shifts.isActive, true)),
@@ -1762,81 +1772,86 @@ export class DatabaseStorage implements IStorage {
           id: doors.id,
           name: doors.name,
           inIds: doorDevices.inDeviceIds,
-        })
-          .from(doors)
-          .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId))
+        }).from(doors).leftJoin(doorDevices, eq(doors.id, doorDevices.doorId))
       ]);
 
+      // 1. Windows Setup: Simple Time comparison logic
+      const windows = allShifts.map(s => {
+        // Hum sirf "HH:mm" compare karenge taaki date ka jhanjhat hi khatam ho jaye
+        const [h, m] = s.startTime.split(':');
+        const shiftStart = dayjs().set('hour', parseInt(h)).set('minute', parseInt(m)).set('second', 0);
+        const buffer = s.thresholdMins ?? 30;
+
+        return {
+          name: s.name,
+          start: shiftStart.subtract(buffer, 'm'),
+          end: shiftStart.add(buffer, 'm'),
+        };
+      });
+
+      const request = mssqlPool.request();
       const deviceIds = allDoors.flatMap(d => d.inIds || []);
       if (deviceIds.length === 0) return [];
 
-      const request = mssqlPool.request();
-      (request as any).timeout = 60000;
-
+      // 2. SQL QUERY CHANGE: Hum LogDate ko string format mein mangwa rahe hain
       const logsResult = await request
-        .input('d', date)
+        .input('start', `${date} 00:00:00`)
+        .input('end', `${date} 23:59:59`)
         .query(`
-        SELECT DISTINCT EmployeeCode, DeviceId, LogDate 
+        SELECT 
+          EmployeeCode, 
+          DeviceId, 
+          CONVERT(VARCHAR(8), LogDate, 108) as LogTime -- Ye "HH:mm:ss" return karega
         FROM DeviceLogs WITH (NOLOCK)
-        WHERE CAST(LogDate AS DATE) = @d 
+        WHERE LogDate >= @start AND LogDate <= @end
         AND Direction = 'IN'
         AND DeviceId IN (${deviceIds.join(',')})
+        ORDER BY LogDate ASC
       `);
 
       const rawLogs = logsResult.recordset;
+      const deviceToDoor: Record<number, string> = {};
+      const stats: Record<string, any> = {};
 
-      // 1. Shift Windows: Code ki jagah Name store karein
-      const windows = allShifts.map(s => {
-        const start = dayjs(`${date} ${s.startTime}`, "YYYY-MM-DD HH:mm").subtract(30, 'm');
-        let end = dayjs(`${date} ${s.endTime}`, "YYYY-MM-DD HH:mm").add(30, 'm');
-        if (end.isBefore(start)) end = end.add(1, 'day');
-
-        // Yahan s.code ki jagah s.name use kar rahe hain
-        return { shiftName: s.name, start, end };
-      });
-
-      const deviceToDoorMap: Record<number, string> = {};
       allDoors.forEach(d => {
-        if (d.name) {
-          d.inIds?.forEach(id => { deviceToDoorMap[id] = d.name!; });
-        }
-      });
-
-      const statsMap: Record<string, any> = {};
-      allDoors.forEach(d => {
-        const doorName = d.name ?? "Unknown Door";
-        statsMap[doorName] = { doorName: doorName, totalEmp: 0 };
-
-        // 2. Map Initialization: s.code ki jagah s.name se keys banayein
-        allShifts.forEach(s => {
-          if (s.name) statsMap[doorName][s.name] = 0;
-        });
+        if (!d.name) return;
+        stats[d.name] = { doorName: d.name, totalEmp: 0 };
+        allShifts.forEach(s => { if (s.name) stats[d.name][s.name] = 0; });
+        d.inIds?.forEach(id => { deviceToDoor[id] = d.name!; });
       });
 
       for (const log of rawLogs) {
-        const doorName = deviceToDoorMap[log.DeviceId];
-        if (!doorName || !statsMap[doorName]) continue;
+        const doorName = deviceToDoor[log.DeviceId];
+        if (!doorName) continue;
 
-        const punchTime = dayjs(log.LogDate);
-        if (!punchTime.isValid()) continue;
+        // 3. Parsing Time: Hum date ko ignore kar rahe hain, sirf HH:mm:ss dekh rahe hain
+        const [pH, pM, pS] = log.LogTime.split(':');
+        const punchTime = dayjs().set('hour', parseInt(pH)).set('minute', parseInt(pM)).set('second', parseInt(pS));
+
+        const displayTime = log.LogTime; // SQL se aaya hua direct time
+        let matched = false;
 
         for (const win of windows) {
-          // 3. Increment logic: win.shiftName use karein
-          if (win.shiftName && punchTime.isBetween(win.start, win.end, null, '[]')) {
-            statsMap[doorName][win.shiftName]++;
-            statsMap[doorName].totalEmp++;
+          if (punchTime.isBetween(win.start, win.end, null, '[]')) {
+            stats[doorName][win.name!]++;
+            stats[doorName].totalEmp++;
+            matched = true;
+            console.log(`   ✅ [MATCH] Emp ${log.EmployeeCode} at ${displayTime} -> ${win.name}`);
             break;
           }
         }
+
+        if (!matched) {
+          console.log(`   ❌ [IGNORE] Emp ${log.EmployeeCode} at ${displayTime} (Out of Range)`);
+        }
       }
 
-      return Object.values(statsMap);
-    } catch (error: any) {
-      console.error("DEBUG_ERROR_SHIFT_STATS:", error);
-      throw new Error(`Shift stats processing failed: ${error.message}`);
+      return Object.values(stats);
+    } catch (error) {
+      console.error("IST_STATS_ERROR:", error);
+      throw error;
     }
   }
-  
   async getRoles(): Promise<any[]> {
     // 1. Saare roles fetch karein
     const allRoles = await db.select().from(roles).orderBy(desc(roles.id));

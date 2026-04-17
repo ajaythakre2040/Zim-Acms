@@ -168,7 +168,7 @@ export default function Dashboard() {
       <DoorAttendanceTable selectedDate={selectedDate} refreshInterval={5000} />
 
       {/* Note: You might need to pass selectedDate to these as well if they filter by date */}
-      <ShiftWiseEmpCount doors={doors} refreshInterval={REFRESH_MS} />
+      <ShiftWiseEmpCount doors={doors} selectedDate={selectedDate} refreshInterval={REFRESH_MS} />
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* <AttendanceCard refreshInterval={REFRESH_MS} />
@@ -307,81 +307,83 @@ function DoorAttendanceTable({
   );
 }
 
+interface ShiftWiseEmpCountProps {
+  doors?: any[]; // Optional rakha hai taaki agar call karte waqt pass ho toh error na aaye
+  selectedDate: string;
+  refreshInterval: number;
+}
+
 function ShiftWiseEmpCount({
   doors,
+  selectedDate,
   refreshInterval,
-}: {
-  doors: Door[];
-  refreshInterval: number;
-}) {
-  // 1. Shifts fetch karein columns banane ke liye
+}: ShiftWiseEmpCountProps) {
+  // 1. Shifts fetch karein columns ke names (SH_A, SH_B) dikhane ke liye
   const { data: shifts = [] } = useQuery<any[]>({
     queryKey: ["/api/shifts"],
   });
 
-  // 2. Shift-wise data fetch karein (Backend se doorId aur shiftId ke basis par count)
-  const { data: shiftStats } = useQuery<any[]>({
-    queryKey: ["/api/attendance/shift-door-stats"],
+  // 2. Nayi API se data fetch karein
+  const { data: shiftStats = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/dashboard/attendance/shift-door-stats", selectedDate],
+    queryFn: async () => {
+      // ✅ Correct API Path as per your requirement
+      const res = await fetch(`/api/dashboard/attendance/shift-door-stats?date=${selectedDate}`);
+      if (!res.ok) throw new Error("Failed to fetch shift stats");
+      return res.json();
+    },
     refetchInterval: refreshInterval,
   });
+
+  if (isLoading) return (
+    <Card className="p-6">
+      <Skeleton className="h-40 w-full" />
+    </Card>
+  );
 
   return (
     <Card className="col-span-full border-none shadow-sm ring-1 ring-border overflow-hidden">
       <CardHeader className="pb-3 border-b bg-muted/10">
         <CardTitle className="text-sm font-bold flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-violet-500" /> Shift-wise Employee
-          Count
+          <TrendingUp className="w-4 h-4 text-violet-500" />
+          Shift-wise Employee Count
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
-              <tr className="bg-muted/30 border-b">
-                {/* Fixed First Column */}
+              <tr className="bg-muted/30 border-b text-center">
                 <th className="px-4 py-3 text-left font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r w-48">
                   Door Name
                 </th>
 
-                {/* Dynamic Shift Columns */}
+                {/* Dynamic Shift Columns: SH_A, SH_B, etc. */}
                 {shifts.map((shift) => (
                   <th
                     key={shift.id}
-                    className="px-4 py-3 text-center font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r min-w-[100px]"
+                    className="px-4 py-3 text-center font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r min-w-[80px]"
                   >
                     {shift.name}
                   </th>
                 ))}
 
-                {/* Last Total Column */}
                 <th className="px-4 py-3 text-center font-bold text-[10px] uppercase tracking-wider text-blue-600 bg-blue-50/30 dark:bg-blue-900/10 min-w-[100px]">
                   Total Emp
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {doors.map((door) => {
-                let doorTotal = 0;
-
-                return (
-                  <tr
-                    key={door.id}
-                    className="hover:bg-muted/10 transition-colors"
-                  >
+              {shiftStats.length > 0 ? (
+                shiftStats.map((row: any, idx: number) => (
+                  <tr key={idx} className="hover:bg-muted/10 transition-colors">
                     <td className="px-4 py-3 font-medium border-r bg-muted/5">
-                      {door.name}
+                      {row.doorName}
                     </td>
 
-                    {/* Har shift ke liye count dikhayenge */}
+                    {/* API keys match shift names (e.g., row["SH_A"]) */}
                     {shifts.map((shift) => {
-                      // Stats array se matching door aur shift ka count nikalna
-                      const count =
-                        shiftStats?.find(
-                          (s) => s.doorId === door.id && s.shiftId === shift.id,
-                        )?.count || 0;
-
-                      doorTotal += count;
-
+                      const count = row[shift.name] ?? 0; // null/undefined ke liye 0
                       return (
                         <td
                           key={shift.id}
@@ -392,13 +394,18 @@ function ShiftWiseEmpCount({
                       );
                     })}
 
-                    {/* Row ka total (Total Emp in all shifts for this door) */}
                     <td className="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50/10">
-                      {doorTotal}
+                      {row.totalEmp}
                     </td>
                   </tr>
-                );
-              })}
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={shifts.length + 2} className="p-10 text-center text-muted-foreground">
+                    No records found for {selectedDate}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -406,4 +413,3 @@ function ShiftWiseEmpCount({
     </Card>
   );
 }
-

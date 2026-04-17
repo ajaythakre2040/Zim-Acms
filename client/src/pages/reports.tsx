@@ -575,60 +575,128 @@ function DoorCountTable({ data }: { data: any[] }) {
 }
 
 // Replacement for CefaloReportTable
+// function LockoutReportTable({ data }: { data: any[] }) {
+//   return (
+//     <div className="overflow-x-auto">
+//       <table className="w-full text-xs">
+//         <thead>
+//           <tr className="border-b bg-muted/30">
+//             <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider">
+//               Employee
+//             </th>
+//             <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider">
+//               Cabin / Door
+//             </th>
+//             <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider">
+//               Status
+//             </th>
+//             <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider">
+//               Expiry Time
+//             </th>
+//           </tr>
+//         </thead>
+//         <tbody>
+//           {data.map((row, i) => (
+//             <tr
+//               key={i}
+//               className="border-b border-border/40 hover:bg-muted/20 transition-colors"
+//             >
+//               <td className="p-4">
+//                 <div className="font-bold text-sm">{row.employeeName}</div>
+//                 <div className="text-[10px] text-muted-foreground">
+//                   {row.employeeCode}
+//                 </div>
+//               </td>
+//               <td className="p-4 font-semibold text-slate-700">
+//                 {row.doorName}
+//               </td>
+//               <td className="p-4 text-center">
+//                 {row.status === "active" ? (
+//                   <Badge className="bg-rose-500 hover:bg-rose-600 border-none text-[10px] px-3">
+//                     🔴 ACTIVE
+//                   </Badge>
+//                 ) : (
+//                   <Badge
+//                     variant="outline"
+//                     className="text-muted-foreground text-[10px] px-3"
+//                   >
+//                     Inactive
+//                   </Badge>
+//                 )}
+//               </td>
+//               <td className="p-4 text-center font-mono text-muted-foreground">
+//                 {row.lockoutExpiry ? formatDateTime(row.lockoutExpiry) : "-"}
+//               </td>
+//             </tr>
+//           ))}
+//         </tbody>
+//       </table>
+//     </div>
+//   );
+// }
 function LockoutReportTable({ data }: { data: any[] }) {
   return (
-    <div className="overflow-x-auto">
+    // ✅ Scroll bar aur height yahan fix ki hai
+    <div className="relative overflow-x-auto overflow-y-auto max-h-[450px] scrollbar-thin scrollbar-thumb-muted-foreground/20">
       <table className="w-full text-xs">
-        <thead>
-          <tr className="border-b bg-muted/30">
-            <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider">
+        <thead className="sticky top-0 z-10"> {/* ✅ Sticky Header add kiya hai */}
+          <tr className="border-b bg-white dark:bg-background"> {/* Background dena zaruri hai sticky ke liye */}
+            <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
               Employee
             </th>
-            <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider">
+            <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
               Cabin / Door
             </th>
-            <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider">
+            <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
               Status
             </th>
-            <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider">
+            <th className="text-center p-4 font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
               Expiry Time
             </th>
           </tr>
         </thead>
-        <tbody>
-          {data.map((row, i) => (
-            <tr
-              key={i}
-              className="border-b border-border/40 hover:bg-muted/20 transition-colors"
-            >
-              <td className="p-4">
-                <div className="font-bold text-sm">{row.employeeName}</div>
-                <div className="text-[10px] text-muted-foreground">
-                  {row.employeeCode}
-                </div>
-              </td>
-              <td className="p-4 font-semibold text-slate-700">
-                {row.doorName}
-              </td>
-              <td className="p-4 text-center">
-                {row.status === "active" ? (
-                  <Badge className="bg-rose-500 hover:bg-rose-600 border-none text-[10px] px-3">
-                    🔴 ACTIVE
-                  </Badge>
-                ) : (
-                  <Badge
-                    variant="outline"
-                    className="text-muted-foreground text-[10px] px-3"
-                  >
-                    Inactive
-                  </Badge>
-                )}
-              </td>
-              <td className="p-4 text-center font-mono text-muted-foreground">
-                {row.lockoutExpiry ? formatDateTime(row.lockoutExpiry) : "-"}
+        <tbody className="divide-y">
+          {data.length > 0 ? (
+            data.map((row, i) => (
+              <tr
+                key={i}
+                className="border-b border-border/40 hover:bg-muted/20 transition-colors"
+              >
+                <td className="p-4">
+                  <div className="font-bold text-sm">{row.employeeName}</div>
+                  <div className="text-[10px] text-muted-foreground">
+                    {row.employeeCode}
+                  </div>
+                </td>
+                <td className="p-4 font-semibold text-slate-700">
+                  {row.doorName}
+                </td>
+                <td className="p-4 text-center">
+                  {row.status === "active" ? (
+                    <Badge className="bg-rose-500 hover:bg-rose-600 border-none text-[10px] px-3">
+                      🔴 ACTIVE
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="text-muted-foreground text-[10px] px-3"
+                    >
+                      Inactive
+                    </Badge>
+                  )}
+                </td>
+                <td className="p-4 text-center font-mono text-muted-foreground">
+                  {row.lockoutExpiry ? formatDateTime(row.lockoutExpiry) : "-"}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan={4} className="p-8 text-center text-muted-foreground">
+                No lockout records found.
               </td>
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
     </div>
@@ -685,8 +753,8 @@ export default function ReportsPage() {
               setAppliedFilters({});
             }}
             className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
-                ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
-                : "bg-card hover:bg-muted/50"
+              ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
+              : "bg-card hover:bg-muted/50"
               }`}
           >
             <rt.icon className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`} />
