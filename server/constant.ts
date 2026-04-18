@@ -6,11 +6,11 @@ export const EXPECTED_WORKING_HRS = 9;
 // In values ko backend generate karega aur frontend filter karega
 export const ATTENDANCE_STATUS = {
   PRESENT: "present",
-  LATE: "late",
+  // LATE: "late",
   ABSENT: "absent",
-  HALF_DAY: "half_day",
-  ON_LEAVE: "on_leave",
-  SINGLE_PUNCH: "single_punch" // Optional: Agar user ne out nahi kiya
+  // HALF_DAY: "half_day",
+  // ON_LEAVE: "on_leave",
+  // SINGLE_PUNCH: "single_punch" // Optional: Agar user ne out nahi kiya
 };
 
 export const MAIN_GATE_SYNC = {
