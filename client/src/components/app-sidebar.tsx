@@ -89,6 +89,14 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
+    label: "Automation",
+    color: "text-orange-400",
+    bgColor: "bg-orange-500/15",
+    items: [
+      { title: "Cron Master", url: "/cron-master", icon: Timer, iconColor: "text-orange-400" },
+    ],
+  },
+  {
     label: "Infrastructure",
     color: "text-emerald-400",
     bgColor: "bg-emerald-500/15",

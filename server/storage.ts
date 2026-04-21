@@ -1396,28 +1396,100 @@ export class DatabaseStorage implements IStorage {
       offlineDevices: Math.max(0, devicesCount.count - onlineCount.count)
     };
   }
+  // async getDoorWiseStats(date: string) {
+  //   const [totalPeopleResult] = await db.select({
+  //     count: sql<number>`count(*)`
+  //   }).from(people);
+  //   const totalManpower = Number(totalPeopleResult.count) || 0;
+  //   const mappings = await db.select({
+  //     doorId: doors.id,
+  //     doorName: doors.name,
+  //     doorCode: doors.code,
+  //     inIds: doorDevices.inDeviceIds,
+  //     outIds: doorDevices.outDeviceIds,
+  //     isMainGate: doorDevices.isMainGate,
+  //   })
+  //     .from(doors)
+  //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+  //   const allDeviceIds = mappings.flatMap(m => [...(m.inIds || []), ...(m.outIds || [])]);
+  //   if (allDeviceIds.length === 0) {
+  //     return { doorStats: [], totalPresent: 0, totalAbsent: totalManpower, totalManpower };
+  //   }
+  //   const msSqlData = await mssqlPool.request()
+  //     .input('filterDate', date)
+  //     .query(`
+  //     SELECT 
+  //       DeviceId, 
+  //       Direction,
+  //       COUNT(DISTINCT EmployeeCode) as uniqueCount 
+  //     FROM DeviceLogs 
+  //     WHERE CAST(LogDate AS DATE) = @filterDate
+  //     AND DeviceId IN (${allDeviceIds.join(',')})
+  //     GROUP BY DeviceId, Direction
+  //   `);
+  //   const logMap = msSqlData.recordset;
+  //   let calculatedPresent = 0;
+  //   const doorStats = mappings.map(m => {
+  //     const inCount = (m.inIds || []).reduce((acc, id) => {
+  //       const found = logMap.find(l => l.DeviceId === id && l.Direction === 'IN');
+  //       return acc + (found?.uniqueCount || 0);
+  //     }, 0);
+  //     const outCount = (m.outIds || []).reduce((acc, id) => {
+  //       const found = logMap.find(l => l.DeviceId === id && l.Direction === 'OUT');
+  //       return acc + (found?.uniqueCount || 0);
+  //     }, 0);
+  //     if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
+  //       calculatedPresent += inCount;
+  //     }
+  //     return {
+  //       doorName: m.doorName,
+  //       inCount,
+  //       outCount,
+  //       balance: Math.max(0, inCount - outCount)
+  //     };
+  //   });
+  //   return {
+  //     doorStats,
+  //     totalPresent: calculatedPresent,
+  //     totalAbsent: Math.max(0, totalManpower - calculatedPresent),
+  //     totalManpower
+  //   };
+  // }
   async getDoorWiseStats(date: string) {
-    const [totalPeopleResult] = await db.select({
-      count: sql<number>`count(*)`
-    }).from(people);
-    const totalManpower = Number(totalPeopleResult.count) || 0;
-    const mappings = await db.select({
-      doorId: doors.id,
-      doorName: doors.name,
-      doorCode: doors.code,
-      inIds: doorDevices.inDeviceIds,
-      outIds: doorDevices.outDeviceIds,
-      isMainGate: doorDevices.isMainGate,
-    })
-      .from(doors)
-      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-    const allDeviceIds = mappings.flatMap(m => [...(m.inIds || []), ...(m.outIds || [])]);
-    if (allDeviceIds.length === 0) {
-      return { doorStats: [], totalPresent: 0, totalAbsent: totalManpower, totalManpower };
-    }
-    const msSqlData = await mssqlPool.request()
-      .input('filterDate', date)
-      .query(`
+  const [totalPeopleResult] = await db.select({
+    count: sql<number>`count(*)`
+  }).from(people);
+  
+  const totalManpower = Number(totalPeopleResult.count) || 0;
+
+  const mappings = await db.select({
+    doorId: doors.id,
+    doorName: doors.name,
+    doorCode: doors.code,
+    inIds: doorDevices.inDeviceIds,
+    outIds: doorDevices.outDeviceIds,
+    isMainGate: doorDevices.isMainGate,
+  })
+    .from(doors)
+    .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
+  const allDeviceIds = mappings.flatMap(m => [...(m.inIds || []), ...(m.outIds || [])]);
+
+  if (allDeviceIds.length === 0) {
+    return { 
+      doorStats: [], 
+      mainGateIn: 0, 
+      mainGateOut: 0, 
+      mainGateBal: 0, 
+      totalPresent: 0, 
+      totalAbsent: totalManpower, 
+      totalManpower 
+    };
+  }
+
+  const msSqlData = await mssqlPool.request()
+    .input('filterDate', date)
+    .query(`
       SELECT 
         DeviceId, 
         Direction,
@@ -1427,34 +1499,46 @@ export class DatabaseStorage implements IStorage {
       AND DeviceId IN (${allDeviceIds.join(',')})
       GROUP BY DeviceId, Direction
     `);
-    const logMap = msSqlData.recordset;
-    let calculatedPresent = 0;
-    const doorStats = mappings.map(m => {
-      const inCount = (m.inIds || []).reduce((acc, id) => {
-        const found = logMap.find(l => l.DeviceId === id && l.Direction === 'IN');
-        return acc + (found?.uniqueCount || 0);
-      }, 0);
-      const outCount = (m.outIds || []).reduce((acc, id) => {
-        const found = logMap.find(l => l.DeviceId === id && l.Direction === 'OUT');
-        return acc + (found?.uniqueCount || 0);
-      }, 0);
-      if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
-        calculatedPresent += inCount;
-      }
-      return {
-        doorName: m.doorName,
-        inCount,
-        outCount,
-        balance: Math.max(0, inCount - outCount)
-      };
-    });
+
+  const logMap = msSqlData.recordset;
+
+  let mainGateIn = 0;
+  let mainGateOut = 0;
+
+  const doorStats = mappings.map(m => {
+    const inCount = (m.inIds || []).reduce((acc, id) => {
+      const found = logMap.find(l => l.DeviceId === id && l.Direction === 'IN');
+      return acc + (found?.uniqueCount || 0);
+    }, 0);
+
+    const outCount = (m.outIds || []).reduce((acc, id) => {
+      const found = logMap.find(l => l.DeviceId === id && l.Direction === 'OUT');
+      return acc + (found?.uniqueCount || 0);
+    }, 0);
+
+    if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
+      mainGateIn = inCount;
+      mainGateOut = outCount;
+    }
+
     return {
-      doorStats,
-      totalPresent: calculatedPresent,
-      totalAbsent: Math.max(0, totalManpower - calculatedPresent),
-      totalManpower
+      doorName: m.doorName,
+      inCount,
+      outCount,
+      balance: Math.max(0, inCount - outCount)
     };
-  }
+  });
+
+  return {
+    doorStats,
+    mainGateIn,
+    mainGateOut,
+    mainGateBal: Math.max(0, mainGateIn - mainGateOut),
+    totalPresent: mainGateIn,
+    totalAbsent: Math.max(0, totalManpower - mainGateIn),
+    totalManpower
+  };
+}
   async getShiftWiseStats(date: string): Promise<any[]> {
     try {
       const [allShifts, allDoors] = await Promise.all([
