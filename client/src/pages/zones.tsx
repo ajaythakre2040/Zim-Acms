@@ -470,30 +470,12 @@ export default function ZonesDoorsPage() {
         description="Manage security zones and access points"
       />
 
-      <Tabs defaultValue="zones" className="space-y-4">
+      <Tabs defaultValue="doors" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="zones">Zones</TabsTrigger>
           <TabsTrigger value="doors">Doors</TabsTrigger>
+          <TabsTrigger value="zones">Zones</TabsTrigger>
         </TabsList>
-        <TabsContent value="zones">
-          <div className="mb-4 flex justify-end">
-            <Button
-              onClick={() => {
-                setEditingZone(null);
-                setZoneDialog(true);
-              }}
-            >
-              <Plus className="w-4 h-4 mr-1" /> Add Zone
-            </Button>
-          </div>
-          <DataTable
-            columns={zoneColumns}
-            data={zoneCrud.data}
-            isLoading={zoneCrud.isLoading}
-            searchable
-            searchKeys={["name", "code"]}
-          />
-        </TabsContent>
+        
         <TabsContent value="doors">
           <div className="mb-4 flex justify-end">
             <Button
@@ -509,6 +491,25 @@ export default function ZonesDoorsPage() {
             columns={doorColumns}
             data={doorCrud.data}
             isLoading={doorCrud.isLoading}
+            searchable
+            searchKeys={["name", "code"]}
+          />
+        </TabsContent>
+        <TabsContent value="zones">
+          <div className="mb-4 flex justify-end">
+            <Button
+              onClick={() => {
+                setEditingZone(null);
+                setZoneDialog(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-1" /> Add Zone
+            </Button>
+          </div>
+          <DataTable
+            columns={zoneColumns}
+            data={zoneCrud.data}
+            isLoading={zoneCrud.isLoading}
             searchable
             searchKeys={["name", "code"]}
           />

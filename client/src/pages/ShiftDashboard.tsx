@@ -3,6 +3,7 @@ import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TrendingUp, Clock, CalendarCheck } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 export default function ShiftDashboard() {
     const REFRESH_MS = 5000;
@@ -30,19 +31,6 @@ export default function ShiftDashboard() {
                 />
             </div>
 
-            {/* Info Card */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="bg-violet-50/50 border-violet-100 dark:bg-violet-950/20 dark:border-violet-900/50">
-                    <CardContent className="p-4 flex items-center gap-4">
-                        <CalendarCheck className="w-8 h-8 text-violet-600" />
-                        <div>
-                            <p className="text-sm text-violet-600 font-medium italic">Reporting Date</p>
-                            <p className="text-xl font-bold">{selectedDate}</p>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
-
             {/* Table Component Call */}
             <ShiftWiseEmpCount selectedDate={selectedDate} refreshInterval={REFRESH_MS} />
         </div>
@@ -57,6 +45,17 @@ interface ShiftWiseEmpCountProps {
 }
 
 export function ShiftWiseEmpCount({ selectedDate, refreshInterval }: ShiftWiseEmpCountProps) {
+
+    const COLORS = [
+  "#6366f1",
+  "#22c55e",
+  "#f59e0b",
+  "#ef4444",
+  "#3b82f6",
+  "#a855f7",
+  "#14b8a6",
+];
+    
     // 1. Fetch Shift Names (SH_A, SH_B, etc.)
     const { data: shifts = [] } = useQuery<any[]>({
         queryKey: ["/api/shifts"],
@@ -74,59 +73,157 @@ export function ShiftWiseEmpCount({ selectedDate, refreshInterval }: ShiftWiseEm
     });
 
     if (isLoading) return <Skeleton className="h-64 w-full rounded-xl" />;
+    const chartData = shifts.map((shift) => {
+  const total = shiftStats.reduce((sum: number, row: any) => {
+    return sum + (row[shift.name] || 0);
+  }, 0);
 
+  return {
+    name: shift.name,
+    value: total,
+  };
+});
     return (
-        <Card className="border-none shadow-sm ring-1 ring-border overflow-hidden">
-            <CardHeader className="pb-3 border-b bg-muted/10">
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-violet-500" />
-                    Shift-wise Employee Count
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm border-collapse">
-                        <thead>
-                            <tr className="bg-muted/30 border-b">
-                                <th className="px-4 py-3 text-left font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r">
-                                    Door Name
-                                </th>
-                                {shifts.map((shift) => (
-                                    <th key={shift.id} className="px-4 py-3 text-center font-bold text-[10px] uppercase tracking-wider text-muted-foreground border-r">
-                                        {shift.name}
-                                    </th>
-                                ))}
-                                <th className="px-4 py-3 text-center font-bold text-[10px] uppercase tracking-wider text-blue-600 bg-blue-50/30">
-                                    Total Emp
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y">
-                            {shiftStats.length > 0 ? (
-                                shiftStats.map((row: any, idx: number) => (
-                                    <tr key={idx} className="hover:bg-muted/5 transition-colors">
-                                        <td className="px-4 py-3 font-medium border-r bg-muted/5">{row.doorName}</td>
-                                        {shifts.map((shift) => (
-                                            <td key={shift.id} className="px-4 py-3 text-center border-r font-semibold">
-                                                {row[shift.name] ?? 0}
-                                            </td>
-                                        ))}
-                                        <td className="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50/10">
-                                            {row.totalEmp}
-                                        </td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={shifts.length + 2} className="p-10 text-center text-muted-foreground">
-                                        No records found for {selectedDate}
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-            </CardContent>
-        </Card>
-    );
+  <div className="space-y-6">
+
+    {/* 🔹 TABLE CARD (same code inside) */}
+    <Card className="border-none shadow-sm ring-1 ring-border overflow-hidden">
+      
+      <CardHeader className="pb-3 border-b bg-muted/10">
+        <CardTitle className="text-sm font-bold flex items-center gap-2">
+          <TrendingUp className="w-4 h-4 text-violet-500" />
+          Shift-wise Employee Count
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-muted/30 border-b">
+                <th className="px-4 py-3 text-left font-bold text-[10px] uppercase border-r">
+                  Door Name
+                </th>
+
+                {shifts.map((shift) => (
+                  <th
+                    key={shift.id}
+                    className="px-4 py-3 text-center font-bold text-[10px] uppercase border-r"
+                  >
+                    {shift.name}
+                  </th>
+                ))}
+
+                <th className="px-4 py-3 text-center font-bold text-[10px] uppercase text-blue-600 bg-blue-50/30">
+                  Total Emp
+                </th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y">
+              {shiftStats.length > 0 ? (
+                shiftStats.map((row: any, idx: number) => (
+                  <tr key={idx} className="hover:bg-muted/5">
+                    <td className="px-4 py-3 font-medium border-r bg-muted/5">
+                      {row.doorName}
+                    </td>
+
+                    {shifts.map((shift) => (
+                      <td key={shift.id} className="px-4 py-3 text-center border-r font-semibold">
+                        {row[shift.name] ?? 0}
+                      </td>
+                    ))}
+
+                    <td className="px-4 py-3 text-center font-bold text-blue-600 bg-blue-50/10">
+                      {row.totalEmp}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={shifts.length + 2} className="p-10 text-center text-muted-foreground">
+                    No records found for {selectedDate}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+
+    </Card>
+
+    {/* 🔥 CHARTS SECTION (separate from table) */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      {/* BAR CHART */}
+      <Card className="p-4 shadow-sm ring-1 ring-border">
+        <p className="text-sm font-bold mb-2">Shift-wise Bar</p>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+  data={chartData}
+  margin={{ top: 10, right: 20, left: 0, bottom: 40 }} // 🔥 important
+>
+  <XAxis
+    dataKey="name"
+    angle={-25}           // 🔥 tilt labels
+    textAnchor="end"
+    interval={0}          // 🔥 show all labels
+    height={60}           // 🔥 space for labels
+  />
+  <YAxis />
+  <Tooltip />
+<Bar dataKey="value" radius={[4, 4, 0, 0]}>
+  {chartData.map((entry, index) => (
+    <Cell
+      key={`cell-${index}`}
+      fill={COLORS[index % COLORS.length]}
+    />
+  ))}
+</Bar>
+</BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+      {/* PIE CHART */}
+      <Card className="p-4 shadow-sm ring-1 ring-border">
+        <p className="text-sm font-bold mb-2">Shift Distribution</p>
+        <div className="h-[280px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+  <Pie
+    data={chartData}
+    dataKey="value"
+    nameKey="name"
+    outerRadius={80}
+    label
+  >
+    {chartData.map((entry, index) => (
+    <Cell
+      key={`cell-${index}`}
+      fill={COLORS[index % COLORS.length]}
+    />
+  ))}
+  </Pie>
+
+  <Tooltip />
+
+  {/* 🔥 FIXED LEGEND */}
+  <Legend
+    layout="horizontal"
+    verticalAlign="bottom"
+    align="center"
+    wrapperStyle={{ fontSize: "12px" }}
+  />
+</PieChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
+
+    </div>
+
+  </div>
+);
 }

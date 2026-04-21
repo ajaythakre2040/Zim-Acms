@@ -1501,28 +1501,45 @@ export class DatabaseStorage implements IStorage {
         allShifts.forEach(s => { if (s.name) stats[d.name][s.name] = 0; });
         d.inIds?.forEach(id => { deviceToDoor[id] = d.name!; });
       });
+      const counted = new Set<string>();
       for (const log of rawLogs) {
-        const doorName = deviceToDoor[log.DeviceId];
-        if (!doorName) continue;
-        const [pH, pM, pS] = log.LogTime.split(':');
-        const punchTime = dayjs().set('hour', parseInt(pH)).set('minute', parseInt(pM)).set('second', parseInt(pS));
-        const displayTime = log.LogTime;
-        let matched = false;
-        for (const win of windows) {
-          if (punchTime.isBetween(win.start, win.end, null, '[]')) {
-            stats[doorName][win.name!]++;
-            stats[doorName].totalEmp++;
-            matched = true;
-            break;
-          }
-        }
+  const doorName = deviceToDoor[log.DeviceId];
+  if (!doorName) continue;
+
+  const [pH, pM, pS] = log.LogTime.split(':');
+  const punchTime = dayjs()
+    .set('hour', parseInt(pH))
+    .set('minute', parseInt(pM))
+    .set('second', parseInt(pS));
+
+  for (const win of windows) {
+    if (punchTime.isBetween(win.start, win.end, null, '[]')) {
+
+      // 🔥 Unique key
+      const key = `${doorName}_${win.name}_${log.EmployeeCode}`;
+
+      // 👉 Agar already count ho chuka hai → skip
+      if (counted.has(key)) {
+        continue;
       }
+
+      // 👉 First time hai → count karo
+      counted.add(key);
+
+      stats[doorName][win.name!]++;
+      stats[doorName].totalEmp++;
+
+      break;
+    }
+  }
+}
       return Object.values(stats);
     } catch (error) {
       console.error("IST_STATS_ERROR:", error);
       throw error;
     }
   }
+
   async getRoles(): Promise<any[]> {
     const allRoles = await db.select().from(roles).orderBy(desc(roles.id));
     const allDoors = await db.select({

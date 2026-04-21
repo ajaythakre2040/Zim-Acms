@@ -63,15 +63,15 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "People",
+    label: "Employees",
     color: "text-cyan-400",
     bgColor: "bg-cyan-500/15",
     items: [
-      { title: "People", url: "/people", icon: Users, iconColor: "text-cyan-400" },
+      { title: "Employees", url: "/people", icon: Users, iconColor: "text-cyan-400" },
     ],
   },
   {
-    label: "Time & Attendance",
+    label: "Time & Holidays",
     color: "text-amber-400",
     bgColor: "bg-amber-500/15",
     items: [
