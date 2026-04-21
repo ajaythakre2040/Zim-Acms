@@ -79,6 +79,15 @@ const navGroups: NavGroup[] = [
       { title: "Holidays", url: "/holidays", icon: Calendar, iconColor: "text-yellow-400" },
     ],
   },
+
+  {
+    label: "Reports",
+    color: "text-pink-400",
+    bgColor: "bg-pink-500/15",
+    items: [
+      { title: "Reports", url: "/reports", icon: FileText, iconColor: "text-pink-400" },
+    ],
+  },
   {
     label: "Infrastructure",
     color: "text-emerald-400",

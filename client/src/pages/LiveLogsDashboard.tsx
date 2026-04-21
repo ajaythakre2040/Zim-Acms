@@ -60,11 +60,12 @@ export default function LiveLogsDashboard() {
                         <table className="w-full text-sm">
                             <thead className="bg-muted/30 border-b">
                                 <tr>
-                                    <th className="px-4 py-3 text-left">Timestamp</th>
-                                    <th className="px-4 py-3 text-left">Employee</th>
-                                    <th className="px-4 py-3 text-left">Machine / Door</th>
-                                    <th className="px-4 py-3 text-left">Event</th>
-                                    <th className="px-4 py-3 text-center">Status</th>
+                                    <th className="px-4 py-3 text-left">Employee Name</th>
+                                    <th className="px-4 py-3 text-left">Employee Code</th>
+                                    <th className="px-4 py-3 text-left">Door Name / Door</th>
+                                    <th className="px-4 py-3 text-left">Device Name</th>
+                                    <th className="px-4 py-3 text-center">Direction</th>
+                                    <th className="px-4 py-3 text-center">Log Date</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">

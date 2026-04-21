@@ -26,7 +26,6 @@ import {
 } from "lucide-react";
 import { type Person } from "@shared/schema";
 
-
 // 1. Updated Report Configuration
 const reportTypes = [
   {
@@ -37,14 +36,22 @@ const reportTypes = [
     bgColor: "bg-blue-50 dark:bg-blue-950/40",
     description: "Daily attendance records with clock in/out times",
   },
-  // {
-  //   id: "daily performance",
-  //   label: "Daily Performance",
-  //   icon: Clock,
-  //   color: "text-blue-500",
-  //   bgColor: "bg-blue-50 dark:bg-blue-950/40",
-  //   description: "Daily Performance records of Employees",
-  // },
+  {
+    id: "daily performance",
+    label: "Daily Performance",
+    icon: Clock,
+    color: "text-blue-500",
+    bgColor: "bg-blue-50 dark:bg-blue-950/40",
+    description: "Daily Performance records of Employees",
+  },
+  {
+  id: "daily-efficiency", // ✅ FIX
+  label: "Daily Efficiency",
+  icon: Clock,
+  color: "text-blue-500",
+  bgColor: "bg-blue-50 dark:bg-blue-950/40",
+  description: "Daily Efficiency records of Employees",
+},
   {
     id: "cabin-lockout", // Cefalo replaced with Lockout
     label: "Cabin Lockout",
@@ -77,11 +84,10 @@ function statusBadge(status: string) {
 }
 
 const filterConfig: Record<string, string[]> = {
-  attendance: ["dateFrom", "dateTo", "employeeCode", "status"],
-  // 🔥 Yahan personId ko employeeCode kar diya
-  "daily performance": ["dateFrom", "dateTo", "employeeCode", "deviceId", "status"],
-  "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "doorId", "status"],
-  "door-count": ["dateFrom", "dateTo"],
+  attendance: ["dateFrom", "dateTo", "personId", "status"],
+  "daily performance": ["dateFrom", "dateTo", "personId", "deviceId", "status"],
+  "daily efficiency": ["dateFrom", "dateTo", "personId", "deviceId", "status"],
+  "cabin-lockout": ["dateFrom", "dateTo", "personId", "deviceId"],
 };
 
 // 2. Filter Component
@@ -114,10 +120,8 @@ function ReportFilters({
         </div>
 
         <div className="flex flex-col lg:flex-row gap-4 items-end">
-
           {/* 🔥 GRID WRAPPER IMPORTANT */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 flex-1">
-
             {/* FROM DATE */}
             {allowed.includes("dateFrom") && (
               <div className="space-y-1">
@@ -150,18 +154,16 @@ function ReportFilters({
               </div>
             )}
 
-            {/* EMPLOYEE / PERSON FILTER */}
-            {(allowed.includes("personId") || allowed.includes("employeeCode")) && (
+            {/* EMPLOYEE */}
+            {allowed.includes("personId") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
                   EMPLOYEE
                 </Label>
                 <Select
-                  // 🔥 Value ab filters.employeeCode se aayegi
-                  value={filters.employeeCode || filters.personId || "all"}
+                  value={filters.personId || "all"}
                   onValueChange={(v) =>
-                    // 🔥 Key hamesha employeeCode hi jayegi
-                    setFilters({ ...filters, employeeCode: v === "all" ? "" : v })
+                    setFilters({ ...filters, personId: v === "all" ? "" : v })
                   }
                 >
                   <SelectTrigger>
@@ -174,7 +176,8 @@ function ReportFilters({
                         key={p.id}
                         value={String(p.employeeCode || p.id)}
                       >
-                        {p.employeeName} {p.employeeCode ? `(${p.employeeCode})` : ""}
+                        {p.employeeName}{" "}
+                        {p.employeeCode ? `(${p.employeeCode})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -212,7 +215,7 @@ function ReportFilters({
               </div>
             )}
 
-            {/* STATUS FILTER - DYNAMIC BASED ON REPORT TYPE */}
+            {/* STATUS */}
             {allowed.includes("status") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
@@ -229,23 +232,8 @@ function ReportFilters({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-
-                    {/* 1. Agar Attendance ya Daily Performance hai */}
-                    {(activeReport === "attendance" || activeReport === "daily performance") && (
-                      <>
-                        <SelectItem value="present">Present</SelectItem>
-                        <SelectItem value="absent">Absent</SelectItem>
-                      
-                      </>
-                    )}
-
-                    {/* 2. Agar Cabin Lockout hai */}
-                    {activeReport === "cabin-lockout" && (
-                      <>
-                        <SelectItem value="active">Active</SelectItem>
-                        <SelectItem value="expired">Inactive (Expired)</SelectItem>
-                      </>
-                    )}
+                    <SelectItem value="absent">Absent</SelectItem>
+                    <SelectItem value="present">Present</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -272,7 +260,6 @@ function ReportFilters({
               Clear
             </Button>
           </div>
-
         </div>
       </CardContent>
     </Card>
@@ -524,7 +511,9 @@ function DaliyPerformanceOvertimeSummaryTable({ data }: { data: any[] }) {
               </th>
             ))}
 
-            <th className="p-2 text-center bg-primary/5 font-bold">Total Hrs</th>
+            <th className="p-2 text-center bg-primary/5 font-bold">
+              Total Hrs
+            </th>
           </tr>
         </thead>
 
@@ -542,11 +531,22 @@ function DaliyPerformanceOvertimeSummaryTable({ data }: { data: any[] }) {
                     const status = emp.days[day];
 
                     return (
-                      <td key={i} className="text-center p-1 border-x text-[10px]">
-                        {status === "present" && <span className="text-emerald-600 font-bold">P</span>}
-                        {status === "absent" && <span className="text-rose-600 font-bold">A</span>}
-                        {status === "off" && <span className="text-amber-600 font-bold">O</span>}
-                        {!status && <span className="text-muted-foreground/30">-</span>}
+                      <td
+                        key={i}
+                        className="text-center p-1 border-x text-[10px]"
+                      >
+                        {status === "present" && (
+                          <span className="text-emerald-600 font-bold">P</span>
+                        )}
+                        {status === "absent" && (
+                          <span className="text-rose-600 font-bold">A</span>
+                        )}
+                        {status === "off" && (
+                          <span className="text-amber-600 font-bold">O</span>
+                        )}
+                        {!status && (
+                          <span className="text-muted-foreground/30">-</span>
+                        )}
                       </td>
                     );
                   })}
@@ -560,7 +560,10 @@ function DaliyPerformanceOvertimeSummaryTable({ data }: { data: any[] }) {
             })
           ) : (
             <tr>
-              <td colSpan={34} className="text-center py-6 text-muted-foreground">
+              <td
+                colSpan={34}
+                className="text-center py-6 text-muted-foreground"
+              >
                 No summary data available
               </td>
             </tr>
@@ -571,14 +574,96 @@ function DaliyPerformanceOvertimeSummaryTable({ data }: { data: any[] }) {
   );
 }
 
+function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
+  const safeData = Array.isArray(data) ? data : [];
+
+  return (
+    <div className="overflow-x-auto border rounded-md">
+      <table className="w-full text-xs">
+        {/* 🔥 HEADER */}
+        <thead>
+          <tr className="border-b bg-muted/30">
+            <th className="text-left p-3 font-medium">Employee Code</th>
+            <th className="text-left p-3 font-medium">Employee Name</th>
+
+            {/* 🔥 DYNAMIC DOORS */}
+            {doors.map((d, i) => (
+              <>
+                <th key={`in-${i}`} className="text-center p-3 font-medium">
+                  {d.DeviceName || d.name} IN
+                </th>
+                <th key={`out-${i}`} className="text-center p-3 font-medium">
+                  {d.DeviceName || d.name} OUT
+                </th>
+              </>
+            ))}
+
+            <th className="text-center p-3 font-medium">Total Time</th>
+            <th className="text-center p-3 font-medium">Productive Time</th>
+            <th className="text-center p-3 font-medium">Efficiency %</th>
+          </tr>
+        </thead>
+
+        {/* 🔥 BODY */}
+        <tbody>
+          {safeData.length > 0 ? (
+            safeData.map((r, i) => (
+              <tr key={i} className="border-b hover:bg-muted/20">
+                <td className="p-3">{r.employeeCode}</td>
+                <td className="p-3">{r.employeeName}</td>
+
+                {/* 🔥 DOOR DATA */}
+                {doors.map((d, j) => {
+                  const key = d.DeviceName || d.name;
+
+                  return (
+                    <>
+                      <td key={`in-${j}`} className="text-center p-3">
+                        {r?.doors?.[key]?.in || 0}
+                      </td>
+                      <td key={`out-${j}`} className="text-center p-3">
+                        {r?.doors?.[key]?.out || 0}
+                      </td>
+                    </>
+                  );
+                })}
+
+                <td className="text-center p-3">{r.totalTime || "-"}</td>
+
+                <td className="text-center p-3">{r.productiveTime || "-"}</td>
+
+                <td className="text-center p-3 font-semibold">
+                  {r.efficiency ? `${r.efficiency}%` : "-"}
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td
+                colSpan={doors.length * 2 + 5}
+                className="text-center py-6 text-muted-foreground"
+              >
+                No data available
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function LockoutReportTable({ data }: { data: any[] }) {
   return (
     // ✅ Scroll bar aur height yahan fix ki hai
     <div className="relative overflow-x-auto overflow-y-auto max-h-[450px] scrollbar-thin scrollbar-thumb-muted-foreground/20">
       <table className="w-full text-xs">
-        <thead className="sticky top-0 z-10"> {/* ✅ Sticky Header add kiya hai */}
-          <tr className="border-b bg-white dark:bg-background"> {/* Background dena zaruri hai sticky ke liye */}
+        <thead className="sticky top-0 z-10">
+          {" "}
+          {/* ✅ Sticky Header add kiya hai */}
+          <tr className="border-b bg-white dark:bg-background">
+            {" "}
+            {/* Background dena zaruri hai sticky ke liye */}
             <th className="text-left p-4 font-semibold text-muted-foreground uppercase tracking-wider bg-muted/30">
               Employee
             </th>
@@ -610,7 +695,6 @@ function LockoutReportTable({ data }: { data: any[] }) {
                   {row.doorName}
                 </td>
                 <td className="p-4 text-center">
-                  {/* Backend se "active" aa raha hai toh Red Badge, warna "expire" ya kuch aur toh Inactive */}
                   {row.status === "active" ? (
                     <Badge className="bg-rose-500 hover:bg-rose-600 border-none text-[10px] px-3">
                       🔴 ACTIVE
@@ -647,17 +731,21 @@ export default function ReportsPage() {
   const [activeReport, setActiveReport] = useState("attendance");
 
   // 🔥 PER REPORT FILTERS
-  const [filters, setFilters] = useState<Record<string, Record<string, string>>>({
-    attendance: { employeeCode: 'all', status: 'all' },
-    "daily performance": { employeeCode: 'all', status: 'all' },
-    "door-count": {},
-    "cabin-lockout": { employeeCode: 'all' },
-  });
-
-  const [appliedFilters, setAppliedFilters] = useState<Record<string, Record<string, string>>>({
+  const [filters, setFilters] = useState<
+    Record<string, Record<string, string>>
+  >({
     attendance: {},
     "daily performance": {},
-    "door-count": {},
+    "daily efficiency": {},
+    "cabin-lockout": {},
+  });
+
+  const [appliedFilters, setAppliedFilters] = useState<
+    Record<string, Record<string, string>>
+  >({
+    attendance: {},
+    "daily performance": {},
+    "daily efficiency": {},
     "cabin-lockout": {},
   });
 
@@ -692,20 +780,23 @@ export default function ReportsPage() {
   });
 
   // 🔥 UPDATED QUERY
-  const { data: reportData = [], isLoading, isFetching } = useQuery<any[]>({
+  const {
+    data: reportData = [],
+    isLoading,
+    isFetching,
+  } = useQuery<any[]>({
     queryKey: ["reports", activeReport, currentAppliedFilters],
     queryFn: async () => {
       const params = new URLSearchParams();
 
-      // Query function ke andar params set karte waqt ye check add karein
       Object.entries(currentAppliedFilters).forEach(([k, v]) => {
-        if (v && v !== "all" && k !== "_refresh") {
+        if (v && k !== "_refresh") {
           params.set(k, String(v));
         }
       });
 
       const res = await fetch(
-        `/api/reports/${activeReport}?${params.toString()}`
+        `/api/reports/${activeReport}?${params.toString()}`,
       );
 
       if (!res.ok) throw new Error("Fetch failed");
@@ -725,7 +816,9 @@ export default function ReportsPage() {
             <FileText className="w-6 h-6" />
           </div>
           <h1 className="text-2xl font-bold">Reports Center</h1>
-          {isFetching && <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />}
+          {isFetching && (
+            <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+          )}
         </div>
       </div>
 
@@ -737,12 +830,15 @@ export default function ReportsPage() {
             onClick={() => {
               setActiveReport(rt.id);
             }}
-            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
-              ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
-              : "bg-card hover:bg-muted/50"
-              }`}
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
+              activeReport === rt.id
+                ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
+                : "bg-card hover:bg-muted/50"
+            }`}
           >
-            <rt.icon className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`} />
+            <rt.icon
+              className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`}
+            />
             <span className="text-[10px] font-bold uppercase">{rt.label}</span>
           </button>
         ))}
@@ -773,14 +869,24 @@ export default function ReportsPage() {
             ))}
           </Card>
         ) : (
-          <div className={cn("space-y-6 transition-opacity", isFetching ? "opacity-70" : "opacity-100")}>
-
+          <div
+            className={cn(
+              "space-y-6 transition-opacity",
+              isFetching ? "opacity-70" : "opacity-100",
+            )}
+          >
             {/* 1. Attendance Report */}
             {activeReport === "attendance" && (
               <Card className="shadow-sm border">
                 <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
-                  <CardTitle className="text-sm font-semibold">Attendance Results ({reportData.length})</CardTitle>
-                  <Button size="sm" variant="outline" onClick={() => exportCSV("attendance", reportData)}>
+                  <CardTitle className="text-sm font-semibold">
+                    Attendance Results ({reportData.length})
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => exportCSV("attendance", reportData)}
+                  >
                     <Download className="w-4 h-4 mr-2" /> Export
                   </Button>
                 </CardHeader>
@@ -796,8 +902,16 @@ export default function ReportsPage() {
                 {/* A. Detail Table */}
                 <Card className="shadow-sm border">
                   <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
-                    <CardTitle className="text-sm font-semibold">Daily Performance Details</CardTitle>
-                    <Button size="sm" variant="outline" onClick={() => exportCSV("performance-detail", reportData)}>
+                    <CardTitle className="text-sm font-semibold">
+                      Daily Performance Details
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        exportCSV("performance-detail", reportData)
+                      }
+                    >
                       <Download className="w-4 h-4 mr-2" /> Export
                     </Button>
                   </CardHeader>
@@ -809,7 +923,9 @@ export default function ReportsPage() {
                 {/* B. Status Summary Table (P, A, O) */}
                 <Card className="shadow-sm border">
                   <CardHeader className="border-b py-3 px-4">
-                    <CardTitle className="text-sm font-semibold">Monthly Status Summary (1-31 Days)</CardTitle>
+                    <CardTitle className="text-sm font-semibold">
+                      Monthly Status Summary (1-31 Days)
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
                     <DaliyPerformanceSummaryTable data={reportData} />
@@ -819,7 +935,9 @@ export default function ReportsPage() {
                 {/* C. Overtime & Total Hrs Summary Table (Sabse Neeche) */}
                 <Card className="shadow-sm border">
                   <CardHeader className="border-b py-3 px-4">
-                    <CardTitle className="text-sm font-semibold">Performance Overtime & Hours Summary</CardTitle>
+                    <CardTitle className="text-sm font-semibold">
+                      Performance Overtime & Hours Summary
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="p-0">
                     <DaliyPerformanceOvertimeSummaryTable data={reportData} />
@@ -827,13 +945,39 @@ export default function ReportsPage() {
                 </Card>
               </div>
             )}
+            {/* 3. Daily Efficiency */}
+            {activeReport === "daily-efficiency" && (
+              <Card className="shadow-sm border">
+                <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
+                  <CardTitle className="text-sm font-semibold">
+                    Daily Efficiency Results ({reportData.length})
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => exportCSV("daily-efficiency", reportData)}
+                  >
+                    <Download className="w-4 h-4 mr-2" /> Export
+                  </Button>
+                </CardHeader>
 
+                <CardContent className="p-0">
+                  <DailyEfficiencyTable data={reportData} doors={doorData} />
+                </CardContent>
+              </Card>
+            )}
             {/* 4. Cabin Lockout */}
             {activeReport === "cabin-lockout" && (
               <Card className="shadow-sm border">
                 <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
-                  <CardTitle className="text-sm font-semibold">Lockout Results ({reportData.length})</CardTitle>
-                  <Button size="sm" variant="outline" onClick={() => exportCSV("lockout", reportData)}>
+                  <CardTitle className="text-sm font-semibold">
+                    Lockout Results ({reportData.length})
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => exportCSV("lockout", reportData)}
+                  >
                     <Download className="w-4 h-4 mr-2" /> Export
                   </Button>
                 </CardHeader>
