@@ -124,7 +124,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.get("/api/dashboard/attendance/door-wise-stats", async (req, res) => {
     try {
-     
+
       const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
       const doorStats = await storage.getDoorWiseStats(date);
       res.json(doorStats);
@@ -132,18 +132,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
-  try {
-    // dayjs() ki jagah standard JS use karein agar import error de raha hai
-    const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-    
-    const shiftStats = await storage.getShiftWiseStats(date);
-    res.json(shiftStats);
-  } catch (e: any) {
-    console.error("Shift Stats Error:", e.message);
-    res.status(500).json({ message: "Error fetching shift stats" });
-  }
-});
+  app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
+    try {
+      
+      const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+
+      const shiftStats = await storage.getShiftWiseStats(date);
+      res.json(shiftStats);
+    } catch (e: any) {
+      console.error("Shift Stats Error:", e.message);
+      res.status(500).json({ message: "Error fetching shift stats" });
+    }
+  });
   app.get("/api/user-profiles", requireAuth, async (_req, res) => {
     try { res.json(await storage.getUserProfiles()); }
     catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -506,12 +506,16 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
         dateTo: req.query.dateTo as string | undefined,
         status: req.query.status as string | undefined,
         deviceId: req.query.deviceId ? String(req.query.deviceId) : undefined,
-        personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
+        
+        employeeCode: req.query.employeeCode ? String(req.query.employeeCode) : undefined,
       };
-      console.log("Route received filters:", filters);
+
+
+      
       const data = await storage.getAttendanceReport(filters);
       res.json(data);
     } catch (e: any) {
+      console.error("Attendance Report Error:", e);
       res.status(500).json({ message: e.message });
     }
   });
@@ -736,14 +740,14 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
       return await storage.deleteEmployeeRole(id);
     }
   );
-  // routes.ts mein ye add karein
+  
   crudRoutes(
     app,
     "/api/cron-lists",
     insertCronMasterSchema,
     () => storage.getCronMasters(),
     async (data: any) => {
-      // 1. Check for Duplicate Code
+      
       const existing = await storage.getCronMasters();
       const isDuplicate = existing.some(
         (c) => c.code.toLowerCase() === data.code.toLowerCase()
@@ -755,8 +759,8 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
         throw error;
       }
 
-      // 2. Default Config ensure karna (Optional but Recommended)
-      // Agar user ne config nahi bheja, toh empty object set kar dein
+      
+      
       const cronData = {
         ...data,
         config: data.config || {},
@@ -767,36 +771,36 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
       return await storage.createCronMaster(cronData);
     },
     async (id, data) => {
-      // Update ke waqt bhi logic check kar sakte hain agar code change ho raha ho
+      
       return await storage.updateCronMaster(id, data);
     },
     async (id) => {
       return await storage.deleteCronMaster(id);
     }
   );
-  // 1. Main Gate Specific Route
+  
   app.get("/api/cron-jobs/main-gate", async (_req, res) => {
     const allCrons = await storage.getCronMasters();
-    // CODE (MG_SYNC_01) ke basis par filter karein
+    
     const gateJob = allCrons.find(c => c.code === MAIN_GATE_SYNC.CODE);
     res.json(gateJob ? [gateJob] : []);
   });
 
-  // 2. Cabin Lockout Specific Route
+  
   app.get("/api/cron-jobs/cabin-lock", async (_req, res) => {
     const allCrons = await storage.getCronMasters();
-    // CODE (CABIN_LOCK_01) ke basis par filter karein
+    
     const cabinJob = allCrons.find(c => c.code === CABIN_LOCKOUT_CONFIG.CODE);
     res.json(cabinJob ? [cabinJob] : []);
   })
-  // Door Devices Mapping Routes
+  
   crudRoutes(
     app,
     "/api/door-devices",
-    insertDoorDeviceSchema, // Ensure this Zod schema allows arrays
+    insertDoorDeviceSchema, 
     () => storage.getDoorDevices(),
     async (data: any) => {
-      // Check if mapping for this door already exists to prevent duplicates
+      
       const existing = await storage.getDoorDevices();
       const isDuplicate = existing.some((m) => m.doorId === data.doorId);
 
@@ -854,12 +858,12 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
     try {
       const { enabledIds, disabledIds } = req.body;
 
-      // 1. Jo selected hain unhe TRUE karo
+      
       if (enabledIds && enabledIds.length > 0) {
         await storage.updateDoorLockoutStatusBulk(enabledIds, true);
       }
 
-      // 2. Jo selected NAHI hain unhe FALSE karo
+      
       if (disabledIds && disabledIds.length > 0) {
         await storage.updateDoorLockoutStatusBulk(disabledIds, false);
       }
@@ -874,25 +878,25 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
     try {
       const session = req.session as any;
 
-      // 1. Session check
+      
       const loginId = session.userId;
       if (!loginId) {
         return res.status(401).json({ message: "User session not found. Please re-login." });
       }
 
-      // 2. User fetch (Audit ke liye username zaroori hai)
-      // loginId agar UUID hai toh .toString() safe hai
+      
+      
       const user = await storage.getUser(loginId.toString());
       const userName = user?.username || "Admin User";
 
-      // 3. Storage call
-      // Ensure karein ki executeEmergencybulkUnblock (loginId, userName) accept kar raha hai
+      
+      
       const result = await storage.executeEmergencybulkUnblock(loginId, userName);
 
-      // 4. Response
+      
       res.json({
         success: true,
-        // Result se processedCount lein jo humne storage mein return kiya hai
+        
         message: `Emergency unblock initiated for ${result.processedCount} records.`,
         audit: {
           performedBy: userName,
@@ -902,7 +906,7 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
 
     } catch (error: any) {
       console.error("Route Error:", error);
-      // User-friendly error message
+      
       res.status(500).json({
         message: error.message || "Failed to execute emergency unblock"
       });
@@ -922,14 +926,16 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
       res.status(500).json({ message: "Failed to fetch door count" });
     }
   });
-
   app.get("/api/reports/cabin-lockout", async (req, res) => {
     try {
-      const { dateFrom, dateTo } = req.query;
+      const { dateFrom, dateTo, employeeCode, doorId, status } = req.query;
 
       const data = await storage.getCabinLockoutReport({
         dateFrom: dateFrom as string,
         dateTo: dateTo as string,
+        employeeCode: employeeCode as string,
+        doorId: doorId as string,
+        status: status as string 
       });
 
       res.json(data);
@@ -946,7 +952,7 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
     }
   });
 
-  // Get doors for a specific employee
+  
   app.get("/api/employee-door-assignments/:code", async (req, res) => {
     try {
       const data = await storage.getEmployeeDoorAssignmentByCode(req.params.code);
@@ -959,12 +965,12 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
     }
   });
 
-  // Create or Update door assignment (Single entry, Multiple doors)
+  
   app.post("/api/employee-door-assignments", async (req, res) => {
     try {
       const { employeeCode, doorIds } = req.body;
 
-      // Payload validation
+      
       if (!employeeCode || !Array.isArray(doorIds)) {
         return res.status(400).json({
           status: "error",
@@ -981,10 +987,10 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
       });
 
     } catch (error: any) {
-      // Yahan hum storage se phenka gaya professional message pakad rahe hain
+      
       console.error("Assignment Error Log:", error.message);
 
-      // 400 Bad Request bhejenge specific message ke saath
+      
       res.status(400).json({
         status: "error",
         message: error.message || "An unexpected error occurred during assignment."
@@ -992,7 +998,7 @@ app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
     }
   });
 
-  // Delete an assignment
+  
   app.delete("/api/employee-door-assignments/:id", async (req, res) => {
     try {
       await storage.deleteEmployeeDoorAssignment(Number(req.params.id));

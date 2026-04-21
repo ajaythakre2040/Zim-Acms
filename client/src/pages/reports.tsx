@@ -37,14 +37,14 @@ const reportTypes = [
     bgColor: "bg-blue-50 dark:bg-blue-950/40",
     description: "Daily attendance records with clock in/out times",
   },
-  {
-    id: "daily performance",
-    label: "Daily Performance",
-    icon: Clock,
-    color: "text-blue-500",
-    bgColor: "bg-blue-50 dark:bg-blue-950/40",
-    description: "Daily Performance records of Employees",
-  },
+  // {
+  //   id: "daily performance",
+  //   label: "Daily Performance",
+  //   icon: Clock,
+  //   color: "text-blue-500",
+  //   bgColor: "bg-blue-50 dark:bg-blue-950/40",
+  //   description: "Daily Performance records of Employees",
+  // },
   {
     id: "cabin-lockout", // Cefalo replaced with Lockout
     label: "Cabin Lockout",
@@ -77,9 +77,10 @@ function statusBadge(status: string) {
 }
 
 const filterConfig: Record<string, string[]> = {
-  attendance: ["dateFrom", "dateTo", "personId", "status"],
-  "daily performance": ["dateFrom", "dateTo", "personId", "deviceId", "status"],
-  "cabin-lockout": ["dateFrom", "dateTo", "personId", "deviceId"],
+  attendance: ["dateFrom", "dateTo", "employeeCode", "status"],
+  // 🔥 Yahan personId ko employeeCode kar diya
+  "daily performance": ["dateFrom", "dateTo", "employeeCode", "deviceId", "status"],
+  "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "doorId", "status"],
   "door-count": ["dateFrom", "dateTo"],
 };
 
@@ -149,16 +150,18 @@ function ReportFilters({
               </div>
             )}
 
-            {/* EMPLOYEE */}
-            {allowed.includes("personId") && (
+            {/* EMPLOYEE / PERSON FILTER */}
+            {(allowed.includes("personId") || allowed.includes("employeeCode")) && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
                   EMPLOYEE
                 </Label>
                 <Select
-                  value={filters.personId || "all"}
+                  // 🔥 Value ab filters.employeeCode se aayegi
+                  value={filters.employeeCode || filters.personId || "all"}
                   onValueChange={(v) =>
-                    setFilters({ ...filters, personId: v === "all" ? "" : v })
+                    // 🔥 Key hamesha employeeCode hi jayegi
+                    setFilters({ ...filters, employeeCode: v === "all" ? "" : v })
                   }
                 >
                   <SelectTrigger>
@@ -171,8 +174,7 @@ function ReportFilters({
                         key={p.id}
                         value={String(p.employeeCode || p.id)}
                       >
-                        {p.employeeName}{" "}
-                        {p.employeeCode ? `(${p.employeeCode})` : ""}
+                        {p.employeeName} {p.employeeCode ? `(${p.employeeCode})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -210,7 +212,7 @@ function ReportFilters({
               </div>
             )}
 
-            {/* STATUS */}
+            {/* STATUS FILTER - DYNAMIC BASED ON REPORT TYPE */}
             {allowed.includes("status") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
@@ -227,13 +229,27 @@ function ReportFilters({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="absent">Absent</SelectItem>
-                    <SelectItem value="present">Present</SelectItem>
+
+                    {/* 1. Agar Attendance ya Daily Performance hai */}
+                    {(activeReport === "attendance" || activeReport === "daily performance") && (
+                      <>
+                        <SelectItem value="present">Present</SelectItem>
+                        <SelectItem value="absent">Absent</SelectItem>
+                      
+                      </>
+                    )}
+
+                    {/* 2. Agar Cabin Lockout hai */}
+                    {activeReport === "cabin-lockout" && (
+                      <>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="expired">Inactive (Expired)</SelectItem>
+                      </>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
             )}
-
           </div>
 
           {/* BUTTONS */}
@@ -594,6 +610,7 @@ function LockoutReportTable({ data }: { data: any[] }) {
                   {row.doorName}
                 </td>
                 <td className="p-4 text-center">
+                  {/* Backend se "active" aa raha hai toh Red Badge, warna "expire" ya kuch aur toh Inactive */}
                   {row.status === "active" ? (
                     <Badge className="bg-rose-500 hover:bg-rose-600 border-none text-[10px] px-3">
                       🔴 ACTIVE
@@ -631,10 +648,10 @@ export default function ReportsPage() {
 
   // 🔥 PER REPORT FILTERS
   const [filters, setFilters] = useState<Record<string, Record<string, string>>>({
-    attendance: {},
-    "daily performance": {},
+    attendance: { employeeCode: 'all', status: 'all' },
+    "daily performance": { employeeCode: 'all', status: 'all' },
     "door-count": {},
-    "cabin-lockout": {},
+    "cabin-lockout": { employeeCode: 'all' },
   });
 
   const [appliedFilters, setAppliedFilters] = useState<Record<string, Record<string, string>>>({
@@ -680,8 +697,9 @@ export default function ReportsPage() {
     queryFn: async () => {
       const params = new URLSearchParams();
 
+      // Query function ke andar params set karte waqt ye check add karein
       Object.entries(currentAppliedFilters).forEach(([k, v]) => {
-        if (v && k !== "_refresh") {
+        if (v && v !== "all" && k !== "_refresh") {
           params.set(k, String(v));
         }
       });

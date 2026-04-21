@@ -54,7 +54,7 @@ import {
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
-import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc } from "drizzle-orm";
+import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES } from './constant';
@@ -1219,119 +1219,17 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return setting;
   }
-  // async getAttendanceReport(filters: {
-  //   dateFrom?: string;
-  //   dateTo?: string;
-  //   status?: string;
-  //   deviceId?: string | number;
-  //   personId?: string | number;
-  // }): Promise<any[]> {
-  //   const rawLogs = await dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute();
-  //   const msSqlEmployees = await dbMsSql.select().from({ dbName: 'Employees' }).execute();
-  //   const msSqlDevices = await dbMsSql.select().from({ dbName: 'devices' }).execute();
-  //   const attendanceMap = new Map<string, { time: Date, devId: string }[]>();
-  //   rawLogs.forEach((log: any) => {
-  //     const empCode = String(log.EmployeeCode || log.employeecode || "").trim();
-  //     const timestamp = new Date(log.LogDate || log.logdate);
-  //     if (isNaN(timestamp.getTime())) return;
-  //     const dateStr = timestamp.toISOString().split('T')[0];
-  //     const key = `${empCode}_${dateStr}`;
-  //     if (!attendanceMap.has(key)) attendanceMap.set(key, []);
-  //     attendanceMap.get(key)!.push({
-  //       time: timestamp,
-  //       devId: String(log.deviceid || log.DeviceId || "").trim()
-  //     });
-  //   });
-  //   const reportDates: string[] = [];
-  //   let startDate = filters.dateFrom ? new Date(filters.dateFrom) : new Date();
-  //   const endDate = filters.dateTo ? new Date(filters.dateTo) : new Date();
-  //   let tempDate = new Date(startDate);
-  //   while (tempDate <= endDate) {
-  //     reportDates.push(tempDate.toISOString().split('T')[0]);
-  //     tempDate.setDate(tempDate.getDate() + 1);
-  //   }
-  //   const finalReport: any[] = [];
-  //   msSqlEmployees.forEach((emp: any) => {
-  //     const empCode = String(emp.EmployeeCode).trim();
-  //     if (filters.personId && filters.personId !== "all" && empCode !== String(filters.personId)) return;
-  //     reportDates.forEach((dateStr) => {
-  //       const key = `${empCode}_${dateStr}`;
-  //       const logs = attendanceMap.get(key) || [];
-  //       const dayOfWeek = new Date(dateStr).getDay();
-  //       let rowData: any = {
-  //         id: `${empCode}-${dateStr}`,
-  //         employeeCode: empCode,
-  //         firstName: emp.EmployeeName || "Unknown",
-  //         date: dateStr,
-  //         clockIn: null,
-  //         clockOut: null,
-  //         workingHours: "0.00",
-  //         lateByMins: 0,
-  //         earlyByMins: 0,
-  //         status: "",
-  //         deviceId: "N/A",
-  //         deviceName: "—"
-  //       };
-  //       if (logs.length === 0) {
-  //         rowData.status = (dayOfWeek === 0) ? "weekly_off" : ATTENDANCE_STATUS.ABSENT;
-  //       }
-  //       else {
-  //         const sortedLogs = logs.sort((a, b) => a.time.getTime() - b.time.getTime());
-  //         const firstIn = sortedLogs[0];
-  //         const lastOut = sortedLogs.length > 1 ? sortedLogs[sortedLogs.length - 1] : null;
-  //         const isValidOut = lastOut && (lastOut.time.getTime() - firstIn.time.getTime()) > 60000;
-  //         rowData.clockIn = firstIn.time.toISOString();
-  //         rowData.deviceId = firstIn.devId;
-  //         const deviceDetail = msSqlDevices.find(d => String(d.DeviceId || d.DeviceID) === firstIn.devId);
-  //         rowData.deviceName = deviceDetail?.DeviceName || `Device ${firstIn.devId}`;
-  //         if (!isValidOut) {
-  //           rowData.status = ATTENDANCE_STATUS.SINGLE_PUNCH;
-  //         }
-  //         else {
-  //           rowData.clockOut = lastOut!.time.toISOString();
-  //           const workMs = lastOut!.time.getTime() - firstIn.time.getTime();
-  //           rowData.workingHours = (workMs / 3600000).toFixed(2);
-  //           const shiftStart = new Date(`${dateStr}T${SHIFT_START}`);
-  //           const shiftEnd = new Date(`${dateStr}T${SHIFT_END}`);
-  //           rowData.lateByMins = firstIn.time > shiftStart ? Math.round((firstIn.time.getTime() - shiftStart.getTime()) / 60000) : 0;
-  //           rowData.earlyByMins = lastOut!.time < shiftEnd ? Math.round((shiftEnd.getTime() - lastOut!.time.getTime()) / 60000) : 0;
-  //           if (parseFloat(rowData.workingHours) < (EXPECTED_WORKING_HRS / 2)) {
-  //             rowData.status = ATTENDANCE_STATUS.HALF_DAY;
-  //           } else if (rowData.lateByMins > 0 && rowData.earlyByMins > 0) {
-  //             rowData.status = "late_early";
-  //           } else if (rowData.lateByMins > 0) {
-  //             rowData.status = ATTENDANCE_STATUS.LATE;
-  //           } else if (rowData.earlyByMins > 0) {
-  //             rowData.status = "early_going";
-  //           } else {
-  //             rowData.status = ATTENDANCE_STATUS.PRESENT;
-  //           }
-  //         }
-  //       }
-  //       finalReport.push(rowData);
-  //     });
-  //   });
-  //   return finalReport.filter(row => {
-  //     const matchesStatus = (!filters.status || filters.status === "all") ? true : row.status === filters.status;
-  //     const matchesDevice = (!filters.deviceId || filters.deviceId === "all")
-  //       ? true
-  //       : (row.deviceId === String(filters.deviceId));
-  //     return matchesStatus && matchesDevice;
-  //   }).sort((a, b) => b.date.localeCompare(a.date));
-  // }
   async getAttendanceReport(filters: {
     dateFrom?: string;
     dateTo?: string;
     status?: string;
     deviceId?: string | number;
-    personId?: string | number;
+    employeeCode?: string | number;
   }): Promise<any[]> {
     const rawLogs = await dbMsSql.select().from({ dbName: 'DeviceLogs' }).execute();
     const msSqlEmployees = await dbMsSql.select().from({ dbName: 'Employees' }).execute();
     const msSqlDevices = await dbMsSql.select().from({ dbName: 'devices' }).execute();
-
     const attendanceMap = new Map<string, { time: Date, devId: string }[]>();
-
     rawLogs.forEach((log: any) => {
       const empCode = String(log.EmployeeCode || log.employeecode || "").trim();
       const timestamp = new Date(log.LogDate || log.logdate);
@@ -1344,7 +1242,6 @@ export class DatabaseStorage implements IStorage {
         devId: String(log.deviceid || log.DeviceId || "").trim()
       });
     });
-
     const reportDates: string[] = [];
     let startDate = filters.dateFrom ? new Date(filters.dateFrom) : new Date();
     const endDate = filters.dateTo ? new Date(filters.dateTo) : new Date();
@@ -1353,70 +1250,52 @@ export class DatabaseStorage implements IStorage {
       reportDates.push(tempDate.toISOString().split('T')[0]);
       tempDate.setDate(tempDate.getDate() + 1);
     }
-
     const finalReport: any[] = [];
-
     msSqlEmployees.forEach((emp: any) => {
-      const empCode = String(emp.EmployeeCode).trim();
-      if (filters.personId && filters.personId !== "all" && empCode !== String(filters.personId)) return;
-
+      const currentEmpCode = String(emp.EmployeeCode).trim();
+      if (filters.employeeCode && filters.employeeCode !== "all" && currentEmpCode !== String(filters.employeeCode)) {
+        return;
+      }
       reportDates.forEach((dateStr) => {
-        const key = `${empCode}_${dateStr}`;
+        const key = `${currentEmpCode}_${dateStr}`;
         const logs = attendanceMap.get(key) || [];
         const dayOfWeek = new Date(dateStr).getDay();
-
         let rowData: any = {
-          id: `${empCode}-${dateStr}`,
-          employeeCode: empCode,
+          id: `${currentEmpCode}-${dateStr}`,
+          employeeCode: currentEmpCode,
           firstName: emp.EmployeeName || "Unknown",
           date: dateStr,
           clockIn: null,
           clockOut: null,
           workingHours: "0.00",
-          lateByMins: 0,
-          earlyByMins: 0,
           status: "",
           deviceId: "N/A",
           deviceName: "—"
         };
-
-        // --- SIMPLIFIED LOGIC USING YOUR CONSTANTS ---
         if (logs.length === 0) {
-          // Weekly Off Sunday ke liye, baaki constant se Absent status
-          rowData.status = (dayOfWeek === 0) ? "weekly_off" : ATTENDANCE_STATUS.ABSENT;
-        }
-        else {
+          rowData.status = "absent";  
+          
+        } else {
           const sortedLogs = logs.sort((a, b) => a.time.getTime() - b.time.getTime());
           const firstIn = sortedLogs[0];
           const lastOut = sortedLogs.length > 1 ? sortedLogs[sortedLogs.length - 1] : null;
-
           rowData.clockIn = firstIn.time.toISOString();
           rowData.deviceId = firstIn.devId;
-
           const deviceDetail = msSqlDevices.find(d => String(d.DeviceId || d.DeviceID) === firstIn.devId);
           rowData.deviceName = deviceDetail?.DeviceName || `Device ${firstIn.devId}`;
-
-          // Agar Multiple punches hain toh working hours calculate karo
           if (lastOut && (lastOut.time.getTime() - firstIn.time.getTime()) > 60000) {
             rowData.clockOut = lastOut.time.toISOString();
             const workMs = lastOut.time.getTime() - firstIn.time.getTime();
             rowData.workingHours = (workMs / 3600000).toFixed(2);
           }
-
-          // Single punch ho ya double, status ab sirf PRESENT hi rahega
-          rowData.status = ATTENDANCE_STATUS.PRESENT;
+          rowData.status = "present";
         }
-        // ----------------------------------------------
-
         finalReport.push(rowData);
       });
     });
-
     return finalReport.filter(row => {
       const matchesStatus = (!filters.status || filters.status === "all") ? true : row.status === filters.status;
-      const matchesDevice = (!filters.deviceId || filters.deviceId === "all")
-        ? true
-        : (row.deviceId === String(filters.deviceId));
+      const matchesDevice = (!filters.deviceId || filters.deviceId === "all") ? true : (row.deviceId === String(filters.deviceId));
       return matchesStatus && matchesDevice;
     }).sort((a, b) => b.date.localeCompare(a.date));
   }
@@ -2165,28 +2044,56 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
   }
-  async getCabinLockoutReport(filters: { dateFrom?: string; dateTo?: string }) {
+  async getCabinLockoutReport(filters: {
+    dateFrom?: string;
+    dateTo?: string;
+    employeeCode?: string;
+    doorId?: string;
+    status?: string;
+  }) {
     try {
+      const conditions = [];
+      if (filters.doorId && filters.doorId !== "all") {
+        conditions.push(eq(schema.cabinLockouts.doorId, Number(filters.doorId)));
+      }
+      if (filters.status && filters.status !== "all") {
+        conditions.push(eq(schema.cabinLockouts.status, filters.status));
+      }
+      if (filters.employeeCode && filters.employeeCode !== "all") {
+        conditions.push(eq(schema.cabinLockouts.employeeCode, filters.employeeCode));
+      }
+      if (filters.dateFrom) {
+        if (!filters.dateTo || filters.dateFrom === filters.dateTo) {
+          conditions.push(
+            sql`CAST(${schema.cabinLockouts.createdAt} AS DATE) = ${filters.dateFrom}`
+          );
+        }
+        else {
+          const start = new Date(filters.dateFrom);
+          start.setHours(0, 0, 0, 0);
+          const end = new Date(filters.dateTo);
+          end.setHours(23, 59, 59, 999);
+          conditions.push(gte(schema.cabinLockouts.createdAt, start));
+          conditions.push(lte(schema.cabinLockouts.createdAt, end));
+        }
+      }
       const results = await db
         .select({
           id: schema.cabinLockouts.id,
           employeeCode: schema.cabinLockouts.employeeCode,
           employeeName: schema.people.employeeName,
           doorName: schema.doors.name,
+          doorId: schema.cabinLockouts.doorId,
           inPunchTime: schema.cabinLockouts.inPunchTime,
           outPunchTime: schema.cabinLockouts.outPunchTime,
           lockoutExpiry: schema.cabinLockouts.lockoutExpiry,
           status: schema.cabinLockouts.status,
+          createdAt: schema.cabinLockouts.createdAt,
         })
         .from(schema.cabinLockouts)
-        .leftJoin(
-          schema.people,
-          eq(schema.cabinLockouts.employeeCode, schema.people.employeeCode)
-        )
-        .leftJoin(
-          schema.doors,
-          eq(schema.cabinLockouts.doorId, schema.doors.id)
-        )
+        .leftJoin(schema.people, eq(schema.cabinLockouts.employeeCode, schema.people.employeeCode))
+        .leftJoin(schema.doors, eq(schema.cabinLockouts.doorId, schema.doors.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(schema.cabinLockouts.createdAt))
         .execute();
       return results;

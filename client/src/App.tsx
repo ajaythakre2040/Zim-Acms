@@ -36,6 +36,8 @@ import UserAdminPage from "@/pages/user-admin";
 import SettingsPage from "@/pages/settings";
 import ReportsPage from "@/pages/reports";
 import CronMasterPage from "@/pages/cronMasterPage";
+import ShiftDashboard from "./pages/ShiftDashboard";
+import LiveLogsDashboard from "./pages/LiveLogsDashboard";
 
 function Router() {
   return (
@@ -61,6 +63,8 @@ function Router() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/reports" component={ReportsPage} />
       <Route path="/cron-master" component={CronMasterPage} />
+      <Route path="/shift-dashboard" component={ShiftDashboard} />
+      <Route path="/live-logs" component={LiveLogsDashboard} />
 
       <Route component={NotFound} />
     </Switch>
