@@ -20,31 +20,9 @@ export default function LiveLogsDashboard() {
                     <Activity className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Machine Access Logs</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">Device Access Logs</h1>
                     <p className="text-xs text-muted-foreground">Real-time machine interaction and security events.</p>
                 </div>
-            </div>
-
-            {/* Top Quick Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Card className="border-l-4 border-emerald-500">
-                    <CardContent className="p-4 flex items-center gap-4">
-                        <CheckCircle2 className="text-emerald-500" />
-                        <div>
-                            <p className="text-xs text-muted-foreground uppercase font-bold">Authorized Today</p>
-                            <p className="text-2xl font-bold">1,240</p>
-                        </div>
-                    </CardContent>
-                </Card>
-                <Card className="border-l-4 border-rose-500">
-                    <CardContent className="p-4 flex items-center gap-4">
-                        <ShieldAlert className="text-rose-500" />
-                        <div>
-                            <p className="text-xs text-muted-foreground uppercase font-bold">Unauthorized Attempts</p>
-                            <p className="text-2xl font-bold text-rose-600">12</p>
-                        </div>
-                    </CardContent>
-                </Card>
             </div>
 
             {/* Live Log Table */}
@@ -62,7 +40,7 @@ export default function LiveLogsDashboard() {
                                 <tr>
                                     <th className="px-4 py-3 text-left">Employee Name</th>
                                     <th className="px-4 py-3 text-left">Employee Code</th>
-                                    <th className="px-4 py-3 text-left">Door Name / Door</th>
+                                    <th className="px-4 py-3 text-left">Door Name</th>
                                     <th className="px-4 py-3 text-left">Device Name</th>
                                     <th className="px-4 py-3 text-center">Direction</th>
                                     <th className="px-4 py-3 text-center">Log Date</th>
