@@ -132,6 +132,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  app.get("/api/dashboard/attendance/machine-logs", async (req, res) => {
+    try {
+      const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+
+      const logs = await storage.getMachineAccessLogs(date);
+      res.json(logs);
+    } catch (e: any) {
+      console.error("Machine Logs Error:", e.message);
+      res.status(500).json({ message: "Failed to fetch machine logs" });
+    }
+  });
   app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
     try {
       
