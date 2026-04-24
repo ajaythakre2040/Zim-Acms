@@ -1396,11 +1396,70 @@ export class DatabaseStorage implements IStorage {
       offlineDevices: Math.max(0, devicesCount.count - onlineCount.count)
     };
   }
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   async getDoorWiseStats(date: string) {
     const [totalPeopleResult] = await db.select({
       count: sql<number>`count(*)`
     }).from(people);
+
     const totalManpower = Number(totalPeopleResult.count) || 0;
+
     const mappings = await db.select({
       doorId: doors.id,
       doorName: doors.name,
@@ -1411,36 +1470,48 @@ export class DatabaseStorage implements IStorage {
     })
       .from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
     const allDeviceIds = mappings.flatMap(m => [...(m.inIds || []), ...(m.outIds || [])]);
+
     if (allDeviceIds.length === 0) {
-      return { doorStats: [], totalPresent: 0, totalAbsent: totalManpower, totalManpower };
+      return { doorStats: [], mainGateIn: 0, mainGateOut: 0, mainGateBal: 0, totalPresent: 0, totalAbsent: totalManpower, totalManpower };
     }
+
     const msSqlData = await mssqlPool.request()
       .input('filterDate', date)
       .query(`
       SELECT 
         DeviceId, 
         Direction,
-        COUNT(DISTINCT EmployeeCode) as uniqueCount 
+        EmployeeCode,
+        COUNT(*) as totalPunches -- Har punch ko count karne ke liye
       FROM DeviceLogs 
       WHERE CAST(LogDate AS DATE) = @filterDate
       AND DeviceId IN (${allDeviceIds.join(',')})
-      GROUP BY DeviceId, Direction
+      GROUP BY DeviceId, Direction, EmployeeCode
     `);
+
     const logMap = msSqlData.recordset;
-    let calculatedPresent = 0;
+
+    let mainGateInPunches = 0;
+    let mainGateOutPunches = 0;
+    const uniquePresentEmployees = new Set();
+
     const doorStats = mappings.map(m => {
-      const inCount = (m.inIds || []).reduce((acc, id) => {
-        const found = logMap.find(l => l.DeviceId === id && l.Direction === 'IN');
-        return acc + (found?.uniqueCount || 0);
-      }, 0);
-      const outCount = (m.outIds || []).reduce((acc, id) => {
-        const found = logMap.find(l => l.DeviceId === id && l.Direction === 'OUT');
-        return acc + (found?.uniqueCount || 0);
-      }, 0);
+      const inLogs = logMap.filter(l => (m.inIds || []).includes(l.DeviceId) && l.Direction === 'IN');
+      const outLogs = logMap.filter(l => (m.outIds || []).includes(l.DeviceId) && l.Direction === 'OUT');
+
+      const inCount = inLogs.reduce((acc, curr) => acc + curr.totalPunches, 0);
+      const outCount = outLogs.reduce((acc, curr) => acc + curr.totalPunches, 0);
+
       if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
-        calculatedPresent += inCount;
+        mainGateInPunches = inCount;
+        mainGateOutPunches = outCount;
+
+        
+        inLogs.forEach(l => uniquePresentEmployees.add(l.EmployeeCode));
       }
+
       return {
         doorName: m.doorName,
         inCount,
@@ -1448,10 +1519,16 @@ export class DatabaseStorage implements IStorage {
         balance: Math.max(0, inCount - outCount)
       };
     });
+
+    const totalPresent = uniquePresentEmployees.size;
+
     return {
       doorStats,
-      totalPresent: calculatedPresent,
-      totalAbsent: Math.max(0, totalManpower - calculatedPresent),
+      mainGateIn: mainGateInPunches, 
+      mainGateOut: mainGateOutPunches, 
+      mainGateBal: Math.max(0, mainGateInPunches - mainGateOutPunches),
+      totalPresent: totalPresent, 
+      totalAbsent: Math.max(0, totalManpower - totalPresent), 
       totalManpower
     };
   }
@@ -1501,27 +1578,94 @@ export class DatabaseStorage implements IStorage {
         allShifts.forEach(s => { if (s.name) stats[d.name][s.name] = 0; });
         d.inIds?.forEach(id => { deviceToDoor[id] = d.name!; });
       });
+      const counted = new Set<string>();
       for (const log of rawLogs) {
-        const doorName = deviceToDoor[log.DeviceId];
-        if (!doorName) continue;
-        const [pH, pM, pS] = log.LogTime.split(':');
-        const punchTime = dayjs().set('hour', parseInt(pH)).set('minute', parseInt(pM)).set('second', parseInt(pS));
-        const displayTime = log.LogTime;
-        let matched = false;
-        for (const win of windows) {
-          if (punchTime.isBetween(win.start, win.end, null, '[]')) {
-            stats[doorName][win.name!]++;
-            stats[doorName].totalEmp++;
-            matched = true;
-            break;
-          }
-        }
+  const doorName = deviceToDoor[log.DeviceId];
+  if (!doorName) continue;
+
+  const [pH, pM, pS] = log.LogTime.split(':');
+  const punchTime = dayjs()
+    .set('hour', parseInt(pH))
+    .set('minute', parseInt(pM))
+    .set('second', parseInt(pS));
+
+  for (const win of windows) {
+    if (punchTime.isBetween(win.start, win.end, null, '[]')) {
+
+      
+      const key = `${doorName}_${win.name}_${log.EmployeeCode}`;
+
+      
+      if (counted.has(key)) {
+        continue;
       }
+
+      
+      counted.add(key);
+
+      stats[doorName][win.name!]++;
+      stats[doorName].totalEmp++;
+
+      break;
+    }
+  }
+}
       return Object.values(stats);
     } catch (error) {
       console.error("IST_STATS_ERROR:", error);
       throw error;
     }
+  }
+  
+  async getMachineAccessLogs(date: string) {
+    // 1. PostgreSQL se Door mapping lein (is-ka use hum doorName match karne ke liye karenge)
+    const doorMappings = await db.select({
+      doorName: doors.name,
+      inIds: doorDevices.inDeviceIds,
+      outIds: doorDevices.outDeviceIds,
+    }).from(doors)
+      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
+    // 2. MS SQL Query: Employees, DeviceLogs aur Devices tables ko join karein
+    const msSqlData = await mssqlPool.request()
+      .input('filterDate', date)
+      .query(`
+      SELECT 
+        e.EmployeeName, 
+        l.EmployeeCode, 
+        l.DeviceId, 
+        d.DeviceName,
+        l.Direction, 
+        l.LogDate 
+      FROM DeviceLogs l
+      LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
+      LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+      WHERE CAST(l.LogDate AS DATE) = @filterDate
+      ORDER BY l.LogDate DESC
+    `);
+
+    const logs = msSqlData.recordset;
+
+    // 3. Final mapping (sirf doorName PG se uthayenge)
+    const machineFeed = logs.map(log => {
+      const door = doorMappings.find(m =>
+        (m.inIds || []).includes(log.DeviceId) ||
+        (m.outIds || []).includes(log.DeviceId)
+      );
+
+      return {
+        employeeName: log.EmployeeName || "Unknown",
+        employeeCode: log.EmployeeCode,
+        deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+        direction: log.Direction,
+        logDate: log.LogDate,
+        doorName: door ? door.doorName : (log.DeviceName || "Unknown Door")
+      };
+    });
+
+    return {
+      machineFeed
+    };
   }
   async getRoles(): Promise<any[]> {
     const allRoles = await db.select().from(roles).orderBy(desc(roles.id));
