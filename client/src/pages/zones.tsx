@@ -200,21 +200,21 @@ export default function ZonesDoorsPage() {
         required: true,
         disabled: !!editingDoor,
       },
-      {
-        key: "locationId",
-        label: "Site",
-        type: "select",
-        options: sites.map((s) => ({ value: String(s.id), label: s.name })),
-      },
-      {
-        key: "zoneId",
-        label: "Zone",
-        type: "select",
-        options: zoneCrud.data.map((z) => ({
-          value: String(z.id),
-          label: z.name,
-        })),
-      },
+      // {
+      //   key: "locationId",
+      //   label: "Site",
+      //   type: "select",
+      //   options: sites.map((s) => ({ value: String(s.id), label: s.name })),
+      // },
+      // {
+      //   key: "zoneId",
+      //   label: "Zone",
+      //   type: "select",
+      //   options: zoneCrud.data.map((z) => ({
+      //     value: String(z.id),
+      //     label: z.name,
+      //   })),
+      // },
       {
         key: "doorType",
         label: "Type",
@@ -336,13 +336,13 @@ export default function ZonesDoorsPage() {
         </Badge>
       ),
     },
-    {
-      key: "zone",
-      label: "Zone",
-      hideOnMobile: true,
-      render: (d: Door) =>
-        zoneCrud.data.find((z) => z.id === d.zoneId)?.name || "-",
-    },
+    // {
+    //   key: "zone",
+    //   label: "Zone",
+    //   hideOnMobile: true,
+    //   render: (d: Door) =>
+    //     zoneCrud.data.find((z) => z.id === d.zoneId)?.name || "-",
+    // },
     {
       key: "status",
       label: "Status",
@@ -466,14 +466,14 @@ export default function ZonesDoorsPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <PageHeader
-        title="Zones & Doors"
-        description="Manage security zones and access points"
+        title="Doors"
+        description="Manage security and access points"
       />
 
       <Tabs defaultValue="doors" className="space-y-4">
         <TabsList>
           <TabsTrigger value="doors">Doors</TabsTrigger>
-          <TabsTrigger value="zones">Zones</TabsTrigger>
+          {/* <TabsTrigger value="zones">Zones</TabsTrigger> */}
         </TabsList>
         
         <TabsContent value="doors">

@@ -243,17 +243,14 @@ function MasterTab({
 export default function MasterDataPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      {/* <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, vendors,  and roles" /> */}
-      <PageHeader
-        title="Master Data"
-        description="Manage Master Data"
-      />
+      <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, vendors,  and roles" />
+    
 
-      <Tabs defaultValue="companies" className="space-y-4">
+      <Tabs defaultValue="designations" className="space-y-4">
         <TabsList className="flex-wrap">
 
-          {/* <TabsTrigger value="designations">Designations</TabsTrigger> */}
-          {/* <TabsTrigger value="categories">Categories</TabsTrigger> */}
+          <TabsTrigger value="designations">Designations</TabsTrigger>
+          <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="companies">Companies</TabsTrigger>
           {/* <TabsTrigger value="vendors">Vendors</TabsTrigger> */}
           {/* <TabsTrigger value="roles">Roles</TabsTrigger> */}

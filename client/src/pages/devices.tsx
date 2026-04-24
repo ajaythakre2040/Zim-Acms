@@ -74,18 +74,18 @@ export default function DevicesPage() {
       ],
       defaultValue: "reader",
     },
-    {
-      key: "locationId",
-      label: "Site",
-      type: "select",
-      options: sites.map((s) => ({ value: String(s.id), label: s.name })),
-    },
-    {
-      key: "zoneId",
-      label: "Zone",
-      type: "select",
-      options: zones.map((z) => ({ value: String(z.id), label: z.name })),
-    },
+    // {
+    //   key: "locationId",
+    //   label: "Site",
+    //   type: "select",
+    //   options: sites.map((s) => ({ value: String(s.id), label: s.name })),
+    // },
+    // {
+    //   key: "zoneId",
+    //   label: "Zone",
+    //   type: "select",
+    //   options: zones.map((z) => ({ value: String(z.id), label: z.name })),
+    // },
     { key: "ipAddress", label: "IP Address" },
     { key: "macAddress", label: "MAC Address" },
     { key: "serialNumber", label: "Serial Number" },
@@ -127,13 +127,13 @@ export default function DevicesPage() {
     },
 
     // YEH RAH AAPKA SITE COLUMN
-    {
-      key: "site",
-      label: "Site",
-      hideOnMobile: true,
-      render: (d: Device) =>
-        sites.find((s) => s.id === d.locationId)?.name || "-",
-    },
+    // {
+    //   key: "site",
+    //   label: "Site",
+    //   hideOnMobile: true,
+    //   render: (d: Device) =>
+    //     sites.find((s) => s.id === d.locationId)?.name || "-",
+    // },
 
     // STATUS COLUMN
     {
@@ -252,32 +252,21 @@ export default function DevicesPage() {
         }
       />
 
-      <div className="grid grid-cols-3 gap-3">
-        <Card>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {online}
-            </p>
-            <p className="text-xs text-muted-foreground">Online</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-muted-foreground">
-              {offline}
-            </p>
-            <p className="text-xs text-muted-foreground">Offline</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3 text-center">
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-              {errored}
-            </p>
-            <p className="text-xs text-muted-foreground">Error</p>
-          </CardContent>
-        </Card>
-      </div>
+      <div className="grid grid-cols-4 gap-3"> {/* 2 se badha kar 4 kiya */}
+  <Card>
+    <CardContent className="p-2 text-center"> {/* Padding bhi p-3 se p-2 kar di */}
+      <p className="text-xl font-bold text-green-600">{online}</p>
+      <p className="text-[10px] text-muted-foreground uppercase">Online</p>
+    </CardContent>
+  </Card>
+  
+  <Card>
+    <CardContent className="p-2 text-center">
+      <p className="text-xl font-bold text-muted-foreground">{offline}</p>
+      <p className="text-[10px] text-muted-foreground uppercase">Offline</p>
+    </CardContent>
+  </Card>
+</div>
 
       <DataTable
         columns={columns}

@@ -278,7 +278,15 @@ export default function PeoplePage() {
       type: "select",
       options: departments.map((d) => ({ value: String(d.id), label: d.name })),
     },
-
+ {
+    key: "designationId",
+    label: "Designation",
+    type: "select",
+    options: designations.map((d) => ({
+      value: String(d.id),
+      label: d.name,
+    })),
+  },
     {
       key: "shiftId",
       label: "Shift",
@@ -288,35 +296,27 @@ export default function PeoplePage() {
         label: s.name || s.code || `Shift ${s.id}`,
       })),
     },
-    {
-      key: "designationId",
-      label: "Designation",
-      type: "select",
-      options: designations.map((d) => ({
-        value: String(d.id),
-        label: d.name,
-      })),
-    },
+
     {
       key: "companyId",
       label: "Company",
       type: "select",
       options: companies.map((c) => ({ value: String(c.id), label: c.name })),
     },
-    {
-      key: "locationId",
-      label: "Location",
-      type: "select",
-      options: sites.map((s) => ({ value: String(s.id), label: s.name })),
-    },
+    // {
+    //   key: "locationId",
+    //   label: "Location",
+    //   type: "select",
+    //   options: sites.map((s) => ({ value: String(s.id), label: s.name })),
+    // },
     { key: "dateOfJoining", label: "Date of Joining", type: "date" },
-    {
-      key: "lastSeenTime",
-      label: "Last Seen",
-      type: "text",
-      readOnly: true,
-      placeholder: "Auto-generated from logs",
-    },
+    // {
+    //   key: "lastSeenTime",
+    //   label: "Last Seen",
+    //   type: "text",
+    //   readOnly: true,
+    //   placeholder: "Auto-generated from logs",
+    // },
     {
       key: "status",
       label: "Status",
@@ -330,6 +330,7 @@ export default function PeoplePage() {
     },
     { key: "riskTier", label: "Risk Tier (1-5)", type: "number" },
   ];
+
   const hiddenOnEdit = ["designationId", "companyId", "riskTier"];
 
   const filteredFields = fields.filter(
@@ -580,8 +581,8 @@ export default function PeoplePage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <PageHeader
-        title="People"
-        description="Manage employees, contractors, and personnel"
+        title="Employees"
+        description="Manage employees, contractors, and others"
         action={
           <div className="flex gap-2">
             {/* 🔴 EMERGENCY BUTTON */}
@@ -883,7 +884,7 @@ export default function PeoplePage() {
             {/* SEARCH */}
             <div className="relative">
               <input
-                placeholder="Search role..."
+                placeholder="Search door..."
                 value={doorSearch}
                 onChange={(e) => setDoorSearch(e.target.value)}
                 className="w-full px-4 py-3 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"

@@ -101,8 +101,8 @@ const navGroups: NavGroup[] = [
     color: "text-emerald-400",
     bgColor: "bg-emerald-500/15",
     items: [
-      { title: "Sites", url: "/sites", icon: MapPin, iconColor: "text-emerald-400" },
-      { title: "Zones & Doors", url: "/zones", icon: DoorOpen, iconColor: "text-green-400" },
+      // { title: "Sites", url: "/sites", icon: MapPin, iconColor: "text-emerald-400" },
+      { title: "Doors", url: "/zones", icon: DoorOpen, iconColor: "text-green-400" },
       { title: "Devices", url: "/devices", icon: Cpu, iconColor: "text-lime-400" },
     ],
   },
@@ -113,7 +113,7 @@ const navGroups: NavGroup[] = [
     items: [
       { title: "Master Data", url: "/master-data", icon: Building2, iconColor: "text-slate-400" },
       { title: "User Admin", url: "/user-admin", icon: UserCog, iconColor: "text-sky-400" },
-      { title: "Settings", url: "/settings", icon: Settings, iconColor: "text-zinc-400" },
+      // { title: "Settings", url: "/settings", icon: Settings, iconColor: "text-zinc-400" },
     ],
   },
 ];

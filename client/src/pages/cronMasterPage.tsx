@@ -391,20 +391,20 @@ export default function CronMasterPage() {
                 </span>
             ),
         },
-        {
-            // JSON data se lockoutHours aur lockoutMinutes nikaalna
-            key: "lockoutDuration",
-            label: "Lockout Duration",
-            render: (row: any) => (
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50/50 px-2 py-1 rounded-md border border-orange-100 w-fit">
-                    <Clock className="w-3.5 h-3.5" />
-                    {/* Agar value 0 hai toh bhi 0 dikhayega */}
-                    <span>
-                        {(row?.lockoutHours ?? 0)}h {(row?.lockoutMinutes ?? 0)}m
-                    </span>
-                </div>
-            ),
-        },
+        // {
+        //     // JSON data se lockoutHours aur lockoutMinutes nikaalna
+        //     key: "lockoutDuration",
+        //     label: "Lockout Duration",
+        //     render: (row: any) => (
+        //         <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50/50 px-2 py-1 rounded-md border border-orange-100 w-fit">
+        //             <Clock className="w-3.5 h-3.5" />
+        //             {/* Agar value 0 hai toh bhi 0 dikhayega */}
+        //             <span>
+        //                 {(row?.lockoutHours ?? 0)}h {(row?.lockoutMinutes ?? 0)}m
+        //             </span>
+        //         </div>
+        //     ),
+        // },
         //   {
         //     key: "status",
         //     label: "Status",
@@ -466,7 +466,7 @@ export default function CronMasterPage() {
                             <TooltipContent>Assign Doors</TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
-                    <Button
+                    {/* <Button
                         size="icon"
                         variant="ghost"
                         onClick={() => {
@@ -475,7 +475,7 @@ export default function CronMasterPage() {
                         }}
                     >
                         <Pencil className="w-4 h-4 text-slate-400" />
-                    </Button>
+                    </Button> */}
                 </div>
             ),
         },

@@ -131,37 +131,72 @@ export function DoorAttendanceTable({
   apiResponse: any;
 }) {
 
+  // 🔹 CSV Export Logic
+  const exportToCSV = () => {
+    if (!doorStats.length) return;
+
+    // Headers: Direction, Door1, Door2...
+    const headers = ["Direction", ...doorStats.map((d: any) => d.doorName)];
+
+    // Rows prepare karna
+    const rows = [
+      ["IN", ...doorStats.map((d: any) => d.inCount)],
+      ["OUT", ...doorStats.map((d: any) => d.outCount)],
+      ["BAL", ...doorStats.map((d: any) => d.balance)],
+    ];
+
+    let csvContent = "data:text/csv;charset=utf-8," 
+      + [headers, ...rows].map(e => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `door_attendance_${selectedDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   if (!apiResponse) return <Skeleton className="h-48 w-full" />;
   const doorStats = apiResponse?.doorStats || [];
 
   return (
     <Card className="border-none shadow-md bg-white ring-1 ring-gray-200">
-      
       <CardHeader className="pb-3 border-b bg-gray-50 flex flex-row justify-between items-center">
         <CardTitle className="text-sm font-bold flex items-center gap-2">
           <Users className="w-4 h-4 text-blue-500" />
           Door-wise Attendance
         </CardTitle>
 
-        <input
-          type="date"
-          value={selectedDate}
-          onChange={(e) =>
-            window.dispatchEvent(new CustomEvent("dateChange", { detail: e.target.value }))
-          }
-          className="border rounded px-2 py-1 text-xs"
-        />
+        {/* Right Side Actions (Date + Export) */}
+        <div className="flex items-center gap-3">
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) =>
+              window.dispatchEvent(new CustomEvent("dateChange", { detail: e.target.value }))
+            }
+            className="border rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-400"
+          />
+          
+          <button
+            onClick={exportToCSV}
+            className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors shadow-sm font-medium"
+          >
+            Export CSV
+          </button>
+        </div>
       </CardHeader>
 
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            
+          {/* border-collapse add kiya taaki lines clean dikhein agar aapne border-l lagaya ho */}
+          <table className="w-full text-sm border-collapse">
             <thead className="bg-gray-100 text-xs uppercase font-bold">
               <tr>
                 <th className="px-4 py-3 text-left">Direction</th>
                 {doorStats.map((d: any) => (
-                  <th key={d.doorName} className="text-center">
+                  <th key={d.doorName} className="text-center border-l border-gray-200 px-4 py-3">
                     {d.doorName}
                   </th>
                 ))}
@@ -169,26 +204,25 @@ export function DoorAttendanceTable({
             </thead>
 
             <tbody className="[&>tr:nth-child(even)]:bg-gray-50">
-              <tr>
+              <tr className="border-b border-gray-100">
                 <td className="px-4 py-3 font-bold text-blue-600">IN</td>
                 {doorStats.map((d: any) => (
-                  <td key={d.doorName} className="text-center">{d.inCount}</td>
+                  <td key={d.doorName} className="text-center border-l border-gray-200 px-4 py-3">{d.inCount}</td>
                 ))}
               </tr>
-              <tr>
+              <tr className="border-b border-gray-100">
                 <td className="px-4 py-3 font-bold text-orange-500">OUT</td>
                 {doorStats.map((d: any) => (
-                  <td key={d.doorName} className="text-center">{d.outCount}</td>
+                  <td key={d.doorName} className="text-center border-l border-gray-200 px-4 py-3">{d.outCount}</td>
                 ))}
               </tr>
               <tr>
                 <td className="px-4 py-3 font-bold text-slate-700">BAL</td>
                 {doorStats.map((d: any) => (
-                  <td key={d.doorName} className="text-center font-bold">{d.balance}</td>
+                  <td key={d.doorName} className="text-center font-bold border-l border-gray-200 px-4 py-3">{d.balance}</td>
                 ))}
               </tr>
             </tbody>
-
           </table>
         </div>
       </CardContent>

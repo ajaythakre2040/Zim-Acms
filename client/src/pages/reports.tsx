@@ -37,6 +37,14 @@ const reportTypes = [
     description: "Daily attendance records with clock in/out times",
   },
   {
+    id: "access-logs",
+    label: "Access Logs",
+    icon: Clock,
+    color: "text-blue-500",
+    bgColor: "bg-blue-50 dark:bg-blue-950/40",
+    description: "Daily access logs of employees with door details",
+  },
+  {
     id: "daily performance",
     label: "Daily Performance",
     icon: Clock,
@@ -85,8 +93,9 @@ function statusBadge(status: string) {
 
 const filterConfig: Record<string, string[]> = {
   attendance: ["dateFrom", "dateTo", "personId", "status"],
+  "access-logs": ["dateFrom", "dateTo", "personId", "deviceId"],
   "daily performance": ["dateFrom", "dateTo", "personId", "deviceId", "status"],
-  "daily efficiency": ["dateFrom", "dateTo", "personId", "deviceId", "status"],
+  "daily-efficiency": ["dateFrom", "dateTo", "personId", "deviceId", "status"],
   "cabin-lockout": ["dateFrom", "dateTo", "personId", "deviceId"],
 };
 
@@ -265,6 +274,7 @@ function ReportFilters({
     </Card>
   ); // return close
 }
+
 // 3. Tables
 function AttendanceTable({ data }: { data: any[] }) {
   return (
@@ -273,11 +283,53 @@ function AttendanceTable({ data }: { data: any[] }) {
         <thead>
           <tr className="border-b bg-muted/30">
             <th className="text-left p-3 font-medium">Employee</th>
-            <th className="text-left p-3 font-medium">Code</th>
+            <th className="text-left p-3 font-medium">Emp Code</th>
             <th className="text-left p-3 font-medium">Date</th>
             <th className="text-left p-3 font-medium">Clock In</th>
             {/* <th className="text-left p-3 font-medium">Out</th> */}
             <th className="text-left p-3 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.map((r, i) => (
+            <tr key={i} className="border-b border-border/50 hover:bg-muted/20">
+              <td className="p-3 font-medium">
+                {r.firstName || r.employeeName}
+              </td>
+              <td className="p-3 text-muted-foreground">
+                {r.employeeCode || "-"}
+              </td>
+              <td className="p-3">{r.date}</td>
+              <td className="p-3 font-medium text-emerald-600">
+                {formatTime(r.clockIn)}
+              </td>
+              {/* <td className="p-3 font-medium text-blue-600">
+                {formatTime(r.clockOut)}
+              </td> */}
+              <td className="p-3">{statusBadge(r.status)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function AccessLogs({ data }: { data: any[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b bg-muted/30">
+            <th className="text-left p-3 font-medium">Employee Name</th>
+            <th className="text-left p-3 font-medium">Employee Code</th>
+            <th className="text-left p-3 font-medium">Designation</th>
+            <th className="text-left p-3 font-medium">Department</th>
+            <th className="text-left p-3 font-medium">Shift</th>
+            <th className="text-left p-3 font-medium">Door Name</th>
+            <th className="text-left p-3 font-medium">Device Name</th>
+            <th className="text-left p-3 font-medium">Direction</th>
+            <th className="text-left p-3 font-medium">Log Date</th>
           </tr>
         </thead>
         <tbody>
@@ -735,6 +787,7 @@ export default function ReportsPage() {
     Record<string, Record<string, string>>
   >({
     attendance: {},
+    "access-logs": {},
     "daily performance": {},
     "daily efficiency": {},
     "cabin-lockout": {},
@@ -744,6 +797,7 @@ export default function ReportsPage() {
     Record<string, Record<string, string>>
   >({
     attendance: {},
+    "access-logs": {},
     "daily performance": {},
     "daily efficiency": {},
     "cabin-lockout": {},
@@ -892,6 +946,25 @@ export default function ReportsPage() {
                 </CardHeader>
                 <CardContent className="p-0">
                   <AttendanceTable data={reportData} />
+                </CardContent>
+              </Card>
+            )}
+            {activeReport === "access-logs" && (
+              <Card className="shadow-sm border">
+                <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
+                  <CardTitle className="text-sm font-semibold">
+                    Access Logs Results ({reportData.length})
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => exportCSV("access-logs", reportData)}
+                  >
+                    <Download className="w-4 h-4 mr-2" /> Export
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <AccessLogs data={reportData} />
                 </CardContent>
               </Card>
             )}

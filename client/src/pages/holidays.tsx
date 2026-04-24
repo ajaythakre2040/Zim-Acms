@@ -26,7 +26,7 @@ export default function HolidaysPage() {
     { key: "name", label: "Holiday Name", required: true },
     { key: "date", label: "Date", type: "date", required: true },
     { key: "holidayType", label: "Type", type: "select", options: [{ value: "national", label: "National" }, { value: "state", label: "State" }, { value: "company", label: "Company" }, { value: "optional", label: "Optional" }], defaultValue: "company" },
-    { key: "locationId", label: "Site (optional)", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
+    // { key: "locationId", label: "Site (optional)", type: "select", options: sites.map((s) => ({ value: String(s.id), label: s.name })) },
     { key: "description", label: "Description", type: "textarea" },
   ];
 
@@ -34,7 +34,7 @@ export default function HolidaysPage() {
     { key: "name", label: "Holiday", render: (h: Holiday) => <span className="font-medium">{h.name}</span> },
     { key: "date", label: "Date" },
     { key: "holidayType", label: "Type", render: (h: Holiday) => <Badge variant={typeColors[h.holidayType || ""] as any}>{h.holidayType}</Badge> },
-    { key: "site", label: "Site", hideOnMobile: true, render: (h: any) => sites.find((s) => s.id === h.locationid)?.name || "All sites" },
+    // { key: "site", label: "Site", hideOnMobile: true, render: (h: any) => sites.find((s) => s.id === h.locationid)?.name || "All sites" },
 
     // UPDATED ACTIONS COLUMN
     {
