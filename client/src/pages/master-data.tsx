@@ -243,8 +243,8 @@ function MasterTab({
 export default function MasterDataPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      <PageHeader title="Master Data" description="Manage departments, designations, categories, companies, vendors,  and roles" />
-    
+      <PageHeader title="Master Data" description="Manage designations, categories, companies and departments " />
+
 
       <Tabs defaultValue="designations" className="space-y-4">
         <TabsList className="flex-wrap">

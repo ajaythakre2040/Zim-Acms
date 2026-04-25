@@ -20,6 +20,7 @@ import {
   RotateCw,
 } from "lucide-react";
 import type { Device, Site, Zone } from "@shared/schema";
+import { formatDateTime } from "@/lib/utils";
 
 const statusConfig: Record<
   string,
@@ -140,17 +141,17 @@ export default function DevicesPage() {
       key: "status",
       label: "Status",
       render: (d: Device) => {
-        const statusKey = d.status || "offline";
-        const cfg = statusConfig[statusKey];
+        // Frontend calculation ko hata kar seedha backend ka status use karein
+        const statusKey = (d.status || "offline").toLowerCase();
+        const cfg = statusConfig[statusKey] || statusConfig.offline;
+
         return (
           <div className="flex items-center gap-2">
             <span className="relative flex h-2 w-2">
               {statusKey === "online" && (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               )}
-              <span
-                className={`relative inline-flex rounded-full h-2 w-2 ${cfg.dotClass}`}
-              ></span>
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${cfg.dotClass}`}></span>
             </span>
             <Badge variant={cfg.color as any}>{statusKey}</Badge>
           </div>
@@ -165,23 +166,17 @@ export default function DevicesPage() {
       hideOnMobile: true,
       render: (d: Device) => {
         if (!d.lastHeartbeat) return "Never";
-        const date = new Date(d.lastHeartbeat);
-        const diffInMins = Math.floor(
-          (new Date().getTime() - date.getTime()) / 60000,
-        );
 
-        let timeAgo = "";
-        if (diffInMins < 1) timeAgo = "Just now";
-        else if (diffInMins < 60) timeAgo = `${diffInMins}m ago`;
-        else if (diffInMins < 1440)
-          timeAgo = `${Math.floor(diffInMins / 60)}h ago`;
-        else timeAgo = date.toLocaleDateString();
-
+        // Yahan manual calculation ke bajaye seedha formatted time dikhayein
+        // Kyunki manual diff nikalne mein hi timezone ki galti hoti hai
         return (
           <div className="flex flex-col leading-tight">
-            <span className="text-sm font-medium">{timeAgo}</span>
+            <span className={`text-sm font-medium ${d.status === 'online' ? 'text-green-600' : 'text-slate-500'}`}>
+              {d.status === 'online' ? 'Active' : 'Last seen'}
+            </span>
             <span className="text-[10px] text-muted-foreground">
-              {date.toLocaleTimeString()}
+              {/* Aapki existing utils function use kar raha hoon */}
+              {formatDateTime(d.lastHeartbeat)}
             </span>
           </div>
         );
@@ -253,20 +248,20 @@ export default function DevicesPage() {
       />
 
       <div className="grid grid-cols-4 gap-3"> {/* 2 se badha kar 4 kiya */}
-  <Card>
-    <CardContent className="p-2 text-center"> {/* Padding bhi p-3 se p-2 kar di */}
-      <p className="text-xl font-bold text-green-600">{online}</p>
-      <p className="text-[10px] text-muted-foreground uppercase">Online</p>
-    </CardContent>
-  </Card>
-  
-  <Card>
-    <CardContent className="p-2 text-center">
-      <p className="text-xl font-bold text-muted-foreground">{offline}</p>
-      <p className="text-[10px] text-muted-foreground uppercase">Offline</p>
-    </CardContent>
-  </Card>
-</div>
+        <Card>
+          <CardContent className="p-2 text-center"> {/* Padding bhi p-3 se p-2 kar di */}
+            <p className="text-xl font-bold text-green-600">{online}</p>
+            <p className="text-[10px] text-muted-foreground uppercase">Online</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-2 text-center">
+            <p className="text-xl font-bold text-muted-foreground">{offline}</p>
+            <p className="text-[10px] text-muted-foreground uppercase">Offline</p>
+          </CardContent>
+        </Card>
+      </div>
 
       <DataTable
         columns={columns}

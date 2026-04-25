@@ -95,7 +95,7 @@ export function ShiftWiseEmpCount({
     },
     refetchInterval: refreshInterval,
   });
-  
+
 
   if (isLoading) return <Skeleton className="h-64 w-full rounded-xl" />;
   const chartData = shifts.map((shift) => {
@@ -122,7 +122,7 @@ export function ShiftWiseEmpCount({
       row.totalEmp
     ]);
 
-    let csvContent = "data:text/csv;charset=utf-8," 
+    let csvContent = "data:text/csv;charset=utf-8,"
       + [headers, ...rows].map(e => e.join(",")).join("\n");
 
     const encodedUri = encodeURI(csvContent);
@@ -134,32 +134,32 @@ export function ShiftWiseEmpCount({
     document.body.removeChild(link);
   };
   return (
-  <div className="space-y-6">
-    <Card className="border-none shadow-sm ring-1 ring-border overflow-hidden">
-      
-      {/* ✅ SIRF YE EK HEADER RAKHO (Puraana wala delete kar do) */}
-      <CardHeader className="pb-3 border-b bg-muted/10 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-bold flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-violet-500" />
-          Shift-wise Employee Count
-        </CardTitle>
+    <div className="space-y-6">
+      <Card className="border-none shadow-sm ring-1 ring-border overflow-hidden">
 
-        <button
-          onClick={exportToCSV}
-          className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors shadow-sm font-medium"
-        >
-          Export CSV
-        </button>
-      </CardHeader>
+        {/* ✅ SIRF YE EK HEADER RAKHO (Puraana wala delete kar do) */}
+        <CardHeader className="pb-3 border-b bg-muted/10 flex flex-row items-center justify-between">
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-violet-500" />
+            Shift-wise Employee Count
+          </CardTitle>
 
-      <CardContent className="p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-muted/30 border-b">
-                <th className="px-4 py-3 text-left font-bold text-[10px] uppercase border-r">
-                  Door Name
-                </th>
+          <button
+            onClick={exportToCSV}
+            className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors shadow-sm font-medium"
+          >
+            Export CSV
+          </button>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="bg-muted/30 border-b">
+                  <th className="px-4 py-3 text-left font-bold text-[10px] uppercase border-r">
+                    Door Name
+                  </th>
 
                   {shifts.map((shift) => (
                     <th
@@ -256,7 +256,7 @@ export function ShiftWiseEmpCount({
               <PieChart>
                 <Pie
                   data={chartData}
-                  dataKey="value"
+                  dataKey="Emp_Count"
                   nameKey="name"
                   outerRadius={80}
                   label

@@ -1,6 +1,9 @@
 export * from "./models/auth";
 
-import { pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date } from "drizzle-orm/pg-core";
+import {
+  pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date, bigserial, // <--- Add this
+  decimal,   // <--- Add this
+  index, } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
@@ -749,6 +752,67 @@ export const cabinLockouts = pgTable("cabin_lockouts", {
   // updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
 });
 
+// // ==================== 4. ACTIVITY LOGS (Detailed Movements) ====================
+// // Ye table har employee ka 10,000+ data points save karegi
+// export const employeeActivityLogs = pgTable("employee_activity_logs", {
+//   id: bigserial("id", { mode: "number" }).primaryKey(),
+//   deviceLogId: integer("device_log_id").unique(),
+//   employeeCode: text("employee_code").notNull(),
+//   employeeName: text("employee_name"),
+
+//   // Device & Door Info
+//   deviceId: integer("device_id"),
+//   deviceName: text("device_name"),
+//   doorId: integer("door_id"),
+//   doorName: text("door_name"),
+//   direction: text("direction"), // IN / OUT
+
+//   // Shift & Organization
+//   shiftName: text("shift_name"),
+//   departmentName: text("department_name"),
+//   designationName: text("designation_name"),
+//   locationName: text("location_name"),
+
+//   // Timings & Calculation
+//   logDate: timestamp("log_date").notNull(),
+//   onlyDate: date("only_date").notNull(),
+
+//   stayDurationMinutes: integer("stay_duration_minutes").default(0),
+//   prevZone: text("prev_zone"),
+//   currentZone: text("current_zone"),
+//   isProductive: boolean("is_productive").default(false),
+// }, (table) => ({
+//   empDateIdx: index("idx_logs_emp_date").on(table.employeeCode, table.onlyDate),
+// }));
+
+// // ==================== 5. DAILY ATTENDANCE SUMMARY (For Reports) ====================
+// export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
+//   id: bigserial("id", { mode: "number" }).primaryKey(),
+//   workDate: date("work_date").notNull(),
+//   employeeCode: text("employee_code").notNull(),
+
+//   firstIn: timestamp("first_in"),
+//   lastOut: timestamp("last_out"),
+
+//   totalOfficeMinutes: integer("total_office_minutes").default(0),
+//   productiveMinutes: integer("productive_minutes").default(0),
+
+//   // Ye line add karein agar missing hai
+//   totalPunches: integer("total_punches").default(0),
+
+//   efficiencyPercent: decimal("efficiency_percent", { precision: 5, scale: 2 }),
+//   attendanceStatus: text("attendance_status").default("P"),
+// }, (table) => ({
+//   uniqueDateEmp: uniqueIndex("idx_summary_date_emp").on(table.workDate, table.employeeCode),
+// }));
+
+// export const syncMeta = pgTable("sync_meta", {
+//   id: serial("id").primaryKey(),
+//   syncCode: text("sync_code").unique().notNull(), // 'ATTENDANCE_SYNC'
+//   lastProcessedId: integer("last_processed_id").default(0),
+//   updatedAt: timestamp("updated_at").defaultNow(),
+// });
+
 // ==================== INSERT SCHEMAS ====================
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
@@ -788,8 +852,16 @@ export const insertMainGateLogSchema = createInsertSchema(mainGateLogs).omit({ i
 export const insertCronMasterSchema = createInsertSchema(cronMaster).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDoorDeviceSchema = createInsertSchema(doorDevices).omit({ id: true, createdAt: true });
 export const insertEmployeeDoorAssignmentSchema = createInsertSchema(employeeDoorAssignments).omit({ id: true, createdAt: true, updatedAt: true }).extend({doorIds: z.array(z.number())});
+// export const insertEmployeeActivityLogSchema = createInsertSchema(employeeActivityLogs, { logDate: z.any(), onlyDate: z.any() }).omit({ id: true }); 
+// export const insertDailyAttendanceSummarySchema = createInsertSchema(dailyAttendanceSummary, { workDate: z.any() }).omit({ id: true });
 
-// ==================== TYPES ====================
+// // ==================== TYPES ====================
+// export type EmployeeActivityLog = typeof employeeActivityLogs.$inferSelect;
+// export type InsertEmployeeActivityLog = z.infer<typeof insertEmployeeActivityLogSchema>;
+
+// export type DailyAttendanceSummary = typeof dailyAttendanceSummary.$inferSelect;
+// export type InsertDailyAttendanceSummary = z.infer<typeof insertDailyAttendanceSummarySchema>;
+
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type Company = typeof companies.$inferSelect;
