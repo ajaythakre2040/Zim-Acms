@@ -611,79 +611,79 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   async getDevices(): Promise<any[]> {
     try {
       const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
       if (!msDataRaw || msDataRaw.length === 0) return [];
 
       const currentTime = new Date();
-
+      
       const THRESHOLD_MINUTES = 1;
 
       const formattedDevices = msDataRaw.map((d: any) => {
@@ -691,24 +691,24 @@ export class DatabaseStorage implements IStorage {
         let calculatedStatus = "offline";
 
         if (d.LastPing) {
-
+          
           lPing = new Date(d.LastPing);
 
-
+          
           let diffInMs = currentTime.getTime() - lPing.getTime();
           let diffInMinutes = diffInMs / 60000;
 
-
+         
           const absDiff = Math.abs(diffInMinutes);
 
-
-
+          
+          
           if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
             calculatedStatus = "online";
           }
 
-
-
+          
+          
         }
 
         return {
@@ -730,7 +730,7 @@ export class DatabaseStorage implements IStorage {
         };
       });
 
-
+      
       for (const dev of formattedDevices) {
         await db.insert(devices)
           .values(dev)
@@ -1362,8 +1362,8 @@ export class DatabaseStorage implements IStorage {
           deviceName: "—"
         };
         if (logs.length === 0) {
-          rowData.status = "absent";
-
+          rowData.status = "absent";  
+          
         } else {
           const sortedLogs = logs.sort((a, b) => a.time.getTime() - b.time.getTime());
           const firstIn = sortedLogs[0];
@@ -1485,63 +1485,63 @@ export class DatabaseStorage implements IStorage {
       offlineDevices: Math.max(0, devicesCount.count - onlineCount.count)
     };
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
   async getDoorWiseStats(date: string) {
     const [totalPeopleResult] = await db.select({
       count: sql<number>`count(*)`
@@ -1597,7 +1597,7 @@ export class DatabaseStorage implements IStorage {
         mainGateInPunches = inCount;
         mainGateOutPunches = outCount;
 
-
+        
         inLogs.forEach(l => uniquePresentEmployees.add(l.EmployeeCode));
       }
 
@@ -1613,11 +1613,11 @@ export class DatabaseStorage implements IStorage {
 
     return {
       doorStats,
-      mainGateIn: mainGateInPunches,
-      mainGateOut: mainGateOutPunches,
+      mainGateIn: mainGateInPunches, 
+      mainGateOut: mainGateOutPunches, 
       mainGateBal: Math.max(0, mainGateInPunches - mainGateOutPunches),
-      totalPresent: totalPresent,
-      totalAbsent: Math.max(0, totalManpower - totalPresent),
+      totalPresent: totalPresent, 
+      totalAbsent: Math.max(0, totalManpower - totalPresent), 
       totalManpower
     };
   }
@@ -1669,36 +1669,36 @@ export class DatabaseStorage implements IStorage {
       });
       const counted = new Set<string>();
       for (const log of rawLogs) {
-        const doorName = deviceToDoor[log.DeviceId];
-        if (!doorName) continue;
+  const doorName = deviceToDoor[log.DeviceId];
+  if (!doorName) continue;
 
-        const [pH, pM, pS] = log.LogTime.split(':');
-        const punchTime = dayjs()
-          .set('hour', parseInt(pH))
-          .set('minute', parseInt(pM))
-          .set('second', parseInt(pS));
+  const [pH, pM, pS] = log.LogTime.split(':');
+  const punchTime = dayjs()
+    .set('hour', parseInt(pH))
+    .set('minute', parseInt(pM))
+    .set('second', parseInt(pS));
 
-        for (const win of windows) {
-          if (punchTime.isBetween(win.start, win.end, null, '[]')) {
+  for (const win of windows) {
+    if (punchTime.isBetween(win.start, win.end, null, '[]')) {
 
+      
+      const key = `${doorName}_${win.name}_${log.EmployeeCode}`;
 
-            const key = `${doorName}_${win.name}_${log.EmployeeCode}`;
-
-
-            if (counted.has(key)) {
-              continue;
-            }
-
-
-            counted.add(key);
-
-            stats[doorName][win.name!]++;
-            stats[doorName].totalEmp++;
-
-            break;
-          }
-        }
+      
+      if (counted.has(key)) {
+        continue;
       }
+
+      
+      counted.add(key);
+
+      stats[doorName][win.name!]++;
+      stats[doorName].totalEmp++;
+
+      break;
+    }
+  }
+}
       return Object.values(stats);
     } catch (error) {
       console.error("IST_STATS_ERROR:", error);
@@ -1714,21 +1714,13 @@ export class DatabaseStorage implements IStorage {
     }).from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-    // 2. MS SQL se Success aur Illegal (with Photo) logs fetch karein
+    // 2. MS SQL Query: UNION ALL Success and Illegal Logs
     const msSqlData = await mssqlPool.request()
       .input('filterDate', date)
       .query(`
-      /* Success Logs - Inme aksar photo nahi hoti, isliye NULL bhej rahe hain */
       SELECT 
-        e.EmployeeName, 
-        l.EmployeeCode, 
-        l.DeviceId, 
-        d.DeviceName,
-        l.Direction, 
-        l.LogDate,
-        'success' as LogStatus,
-        'Access Granted' as Remarks,
-        NULL as Photo
+        e.EmployeeName, l.EmployeeCode, l.DeviceId, d.DeviceName, l.Direction, l.LogDate,
+        'success' as LogStatus, 'Access Granted' as Remarks, NULL as AttPhoto
       FROM DeviceLogs l
       LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
       LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
@@ -1736,20 +1728,14 @@ export class DatabaseStorage implements IStorage {
 
       UNION ALL
 
-      /* Illegal Logs - Yahan AttPhoto column include kiya hai */
       SELECT 
-        e.EmployeeName, 
-        l.EmployeeCode, 
-        l.DeviceId, 
-        d.DeviceName,
-        'IN' as Direction,
-        l.LogDate,
+        e.EmployeeName, l.EmployeeCode, l.DeviceId, d.DeviceName, 'IN' as Direction, l.LogDate,
         'failed' as LogStatus,
         CASE 
-          WHEN l.EmployeeCode IS NULL OR l.EmployeeCode = '0' OR l.EmployeeCode = '' THEN 'User Not Registered'
+          WHEN l.EmployeeCode IS NULL OR l.EmployeeCode = '0' THEN 'User Not Registered'
           ELSE 'User Blocked / Unauthorized'
         END as Remarks,
-        l.AttPhoto as Photo
+        l.AttPhoto -- Direct binary data fetch kar rahe hain
       FROM DeviceIllegalLogs l
       LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
       LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
@@ -1760,19 +1746,22 @@ export class DatabaseStorage implements IStorage {
 
     const allLogs = msSqlData.recordset;
 
-    // 3. Data map karein aur photo ko base64 format mein handle karein
+    // 3. Mapping and Photo Conversion
     const machineFeed = allLogs.map(log => {
       const door = doorMappings.find(m =>
         (m.inIds || []).includes(log.DeviceId) ||
         (m.outIds || []).includes(log.DeviceId)
       );
 
-      // Agar photo buffer hai, toh use base64 string mein convert karein
-      let photoBase64 = null;
-      if (log.Photo) {
-        // MS SQL se image aksar Buffer mein aati hai
-        const buffer = Buffer.isBuffer(log.Photo) ? log.Photo : Buffer.from(log.Photo);
-        photoBase64 = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+      // Photo conversion logic (URL ki jagah Base64 use karenge)
+      let photoData = null;
+      if (log.AttPhoto) {
+        // Agar AttPhoto string hai to use karein, agar buffer hai to base64 banayein
+        const base64Content = Buffer.isBuffer(log.AttPhoto)
+          ? log.AttPhoto.toString('base64')
+          : String(log.AttPhoto);
+
+        photoData = `data:image/jpeg;base64,${base64Content}`;
       }
 
       return {
@@ -1783,17 +1772,15 @@ export class DatabaseStorage implements IStorage {
         logDate: log.LogDate,
         status: log.LogStatus,
         remarks: log.Remarks,
-        photo: photoBase64, // Frontend par <img> tag mein use karne ke liye
+        photo: photoData, // Ab ye direct Image Source hai
         doorName: door ? door.doorName : (log.DeviceName || "Unknown Door")
       };
     });
 
-    return {
-      machineFeed
-    };
+    return { machineFeed };
   }
   // async getMachineAccessLogs(date: string) {
-
+    
   //   const doorMappings = await db.select({
   //     doorName: doors.name,
   //     inIds: doorDevices.inDeviceIds,
@@ -1801,7 +1788,7 @@ export class DatabaseStorage implements IStorage {
   //   }).from(doors)
   //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-
+    
   //   const msSqlData = await mssqlPool.request()
   //     .input('filterDate', date)
   //     .query(`
@@ -1821,7 +1808,7 @@ export class DatabaseStorage implements IStorage {
 
   //   const logs = msSqlData.recordset;
 
-
+    
   //   const machineFeed = logs.map(log => {
   //     const door = doorMappings.find(m =>
   //       (m.inIds || []).includes(log.DeviceId) ||
@@ -1842,7 +1829,6 @@ export class DatabaseStorage implements IStorage {
   //     machineFeed
   //   };
   // }
-
   async getRoles(): Promise<any[]> {
     const allRoles = await db.select().from(roles).orderBy(desc(roles.id));
     const allDoors = await db.select({
