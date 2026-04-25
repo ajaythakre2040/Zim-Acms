@@ -1705,82 +1705,8 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
-  async getMachineAccessLogs(date: string) {
-    // 1. Door Mappings fetch karein
-    const doorMappings = await db.select({
-      doorName: doors.name,
-      inIds: doorDevices.inDeviceIds,
-      outIds: doorDevices.outDeviceIds,
-    }).from(doors)
-      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-
-    // 2. MS SQL Query: UNION ALL Success and Illegal Logs
-    const msSqlData = await mssqlPool.request()
-      .input('filterDate', date)
-      .query(`
-      SELECT 
-        e.EmployeeName, l.EmployeeCode, l.DeviceId, d.DeviceName, l.Direction, l.LogDate,
-        'success' as LogStatus, 'Access Granted' as Remarks, NULL as AttPhoto
-      FROM DeviceLogs l
-      LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
-      LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-      WHERE CAST(l.LogDate AS DATE) = @filterDate
-
-      UNION ALL
-
-      SELECT 
-        e.EmployeeName, l.EmployeeCode, l.DeviceId, d.DeviceName, 'IN' as Direction, l.LogDate,
-        'failed' as LogStatus,
-        CASE 
-          WHEN l.EmployeeCode IS NULL OR l.EmployeeCode = '0' THEN 'User Not Registered'
-          ELSE 'User Blocked / Unauthorized'
-        END as Remarks,
-        l.AttPhoto -- Direct binary data fetch kar rahe hain
-      FROM DeviceIllegalLogs l
-      LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
-      LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-      WHERE CAST(l.LogDate AS DATE) = @filterDate
-
-      ORDER BY LogDate DESC
-    `);
-
-    const allLogs = msSqlData.recordset;
-
-    // 3. Mapping and Photo Conversion
-    const machineFeed = allLogs.map(log => {
-      const door = doorMappings.find(m =>
-        (m.inIds || []).includes(log.DeviceId) ||
-        (m.outIds || []).includes(log.DeviceId)
-      );
-
-      // Photo conversion logic (URL ki jagah Base64 use karenge)
-      let photoData = null;
-      if (log.AttPhoto) {
-        // Agar AttPhoto string hai to use karein, agar buffer hai to base64 banayein
-        const base64Content = Buffer.isBuffer(log.AttPhoto)
-          ? log.AttPhoto.toString('base64')
-          : String(log.AttPhoto);
-
-        photoData = `data:image/jpeg;base64,${base64Content}`;
-      }
-
-      return {
-        employeeName: log.EmployeeName || (log.LogStatus === 'failed' ? "Unknown" : "Visitor"),
-        employeeCode: log.EmployeeCode || "N/A",
-        deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-        direction: log.Direction,
-        logDate: log.LogDate,
-        status: log.LogStatus,
-        remarks: log.Remarks,
-        photo: photoData, // Ab ye direct Image Source hai
-        doorName: door ? door.doorName : (log.DeviceName || "Unknown Door")
-      };
-    });
-
-    return { machineFeed };
-  }
   // async getMachineAccessLogs(date: string) {
-    
+  //   // 1. Door Mappings fetch karein
   //   const doorMappings = await db.select({
   //     doorName: doors.name,
   //     inIds: doorDevices.inDeviceIds,
@@ -1788,47 +1714,125 @@ export class DatabaseStorage implements IStorage {
   //   }).from(doors)
   //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-    
+  //   // 2. MS SQL Query: UNION ALL Success and Illegal Logs
   //   const msSqlData = await mssqlPool.request()
   //     .input('filterDate', date)
   //     .query(`
   //     SELECT 
-  //       e.EmployeeName, 
-  //       l.EmployeeCode, 
-  //       l.DeviceId, 
-  //       d.DeviceName,
-  //       l.Direction, 
-  //       l.LogDate 
+  //       e.EmployeeName, l.EmployeeCode, l.DeviceId, d.DeviceName, 
+  //       d.DeviceDirection as Direction, -- Yahan d.DeviceDirection use kiya
+  //       l.LogDate,
+  //       'success' as LogStatus, 'Access Granted' as Remarks, NULL as AttPhoto
   //     FROM DeviceLogs l
   //     LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
   //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
   //     WHERE CAST(l.LogDate AS DATE) = @filterDate
-  //     ORDER BY l.LogDate DESC
+
+  //     UNION ALL
+
+  //     SELECT 
+  //       e.EmployeeName, l.EmployeeCode, l.DeviceId, d.DeviceName, 
+  //       d.DeviceDirection as Direction, -- Yahan 'IN' ki jagah d.DeviceDirection liya
+  //       l.LogDate,
+  //       'failed' as LogStatus,
+  //       CASE 
+  //         WHEN l.EmployeeCode IS NULL OR l.EmployeeCode = '0' THEN 'User Not Registered'
+  //         ELSE 'User Blocked / Unauthorized'
+  //       END as Remarks,
+  //       l.AttPhoto
+  //     FROM DeviceIllegalLogs l
+  //     LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
+  //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+  //     WHERE CAST(l.LogDate AS DATE) = @filterDate
+
+  //     ORDER BY LogDate DESC
   //   `);
 
-  //   const logs = msSqlData.recordset;
+  //   const allLogs = msSqlData.recordset;
 
-    
-  //   const machineFeed = logs.map(log => {
+  //   // 3. Mapping and Photo Conversion
+  //   const machineFeed = allLogs.map(log => {
   //     const door = doorMappings.find(m =>
   //       (m.inIds || []).includes(log.DeviceId) ||
   //       (m.outIds || []).includes(log.DeviceId)
   //     );
 
+  //     let photoData = null;
+  //     if (log.AttPhoto) {
+  //       const base64Content = Buffer.isBuffer(log.AttPhoto)
+  //         ? log.AttPhoto.toString('base64')
+  //         : String(log.AttPhoto);
+
+  //       photoData = `data:image/jpeg;base64,${base64Content}`;
+  //     }
+
   //     return {
-  //       employeeName: log.EmployeeName || "Unknown",
-  //       employeeCode: log.EmployeeCode,
+  //       employeeName: log.EmployeeName || (log.LogStatus === 'failed' ? "Unknown" : "Visitor"),
+  //       employeeCode: log.EmployeeCode || "N/A",
   //       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-  //       direction: log.Direction,
+  //       direction: log.Direction || "N/A", // Ab ye Devices table se aayega
   //       logDate: log.LogDate,
+  //       status: log.LogStatus,
+  //       remarks: log.Remarks,
+  //       photo: photoData,
   //       doorName: door ? door.doorName : (log.DeviceName || "Unknown Door")
   //     };
   //   });
 
-  //   return {
-  //     machineFeed
-  //   };
+  //   return { machineFeed };
   // }
+
+
+  async getMachineAccessLogs(date: string) {
+    
+    const doorMappings = await db.select({
+      doorName: doors.name,
+      inIds: doorDevices.inDeviceIds,
+      outIds: doorDevices.outDeviceIds,
+    }).from(doors)
+      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
+    
+    const msSqlData = await mssqlPool.request()
+      .input('filterDate', date)
+      .query(`
+      SELECT 
+        e.EmployeeName, 
+        l.EmployeeCode, 
+        l.DeviceId, 
+        d.DeviceName,
+        l.Direction, 
+        l.LogDate 
+      FROM DeviceLogs l
+      LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
+      LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+      WHERE CAST(l.LogDate AS DATE) = @filterDate
+      ORDER BY l.LogDate DESC
+    `);
+
+    const logs = msSqlData.recordset;
+
+    
+    const machineFeed = logs.map(log => {
+      const door = doorMappings.find(m =>
+        (m.inIds || []).includes(log.DeviceId) ||
+        (m.outIds || []).includes(log.DeviceId)
+      );
+
+      return {
+        employeeName: log.EmployeeName || "Unknown",
+        employeeCode: log.EmployeeCode,
+        deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+        direction: log.Direction,
+        logDate: log.LogDate,
+        doorName: door ? door.doorName : (log.DeviceName || "Unknown Door")
+      };
+    });
+
+    return {
+      machineFeed
+    };
+  }
   async getRoles(): Promise<any[]> {
     const allRoles = await db.select().from(roles).orderBy(desc(roles.id));
     const allDoors = await db.select({

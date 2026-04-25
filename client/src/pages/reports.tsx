@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,13 +54,13 @@ const reportTypes = [
     description: "Daily Performance records of Employees",
   },
   {
-  id: "daily-efficiency", // ✅ FIX
-  label: "Daily Efficiency",
-  icon: Clock,
-  color: "text-blue-500",
-  bgColor: "bg-blue-50 dark:bg-blue-950/40",
-  description: "Daily Efficiency records of Employees",
-},
+    id: "daily-efficiency", // ✅ FIX
+    label: "Daily Efficiency",
+    icon: Clock,
+    color: "text-blue-500",
+    bgColor: "bg-blue-50 dark:bg-blue-950/40",
+    description: "Daily Efficiency records of Employees",
+  },
   {
     id: "cabin-lockout", // Cefalo replaced with Lockout
     label: "Cabin Lockout",
@@ -781,7 +782,25 @@ function LockoutReportTable({ data }: { data: any[] }) {
 // 4. Main Page Component
 export default function ReportsPage() {
   const [activeReport, setActiveReport] = useState("attendance");
+  const [location] = useLocation();
 
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tab = searchParams.get("tab");
+
+    if (tab) {
+      const validTabs = ["attendance", "access-logs", "daily performance", "daily-efficiency", "cabin-lockout"];
+
+      if (validTabs.includes(tab)) {
+        setActiveReport(tab);
+
+        // 🔥 CRITICAL: URL se "?tab=..." ko remove karein 
+        // Taaki refresh karne par ya wapas aane par ye wapas switch na ho
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }
+    }
+  }, [location]);
   // 🔥 PER REPORT FILTERS
   const [filters, setFilters] = useState<
     Record<string, Record<string, string>>
@@ -884,11 +903,10 @@ export default function ReportsPage() {
             onClick={() => {
               setActiveReport(rt.id);
             }}
-            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
-              activeReport === rt.id
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
                 ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
                 : "bg-card hover:bg-muted/50"
-            }`}
+              }`}
           >
             <rt.icon
               className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`}
