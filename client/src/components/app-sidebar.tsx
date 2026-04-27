@@ -71,7 +71,7 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: "Time & Holidays",
+    label: "Shifts & Holidays",
     color: "text-amber-400",
     bgColor: "bg-amber-500/15",
     items: [

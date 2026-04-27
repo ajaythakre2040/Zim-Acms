@@ -104,3 +104,7 @@ export const ALERT_TEMPLATES = {
     message: "Failed to synchronize data between PostgreSQL and MS SQL Server."
   }
 };
+
+export const ATTENDANCE_CONFIG = {
+  OT_THRESHOLD_MINUTES: 120, // 2 Hours Buffer Policy
+};

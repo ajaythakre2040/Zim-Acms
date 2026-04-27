@@ -278,24 +278,24 @@ export default function PeoplePage() {
       type: "select",
       options: departments.map((d) => ({ value: String(d.id), label: d.name })),
     },
- {
-    key: "designationId",
-    label: "Designation",
-    type: "select",
-    options: designations.map((d) => ({
-      value: String(d.id),
-      label: d.name,
-    })),
-  },
     {
-      key: "shiftId",
-      label: "Shift",
+      key: "designationId",
+      label: "Designation",
       type: "select",
-      options: shifts.map((s: any) => ({
-        value: String(s.id),
-        label: s.name || s.code || `Shift ${s.id}`,
+      options: designations.map((d) => ({
+        value: String(d.id),
+        label: d.name,
       })),
     },
+    // {
+    //   key: "shiftId",
+    //   label: "Shift",
+    //   type: "select",
+    //   options: shifts.map((s: any) => ({
+    //     value: String(s.id),
+    //     label: s.name || s.code || `Shift ${s.id}`,
+    //   })),
+    // },
 
     {
       key: "companyId",
@@ -331,7 +331,7 @@ export default function PeoplePage() {
     { key: "riskTier", label: "Risk Tier (1-5)", type: "number" },
   ];
 
-  const hiddenOnEdit = ["designationId", "companyId", "riskTier"];
+  const hiddenOnEdit = ["companyId", "riskTier"];
 
   const filteredFields = fields.filter(
     (f) => !(editing && hiddenOnEdit.includes(f.key)),
@@ -366,8 +366,8 @@ export default function PeoplePage() {
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
             className={`text-xs font-bold ${isEnabled
-                ? "bg-red-50 text-red-600 border-red-300"
-                : "bg-green-50 text-green-600 border-green-300"
+              ? "bg-red-50 text-red-600 border-red-300"
+              : "bg-green-50 text-green-600 border-green-300"
               }`}
           >
             {isEnabled ? "ACTIVE" : "INACTIVE"}

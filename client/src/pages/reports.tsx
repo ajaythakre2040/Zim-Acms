@@ -93,11 +93,11 @@ function statusBadge(status: string) {
 }
 
 const filterConfig: Record<string, string[]> = {
-  attendance: ["dateFrom", "dateTo", "personId", "status"],
-  "access-logs": ["dateFrom", "dateTo", "personId", "deviceId"],
-  "daily performance": ["dateFrom", "dateTo", "personId", "deviceId", "status"],
-  "daily-efficiency": ["dateFrom", "dateTo", "personId", "deviceId", "status"],
-  "cabin-lockout": ["dateFrom", "dateTo", "personId", "deviceId"],
+  attendance: ["dateFrom", "dateTo", "employeeCode", "status"],
+  "access-logs": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
+  "daily performance": ["dateFrom", "dateTo", "employeeCode", "deviceId", "status"],
+  "daily-efficiency": ["dateFrom", "dateTo", "employeeCode", "deviceId", "status"],
+  "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
 };
 
 // 2. Filter Component
@@ -165,15 +165,15 @@ function ReportFilters({
             )}
 
             {/* EMPLOYEE */}
-            {allowed.includes("personId") && (
+            {allowed.includes("employeeCode") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
                   EMPLOYEE
                 </Label>
                 <Select
-                  value={filters.personId || "all"}
+                  value={filters.employeeCode || "all"}
                   onValueChange={(v) =>
-                    setFilters({ ...filters, personId: v === "all" ? "" : v })
+                    setFilters({ ...filters, employeeCode: v === "all" ? "" : v })
                   }
                 >
                   <SelectTrigger>
@@ -184,7 +184,7 @@ function ReportFilters({
                     {people.map((p) => (
                       <SelectItem
                         key={p.id}
-                        value={String(p.employeeCode || p.id)}
+                        value={String(p.employeeCode)}
                       >
                         {p.employeeName}{" "}
                         {p.employeeCode ? `(${p.employeeCode})` : ""}
@@ -904,8 +904,8 @@ export default function ReportsPage() {
               setActiveReport(rt.id);
             }}
             className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
-                ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
-                : "bg-card hover:bg-muted/50"
+              ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
+              : "bg-card hover:bg-muted/50"
               }`}
           >
             <rt.icon
