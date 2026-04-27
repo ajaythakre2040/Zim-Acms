@@ -786,25 +786,32 @@ export const employeeActivityLogs = pgTable("employee_activity_logs", {
 }));
 
 // daily_attendance_summary table update
+// Reporting ke liye optimized table
 export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   workDate: date("work_date").notNull(),
   employeeCode: text("employee_code").notNull(),
 
+  // Timings
   firstIn: timestamp("first_in"),
   lastOut: timestamp("last_out"),
 
+  // Data Points
   totalOfficeMinutes: integer("total_office_minutes").default(0),
   productiveMinutes: integer("productive_minutes").default(0),
-
-  // 🔥 OT store karne ke liye naya column
   overtimeMinutes: integer("overtime_minutes").default(0),
-
   totalPunches: integer("total_punches").default(0),
-  efficiencyPercent: decimal("efficiency_percent", { precision: 5, scale: 2 }),
+
+  // Analysis (Image 2 logic)
+  efficiencyPercent: decimal("efficiency_percent", { precision: 5, scale: 2 }).default("0"),
   attendanceStatus: text("attendance_status").default("P"),
+
+  // Fast Reporting Metadata (No Joins Needed)
+  departmentName: text("department_name"),
+  designationName: text("designation_name"),
 }, (table) => ({
   uniqueDateEmp: uniqueIndex("idx_summary_date_emp").on(table.workDate, table.employeeCode),
+  dateIdx: index("idx_summary_date").on(table.workDate),
 }));
 
 export const syncMeta = pgTable("sync_meta", {

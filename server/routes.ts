@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response } from "express";
 import type { Server } from "http";
 import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { storage } from "./storage";
@@ -1018,5 +1018,75 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to delete assignment" });
     }
   });
+
+  // 1. Daily Performance Report
+  app.get("/api/reports/daily-performance", async (req: Request, res: Response) => {
+    try {
+      const q = req.query as any;
+      const date = q.date || new Date().toISOString().split('T')[0];
+      const data = await storage.getDailyReport(date);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // 2. Monthly Muster Roll
+  app.get("/api/reports/muster-roll", async (req: Request, res: Response) => {
+    try {
+      const q = req.query as any;
+      const data = await storage.getRangeReport(q.dateFrom, q.dateTo);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // 3. Overtime Matrix
+  app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
+    try {
+      const q = req.query as any;
+      const data = await storage.getRangeReport(q.dateFrom, q.dateTo);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // 4. Dept-wise Summary
+  app.get("/api/reports/dept-summary", async (req: Request, res: Response) => {
+    try {
+      const q = req.query as any;
+      const date = q.date || new Date().toISOString().split('T')[0];
+      const data = await storage.getDeptSummary(date);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // 5. Daily Efficiency
+  app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
+    try {
+      const q = req.query as any;
+      const date = q.date || new Date().toISOString().split('T')[0];
+      const data = await storage.getDailyReport(date);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // 6. Efficiency Analytics
+  app.get("/api/reports/efficiency-analytics", async (req: Request, res: Response) => {
+    try {
+      const q = req.query as any;
+      const data = await storage.getEfficiencyAnalytics(q.dateFrom, q.dateTo, q.employeeCode);
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   return httpServer;
 }

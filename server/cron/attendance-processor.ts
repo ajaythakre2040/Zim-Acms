@@ -19,7 +19,7 @@ dayjs.extend(isBetween);
 export async function processAttendanceBatch(rawPunches: any[]) {
     if (!rawPunches.length) return;
 
-    // 1. Master Data Load
+    // 1. Master Data Load (Mapping aur Shifts ek baar uthao)
     const [allDoorMappings, allShifts] = await Promise.all([
         db.select({
             doorId: doors.id,
@@ -42,7 +42,7 @@ export async function processAttendanceBatch(rawPunches: any[]) {
 
             if (!msEmpCode || msDeviceId === 0 || !punchTime.isValid()) continue;
 
-            // 2. Fetch Employee with Shift Data (Dynamic Working Hours ke liye)
+            // 2. Fetch Employee with Joins (Metadata store karne ke liye)
             const [empData] = await db
                 .select({
                     id: people.id,
@@ -51,7 +51,6 @@ export async function processAttendanceBatch(rawPunches: any[]) {
                     deptName: departments.name,
                     desigName: designations.name,
                     lastSeenTime: people.lastSeenTime,
-                    // Shift se working hours uthana
                     shiftWorkingHours: shifts.workingHours,
                 })
                 .from(people)
@@ -71,15 +70,12 @@ export async function processAttendanceBatch(rawPunches: any[]) {
             const isIncoming = mapping.inDeviceIds?.includes(msDeviceId);
             const direction = isIncoming ? "IN" : "OUT";
 
-            // 3. Dynamic Shift Calculation
-            // Agar DB mein 8 likha hai toh 8 * 60 = 480 mins
+            // 3. Calculation
             const shiftMinutes = (empData.shiftWorkingHours || 8) * 60;
-
-            // 4. Stay Duration Logic
             const lastSeen = empData.lastSeenTime ? dayjs(empData.lastSeenTime) : punchTime;
             const durationMinutes = lastSeen.isSame(punchTime, 'day') ? Math.max(0, punchTime.diff(lastSeen, 'minute')) : 0;
 
-            // 5. Activity Log Preparation
+            // 4. Activity Log Batch Preparation
             activityLogsToInsert.push({
                 deviceLogId: String(punch.DeviceLogId || punch.devicelogid || `${Date.now()}-${Math.random()}`),
                 employeeCode: msEmpCode,
@@ -98,7 +94,7 @@ export async function processAttendanceBatch(rawPunches: any[]) {
                 isProductive: isIncoming,
             });
 
-            // 6. Database Update with OT Logic
+            // 5. Transaction: Status Update + Aggregation
             await db.transaction(async (tx) => {
                 await tx.update(people).set({
                     lastSeenTime: punchTime.toDate(),
@@ -106,15 +102,28 @@ export async function processAttendanceBatch(rawPunches: any[]) {
                     updatedAt: new Date()
                 }).where(eq(people.employeeCode, msEmpCode));
 
-                await updateSummaryWithOT(tx, msEmpCode, onlyDate, punchTime.toDate(), durationMinutes, isIncoming ?? false, shiftMinutes);            });
+                // Yahan hum metadata bhi pass kar rahe hain reports ke liye
+                await updateSummaryWithOT(
+                    tx,
+                    msEmpCode,
+                    onlyDate,
+                    punchTime.toDate(),
+                    durationMinutes,
+                    isIncoming ?? false,
+                    shiftMinutes,
+                    empData.deptName,
+                    empData.desigName
+                );
+            });
 
         } catch (err: any) {
-            console.error(`❌ Sync Error: ${err.message}`);
+            console.error(`❌ Sync Error for ${punch.EmployeeCode}: ${err.message}`);
         }
     }
 
     if (activityLogsToInsert.length > 0) {
         await db.insert(employeeActivityLogs).values(activityLogsToInsert).onConflictDoNothing();
+        console.log(`✅ ${activityLogsToInsert.length} logs synced.`);
     }
 }
 
@@ -125,7 +134,9 @@ async function updateSummaryWithOT(
     punchTime: Date,
     mins: number,
     isIncoming: boolean,
-    shiftMinutes: number
+    shiftMinutes: number,
+    deptName?: string | null,
+    desigName?: string | null
 ) {
     const [existing] = await tx.select()
         .from(dailyAttendanceSummary)
@@ -137,14 +148,12 @@ async function updateSummaryWithOT(
     const totalOffice = (existing?.totalOfficeMinutes || 0) + mins;
     const productive = (existing?.productiveMinutes || 0) + (isIncoming ? mins : 0);
 
-    // 🔥 DYNAMIC OT LOGIC
+    // 🔥 OT Logic (Threshold check)
     const extraMinutes = totalOffice > shiftMinutes ? totalOffice - shiftMinutes : 0;
+    let finalOvertime = extraMinutes >= ATTENDANCE_CONFIG.OT_THRESHOLD_MINUTES ? extraMinutes : 0;
 
-    // Eligibility: 2 hours (120 mins) threshold check
-    let finalOvertime = 0;
-    if (extraMinutes >= ATTENDANCE_CONFIG.OT_THRESHOLD_MINUTES) {
-        finalOvertime = extraMinutes;
-    }
+    // 🔥 Efficiency Logic (Image 2 ke liye)
+    const efficiency = totalOffice > 0 ? ((productive / totalOffice) * 100).toFixed(2) : "0";
 
     await tx.insert(dailyAttendanceSummary).values({
         employeeCode: empCode,
@@ -154,6 +163,9 @@ async function updateSummaryWithOT(
         totalOfficeMinutes: totalOffice,
         productiveMinutes: productive,
         overtimeMinutes: finalOvertime,
+        efficiencyPercent: efficiency, // Store pre-calculated
+        departmentName: deptName || "N/A", // Store for fast report
+        designationName: desigName || "N/A",
         totalPunches: 1,
         attendanceStatus: ATTENDANCE_STATUS.PRESENT,
     }).onConflictDoUpdate({
@@ -163,6 +175,9 @@ async function updateSummaryWithOT(
             totalOfficeMinutes: totalOffice,
             productiveMinutes: productive,
             overtimeMinutes: finalOvertime,
+            efficiencyPercent: efficiency,
+            departmentName: deptName || "N/A",
+            designationName: desigName || "N/A",
             totalPunches: sql`${dailyAttendanceSummary.totalPunches} + 1`
         }
     });

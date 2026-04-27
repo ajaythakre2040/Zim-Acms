@@ -51,10 +51,11 @@ import {
   DoorDevice,
   BlockUnblockLog,
   InsertBlockUnblockLog,
+  dailyAttendanceSummary,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
-import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte } from "drizzle-orm";
+import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES } from './constant';
@@ -2519,5 +2520,58 @@ export class DatabaseStorage implements IStorage {
       .delete(schema.employeeDoorAssignments)
       .where(eq(schema.employeeDoorAssignments.id, id));
   }
+
+  // 1 & 5: Daily Performance aur Daily Efficiency ke liye
+  async getDailyReport(date: string) {
+    return await db
+      .select()
+      .from(dailyAttendanceSummary)
+      .where(eq(dailyAttendanceSummary.workDate, date));
+  }
+
+  // 2 & 3: Muster Roll aur Overtime Matrix (Date Range)
+  async getRangeReport(startDate: string, endDate: string) {
+    return await db
+      .select()
+      .from(dailyAttendanceSummary)
+      .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
+      .orderBy(asc(dailyAttendanceSummary.workDate));
+  }
+
+  // 4: Department Wise Manpower & OT Summary
+  async getDeptSummary(date: string) {
+    return await db
+      .select({
+        department: dailyAttendanceSummary.departmentName,
+        totalEmployees: sql<number>`count(*)`,
+        totalOT: sql<number>`sum(${dailyAttendanceSummary.overtimeMinutes})`,
+        avgEfficiency: sql<number>`avg(${dailyAttendanceSummary.efficiencyPercent})`,
+        totalProductive: sql<number>`sum(${dailyAttendanceSummary.productiveMinutes})`
+      })
+      .from(dailyAttendanceSummary)
+      .where(eq(dailyAttendanceSummary.workDate, date))
+      .groupBy(dailyAttendanceSummary.departmentName);
+  }
+
+  // 6: Efficiency Analytics (Over a period)
+  async getEfficiencyAnalytics(startDate: string, endDate: string, empCode?: string) {
+    let conditions = [between(dailyAttendanceSummary.workDate, startDate, endDate)];
+
+    if (empCode) {
+      conditions.push(eq(dailyAttendanceSummary.employeeCode, empCode));
+    }
+
+    return await db
+      .select({
+        employeeCode: dailyAttendanceSummary.employeeCode,
+        totalDays: sql<number>`count(distinct ${dailyAttendanceSummary.workDate})`,
+        avgEfficiency: sql<number>`avg(${dailyAttendanceSummary.efficiencyPercent})`,
+        totalProductiveMins: sql<number>`sum(${dailyAttendanceSummary.productiveMinutes})`,
+      })
+      .from(dailyAttendanceSummary)
+      .where(and(...conditions))
+      .groupBy(dailyAttendanceSummary.employeeCode);
+  }
+
 };
 export const storage = new DatabaseStorage();
