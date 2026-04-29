@@ -18,6 +18,7 @@ import {
   insertCronMasterSchema,
   insertDoorDeviceSchema,
   insertBlockUnblockLogSchema,
+  insertMenuMasterSchema,
 } from "@shared/schema";
 import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC } from "./constant";
 function requireAuth(req: any, res: any, next: any) {
@@ -718,15 +719,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: error.message });
     }
   });
-  crudRoutes(
-    app,
-    "/api/roles",
-    insertRoleSchema,
-    () => storage.getRoles(),
-    (data) => storage.createRole(data),
-    (id, data) => storage.updateRole(id, data),
-    (id) => storage.deleteRole(id)
-  );
+  // crudRoutes(
+  //   app,
+  //   "/api/roles",
+  //   insertRoleSchema,
+  //   () => storage.getRoles(),
+  //   (data) => storage.createRole(data),
+  //   (id, data) => storage.updateRole(id, data),
+  //   (id) => storage.deleteRole(id)
+  // );
   crudRoutes(
     app,
     "/api/employee-roles",
@@ -1086,6 +1087,63 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
+  });
+  crudRoutes(app, "/api/menus", insertMenuMasterSchema,
+    () => storage.getMenus(),
+    (d) => storage.createMenu(d),
+    (id, d) => storage.updateMenu(id, d),
+    (id) => storage.deleteMenu(id)
+  );
+  app.get("/api/roles", async (_req, res) => {
+    const roles = await storage.getRoles();
+    res.json(roles);
+  });
+
+  app.get("/api/menus/parents", async (_req, res) => {
+    try {
+      const parents = await storage.getParentMenus();
+      res.json(parents);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+  app.post("/api/roles-with-permissions", async (req, res) => {
+    try {
+      const { role, permissions } = req.body;
+      // role: { roleName: 'Admin', roleCode: 'admin' }
+      // permissions: [{ menuId: 1, view: true, add: true }, ...]
+
+      const result = await storage.createRoleWithPermissions(role, permissions);
+      res.status(201).json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // UPDATE ROLE + PERMISSIONS
+  app.put("/api/roles-with-permissions/:id", async (req, res) => {
+    try {
+      const roleId = parseInt(req.params.id);
+      const { role, permissions } = req.body;
+
+      await storage.updateRoleWithPermissions(roleId, role, permissions);
+      res.json({ message: "Role and Permissions updated successfully" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+  // Get Role specific permissions
+  app.get("/api/roles-with-permissions/:id", async (req, res) => {
+    const perms = await storage.getRolePermissions(Number(req.params.id));
+    res.json(perms);
+  });
+
+ 
+
+  // Delete Role & its permissions
+  app.delete("/api/roles/:id", async (req, res) => {
+    await storage.deleteRole(Number(req.params.id));
+    res.sendStatus(204);
   });
 
   return httpServer;

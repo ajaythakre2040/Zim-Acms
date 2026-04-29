@@ -52,10 +52,14 @@ import {
   BlockUnblockLog,
   InsertBlockUnblockLog,
   dailyAttendanceSummary,
+  MenuMaster,
+  InsertMenuMaster,
+  menuMaster,
+  rolePermissions,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
-import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between } from "drizzle-orm";
+import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte,between } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES } from './constant';
@@ -175,11 +179,11 @@ export interface IStorage {
   getAccessLogReport(filters: { dateFrom?: string; dateTo?: string; eventType?: string; personId?: number; locationId?: number; doorId?: number }): Promise<any[]>;
   getVisitorReport(filters: { dateFrom?: string; dateTo?: string; status?: string }): Promise<any[]>;
   getEmployeeSummaryReport(filters: { departmentId?: number; status?: string; personType?: string }): Promise<any[]>;
-  getRoles(): Promise<Role[]>;
-  getRole(id: number): Promise<Role | undefined>;
-  createRole(data: InsertRole): Promise<Role>;
-  updateRole(id: number, data: Partial<InsertRole>): Promise<Role>;
-  deleteRole(id: number): Promise<void>;
+  // getRoles(): Promise<Role[]>;
+  // getRole(id: number): Promise<Role | undefined>;
+  // createRole(data: InsertRole): Promise<Role>;
+  // updateRole(id: number, data: Partial<InsertRole>): Promise<Role>;
+  // deleteRole(id: number): Promise<void>;
   getEmployeeRoles(): Promise<EmployeeRole[]>;
   getEmployeeRole(id: number): Promise<EmployeeRole | undefined>;
   createEmployeeRole(data: InsertEmployeeRole): Promise<EmployeeRole>;
@@ -193,6 +197,11 @@ export interface IStorage {
   getEmployeeDoorAssignmentByCode(employeeCode: string): Promise<any | undefined>;
   upsertEmployeeDoorAssignment(data: any): Promise<any>;
   deleteEmployeeDoorAssignment(id: number): Promise<void>;
+  getMenus(): Promise<MenuMaster[]>;
+  getMenu(id: number): Promise<MenuMaster | undefined>;
+  createMenu(menu: InsertMenuMaster): Promise<MenuMaster>;
+  updateMenu(id: number, menu: Partial<InsertMenuMaster>): Promise<MenuMaster>;
+  deleteMenu(id: number): Promise<void>;
 }
 export class DatabaseStorage implements IStorage {
   async getUser(id: string): Promise<User | undefined> {
@@ -1834,81 +1843,83 @@ export class DatabaseStorage implements IStorage {
       machineFeed
     };
   }
-  async getRoles(): Promise<any[]> {
-    const allRoles = await db.select().from(roles).orderBy(desc(roles.id));
-    const allDoors = await db.select({
-      id: doors.id,
-      name: doors.name
-    }).from(doors);
-    const doorLookup = new Map<number, string>();
-    allDoors.forEach(d => doorLookup.set(d.id, d.name));
-    return allRoles.map((role) => {
-      const idsArray = Array.isArray(role.doorIds) ? role.doorIds : [];
-      const names = idsArray
-        .map(id => doorLookup.get(Number(id)))
-        .filter((name): name is string => Boolean(name));
-      return {
-        ...role,
-        doorIds: idsArray.map(id => String(id)),
-        assignedDoorNames: names.length > 0 ? names.join(", ") : "No Doors Assigned"
-      };
-    });
-  }
-  async getRole(id: number): Promise<any | undefined> {
-    const [role] = await db.select().from(roles).where(eq(roles.id, id));
-    if (!role) return undefined;
-    const idsArray = Array.isArray(role.doorIds) ? role.doorIds : [];
-    const doorDetails = await db.select({ name: doors.name })
-      .from(doors)
-      .where(inArray(doors.id, idsArray.length > 0 ? idsArray : [-1]));
-    return {
-      ...role,
-      assignedDoorNames: doorDetails.map(d => d.name).join(", ")
-    };
-  }
-  async createRole(data: InsertRole): Promise<Role> {
-    const [existing] = await db
-      .select()
-      .from(roles)
-      .where(eq(roles.code, data.code));
-    if (existing) {
-      throw new Error(`Role code '${data.code}' already exists.`);
-    }
-    const [created] = await db.insert(roles).values(data).returning();
-    return created;
-  }
-  async updateRole(id: number, data: Partial<InsertRole>): Promise<Role> {
-    return await db.transaction(async (tx) => {
-      if (data.code) {
-        const [existing] = await tx
-          .select()
-          .from(roles)
-          .where(and(eq(roles.code, data.code), ne(roles.id, id)));
-        if (existing) {
-          throw new Error(`Role code '${data.code}' already exists.`);
-        }
-      }
-      const [updated] = await tx
-        .update(roles)
-        .set({
-          ...data,
-          updatedAt: new Date(),
-        })
-        .where(eq(roles.id, id))
-        .returning();
-      if (!updated) {
-        throw new Error("Role not found");
-      }
-      const affectedEmployees = await tx
-        .select()
-        .from(employeeRoles)
-        .where(eq(employeeRoles.roleId, id));
-      return updated;
-    });
-  }
-  async deleteRole(id: number): Promise<void> {
-    await db.delete(roles).where(eq(roles.id, id));
-  }
+
+
+  // async getRoles(): Promise<any[]> {
+  //   const allRoles = await db.select().from(roles).orderBy(desc(roles.id));
+  //   const allDoors = await db.select({
+  //     id: doors.id,
+  //     name: doors.name
+  //   }).from(doors);
+  //   const doorLookup = new Map<number, string>();
+  //   allDoors.forEach(d => doorLookup.set(d.id, d.name));
+  //   return allRoles.map((role) => {
+  //     const idsArray = Array.isArray(role.doorIds) ? role.doorIds : [];
+  //     const names = idsArray
+  //       .map(id => doorLookup.get(Number(id)))
+  //       .filter((name): name is string => Boolean(name));
+  //     return {
+  //       ...role,
+  //       doorIds: idsArray.map(id => String(id)),
+  //       assignedDoorNames: names.length > 0 ? names.join(", ") : "No Doors Assigned"
+  //     };
+  //   });
+  // }
+  // async getRole(id: number): Promise<any | undefined> {
+  //   const [role] = await db.select().from(roles).where(eq(roles.id, id));
+  //   if (!role) return undefined;
+  //   const idsArray = Array.isArray(role.doorIds) ? role.doorIds : [];
+  //   const doorDetails = await db.select({ name: doors.name })
+  //     .from(doors)
+  //     .where(inArray(doors.id, idsArray.length > 0 ? idsArray : [-1]));
+  //   return {
+  //     ...role,
+  //     assignedDoorNames: doorDetails.map(d => d.name).join(", ")
+  //   };
+  // }
+  // async createRole(data: InsertRole): Promise<Role> {
+  //   const [existing] = await db
+  //     .select()
+  //     .from(roles)
+  //     .where(eq(roles.code, data.code));
+  //   if (existing) {
+  //     throw new Error(`Role code '${data.code}' already exists.`);
+  //   }
+  //   const [created] = await db.insert(roles).values(data).returning();
+  //   return created;
+  // }
+  // async updateRole(id: number, data: Partial<InsertRole>): Promise<Role> {
+  //   return await db.transaction(async (tx) => {
+  //     if (data.code) {
+  //       const [existing] = await tx
+  //         .select()
+  //         .from(roles)
+  //         .where(and(eq(roles.code, data.code), ne(roles.id, id)));
+  //       if (existing) {
+  //         throw new Error(`Role code '${data.code}' already exists.`);
+  //       }
+  //     }
+  //     const [updated] = await tx
+  //       .update(roles)
+  //       .set({
+  //         ...data,
+  //         updatedAt: new Date(),
+  //       })
+  //       .where(eq(roles.id, id))
+  //       .returning();
+  //     if (!updated) {
+  //       throw new Error("Role not found");
+  //     }
+  //     const affectedEmployees = await tx
+  //       .select()
+  //       .from(employeeRoles)
+  //       .where(eq(employeeRoles.roleId, id));
+  //     return updated;
+  //   });
+  // }
+  // async deleteRole(id: number): Promise<void> {
+  //   await db.delete(roles).where(eq(roles.id, id));
+  // }
   async getEmployeeRoles(): Promise<EmployeeRole[]> {
     return await db.select().from(employeeRoles);
   }
@@ -2537,7 +2548,36 @@ export class DatabaseStorage implements IStorage {
       .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
       .orderBy(asc(dailyAttendanceSummary.workDate));
   }
+  // async getRangeReport(startDate: string, endDate: string) {
+  //   return await db
+  //     .select({
+  //       employeeCode: dailyAttendanceSummary.employeeCode,
+  //       employeeName: dailyAttendanceSummary.employeeName,
+  //       departmentName: dailyAttendanceSummary.departmentName,
+  //       // Aggregated Calculations
+  //       totalDays: sql<number>`count(${dailyAttendanceSummary.id})`,
+  //       totalPresent: sql<number>`count(case when ${dailyAttendanceSummary.status} = 'P' then 1 end)`,
+  //       totalAbsent: sql<number>`count(case when ${dailyAttendanceSummary.status} = 'A' then 1 end)`,
+  //       totalHalfDay: sql<number>`count(case when ${dailyAttendanceSummary.status} = 'HD' then 1 end)`,
+  //       totalWeeklyOff: sql<number>`count(case when ${dailyAttendanceSummary.status} = 'WO' then 1 end)`,
+  //       totalHoliday: sql<number>`count(case when ${dailyAttendanceSummary.status} = 'HL' then 1 end)`,
 
+  //       // Minutes to Hours conversion
+  //       totalOTHours: sql<number>`sum(${dailyAttendanceSummary.overtimeMinutes}) / 60.0`,
+  //       totalProductiveHours: sql<number>`sum(${dailyAttendanceSummary.productiveMinutes}) / 60.0`,
+  //       totalOfficeHours: sql<number>`sum(${dailyAttendanceSummary.totalOfficeMinutes}) / 60.0`,
+
+  //       avgEfficiency: sql<number>`avg(${dailyAttendanceSummary.efficiencyPercent})`
+  //     })
+  //     .from(dailyAttendanceSummary)
+  //     .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
+  //     .groupBy(
+  //       dailyAttendanceSummary.employeeCode,
+  //       dailyAttendanceSummary.employeeName,
+  //       dailyAttendanceSummary.departmentName
+  //     )
+  //     .orderBy(asc(dailyAttendanceSummary.employeeName));
+  // }
   // 4: Department Wise Manpower & OT Summary
   async getDeptSummary(date: string) {
     return await db
@@ -2571,6 +2611,92 @@ export class DatabaseStorage implements IStorage {
       .from(dailyAttendanceSummary)
       .where(and(...conditions))
       .groupBy(dailyAttendanceSummary.employeeCode);
+  }
+  async getMenus(): Promise<MenuMaster[]> {
+    return await db.select().from(menuMaster).orderBy(asc(menuMaster.sortOrder));
+  }
+
+  async getMenu(id: number): Promise<MenuMaster | undefined> {
+    const [menu] = await db.select().from(menuMaster).where(eq(menuMaster.id, id));
+    return menu;
+  }
+
+  async createMenu(insertMenu: InsertMenuMaster): Promise<MenuMaster> {
+    const [menu] = await db.insert(menuMaster).values(insertMenu).returning();
+    return menu;
+  }
+
+  async updateMenu(id: number, data: Partial<InsertMenuMaster>): Promise<MenuMaster> {
+    const [updatedMenu] = await db
+      .update(menuMaster)
+      .set(data)
+      .where(eq(menuMaster.id, id))
+      .returning();
+    if (!updatedMenu) throw new Error("Menu not found");
+    return updatedMenu;
+  }
+
+  async deleteMenu(id: number): Promise<void> {
+    await db.delete(menuMaster).where(eq(menuMaster.id, id));
+  }
+  async getParentMenus(): Promise<MenuMaster[]> {
+    return await db
+      .select()
+      .from(menuMaster)
+      .where(eq(menuMaster.parentId, 0)) // Sirf main menus (parentId = 0)
+      .orderBy(asc(menuMaster.sortOrder));
+  }
+  // Sabhi roles fetch karna
+  async getRoles(): Promise<Role[]> {
+    return await db.select().from(roles);
+  }
+
+  // Kisi specific role ki saari permissions fetch karna (with Menu details)
+  async getRolePermissions(roleId: number) {
+    return await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+  }
+
+  // Naya Role banana aur default permissions set karna
+  async createRoleWithPermissions(roleData: any, permissions: any[]) {
+    return await db.transaction(async (tx) => {
+      // 1. Pehle Role insert karein
+      const [newRole] = await tx.insert(roles).values(roleData).returning();
+
+      // 2. Permissions ko roleId ke sath map karke insert karein
+      if (permissions && permissions.length > 0) {
+        const permsToInsert = permissions.map((p: any) => ({
+          ...p,
+          roleId: newRole.id,
+        }));
+        await tx.insert(rolePermissions).values(permsToInsert);
+      }
+      return newRole;
+    });
+  }
+
+  // UPDATE: Role details aur uski Matrix ek sath
+  async updateRoleWithPermissions(roleId: number, roleData: any, permissions: any[]) {
+    await db.transaction(async (tx) => {
+      // 1. Role name/code update karein
+      await tx.update(roles).set(roleData).where(eq(roles.id, roleId));
+
+      // 2. Purani saari permissions delete karke nayi insert karein (Sabse simple logic)
+      if (permissions) {
+        await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
+        const permsToInsert = permissions.map((p: any) => ({
+          ...p,
+          roleId: roleId,
+        }));
+        await tx.insert(rolePermissions).values(permsToInsert);
+      }
+    });
+  }
+
+  async deleteRole(id: number): Promise<void> {
+    await db.transaction(async (tx) => {
+      await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, id));
+      await tx.delete(roles).where(eq(roles.id, id));
+    });
   }
 
 };

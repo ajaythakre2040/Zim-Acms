@@ -3,7 +3,8 @@ export * from "./models/auth";
 import {
   pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date, bigserial, // <--- Add this
   decimal,   // <--- Add this
-  index, } from "drizzle-orm/pg-core";
+  index,
+  unique, } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
@@ -584,16 +585,7 @@ export const alertsRelations = relations(alerts, ({ one }) => ({
   site: one(sites, { fields: [alerts.locationId], references: [sites.id] }),
 }));
 
-export const roles = pgTable("roles", {
-  id: serial("id").primaryKey(),
-  name: text("name").notNull(),
-  code: text("code").notNull().unique(),
-  doorIds: jsonb("door_ids").$type<number[]>().default([]), // Devices store karne ke liye
-  isActive: boolean("is_active").default(true),
-  updatedBy: varchar("updated_by"),
-  updatedAt: timestamp("updated_at").defaultNow(),
-  createdAt: timestamp("created_at").defaultNow(),
-});
+
 // export const roles = pgTable("roles", {
 //   id: serial("id").primaryKey(),
 //   name: text("name").notNull(),
@@ -821,6 +813,41 @@ export const syncMeta = pgTable("sync_meta", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const menuMaster = pgTable("menu_master", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull().unique(), // Unique Name
+  menuCode: text("menu_code").notNull().unique(), // Unique Code (Numeric or String)
+  icon: text("icon"),
+  parentId: integer("parent_id").default(0),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+});
+
+export const roles = pgTable("roles", {
+  id: serial("id").primaryKey(),
+  roleName: text("role_name").notNull(),       // e.g., "Super Administrator"
+  roleCode: text("role_code").notNull().unique(), // e.g., "SUPER_ADMIN", "STAFF_01"
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export const rolePermissions = pgTable("role_permissions", {
+  id: serial("id").primaryKey(),
+  roleId: integer("role_id").notNull(),
+  menuId: integer("menu_id").notNull(),
+  view: boolean("view").default(false),
+  add: boolean("add").default(false),
+  edit: boolean("edit").default(false),
+  delete: boolean("delete").default(false),
+  export: boolean("export").default(false),
+  print: boolean("print").default(false),
+}, (table) => {
+  return {
+    // Ye line ensure karegi ki ek role ke liye ek menu ki entry sirf ek hi baar ho
+    roleMenuUnique: unique("role_menu_unique").on(table.roleId, table.menuId),
+  };
+});
+
 // ==================== INSERT SCHEMAS ====================
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
@@ -853,7 +880,6 @@ export const insertAccessEventSchema = createInsertSchema(accessEvents).omit({ i
 export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true, createdAt: true });
 export const insertExceptionSchema = createInsertSchema(exceptions).omit({ id: true, createdAt: true });
 export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({ id: true, createdAt: true });
-export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
 export const insertBlockUnblockLogSchema = createInsertSchema(blockUnblockLogs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertEmployeeRoleSchema = createInsertSchema(employeeRoles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMainGateLogSchema = createInsertSchema(mainGateLogs).omit({ id: true, createdAt: true, updatedAt: true });
@@ -862,8 +888,43 @@ export const insertDoorDeviceSchema = createInsertSchema(doorDevices).omit({ id:
 export const insertEmployeeDoorAssignmentSchema = createInsertSchema(employeeDoorAssignments).omit({ id: true, createdAt: true, updatedAt: true }).extend({doorIds: z.array(z.number())});
 export const insertEmployeeActivityLogSchema = createInsertSchema(employeeActivityLogs, { logDate: z.any(), onlyDate: z.any() }).omit({ id: true }); 
 export const insertDailyAttendanceSummarySchema = createInsertSchema(dailyAttendanceSummary, { workDate: z.any() }).omit({ id: true });
+export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
+
+export const insertMenuMasterSchema = createInsertSchema(menuMaster).omit({
+  id: true
+}).extend({
+  // parentId ko optional ya null allow karne ke liye extend kar sakte hain
+  parentId: z.number().nullable().optional().default(0),
+  sortOrder: z.number().optional().default(0),
+  isActive: z.boolean().optional().default(true),
+});
+
+// --- Role Permissions Schema ---
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({
+  id: true
+}).extend({
+  view: z.boolean().default(true),
+  add: z.boolean().default(false),
+  edit: z.boolean().default(false),
+  delete: z.boolean().default(false),
+  export: z.boolean().default(false),
+  print: z.boolean().default(false),
+});
+
 
 // ==================== TYPES ====================
+// Menu Master Types
+export type MenuMaster = typeof menuMaster.$inferSelect;
+export type InsertMenuMaster = z.infer<typeof insertMenuMasterSchema>;
+
+// Role Permissions Types
+export type RolePermission = typeof rolePermissions.$inferSelect;
+export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
+
+// Role Types (Inke bina role seeder kaam nahi karega)
+export type Role = typeof roles.$inferSelect;
+export type InsertRole = z.infer<typeof insertRoleSchema>;
+
 export type EmployeeActivityLog = typeof employeeActivityLogs.$inferSelect;
 export type InsertEmployeeActivityLog = z.infer<typeof insertEmployeeActivityLogSchema>;
 
@@ -932,8 +993,7 @@ export type Exception = typeof exceptions.$inferSelect;
 export type InsertException = z.infer<typeof insertExceptionSchema>;
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
-export type Role = typeof roles.$inferSelect;
-export type InsertRole = z.infer<typeof insertRoleSchema>;
+
 export type BlockUnblockLog = typeof blockUnblockLogs.$inferSelect;
 export type InsertBlockUnblockLog = z.infer<typeof insertBlockUnblockLogSchema>;
 export type EmployeeRole = typeof employeeRoles.$inferSelect;
