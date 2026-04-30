@@ -783,11 +783,15 @@ export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   workDate: date("work_date").notNull(),
   employeeCode: text("employee_code").notNull(),
-
+  employeeName: text("employee_name"),
+  gender: text("gender"),
+  doorName: text("door_name"),
   // Timings
   firstIn: timestamp("first_in"),
   lastOut: timestamp("last_out"),
+  shifttime: text("shift_time"),
 
+  shiftname: text("shift_name"),
   // Data Points
   totalOfficeMinutes: integer("total_office_minutes").default(0),
   productiveMinutes: integer("productive_minutes").default(0),

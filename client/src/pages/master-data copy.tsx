@@ -252,10 +252,9 @@ export default function MasterDataPage() {
           <TabsTrigger value="designations">Designations</TabsTrigger>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="companies">Companies</TabsTrigger>
+          {/* <TabsTrigger value="vendors">Vendors</TabsTrigger> */}
+          {/* <TabsTrigger value="roles">Roles</TabsTrigger> */}
           <TabsTrigger value="departments">Departments</TabsTrigger>
-          <TabsTrigger value="menu">Menu</TabsTrigger>
-          <TabsTrigger value="roles">Role</TabsTrigger>
-
         </TabsList>
 
         <TabsContent value="departments">
@@ -371,15 +370,24 @@ export default function MasterDataPage() {
           />
         </TabsContent>
 
-        <TabsContent value="menu">
+        {/* <TabsContent value="roles">
           <MasterTab
-            endpoint="/api/menu"
-            label="Menu"
-            fields={[
-              { key: "name", label: "Menu Name", required: true },
-              { key: "path", label: "Path" },
-              { key: "icon", label: "Icon" },
-              { key: "parentId", label: "Parent Menu", type: "number" },
+            endpoint="/api/roles"
+            label="Role"
+            fields={(editing) => [
+              { key: "name", label: "Role Name", required: true },
+              {
+                key: "code",
+                label: "Role Code",
+                required: !editing,
+                disabled: !!editing,
+              },
+              {
+                key: "doorIds", // ✅ changed
+                label: "Assign Doors", // ✅ changed
+                type: "multi-select",
+                options: [],
+              },
               {
                 key: "isActive",
                 label: "Active",
@@ -388,7 +396,7 @@ export default function MasterDataPage() {
               },
             ]}
           />
-        </TabsContent>
+        </TabsContent> */}
       </Tabs>
     </div>
   );

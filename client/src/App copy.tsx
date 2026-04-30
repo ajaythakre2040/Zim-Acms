@@ -11,18 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Shield,
-  Lock,
-  Fingerprint,
-  ScanLine,
-  Sparkles,
-  Radio,
-  User,
-  KeyRound,
-  LogIn,
-  UserPlus,
-} from "lucide-react";
+import { Shield, Lock, Fingerprint, ScanLine, Sparkles, Radio, User, KeyRound, LogIn, UserPlus } from "lucide-react";
 import { useState } from "react";
 
 import NotFound from "@/pages/not-found";
@@ -49,12 +38,6 @@ import ReportsPage from "@/pages/reports";
 import CronMasterPage from "@/pages/cronMasterPage";
 import ShiftDashboard from "./pages/ShiftDashboard";
 import LiveLogsDashboard from "./pages/LiveLogsDashboard";
-import DesignationPage from "./pages/designations";
-import DepartmentsPage from "./pages/departments";
-import RolesPage from "./pages/role";
-import MenuPage from "./pages/menu";
-import CompaniesPage from "./pages/company";
-import CategoriesPage from "./pages/category";
 
 function Router() {
   return (
@@ -82,26 +65,14 @@ function Router() {
       <Route path="/cron-master" component={CronMasterPage} />
       <Route path="/shift-dashboard" component={ShiftDashboard} />
       <Route path="/live-logs" component={LiveLogsDashboard} />
-      <Route path="/master-data/designations" component={DesignationPage} />
-      <Route path="/master-data/categories" component={CategoriesPage} />
-      <Route path="/master-data/companies" component={CompaniesPage} />
-      <Route path="/master-data/departments" component={DepartmentsPage} />
-      <Route path="/master-data/menu" component={MenuPage} />
-      <Route path="/master-data/roles" component={RolesPage} />
+
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
-  const {
-    login,
-    loginError,
-    isLoggingIn,
-    register,
-    registerError,
-    isRegistering,
-  } = auth;
+  const { login, loginError, isLoggingIn, register, registerError, isRegistering } = auth;
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -114,13 +85,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
     if (mode === "login") {
       await login({ username, password });
     } else {
-      await register({
-        username,
-        password,
-        email: email || undefined,
-        firstName: firstName || undefined,
-        lastName: lastName || undefined,
-      });
+      await register({ username, password, email: email || undefined, firstName: firstName || undefined, lastName: lastName || undefined });
     }
   };
 
@@ -145,59 +110,37 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
               </div>
             </div>
           </div>
-          <h1
-            className="text-3xl font-bold tracking-tight"
-            data-testid="text-login-title"
-          >
+          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-login-title">
             <span className="gradient-text">ZIM-ACMS</span>
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Enterprise Access Control Management
-          </p>
+          <p className="text-muted-foreground mt-1">Enterprise Access Control Management</p>
         </div>
 
         <div className="glass-panel rounded-2xl p-8 space-y-6">
           <div className="grid grid-cols-3 gap-3 mb-2">
-            <div
-              className="flex flex-col items-center gap-2 p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/30"
-              data-testid="feature-biometric"
-            >
+            <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/30" data-testid="feature-biometric">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-sm animate-float">
                 <Fingerprint className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">
-                Biometric
-              </span>
+              <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">Biometric</span>
             </div>
-            <div
-              className="flex flex-col items-center gap-2 p-3 rounded-xl bg-violet-50/70 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900/30"
-              data-testid="feature-card-access"
-            >
+            <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-violet-50/70 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900/30" data-testid="feature-card-access">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm animate-float animate-float-delay-1">
                 <ScanLine className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300">
-                Card Access
-              </span>
+              <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300">Card Access</span>
             </div>
-            <div
-              className="flex flex-col items-center gap-2 p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30"
-              data-testid="feature-door-control"
-            >
+            <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30" data-testid="feature-door-control">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-sm animate-float animate-float-delay-2">
                 <Lock className="w-5 h-5 text-white" />
               </div>
-              <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
-                Door Control
-              </span>
+              <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">Door Control</span>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-xs font-medium">
-                Username
-              </Label>
+              <Label htmlFor="username" className="text-xs font-medium">Username</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -213,9 +156,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs font-medium">
-                Password
-              </Label>
+              <Label htmlFor="password" className="text-xs font-medium">Password</Label>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
@@ -235,61 +176,28 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
               <>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="firstName" className="text-xs font-medium">
-                      First Name
-                    </Label>
-                    <Input
-                      id="firstName"
-                      placeholder="First name"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      data-testid="input-firstName"
-                    />
+                    <Label htmlFor="firstName" className="text-xs font-medium">First Name</Label>
+                    <Input id="firstName" placeholder="First name" value={firstName} onChange={(e) => setFirstName(e.target.value)} data-testid="input-firstName" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="lastName" className="text-xs font-medium">
-                      Last Name
-                    </Label>
-                    <Input
-                      id="lastName"
-                      placeholder="Last name"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      data-testid="input-lastName"
-                    />
+                    <Label htmlFor="lastName" className="text-xs font-medium">Last Name</Label>
+                    <Input id="lastName" placeholder="Last name" value={lastName} onChange={(e) => setLastName(e.target.value)} data-testid="input-lastName" />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-xs font-medium">
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Email (optional)"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    data-testid="input-email"
-                  />
+                  <Label htmlFor="email" className="text-xs font-medium">Email</Label>
+                  <Input id="email" type="email" placeholder="Email (optional)" value={email} onChange={(e) => setEmail(e.target.value)} data-testid="input-email" />
                 </div>
               </>
             )}
 
             {error && (
-              <div
-                className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3"
-                data-testid="text-auth-error"
-              >
+              <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3" data-testid="text-auth-error">
                 {error}
               </div>
             )}
 
-            <Button
-              type="submit"
-              className="w-full gradient-primary border-0 text-white shadow-md"
-              disabled={isPending}
-              data-testid="button-login"
-            >
+            <Button type="submit" className="w-full gradient-primary border-0 text-white shadow-md" disabled={isPending} data-testid="button-login">
               {isPending ? (
                 <Radio className="w-4 h-4 mr-2 animate-spin" />
               ) : mode === "login" ? (
@@ -297,11 +205,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
               ) : (
                 <UserPlus className="w-4 h-4 mr-2" />
               )}
-              {isPending
-                ? "Please wait..."
-                : mode === "login"
-                  ? "Sign In"
-                  : "Create Account"}
+              {isPending ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
             </Button>
           </form>
 
@@ -312,9 +216,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
               className="text-xs text-primary hover:underline"
               data-testid="button-toggle-auth-mode"
             >
-              {mode === "login"
-                ? "Don't have an account? Register"
-                : "Already have an account? Sign In"}
+              {mode === "login" ? "Don't have an account? Register" : "Already have an account? Sign In"}
             </button>
           </div>
 
@@ -343,17 +245,7 @@ function AuthenticatedApp() {
             <SidebarTrigger data-testid="button-sidebar-toggle" />
             <div className="flex items-center gap-1">
               <ThemeToggle />
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  fetch("/api/logout", {
-                    method: "POST",
-                    credentials: "include",
-                  }).then(() => window.location.reload());
-                }}
-                data-testid="button-logout"
-              >
+              <Button variant="ghost" size="sm" onClick={() => { fetch("/api/logout", { method: "POST", credentials: "include" }).then(() => window.location.reload()); }} data-testid="button-logout">
                 Logout
               </Button>
             </div>
@@ -381,9 +273,7 @@ function AppContent() {
               <Shield className="w-6 h-6 text-white" />
             </div>
           </div>
-          <p className="text-sm text-muted-foreground animate-pulse-soft">
-            Loading ZIM-ACMS...
-          </p>
+          <p className="text-sm text-muted-foreground animate-pulse-soft">Loading ZIM-ACMS...</p>
         </div>
       </div>
     );

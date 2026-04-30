@@ -204,6 +204,80 @@ export interface IStorage {
   deleteMenu(id: number): Promise<void>;
 }
 export class DatabaseStorage implements IStorage {
+
+  async getDeviceLogsWithEmployee(filters?: {
+    dateFrom?: string;
+    dateTo?: string;
+    employeeCode?: string;
+    deviceId?: string;
+    doorName?: string;
+  }): Promise<any[]> {
+    try {
+      const conditions = [];
+
+      if (filters?.dateFrom) {
+        conditions.push(
+          gte(
+            schema.employeeActivityLogs.logDate,
+            new Date(filters.dateFrom)
+          )
+        );
+      }
+
+      if (filters?.dateTo) {
+        conditions.push(
+          lte(
+            schema.employeeActivityLogs.logDate,
+            new Date(filters.dateTo)
+          )
+        );
+      }
+
+      if (filters?.employeeCode) {
+        conditions.push(
+          eq(
+            schema.employeeActivityLogs.employeeCode,
+            filters.employeeCode
+          )
+        );
+      }
+
+      // :white_check_mark: FIXED DOOR FILTER
+      const doorFilter = filters?.deviceId || filters?.doorName;
+
+      if (doorFilter) {
+        conditions.push(
+          eq(
+            schema.employeeActivityLogs.doorName,
+            doorFilter
+          )
+        );
+      }
+
+      const logs = await db
+        .select({
+          devicelogid: schema.employeeActivityLogs.deviceLogId,
+          deviceid: schema.employeeActivityLogs.deviceId,
+          employeecode: schema.employeeActivityLogs.employeeCode,
+          logdate: schema.employeeActivityLogs.logDate,
+          direction: schema.employeeActivityLogs.direction,
+
+          employee_name: schema.employeeActivityLogs.employeeName,
+          department_name: schema.employeeActivityLogs.departmentName,
+          designation_name: schema.employeeActivityLogs.designationName,
+
+          door_name: schema.employeeActivityLogs.doorName,
+        })
+        .from(schema.employeeActivityLogs)
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(desc(schema.employeeActivityLogs.deviceLogId));
+
+      return logs;
+    } catch (error) {
+      console.error("Error in getDeviceLogsWithEmployee:", error);
+      throw error;
+    }
+  }
   async getUser(id: string): Promise<User | undefined> {
     return authStorage.getUser(id);
   }
@@ -2650,6 +2724,13 @@ export class DatabaseStorage implements IStorage {
   async getRoles(): Promise<Role[]> {
     return await db.select().from(roles);
   }
+  async getRoleByCode(roleCode: string): Promise<any | undefined> {
+    const [role] = await db
+      .select()
+      .from(roles)
+      .where(eq(roles.roleCode, roleCode));
+    return role;
+  }
 
   // Kisi specific role ki saari permissions fetch karna (with Menu details)
   async getRolePermissions(roleId: number) {
@@ -2676,17 +2757,30 @@ export class DatabaseStorage implements IStorage {
 
   // UPDATE: Role details aur uski Matrix ek sath
   async updateRoleWithPermissions(roleId: number, roleData: any, permissions: any[]) {
-    await db.transaction(async (tx) => {
-      // 1. Role name/code update karein
+    return await db.transaction(async (tx) => {
+      // 1. Update Role Metadata
       await tx.update(roles).set(roleData).where(eq(roles.id, roleId));
 
-      // 2. Purani saari permissions delete karke nayi insert karein (Sabse simple logic)
-      if (permissions) {
+      if (permissions && permissions.length > 0) {
+        // 2. Data Sanitization: Remove duplicate menuIds from incoming array (Safety first)
+        const uniquePermissions = Array.from(
+          new Map(permissions.map((p) => [p.menuId, p])).values()
+        );
+
+        // 3. Clear existing mapping and insert new clean set
         await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, roleId));
-        const permsToInsert = permissions.map((p: any) => ({
-          ...p,
+
+        const permsToInsert = uniquePermissions.map((p: any) => ({
           roleId: roleId,
+          menuId: p.menuId,
+          view: p.view ?? false,
+          add: p.add ?? false,
+          edit: p.edit ?? false,
+          delete: p.delete ?? false,
+          export: p.export ?? false,
+          print: p.print ?? false,
         }));
+
         await tx.insert(rolePermissions).values(permsToInsert);
       }
     });

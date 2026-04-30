@@ -53,6 +53,7 @@ function crudRoutes<T>(
       else if (lowerMsg.includes("mac")) fieldName = "MAC Address";
       else if (lowerMsg.includes("serial")) fieldName = "Serial Number";
       else if (lowerMsg.includes("ip")) fieldName = "IP Address";
+      else if (lowerMsg.includes("role_menu_unique")) fieldName = "Permission Mapping";
       return res.status(400).json({
         isDuplicate: true,
         message: `${fieldName} is already in use. Please provide a unique value.`
@@ -999,10 +1000,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
 
     } catch (error: any) {
-      
-      console.error("Assignment Error Log:", error.message);
-
-      
+                 
       res.status(400).json({
         status: "error",
         message: error.message || "An unexpected error occurred during assignment."
@@ -1110,13 +1108,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/roles-with-permissions", async (req, res) => {
     try {
       const { role, permissions } = req.body;
-      // role: { roleName: 'Admin', roleCode: 'admin' }
-      // permissions: [{ menuId: 1, view: true, add: true }, ...]
+
+      // 1. Mandatory Data Validation
+      if (!role?.roleCode || !Array.isArray(permissions)) {
+        return res.status(400).json({
+          status: "error",
+          message: "Required data missing: roleCode (string) and permissions (array) are mandatory."
+        });
+      }
+
+      // 2. Duplicate Menu Check
+      const menuIds = permissions.map((p: any) => p.menuId);
+      if (new Set(menuIds).size !== menuIds.length) {
+        return res.status(400).json({
+          status: "error",
+          isDuplicate: true,
+          message: "Duplicate Menu assignments detected. Each menu must have a unique permission set."
+        });
+      }
+
+      // 3. Existing Role Check
+      const existingRole = await storage.getRoleByCode(role.roleCode);
+      if (existingRole) {
+        return res.status(400).json({
+          status: "error",
+          isDuplicate: true,
+          message: "This Role Code is already registered. Please use a unique code."
+        });
+      }
 
       const result = await storage.createRoleWithPermissions(role, permissions);
       res.status(201).json(result);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
+
+    } catch (error: any) {
+      // Bina handleDbError ke direct error message
+      res.status(400).json({
+        status: "error",
+        message: error.message || "An unexpected error occurred during assignment."
+      });
     }
   });
 
@@ -1146,5 +1175,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.sendStatus(204);
   });
 
+  app.get("/api/reports_access_logs", async (req, res) => {
+    const { dateFrom, dateTo } = req.query;
+
+    const data = await storage.getDeviceLogsWithEmployee({
+      dateFrom: dateFrom as string,
+      dateTo: dateTo as string,
+    });
+
+    res.json(data);
+  });
   return httpServer;
 }
