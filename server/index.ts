@@ -96,7 +96,7 @@ app.use((req, res, next) => {
         })
         .where(eq(cronMaster.code, MAIN_GATE_SYNC.CODE));
 
-      // await initCronSystem();
+      await initCronSystem();
          
     } catch (e) {
       log("Cron reset failed: " + e, "error");

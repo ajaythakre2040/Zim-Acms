@@ -1,8 +1,20 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useState, useEffect } from "react";
@@ -10,7 +22,17 @@ import { useState, useEffect } from "react";
 export interface FieldConfig {
   key: string;
   label: string;
-  type?: "text" | "number" | "email" | "password" | "textarea" | "select" | "multi-select" | "switch" | "date" | "time";
+  type?:
+    | "text"
+    | "number"
+    | "email"
+    | "password"
+    | "textarea"
+    | "select"
+    | "multi-select"
+    | "switch"
+    | "date"
+    | "time";
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
@@ -18,7 +40,11 @@ export interface FieldConfig {
   readOnly?: boolean;
   disabled?: boolean;
   pattern?: string;
-  onChange?: (value: any, currentForm: Record<string, any>, setForm: (data: any) => void) => void;
+  onChange?: (
+    value: any,
+    currentForm: Record<string, any>,
+    setForm: (data: any) => void,
+  ) => void;
 }
 
 interface CrudDialogProps {
@@ -30,9 +56,20 @@ interface CrudDialogProps {
   onSubmit: (data: Record<string, any>) => void;
   isPending?: boolean;
   errors?: Record<string, string>;
+  iconMap?: Record<string, any>;
 }
 
-export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit, isPending, errors }: CrudDialogProps) {
+export function CrudDialog({
+  open,
+  onClose,
+  title,
+  fields,
+  initialData,
+  onSubmit,
+  isPending,
+  errors,
+  iconMap,
+}: CrudDialogProps) {
   const [form, setForm] = useState<Record<string, any>>({});
 
   // Fix: initialData ko dependency se hata diya hai taaki typing ke waqt form reset na ho
@@ -43,13 +80,16 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
         let value = initialData?.[f.key] ?? f.defaultValue;
         if (f.type === "multi-select") {
           if (typeof value === "string") {
-            value = value.split(",").map(v => v.trim()).filter(Boolean);
+            value = value
+              .split(",")
+              .map((v) => v.trim())
+              .filter(Boolean);
           } else if (typeof value === "number") {
             value = [String(value)];
           } else if (!Array.isArray(value)) {
             value = [];
           } else {
-            value = value.map(v => String(v));
+            value = value.map((v) => String(v));
           }
         } else if (f.type === "switch") {
           value = value ?? false;
@@ -94,12 +134,18 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
         <form onSubmit={handleSubmit} className="space-y-4">
           {fields.map((f) => (
             <div key={f.key} className="space-y-1.5">
-              <Label htmlFor={f.key} className={errors?.[f.key] ? "text-destructive" : ""}>
-                {f.label}{f.required && " *"}
+              <Label
+                htmlFor={f.key}
+                className={errors?.[f.key] ? "text-destructive" : ""}
+              >
+                {f.label}
+                {f.required && " *"}
               </Label>
 
               {f.type === "multi-select" ? (
-                <div className={`space-y-2 p-1 ${errors?.[f.key] ? "border-red-500 rounded-md" : ""}`}>
+                <div
+                  className={`space-y-2 p-1 ${errors?.[f.key] ? "border-red-500 rounded-md" : ""}`}
+                >
                   <div className="flex gap-2 mb-2">
                     <Button
                       type="button"
@@ -108,8 +154,8 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                       className="h-7 text-[10px]"
                       disabled={f.disabled}
                       onClick={() => {
-                        const allValues = f.options?.map(o => o.value) || [];
-                        setForm(p => ({ ...p, [f.key]: allValues }));
+                        const allValues = f.options?.map((o) => o.value) || [];
+                        setForm((p) => ({ ...p, [f.key]: allValues }));
                       }}
                     >
                       Select All
@@ -120,17 +166,22 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                       size="sm"
                       className="h-7 text-[10px]"
                       disabled={f.disabled}
-                      onClick={() => setForm(p => ({ ...p, [f.key]: [] }))}
+                      onClick={() => setForm((p) => ({ ...p, [f.key]: [] }))}
                     >
                       Clear
                     </Button>
                   </div>
                   <div className="grid grid-cols-1 gap-2 border rounded-md p-3 max-h-48 overflow-y-auto bg-background">
                     {f.options?.map((opt) => {
-                      const currentValues = Array.isArray(form[f.key]) ? form[f.key] : [];
+                      const currentValues = Array.isArray(form[f.key])
+                        ? form[f.key]
+                        : [];
                       const isChecked = currentValues.includes(opt.value);
                       return (
-                        <label key={opt.value} className={`flex items-center gap-3 p-1 hover:bg-accent rounded-sm cursor-pointer transition-colors ${f.disabled ? "opacity-50 cursor-not-allowed" : ""}`}>
+                        <label
+                          key={opt.value}
+                          className={`flex items-center gap-3 p-1 hover:bg-accent rounded-sm cursor-pointer transition-colors ${f.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                        >
                           <input
                             type="checkbox"
                             className="h-4 w-4 rounded border-primary text-primary"
@@ -141,12 +192,16 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                               if (e.target.checked) {
                                 nextValues = [...currentValues, opt.value];
                               } else {
-                                nextValues = currentValues.filter((v: string) => v !== opt.value);
+                                nextValues = currentValues.filter(
+                                  (v: string) => v !== opt.value,
+                                );
                               }
                               setForm((p) => ({ ...p, [f.key]: nextValues }));
                             }}
                           />
-                          <span className="text-sm font-medium">{opt.label}</span>
+                          <span className="text-sm font-medium">
+                            {opt.label}
+                          </span>
                         </label>
                       );
                     })}
@@ -157,19 +212,43 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                   value={String(form[f.key] || "")}
                   disabled={f.disabled}
                   onValueChange={(v) => {
-                    const nextForm = { ...form, [f.key]: v };
+                    let value: any = v;
+
+                    // ✅ FIX: parentId ko number bana
+                    if (f.key === "parentId") {
+                      value = Number(v);
+                    }
+
+                    const nextForm = { ...form, [f.key]: value };
                     setForm(nextForm);
+
                     if (f.onChange) {
-                      f.onChange(v, nextForm, setForm);
+                      f.onChange(value, nextForm, setForm);
                     }
                   }}
                 >
-                  <SelectTrigger className={errors?.[f.key] ? "border-destructive" : ""}>
-                    <SelectValue placeholder={f.placeholder || `Select ${f.label}`} />
+                  <SelectTrigger
+                    className={errors?.[f.key] ? "border-destructive" : ""}
+                  >
+                    <SelectValue
+                      placeholder={f.placeholder || `Select ${f.label}`}
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     {f.options?.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      <SelectItem key={o.value} value={o.value}>
+                        <div className="flex items-center gap-2">
+                          {/* ✅ ADD THIS */}
+                          {f.key === "icon" &&
+                            iconMap?.[o.value] &&
+                            (() => {
+                              const Icon = iconMap[o.value];
+                              return <Icon className="w-4 h-4" />;
+                            })()}
+
+                          <span>{o.label}</span>
+                        </div>
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -179,14 +258,22 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                     id={f.key}
                     checked={!!form[f.key]}
                     disabled={f.disabled}
-                    onCheckedChange={(v) => setForm((p) => ({ ...p, [f.key]: v }))}
+                    onCheckedChange={(v) =>
+                      setForm((p) => ({ ...p, [f.key]: v }))
+                    }
                   />
-                  <span className="text-sm text-muted-foreground">{form[f.key] ? "Yes" : "No"}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {form[f.key] ? "Yes" : "No"}
+                  </span>
                 </div>
               ) : f.type === "textarea" ? (
                 <Textarea
                   id={f.key}
-                  className={errors?.[f.key] ? "border-destructive focus-visible:ring-destructive" : ""}
+                  className={
+                    errors?.[f.key]
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
                   value={form[f.key] || ""}
                   disabled={f.disabled}
                   onChange={(e) => {
@@ -203,9 +290,17 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
                 <Input
                   id={f.key}
                   type={f.type === "time" ? "time" : f.type || "text"}
-                  className={errors?.[f.key] ? "border-destructive focus-visible:ring-destructive" : ""}
+                  className={
+                    errors?.[f.key]
+                      ? "border-destructive focus-visible:ring-destructive"
+                      : ""
+                  }
                   // Safe value check for numbers/nulls
-                  value={form[f.key] === undefined || form[f.key] === null ? "" : form[f.key]}
+                  value={
+                    form[f.key] === undefined || form[f.key] === null
+                      ? ""
+                      : form[f.key]
+                  }
                   onChange={(e) => {
                     const val = e.target.value;
                     if (f.pattern) {
@@ -228,7 +323,9 @@ export function CrudDialog({ open, onClose, title, fields, initialData, onSubmit
             </div>
           ))}
           <DialogFooter className="sticky bottom-0 bg-background pt-2 border-t mt-4">
-            <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
             <Button type="submit" disabled={isPending}>
               {isPending ? "Saving..." : "Save"}
             </Button>
