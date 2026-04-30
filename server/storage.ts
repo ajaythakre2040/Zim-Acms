@@ -2686,10 +2686,37 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .groupBy(dailyAttendanceSummary.employeeCode);
   }
-  async getMenus(): Promise<MenuMaster[]> {
-    return await db.select().from(menuMaster).orderBy(asc(menuMaster.sortOrder));
-  }
+  // async getMenus(): Promise<MenuMaster[]> {
+  //   return await db.select().from(menuMaster).orderBy(asc(menuMaster.sortOrder));
+  // }
+  async getMenus(): Promise<any[]> {
+    const allMenus = await db
+      .select()
+      .from(menuMaster)
+      .orderBy(asc(menuMaster.sortOrder));
 
+    const menuMap: Record<number, any> = {};
+    allMenus.forEach((item) => {
+      menuMap[item.id] = { ...item, subMenus: [] };
+    });
+
+    const tree: any[] = [];
+
+    allMenus.forEach((item) => {
+      
+      if (item.parentId === 0 || item.parentId === null) {
+        tree.push(menuMap[item.id]);
+      } else {
+        
+        const pId = item.parentId as number;
+        if (menuMap[pId]) {
+          menuMap[pId].subMenus.push(menuMap[item.id]);
+        }
+      }
+    });
+
+    return tree;
+  }
   async getMenu(id: number): Promise<MenuMaster | undefined> {
     const [menu] = await db.select().from(menuMaster).where(eq(menuMaster.id, id));
     return menu;
