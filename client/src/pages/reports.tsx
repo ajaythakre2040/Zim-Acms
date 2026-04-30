@@ -575,12 +575,12 @@ function DaliyPerformanceTable({ data }: { data?: any[] }) {
 
                 <td className="p-3">{r.shifttime || "-"}</td>
 
-                <td className="p-3">
-                  {r.firstIn ? new Date(r.firstIn).toLocaleTimeString() : "-"}
+                <td className="p-3 font-mono text-blue-600 dark:text-blue-400">
+                  {formatTime(r.firstIn)}
                 </td>
 
-                <td className="p-3">
-                  {r.lastOut ? new Date(r.lastOut).toLocaleTimeString() : "-"}
+                <td className="p-3 font-mono text-orange-600 dark:text-orange-400">
+                  {formatTime(r.lastOut)}
                 </td>
 
                 <td className="p-3">

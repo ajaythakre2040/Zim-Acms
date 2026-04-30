@@ -1163,8 +1163,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   // Get Role specific permissions
   app.get("/api/roles-with-permissions/:id", async (req, res) => {
-    const perms = await storage.getRolePermissions(Number(req.params.id));
-    res.json(perms);
+    try {
+      const roleId = Number(req.params.id);
+
+      // Naya storage function call karein
+      const roleData = await storage.getRolePermissions(roleId);
+
+      if (!roleData) {
+        return res.status(404).json({ message: "Role not found" });
+      }
+
+      res.json(roleData);
+    } catch (error: any) {
+      res.status(500).json({
+        status: "error",
+        message: error.message || "Failed to fetch role data"
+      });
+    }
   });
 
  

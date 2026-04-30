@@ -2686,10 +2686,37 @@ export class DatabaseStorage implements IStorage {
       .where(and(...conditions))
       .groupBy(dailyAttendanceSummary.employeeCode);
   }
-  async getMenus(): Promise<MenuMaster[]> {
-    return await db.select().from(menuMaster).orderBy(asc(menuMaster.sortOrder));
-  }
+  // async getMenus(): Promise<MenuMaster[]> {
+  //   return await db.select().from(menuMaster).orderBy(asc(menuMaster.sortOrder));
+  // }
+  async getMenus(): Promise<any[]> {
+    const allMenus = await db
+      .select()
+      .from(menuMaster)
+      .orderBy(asc(menuMaster.sortOrder));
 
+    const menuMap: Record<number, any> = {};
+    allMenus.forEach((item) => {
+      menuMap[item.id] = { ...item, subMenus: [] };
+    });
+
+    const tree: any[] = [];
+
+    allMenus.forEach((item) => {
+      
+      if (item.parentId === 0 || item.parentId === null) {
+        tree.push(menuMap[item.id]);
+      } else {
+        
+        const pId = item.parentId as number;
+        if (menuMap[pId]) {
+          menuMap[pId].subMenus.push(menuMap[item.id]);
+        }
+      }
+    });
+
+    return tree;
+  }
   async getMenu(id: number): Promise<MenuMaster | undefined> {
     const [menu] = await db.select().from(menuMaster).where(eq(menuMaster.id, id));
     return menu;
@@ -2721,9 +2748,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(menuMaster.sortOrder));
   }
   // Sabhi roles fetch karna
-  async getRoles(): Promise<Role[]> {
-    return await db.select().from(roles);
-  }
+ 
   async getRoleByCode(roleCode: string): Promise<any | undefined> {
     const [role] = await db
       .select()
@@ -2731,12 +2756,29 @@ export class DatabaseStorage implements IStorage {
       .where(eq(roles.roleCode, roleCode));
     return role;
   }
-
+  // Sabhi roles fetch karna
+  async getRoles(): Promise<Role[]> {
+    return await db.select().from(roles);
+  }
   // Kisi specific role ki saari permissions fetch karna (with Menu details)
   async getRolePermissions(roleId: number) {
-    return await db.select().from(rolePermissions).where(eq(rolePermissions.roleId, roleId));
-  }
+    // 1. Role ki basic details fetch karein
+    const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
 
+    if (!role) return null;
+
+    // 2. Us role ki saari permissions fetch karein
+    const permissions = await db
+      .select()
+      .from(rolePermissions)
+      .where(eq(rolePermissions.roleId, roleId));
+
+    // 3. Dono ko merge karke return karein
+    return {
+      ...role,
+      permissions: permissions
+    };
+  }
   // Naya Role banana aur default permissions set karna
   async createRoleWithPermissions(roleData: any, permissions: any[]) {
     return await db.transaction(async (tx) => {
@@ -2755,7 +2797,7 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
-  // UPDATE: Role details aur uski Matrix ek sath
+ 
   async updateRoleWithPermissions(roleId: number, roleData: any, permissions: any[]) {
     return await db.transaction(async (tx) => {
       // 1. Update Role Metadata
