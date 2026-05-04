@@ -56,6 +56,7 @@ import MenuPage from "./pages/menu";
 import CompaniesPage from "./pages/company";
 import CategoriesPage from "./pages/category";
 import RoleFormPage from "./pages/role_form";
+import RolePermissionViewPage from "./pages/RolePermissionViewPage";
 function Router() {
   return (
     <Switch>
@@ -90,7 +91,7 @@ function Router() {
       <Route path="/master-data/roles" component={RolesPage} />
       <Route path="/master-data/roles/add" component={RoleFormPage} />
       <Route path="/master-data/roles/edit/:id" component={RoleFormPage} />
-      <Route component={NotFound} />
+      <Route path="/master-data/roles/view/:id" component={RolePermissionViewPage} />      <Route component={NotFound} />
     </Switch>
   );
 }

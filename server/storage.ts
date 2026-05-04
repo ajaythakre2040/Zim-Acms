@@ -2758,7 +2758,10 @@ export class DatabaseStorage implements IStorage {
   }
   // Sabhi roles fetch karna
   async getRoles(): Promise<Role[]> {
-    return await db.select().from(roles);
+    return await db
+      .select()
+      .from(roles)
+      .orderBy(asc(roles.id));
   }
   // Kisi specific role ki saari permissions fetch karna (with Menu details)
   async getRolePermissions(roleId: number) {
