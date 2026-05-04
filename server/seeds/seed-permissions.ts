@@ -19,19 +19,19 @@ export async function seedPermissions() {
             };
 
             // LOGIC 1: Super Admin - Full Access
-            if (role.roleCode === "super_admin") {
+            if (role.code === "super_admin") {
                 p = { view: true, add: true, edit: true, delete: true, export: true, print: true };
             }
 
             // LOGIC 2: Gate Security
-            else if (role.roleCode === "gate_security") {
+            else if (role.code === "gate_security") {
                 const isAllowed = ["Dashboard", "Live Access Logs", "Attendance Summary"].includes(menu.title);
                 p.view = isAllowed;
                 p.export = isAllowed;
             }
 
             // LOGIC 3: HR / Admin Staff
-            else if (role.roleCode === "hr_admin") {
+            else if (role.code === "hr_admin") {
                 const isMasterSub = ["Designation", "Department", "Category", "Company", "Role", "Menu"].includes(menu.title);
                 const isBasic = ["Dashboard", "Employees", "Shifts", "Reports"].includes(menu.title);
                 p.view = isMasterSub || isBasic;

@@ -4,12 +4,16 @@ import {
   pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date, bigserial, // <--- Add this
   decimal,   // <--- Add this
   index,
-  unique, } from "drizzle-orm/pg-core";
+  unique,
+} from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
 import { users } from "./models/auth";
 import { bigint } from "drizzle-orm/pg-core";
+
+
+
 // ==================== USER PROFILES (RBAC) ====================
 export const userProfiles = pgTable("user_profiles", {
   id: serial("id").primaryKey(),
@@ -228,7 +232,7 @@ export const people = pgTable("people", {
   shiftType: text("shift_type", { enum: ["fixed", "rotational", "flexible"] }).default("fixed"),
   externalId: text("external_id"),
   sourceSystem: text("source_system"),
-   lastSeenTime: timestamp("last_seen_time", { withTimezone: false }),
+  lastSeenTime: timestamp("last_seen_time", { withTimezone: false }),
   currentZone: text("current_zone").default("OUT"),
   lastPunchDoorId: integer("last_punch_door_id"),
   ruleid: integer("rule_id"),
@@ -609,13 +613,7 @@ export const blockUnblockLogs = pgTable("user_block_unblock_logs", {
     .$defaultFn(() => new Date())
     .notNull(),
 });
-export const employeeRoles = pgTable("employee_roles", {
-  id: serial("id").primaryKey(),
-  employeeCode: varchar("employee_code", { length: 20 }).notNull(),
-  roleId: integer("role_id").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow()
-});
+
 export const employeeDoorAssignments = pgTable("employee_door_assignments", {
   id: serial("id").primaryKey(),
   employeeCode: varchar("employee_code", { length: 100 })
@@ -739,7 +737,7 @@ export const cabinLockouts = pgTable("cabin_lockouts", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .$defaultFn(() => new Date())
     .notNull(),
-   
+
   // createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
   // updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
 });
@@ -820,7 +818,7 @@ export const syncMeta = pgTable("sync_meta", {
 export const menuMaster = pgTable("menu_master", {
   id: serial("id").primaryKey(),
   title: text("title").notNull().unique(), // Unique Name
-  menuCode: text("menu_code").notNull().unique(), // Unique Code (Numeric or String)
+  code: text("code").notNull().unique(), // Unique Code (Numeric or String)
   icon: text("icon"),
   parentId: integer("parent_id").default(0),
   sortOrder: integer("sort_order").default(0),
@@ -830,7 +828,7 @@ export const menuMaster = pgTable("menu_master", {
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
   roleName: text("role_name").notNull(),       // e.g., "Super Administrator"
-  roleCode: text("role_code").notNull().unique(), // e.g., "SUPER_ADMIN", "STAFF_01"
+  code: text("code").notNull().unique(), // e.g., "SUPER_ADMIN", "STAFF_01"
   description: text("description"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -885,14 +883,14 @@ export const insertAlertSchema = createInsertSchema(alerts).omit({ id: true, cre
 export const insertExceptionSchema = createInsertSchema(exceptions).omit({ id: true, createdAt: true });
 export const insertSystemSettingSchema = createInsertSchema(systemSettings).omit({ id: true, createdAt: true });
 export const insertBlockUnblockLogSchema = createInsertSchema(blockUnblockLogs).omit({ id: true, createdAt: true, updatedAt: true });
-export const insertEmployeeRoleSchema = createInsertSchema(employeeRoles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertMainGateLogSchema = createInsertSchema(mainGateLogs).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCronMasterSchema = createInsertSchema(cronMaster).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertDoorDeviceSchema = createInsertSchema(doorDevices).omit({ id: true, createdAt: true });
-export const insertEmployeeDoorAssignmentSchema = createInsertSchema(employeeDoorAssignments).omit({ id: true, createdAt: true, updatedAt: true }).extend({doorIds: z.array(z.number())});
-export const insertEmployeeActivityLogSchema = createInsertSchema(employeeActivityLogs, { logDate: z.any(), onlyDate: z.any() }).omit({ id: true }); 
+export const insertEmployeeDoorAssignmentSchema = createInsertSchema(employeeDoorAssignments).omit({ id: true, createdAt: true, updatedAt: true }).extend({ doorIds: z.array(z.number()) });
+export const insertEmployeeActivityLogSchema = createInsertSchema(employeeActivityLogs, { logDate: z.any(), onlyDate: z.any() }).omit({ id: true });
 export const insertDailyAttendanceSummarySchema = createInsertSchema(dailyAttendanceSummary, { workDate: z.any() }).omit({ id: true });
-export const insertRoleSchema = createInsertSchema(roles).omit({ id: true });
+export const insertRoleSchema = createInsertSchema(roles).omit({ id: true })
+
 
 export const insertMenuMasterSchema = createInsertSchema(menuMaster).omit({
   id: true
@@ -1000,8 +998,6 @@ export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
 
 export type BlockUnblockLog = typeof blockUnblockLogs.$inferSelect;
 export type InsertBlockUnblockLog = z.infer<typeof insertBlockUnblockLogSchema>;
-export type EmployeeRole = typeof employeeRoles.$inferSelect;
-export type InsertEmployeeRole = z.infer<typeof insertEmployeeRoleSchema>;
 export type MainGateLog = typeof mainGateLogs.$inferSelect;
 export type InsertMainGateLog = z.infer<typeof insertMainGateLogSchema>;
 export type CronMaster = typeof cronMaster.$inferSelect;

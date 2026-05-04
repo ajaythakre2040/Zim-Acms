@@ -7,37 +7,37 @@ export async function seedRoles() {
     const rolesData = [
         {
             roleName: "Super Admin",
-            roleCode: "admin_01",
+            code: "admin_01",
             description: "Full system access and configuration"
         },
         {
             roleName: "Security Admin",
-            roleCode: "sec_02",
+            code: "sec_02",
             description: "Hardware and security policy management"
         },
         {
             roleName: "Staff",
-            roleCode: "staff_03",
+            code: "staff_03",
             description: "Office and administrative staff"
         },
         {
             roleName: "Gate Security",
-            roleCode: "gate_04",
+            code: "gate_04",
             description: "Gate entry/exit and live logs monitoring"
         },
         {
             roleName: "Reception",
-            roleCode: "rec_05",
+            code: "rec_05",
             description: "Visitor management and front desk"
         },
         {
             roleName: "Employee",
-            roleCode: "emp_06",
+            code: "emp_06",
             description: "Standard employee access"
         },
         {
             roleName: "Worker",
-            roleCode: "wrk_07",
+            code: "wrk_07",
             description: "Basic factory/site worker access"
         }
     ];
@@ -46,7 +46,7 @@ export async function seedRoles() {
         await db.insert(roles)
             .values(role)
             .onConflictDoUpdate({
-                target: [roles.roleCode],
+                target: [roles.code],
                 set: {
                     roleName: role.roleName,
                     description: role.description

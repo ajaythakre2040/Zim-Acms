@@ -1,7 +1,10 @@
 import { useEffect, useState, useMemo, Fragment } from "react";
 import { useLocation, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Save, ShieldCheck, LayoutGrid, CheckCircle2 } from "lucide-react";
+import {
+  ArrowLeft, Save, ShieldCheck, LayoutGrid,
+  CheckCircle2, AlertCircle, XCircle
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +20,7 @@ export default function RoleFormPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [form, setForm] = useState({
     roleName: "",
-    roleCode: "",
+    code: "",
     description: "",
     isActive: true,
   });
@@ -25,13 +28,15 @@ export default function RoleFormPage() {
   const [permissions, setPermissions] = useState<any>({});
   const permissionTypes = ["view", "add", "edit", "delete", "print", "export"];
 
+  // ✅ Auto-hide toast
   useEffect(() => {
     if (toast) {
-      const timer = setTimeout(() => setToast(null), 3000);
+      const timer = setTimeout(() => setToast(null), 4000);
       return () => clearTimeout(timer);
     }
   }, [toast]);
 
+  // ✅ Fetch Menus
   const { data: menus = [] } = useQuery({
     queryKey: ["menus"],
     queryFn: async () => {
@@ -40,6 +45,7 @@ export default function RoleFormPage() {
     },
   });
 
+  // ✅ Fetch Role & Permissions for Edit
   useEffect(() => {
     if (!roleId) return;
     const fetchRole = async () => {
@@ -48,7 +54,7 @@ export default function RoleFormPage() {
         const data = await res.json();
         setForm({
           roleName: data.roleName || "",
-          roleCode: data.roleCode || "",
+          code: data.code || "",
           description: data.description || "",
           isActive: data.isActive ?? true,
         });
@@ -85,12 +91,14 @@ export default function RoleFormPage() {
     }));
   };
 
+  // ✅ SUBMIT LOGIC WITH PROPER ERROR HANDLING
   const handleSubmit = async () => {
     try {
-      if (!form.roleName.trim() || !form.roleCode.trim()) {
+      if (!form.roleName.trim() || !form.code.trim()) {
         setToast({ message: "Role Name and Code are required", type: "error" });
         return;
       }
+
       const payload = {
         role: { ...form },
         permissions: Object.entries(permissions).map(([menuId, perms]: any) => ({
@@ -98,18 +106,30 @@ export default function RoleFormPage() {
           ...perms,
         })),
       };
+
       const url = isEdit ? `/api/roles-with-permissions/${roleId}` : "/api/roles-with-permissions";
       const method = isEdit ? "PUT" : "POST";
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Save failed");
-      setToast({ message: "Role saved successfully", type: "success" });
+
+      const result = await res.json(); // Parse the response body first
+
+      if (!res.ok) {
+        // Backend se aane wala "message" handle karein (Duplicate Check)
+        throw new Error(result.message || "Failed to save role configuration");
+      }
+
+      setToast({ message: "Role saved successfully!", type: "success" });
       setTimeout(() => navigate("/master-data/roles"), 1500);
-    } catch (err) {
-      setToast({ message: "Something went wrong", type: "error" });
+    } catch (err: any) {
+      setToast({
+        message: err.message || "An unexpected error occurred",
+        type: "error"
+      });
     }
   };
 
@@ -117,7 +137,7 @@ export default function RoleFormPage() {
     <div className="min-h-screen bg-slate-50/50 p-6 font-sans">
       <div className="max-w-[1400px] mx-auto space-y-6">
 
-        {/* HEADER SECTION */}
+        {/* HEADER */}
         <div className="flex items-center bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
           <Button
             variant="ghost"
@@ -131,69 +151,75 @@ export default function RoleFormPage() {
           <div className="h-6 w-[1px] bg-slate-200 mr-4" />
           <div>
             <h1 className="text-xl font-bold text-slate-800 tracking-tight">
-              {isEdit ? "Edit Role" : "Add New Role"}
+              {isEdit ? "Edit Role Configuration" : "Create New Role"}
             </h1>
-            <p className="text-[11px] text-slate-400 font-medium">Manage module accessibility and user privileges</p>
+            <p className="text-[11px] text-slate-400 font-medium">Define access levels and system permissions</p>
           </div>
         </div>
 
-        {/* TOAST NOTIFICATION */}
+        {/* TOAST NOTIFICATION (UPGRADED) */}
         {toast && (
-          <div className={`fixed top-8 right-8 px-6 py-3 rounded-xl shadow-2xl text-white text-sm z-50 animate-in fade-in slide-in-from-top-4 duration-300 ${toast.type === "success" ? "bg-green-600" : "bg-red-600"}`}>
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="w-4 h-4" />
-              <span className="font-semibold">{toast.message}</span>
+          <div className={`fixed top-8 right-8 px-6 py-4 rounded-2xl shadow-2xl text-white text-sm z-[100] animate-in fade-in slide-in-from-top-4 duration-300 min-w-[300px] border-b-4 ${toast.type === "success" ? "bg-emerald-600 border-emerald-800" : "bg-rose-600 border-rose-800"
+            }`}>
+            <div className="flex items-center gap-4">
+              {toast.type === "success" ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+              <div className="flex-1">
+                <p className="font-bold tracking-wide uppercase text-[10px] opacity-80">
+                  {toast.type === "success" ? "Success" : "System Error"}
+                </p>
+                <p className="font-medium text-white/90">{toast.message}</p>
+              </div>
             </div>
           </div>
         )}
 
         <div className="grid grid-cols-1 gap-6 pb-28">
 
-          {/* BASIC INFORMATION */}
+          {/* BASIC INFO */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex items-center gap-2">
-              <LayoutGrid className="w-4 h-4 text-green-600" />
-              <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-widest">Basic Information</h2>
+              <LayoutGrid className="w-4 h-4 text-emerald-600" />
+              <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-widest">General Settings</h2>
             </div>
 
             <div className="p-6 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider pl-1">Role Name *</label>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Role Title *</label>
                   <Input
-                    placeholder="Enter role name"
-                    className="h-11 focus-visible:ring-green-500 border-slate-200"
+                    placeholder="e.g. Department Manager"
+                    className="h-11 focus-visible:ring-emerald-500 border-slate-200 bg-slate-50/30"
                     value={form.roleName}
                     onChange={(e) => setForm({ ...form, roleName: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider pl-1">Role Code *</label>
+                  <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Role Code *</label>
                   <Input
-                    placeholder="Enter role code"
-                    className="h-11 focus-visible:ring-green-500 border-slate-200 uppercase"
-                    value={form.roleCode}
-                    onChange={(e) => setForm({ ...form, roleCode: e.target.value })}
+                    placeholder="e.g. ROLE_01"
+                    className="h-11 focus-visible:ring-emerald-500 border-slate-200 uppercase font-mono"
+                    value={form.code}
+                    onChange={(e) => setForm({ ...form, code: e.target.value })}
                   />
                 </div>
-                <div className="bg-slate-50/50 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
+                <div className="bg-slate-50/80 p-4 rounded-xl border border-slate-100 flex items-center justify-between">
                   <div className="space-y-0.5">
-                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Status</label>
+                    <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Availability</label>
                   </div>
                   <div className="flex items-center gap-3 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
                     <Switch checked={form.isActive} onCheckedChange={(v) => setForm({ ...form, isActive: v })} />
-                    <span className={`text-[10px] font-black ${form.isActive ? "text-green-600" : "text-slate-400"}`}>
-                      {form.isActive ? "ACTIVE" : "INACTIVE"}
+                    <span className={`text-[10px] font-black ${form.isActive ? "text-emerald-600" : "text-slate-400"}`}>
+                      {form.isActive ? "ACTIVE" : "DISABLED"}
                     </span>
                   </div>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider pl-1">Description</label>
+                <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Description</label>
                 <Textarea
-                  placeholder="Describe the responsibilities..."
-                  className="min-h-[100px] focus-visible:ring-green-500 border-slate-200 resize-none"
+                  placeholder="Summarize the access level and responsibilities..."
+                  className="min-h-[100px] focus-visible:ring-emerald-500 border-slate-200 resize-none bg-slate-50/30"
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
@@ -201,28 +227,27 @@ export default function RoleFormPage() {
             </div>
           </div>
 
-          {/* PERMISSIONS TABLE (LIGHT THEME) */}
+          {/* PERMISSIONS MATRIX */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="bg-slate-50/50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-blue-600" />
-                <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-widest">Access Matrix</h2>
+                <h2 className="text-[11px] font-bold text-slate-700 uppercase tracking-widest">Permission Matrix</h2>
               </div>
-              <p className="text-[10px] text-slate-400 font-medium italic">Toggle columns to bulk apply</p>
             </div>
 
             <div className="overflow-x-auto">
               <div className="min-w-[1000px]">
-                {/* UPDATED LIGHT HEADER */}
-                <div className="grid grid-cols-8 bg-slate-50 p-4 text-[10px] font-bold text-slate-600 border-b border-slate-200 text-center uppercase tracking-wider sticky top-0 z-10 shadow-sm">
-                  <span className="text-left pl-2 col-span-1">Parent Module</span>
-                  <span className="text-left pl-4 col-span-1">Sub Module</span>
+                {/* STICKY HEADER */}
+                <div className="grid grid-cols-8 bg-slate-100/80 backdrop-blur-sm p-4 text-[10px] font-bold text-slate-600 border-b border-slate-200 text-center uppercase tracking-wider sticky top-0 z-10">
+                  <span className="text-left pl-2 col-span-1">Parent</span>
+                  <span className="text-left pl-4 col-span-1">Module</span>
                   {permissionTypes.map((perm) => (
-                    <div key={perm} className="flex items-center justify-center gap-2 bg-white/50 py-1 rounded border border-slate-100">
+                    <div key={perm} className="flex items-center justify-center gap-2">
                       <span>{perm}</span>
                       <input
                         type="checkbox"
-                        className="h-3 w-3 accent-green-600 cursor-pointer rounded-sm"
+                        className="h-3 w-3 accent-blue-600 cursor-pointer"
                         onChange={(e) => {
                           const checked = e.target.checked;
                           const updated = { ...permissions };
@@ -239,20 +264,20 @@ export default function RoleFormPage() {
                   ))}
                 </div>
 
-                {/* Body Area */}
-                <div className="max-h-[600px] overflow-y-auto divide-y divide-slate-100">
+                <div className="max-h-[500px] overflow-y-auto divide-y divide-slate-50">
                   {groupedMenus.map((parent: any) => (
                     <Fragment key={parent.id}>
-                      <div className="grid grid-cols-8 items-center p-4 bg-white font-semibold text-center hover:bg-slate-50/30 transition-colors">
-                        <span className="text-left font-bold text-slate-800 pl-2 text-[13px] flex items-center gap-2">
-                          <div className="w-1 h-4 bg-green-500 rounded-full" /> {parent.title}
+                      {/* Parent Row */}
+                      <div className="grid grid-cols-8 items-center p-4 bg-white hover:bg-slate-50/50 transition-colors">
+                        <span className="text-left font-bold text-slate-800 text-[13px] flex items-center gap-2">
+                          <div className="w-1 h-4 bg-emerald-500 rounded-full" /> {parent.title}
                         </span>
-                        <span className="text-slate-300">-</span>
+                        <span className="text-slate-200">-</span>
                         {permissionTypes.map((perm) => (
                           <div key={perm} className="flex justify-center">
                             <input
                               type="checkbox"
-                              className="h-5 w-5 accent-green-600 cursor-pointer rounded-md transition-all active:scale-90"
+                              className="h-5 w-5 accent-emerald-600 cursor-pointer rounded-md"
                               checked={permissions?.[parent.id]?.[perm] || false}
                               onChange={(e) => {
                                 const checked = e.target.checked;
@@ -268,8 +293,9 @@ export default function RoleFormPage() {
                         ))}
                       </div>
 
+                      {/* Submenu Rows */}
                       {parent.children.map((child: any) => (
-                        <div key={child.id} className="grid grid-cols-8 items-center p-3 text-center hover:bg-blue-50/30 transition-all border-b border-slate-50 group">
+                        <div key={child.id} className="grid grid-cols-8 items-center p-3 text-center hover:bg-blue-50/20 group border-b border-slate-50">
                           <span></span>
                           <span className="text-left pl-10 text-[12px] text-slate-500 font-medium group-hover:text-blue-600 transition-colors">
                             {child.title}
@@ -278,7 +304,7 @@ export default function RoleFormPage() {
                             <div key={perm} className="flex justify-center">
                               <input
                                 type="checkbox"
-                                className="h-4 w-4 accent-blue-600 cursor-pointer rounded shadow-sm transition-all active:scale-90"
+                                className="h-4 w-4 accent-blue-600 cursor-pointer"
                                 checked={permissions?.[child.id]?.[perm] || false}
                                 onChange={(e) => handlePermission(child.id, perm, e.target.checked)}
                               />
@@ -294,11 +320,12 @@ export default function RoleFormPage() {
           </div>
         </div>
 
-        {/* BOTTOM ACTION BAR */}
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-[1400px] bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-xl flex justify-between items-center z-50">
-          <div className="flex items-center gap-2 pl-4">
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">
-              Ready to sync access permissions?
+        {/* FLOATING ACTION BAR */}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-[1400px] bg-white/95 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-2xl flex justify-between items-center z-50">
+          <div className="flex items-center gap-3 pl-4">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              Unsaved changes detected in configuration
             </p>
           </div>
           <div className="flex gap-4">
@@ -307,13 +334,13 @@ export default function RoleFormPage() {
               onClick={() => navigate("/master-data/roles")}
               className="text-slate-500 hover:bg-slate-100 px-8 font-medium"
             >
-              Cancel
+              Discard
             </Button>
             <Button
               onClick={handleSubmit}
-              className="bg-green-600 hover:bg-green-700 text-white px-12 rounded-xl font-bold shadow-lg shadow-green-100 transition-all active:scale-95"
+              className="bg-slate-900 hover:bg-slate-800 text-white px-12 rounded-xl font-bold shadow-lg transition-all active:scale-95"
             >
-              <Save className="w-4 h-4 mr-2" /> {isEdit ? "Update Changes" : "Save Configuration"}
+              <Save className="w-4 h-4 mr-2" /> {isEdit ? "Update Changes" : "Save Role"}
             </Button>
           </div>
         </div>

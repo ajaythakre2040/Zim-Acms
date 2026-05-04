@@ -97,7 +97,7 @@ export default function MenuPage() {
 
   const columns = [
     { key: "title", label: "Title" },
-    { key: "menuCode", label: "Menu Code" },
+    { key: "code", label: "Menu Code" },
 
     {
       key: "icon",
@@ -175,7 +175,7 @@ export default function MenuPage() {
         iconMap={iconMap} // 👈 important
         fields={[
           { key: "title", label: "Title", required: true },
-          { key: "menuCode", label: "Menu Code", required: true },
+          { key: "code", label: "Menu Code", required: true },
 
           {
             key: "icon",

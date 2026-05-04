@@ -10,7 +10,7 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
-import { validateNoHtml } from "./validation";
+import { validateNoHtml } from "../lib/validation";
 
 // MasterTab updated to accept fields as a function or array
 function MasterTab({

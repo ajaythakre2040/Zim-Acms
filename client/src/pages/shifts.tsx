@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Shift } from "@shared/schema";
-import { validateNoHtml } from "./validation";
+import { validateNoHtml } from "../lib/validation";
 
 export default function ShiftsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);

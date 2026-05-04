@@ -23,16 +23,16 @@ export interface FieldConfig {
   key: string;
   label: string;
   type?:
-    | "text"
-    | "number"
-    | "email"
-    | "password"
-    | "textarea"
-    | "select"
-    | "multi-select"
-    | "switch"
-    | "date"
-    | "time";
+  | "text"
+  | "number"
+  | "email"
+  | "password"
+  | "textarea"
+  | "select"
+  | "multi-select"
+  | "switch"
+  | "date"
+  | "time";
   required?: boolean;
   options?: { value: string; label: string }[];
   placeholder?: string;
@@ -228,7 +228,7 @@ export function CrudDialog({
                   }}
                 >
                   <SelectTrigger
-                    className={errors?.[f.key] ? "border-destructive" : ""}
+                    className={errors?.[f.key] ? "border-destructive focus-visible:ring-destructive bg-rose-50/50 text-destructive" : ""}
                   >
                     <SelectValue
                       placeholder={f.placeholder || `Select ${f.label}`}
@@ -271,7 +271,7 @@ export function CrudDialog({
                   id={f.key}
                   className={
                     errors?.[f.key]
-                      ? "border-destructive focus-visible:ring-destructive"
+                      ? "border-destructive focus-visible:ring-destructive bg-rose-50/50"
                       : ""
                   }
                   value={form[f.key] || ""}
@@ -292,7 +292,7 @@ export function CrudDialog({
                   type={f.type === "time" ? "time" : f.type || "text"}
                   className={
                     errors?.[f.key]
-                      ? "border-destructive focus-visible:ring-destructive"
+                      ? "border-destructive focus-visible:ring-destructive bg-rose-50/50"
                       : ""
                   }
                   // Safe value check for numbers/nulls
@@ -317,6 +317,7 @@ export function CrudDialog({
               )}
               {errors?.[f.key] && (
                 <p className="text-[12px] font-medium text-destructive mt-1 animate-in fade-in slide-in-from-top-1">
+                  <span className="w-1 h-1 rounded-full bg-destructive" />
                   {errors[f.key]}
                 </p>
               )}

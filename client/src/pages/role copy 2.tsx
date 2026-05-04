@@ -16,7 +16,7 @@ const [, navigate] = useLocation();
   // ✅ Updated Columns
   const columns = [
     { key: "roleName", label: "Role Name" },
-    { key: "roleCode", label: "Code" },
+    { key: "code", label: "Code" },
     { key: "description", label: "Description" },
 
     {
@@ -77,7 +77,7 @@ const [, navigate] = useLocation();
             required: true,
           },
           {
-            key: "roleCode",
+            key: "code",
             label: "Code",
             required: true,
           },

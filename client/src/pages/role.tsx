@@ -28,11 +28,11 @@ export default function RolesPage() {
       )
     },
     {
-      key: "roleCode",
+      key: "code",
       label: "Code",
       render: (item: any) => (
         <code className="text-[11px] font-mono bg-slate-100 px-2 py-1 rounded text-slate-600">
-          {item.roleCode}
+          {item.code}
         </code>
       )
     },

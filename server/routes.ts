@@ -14,7 +14,7 @@ import {
   insertVisitorSchema, insertVisitSchema, insertAttendanceSchema,
   insertAccessLogSchema, insertAlertSchema, insertExceptionSchema,
   insertSystemSettingSchema, insertUserProfileSchema,
-  insertRoleSchema, insertEmployeeRoleSchema,
+  insertRoleSchema,
   insertCronMasterSchema,
   insertDoorDeviceSchema,
   insertBlockUnblockLogSchema,
@@ -720,39 +720,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: error.message });
     }
   });
-  // crudRoutes(
-  //   app,
-  //   "/api/roles",
-  //   insertRoleSchema,
-  //   () => storage.getRoles(),
-  //   (data) => storage.createRole(data),
-  //   (id, data) => storage.updateRole(id, data),
-  //   (id) => storage.deleteRole(id)
-  // );
-  crudRoutes(
-    app,
-    "/api/employee-roles",
-    insertEmployeeRoleSchema,
-    () => storage.getEmployeeRoles(),
-    async (data: any) => {
-      const existing = await storage.getEmployeeRoles();
-      const isDuplicate = existing.some(
-        (r) => r.employeeCode === data.employeeCode && Number(r.roleId) === Number(data.roleId)
-      );
-      if (isDuplicate) {
-        const error: any = new Error("This role is already assigned to this employee.");
-        error.status = 400;
-        throw error;
-      }
-      return await storage.createEmployeeRole(data);
-    },
-    async (id, data) => {
-      return await storage.updateEmployeeRole(id, data);
-    },
-    async (id) => {
-      return await storage.deleteEmployeeRole(id);
-    }
-  );
+ 
+ 
   
   crudRoutes(
     app,
@@ -1086,10 +1055,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  crudRoutes(app, "/api/menus", insertMenuMasterSchema,
+  // crudRoutes(app, "/api/menus", insertMenuMasterSchema,
+  //   () => storage.getMenus(),
+  //   (d) => storage.createMenu(d),
+  //   (id, d) => storage.updateMenu(id, d),
+  //   (id) => storage.deleteMenu(id)
+  // );
+  crudRoutes(
+    app,
+    "/api/menus",
+    insertMenuMasterSchema,
     () => storage.getMenus(),
-    (d) => storage.createMenu(d),
-    (id, d) => storage.updateMenu(id, d),
+    // ✅ Sirf data pass karein taaki TS error na aaye
+    async (data: any) => {
+      try {
+        return await storage.createMenu(data);
+      } catch (error: any) {
+        // 💡 Custom error throw karein jisme status code ho
+        // Isse backend handler ise pakad lega, ya aap manually res handle karenge
+        const customError: any = new Error(error.message);
+        customError.status = 400;
+        // Agar aapka front-end hook 'errors' field expect karta hai
+        customError.errors = { code: error.message };
+        throw customError;
+      }
+    },
+    async (id: number, data: any) => {
+      try {
+        return await storage.updateMenu(id, data);
+      } catch (error: any) {
+        const customError: any = new Error(error.message);
+        customError.status = 400;
+        customError.errors = { code: error.message };
+        throw customError;
+      }
+    },
     (id) => storage.deleteMenu(id)
   );
   app.get("/api/roles", async (_req, res) => {
@@ -1110,10 +1110,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { role, permissions } = req.body;
 
       // 1. Mandatory Data Validation
-      if (!role?.roleCode || !Array.isArray(permissions)) {
+      if (!role?.code || !Array.isArray(permissions)) {
         return res.status(400).json({
           status: "error",
-          message: "Required data missing: roleCode (string) and permissions (array) are mandatory."
+          message: "Required data missing: code (string) and permissions (array) are mandatory."
         });
       }
 
@@ -1128,7 +1128,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       // 3. Existing Role Check
-      const existingRole = await storage.getRoleByCode(role.roleCode);
+      const existingRole = await storage.getRoleByCode(role.code);
       if (existingRole) {
         return res.status(400).json({
           status: "error",

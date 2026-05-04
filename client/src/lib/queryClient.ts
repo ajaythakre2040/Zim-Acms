@@ -8,20 +8,24 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 // }
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = await res.text();
+    // Clone use karein taaki body ko doosri baar read kiya ja sake (useCrud mein)
+    const clonedRes = res.clone();
+    const text = await clonedRes.text();
     let cleanMessage = "";
 
     try {
-      // Agar backend ne JSON bheja hai, toh uska sirf message nikal lo
       const parsed = JSON.parse(text);
-      cleanMessage = parsed.message || text;
+      // Agar array hai (validation error), toh stringify karke throw karein
+      // taaki error.message mein pura data mil sake
+      if (Array.isArray(parsed)) {
+        cleanMessage = JSON.stringify(parsed);
+      } else {
+        cleanMessage = parsed.message || text;
+      }
     } catch (e) {
-      // Agar JSON nahi hai, toh raw text use karein
       cleanMessage = text || res.statusText;
     }
 
-    // IMPORTANT: Yahan se `${res.status}:` hata dein
-    // Sirf clean message throw karein
     throw new Error(cleanMessage);
   }
 }

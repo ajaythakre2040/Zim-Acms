@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { Site, Building } from "@shared/schema";
-import { validateNoHtml } from "./validation";
+import { validateNoHtml } from "../lib/validation";
 
 export default function SitesPage() {
   const [siteDialog, setSiteDialog] = useState(false);

@@ -18,7 +18,7 @@ export default function RoleFormPage() {
 
   const [form, setForm] = useState({
     roleName: "",
-    roleCode: "",
+    code: "",
     description: "",
     isActive: true,
   });
@@ -79,7 +79,7 @@ export default function RoleFormPage() {
       return;
     }
 
-    if (!form.roleCode.trim()) {
+    if (!form.code.trim()) {
       setToast({
         message: "Role Code is required",
         type: "error",
@@ -90,7 +90,7 @@ export default function RoleFormPage() {
     const payload = {
       role: {
         roleName: form.roleName,
-        roleCode: form.roleCode,
+        code: form.code,
         description: form.description,
         isActive: form.isActive,
       },
@@ -131,7 +131,7 @@ export default function RoleFormPage() {
     // RESET FORM
     setForm({
       roleName: "",
-      roleCode: "",
+      code: "",
       description: "",
       isActive: true,
     });
@@ -185,8 +185,8 @@ export default function RoleFormPage() {
 
             <Input
               placeholder="Role Code *"
-              value={form.roleCode}
-              onChange={(e) => setForm({ ...form, roleCode: e.target.value })}
+              value={form.code}
+              onChange={(e) => setForm({ ...form, code: e.target.value })}
             />
 
             <div className="flex items-center gap-2">

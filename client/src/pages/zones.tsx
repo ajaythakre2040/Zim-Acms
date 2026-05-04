@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { Zone, Door, Site } from "@shared/schema";
 import { useQueryClient } from "@tanstack/react-query";
-import { validateNoHtml } from "./validation";
+import { validateNoHtml } from "../lib/validation";
 
 export default function ZonesDoorsPage() {
   const queryClient = useQueryClient();

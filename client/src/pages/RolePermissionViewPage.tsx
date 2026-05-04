@@ -10,7 +10,7 @@ export default function RolePermissionViewPage() {
 
     const [form, setForm] = useState({
         roleName: "",
-        roleCode: "",
+        code: "",
         description: "",
         isActive: true,
     });
@@ -36,7 +36,7 @@ export default function RolePermissionViewPage() {
 
             setForm({
                 roleName: data.roleName || "",
-                roleCode: data.roleCode || "",
+                code: data.code || "",
                 description: data.description || "",
                 isActive: data.isActive ?? true,
             });
@@ -124,7 +124,7 @@ export default function RolePermissionViewPage() {
                             <div className="space-y-2">
                                 <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider pl-1">Role Code</label>
                                 <div className="text-sm text-slate-700 font-bold bg-slate-50 p-3.5 rounded-xl border border-slate-100 font-mono">
-                                    {form.roleCode}
+                                    {form.code}
                                 </div>
                             </div>
 

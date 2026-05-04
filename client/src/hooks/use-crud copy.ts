@@ -25,35 +25,17 @@ export function useCrud<T>(endpoint: string, label: string) {
       toast({ title: `${label} created successfully` });
     },
     onError: (e: any) => {
-      let errorData;
-      try {
-        // Humne queryClient se stringified array bheja hai, use yahan parse karein
-        errorData = JSON.parse(e.message);
-      } catch {
-        errorData = e.response?.data;
-      }
-
-      // 1. Agar Validation Array hai (HTML tags/Regex fix)
-      if (Array.isArray(errorData)) {
-        const validationErrors: Record<string, string> = {};
-        errorData.forEach((err: any) => {
-          const fieldKey = err.path && err.path[0];
-          if (fieldKey) {
-            validationErrors[fieldKey] = err.message;
-          }
-        });
-        setErrors(validationErrors);
-        return; // Stop here, no toast
-      }
-
-      // 2. Baaki sab ke liye purana behavior
+      const errorData = e.response?.data;
       if (errorData?.isDuplicate) {
         const field = errorData.message.toLowerCase().includes("code") ? "code" : "name";
         setErrors({ [field]: errorData.message });
-        toast({ title: "Duplicate Entry", description: errorData.message, variant: "destructive" });
+        toast({
+          title: "Duplicate Entry",
+          description: errorData.message,
+          variant: "destructive"
+        });
       } else {
-        setErrors({});
-        toast({ title: "Error", description: e.message || "Something went wrong", variant: "destructive" });
+        toast({ title: "Error", description: e.message, variant: "destructive" });
       }
     },
   });
@@ -74,35 +56,13 @@ export function useCrud<T>(endpoint: string, label: string) {
       toast({ title: `${label} updated successfully` });
     },
     onError: (e: any) => {
-      let errorData;
-      try {
-        // Humne queryClient se stringified array bheja hai, use yahan parse karein
-        errorData = JSON.parse(e.message);
-      } catch {
-        errorData = e.response?.data;
-      }
-
-      // 1. Agar Validation Array hai (HTML tags/Regex fix)
-      if (Array.isArray(errorData)) {
-        const validationErrors: Record<string, string> = {};
-        errorData.forEach((err: any) => {
-          const fieldKey = err.path && err.path[0];
-          if (fieldKey) {
-            validationErrors[fieldKey] = err.message;
-          }
-        });
-        setErrors(validationErrors);
-        return; // Stop here, no toast
-      }
-
-      // 2. Baaki sab ke liye purana behavior
+      const errorData = e.response?.data;
       if (errorData?.isDuplicate) {
         const field = errorData.message.toLowerCase().includes("code") ? "code" : "name";
         setErrors({ [field]: errorData.message });
         toast({ title: "Duplicate Entry", description: errorData.message, variant: "destructive" });
       } else {
-        setErrors({});
-        toast({ title: "Error", description: e.message || "Something went wrong", variant: "destructive" });
+        toast({ title: "Error", description: e.message, variant: "destructive" });
       }
     },
   });
