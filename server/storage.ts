@@ -1005,6 +1005,9 @@ export class DatabaseStorage implements IStorage {
     const [person] = await db.select().from(people).where(eq(people.id, id));
     return person;
   }
+  async getPersonByCode(code: string): Promise<Person | undefined> {
+    return (await db.select().from(people).where(eq(people.employeeCode, code)))[0];
+  }
   async createPerson(data: InsertPerson): Promise<Person> {
     let mssqlId: number | null = null;
     try {

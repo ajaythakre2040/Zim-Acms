@@ -42,8 +42,8 @@ export default function RolesPage() {
       label: "Status",
       render: (item: any) => (
         <div className={`flex items-center gap-1.5 w-fit px-2.5 py-0.5 rounded-full border ${item.isActive
-            ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-            : "bg-slate-50 border-slate-200 text-slate-500"
+          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+          : "bg-slate-50 border-slate-200 text-slate-500"
           }`}>
           <div className={`w-1.5 h-1.5 rounded-full ${item.isActive ? "bg-emerald-500" : "bg-slate-400"}`} />
           <span className="text-[11px] font-bold uppercase tracking-wider">
@@ -118,7 +118,7 @@ export default function RolesPage() {
         </div>
         <Button
           onClick={() => navigate("/master-data/roles/add")}
-          className="bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-slate-200 gap-2 px-5 rounded-xl font-bold transition-all active:scale-95"
+        // className="bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-slate-200 gap-2 px-5 rounded-xl font-bold transition-all active:scale-95"
         >
           <Plus className="w-4 h-4 stroke-[3]" /> Add New Role
         </Button>

@@ -20,26 +20,20 @@ export default function DepartmentsPage() {
     {
       key: "name",
       label: "Department Name",
-      render: (item: any) => (
-        <span className="font-medium">{item.name}</span>
-      ),
+      render: (item: any) => <span className="font-medium">{item.name}</span>,
     },
     {
       key: "code",
       label: "Code",
       render: (item: any) => (
-        <span className="text-muted-foreground">
-          {item.code || "-"}
-        </span>
+        <span className="text-muted-foreground">{item.code || "-"}</span>
       ),
     },
     {
       key: "description",
       label: "Description",
       render: (item: any) => (
-        <span className="text-muted-foreground">
-          {item.description || "-"}
-        </span>
+        <span className="text-muted-foreground">{item.description || "-"}</span>
       ),
     },
     {
@@ -119,7 +113,13 @@ export default function DepartmentsPage() {
 
   return (
     <div className="p-4 md:p-6">
-
+      <div>
+        <h1 className="text-2xl font-black tracking-tight text-slate-800">
+          Department
+        </h1>
+        <p className="text-sm text-slate-500 font-medium">Manage Departments</p>
+      </div>
+      <div className="flex justify-end mb-4"></div>
       {/* HEADER */}
       <div className="flex justify-end mb-4">
         <Button

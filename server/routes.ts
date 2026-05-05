@@ -253,6 +253,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(person);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+  app.get("/api/peoplebycode/:code", async (req, res) => {
+    try {
+      const person = await storage.getPersonByCode(req.params.code);
+      person ? res.json(person) : res.status(404).json({ message: "Not found" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
   app.post("/api/people", requireAuth, async (req, res) => {
     try {
       const input = insertPersonSchema.parse(req.body);

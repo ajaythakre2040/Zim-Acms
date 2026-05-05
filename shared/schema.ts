@@ -638,7 +638,6 @@ export const mainGateLogs = pgTable("main_gate_logs", {
 
 }, (table) => {
   return {
-    // 🛡️ Ye index duplicates ko rokega
     uniquePunchIdx: uniqueIndex("unique_punch_idx").on(
       table.employeeCode,
       table.deviceId,

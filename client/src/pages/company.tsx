@@ -20,35 +20,27 @@ export default function CompaniesPage() {
     {
       key: "name",
       label: "Company Name",
-      render: (item: any) => (
-        <span className="font-medium">{item.name}</span>
-      ),
+      render: (item: any) => <span className="font-medium">{item.name}</span>,
     },
     {
       key: "shortName",
       label: "Short Name",
       render: (item: any) => (
-        <span className="text-muted-foreground">
-          {item.shortName || "-"}
-        </span>
+        <span className="text-muted-foreground">{item.shortName || "-"}</span>
       ),
     },
     {
       key: "email",
       label: "Email",
       render: (item: any) => (
-        <span className="text-muted-foreground">
-          {item.email || "-"}
-        </span>
+        <span className="text-muted-foreground">{item.email || "-"}</span>
       ),
     },
     {
       key: "website",
       label: "Website",
       render: (item: any) => (
-        <span className="text-muted-foreground">
-          {item.website || "-"}
-        </span>
+        <span className="text-muted-foreground">{item.website || "-"}</span>
       ),
     },
     {
@@ -128,7 +120,13 @@ export default function CompaniesPage() {
 
   return (
     <div className="p-4 md:p-6">
-
+      <div>
+        <h1 className="text-2xl font-black tracking-tight text-slate-800">
+          Company
+        </h1>
+        <p className="text-sm text-slate-500 font-medium">Manage Companies</p>
+      </div>
+      <div className="flex justify-end mb-4"></div>
       {/* HEADER */}
       <div className="flex justify-end mb-4">
         <Button
@@ -161,7 +159,7 @@ export default function CompaniesPage() {
         title={edit ? "Edit Company" : "Add Company"}
         fields={[
           { key: "name", label: "Company Name", required: true },
-          { key: "shortName", label: "Short Name",  },
+          { key: "shortName", label: "Short Name" },
           { key: "email", label: "Email", type: "email" },
           { key: "website", label: "Website" },
           { key: "address", label: "Address", type: "textarea" },

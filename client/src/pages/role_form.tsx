@@ -338,7 +338,7 @@ export default function RoleFormPage() {
             </Button>
             <Button
               onClick={handleSubmit}
-              className="bg-slate-900 hover:bg-slate-800 text-white px-12 rounded-xl font-bold shadow-lg transition-all active:scale-95"
+            //   className="bg-slate-900 hover:bg-slate-800 text-white px-12 rounded-xl font-bold shadow-lg transition-all active:scale-95"
             >
               <Save className="w-4 h-4 mr-2" /> {isEdit ? "Update Changes" : "Save Role"}
             </Button>

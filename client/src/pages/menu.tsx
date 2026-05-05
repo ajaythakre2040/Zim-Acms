@@ -154,7 +154,7 @@ export default function MenuPage() {
     <div className="p-6 space-y-6 bg-slate-50/30 h-screen flex flex-col font-sans overflow-hidden">
       <div className="flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 uppercase">Menus Management</h1>
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">Menu Management</h1>
           <p className="text-sm text-slate-500 font-medium">Configure hierarchy and visibility for navigation modules.</p>
         </div>
         <Button
@@ -164,7 +164,7 @@ export default function MenuPage() {
             setErrors({}); // Naya form khulne par errors clear
             setOpen(true);
           }}
-          className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl font-bold transition-all shadow-lg shadow-slate-200"
+        // className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl font-bold transition-all shadow-lg shadow-slate-200"
         >
           <Plus className="w-4 h-4 stroke-[3]" /> Add Menu Item
         </Button>
