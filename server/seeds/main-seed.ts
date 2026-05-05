@@ -4,6 +4,7 @@ import { seedCronMaster } from "./main-gate-seeds";
 import { seedMenus } from "./seed-menus";
 import { seedPermissions } from "./seed-permissions";
 import { seedRoles } from "./seed-roles";
+import { seedAdminUser } from "./seed-user";
 import { seedShifts } from "./shift-seeder";
 
 async function runAllSeeds() {
@@ -28,6 +29,9 @@ async function runAllSeeds() {
         console.log("6/6: Seeding Cabin Lockout...");
         await seedCabinLockout();
 
+        console.log("7/7: Seeding Admin User Profile...");
+        await seedAdminUser();
+        
         console.log("✨ 🚀 DATABASE FULLY SEEDED SUCCESSFULLY!");
         process.exit(0);
     } catch (error) {

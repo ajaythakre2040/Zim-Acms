@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { validateNoHtml } from "@/lib/validation";
 
 export default function DepartmentsPage() {
   const { toast } = useToast();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const { data, isLoading, create, update, remove, isCreating, isUpdating } =
     useCrud("/api/departments", "Department");
@@ -54,6 +56,7 @@ export default function DepartmentsPage() {
           <Button
             size="icon"
             variant="ghost"
+            title="Edit Department"
             onClick={(e) => {
               e.stopPropagation();
               setEdit(item);
@@ -66,15 +69,29 @@ export default function DepartmentsPage() {
           <Button
             size="icon"
             variant="ghost"
+            title="Delete Department"
+            className="hover:text-destructive hover:bg-destructive/10 transition-colors"
             onClick={async (e) => {
               e.stopPropagation();
+              const confirmed = window.confirm(
+                `Are you sure you want to delete the department "${item.name}"?`,
+              );
 
-              await remove(item.id);
-
-              toast({
-                title: "Deleted",
-                description: "Department deleted successfully",
-              });
+              if (confirmed) {
+                try {
+                  await remove(item.id);
+                  toast({
+                    title: "Deleted",
+                    description: "Department deleted successfully",
+                  });
+                } catch (err: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: err.message || "Failed to delete department",
+                  });
+                }
+              }
             }}
           >
             <Trash2 className="w-4 h-4" />
@@ -86,41 +103,60 @@ export default function DepartmentsPage() {
 
   const handleSubmit = async (formData: any) => {
     try {
+      setFieldErrors({});
+
+      // 🛡️ XSS Validation (Designation jaisa logic)
+      const validationErrors = validateNoHtml(formData);
+      if (Object.keys(validationErrors).length > 0) {
+        setFieldErrors(validationErrors);
+        return;
+      }
+
+      // 🚀 API Call Logic
       if (edit) {
         await update({ id: edit.id, data: formData });
-        toast({
-          title: "Success",
-          description: "Department updated successfully",
-        });
       } else {
         await create(formData);
-        toast({
-          title: "Success",
-          description: "Department created successfully",
-        });
       }
+
+      toast({
+        title: "Success",
+        description: edit
+          ? "Department updated successfully"
+          : "Department created successfully",
+      });
 
       setOpen(false);
       setEdit(null);
     } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || "";
+
+      // 🔑 Unique Code Error (Database check)
+      if (msg.toLowerCase().includes("database") || msg.toLowerCase().includes("unique")) {
+        setFieldErrors({
+          code: "Department code already exists",
+        });
+        return;
+      }
+
       toast({
         variant: "destructive",
         title: "Error",
-        description: err.message || "Something went wrong",
+        description: msg || "Something went wrong",
       });
     }
   };
 
   return (
     <div className="p-4 md:p-6">
+      {/* HEADER */}
       <div>
         <h1 className="text-2xl font-black tracking-tight text-slate-800">
           Department
         </h1>
         <p className="text-sm text-slate-500 font-medium">Manage Departments</p>
       </div>
-      <div className="flex justify-end mb-4"></div>
-      {/* HEADER */}
+
       <div className="flex justify-end mb-4">
         <Button
           onClick={() => {
@@ -148,11 +184,21 @@ export default function DepartmentsPage() {
         onClose={() => {
           setOpen(false);
           setEdit(null);
+          setFieldErrors({}); // ✅ Reset errors on close
         }}
         title={edit ? "Edit Department" : "Add Department"}
         fields={[
           { key: "name", label: "Department Name", required: true },
-          { key: "code", label: "Department Code", required: true },
+          {
+            key: "code",
+            label: "Department Code",
+            required: true,
+            onChange: (value, form, setForm) => {
+              setForm({ ...form, code: value });
+              // ✅ Error remove on typing
+              setFieldErrors((prev) => ({ ...prev, code: "" }));
+            },
+          },
           { key: "description", label: "Description", type: "textarea" },
           {
             key: "isActive",
@@ -164,6 +210,7 @@ export default function DepartmentsPage() {
         initialData={edit || undefined}
         onSubmit={handleSubmit}
         isPending={isCreating || isUpdating}
+        errors={fieldErrors} // 🔥 Ye prop pass hona zaroori hai
       />
     </div>
   );

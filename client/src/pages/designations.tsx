@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { validateNoHtml } from "@/lib/validation";
 
 export default function DesignationPage() {
   const { toast } = useToast();
@@ -62,6 +63,7 @@ export default function DesignationPage() {
           <Button
             size="icon"
             variant="ghost"
+            title="Edit Designation" // Simple Tooltip
             onClick={(e) => {
               e.stopPropagation();
               setEdit(item);
@@ -74,15 +76,31 @@ export default function DesignationPage() {
           <Button
             size="icon"
             variant="ghost"
+            title="Delete Designation" // Tooltip text
+            className="hover:text-destructive hover:bg-destructive/10 transition-colors" // Red hover effect
             onClick={async (e) => {
               e.stopPropagation();
 
-              await remove(item.id);
+              // ✅ Add Confirmation Logic
+              const confirmed = window.confirm(
+                `Are you sure you want to delete the designation "${item.name}"?`,
+              );
 
-              toast({
-                title: "Deleted",
-                description: "Designation deleted successfully",
-              });
+              if (confirmed) {
+                try {
+                  await remove(item.id);
+                  toast({
+                    title: "Deleted",
+                    description: "Designation deleted successfully",
+                  });
+                } catch (error) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Could not delete designation",
+                  });
+                }
+              }
             }}
           >
             <Trash2 className="w-4 h-4" />
@@ -96,6 +114,14 @@ export default function DesignationPage() {
     try {
       setFieldErrors({});
 
+      // 🛡️ XSS Validation (Shift Page jaisa logic)
+      const validationErrors = validateNoHtml(formData);
+      if (Object.keys(validationErrors).length > 0) {
+        setFieldErrors(validationErrors);
+        return; // Stop processing
+      }
+
+      // API Call Logic
       if (edit) {
         await update({ id: edit.id, data: formData });
       } else {
@@ -114,20 +140,19 @@ export default function DesignationPage() {
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "";
 
-      // ✅ ONLY inline error (NO TOAST)
-      if (msg.toLowerCase().includes("database")) {
+      // Database Unique Constraint Error handling
+      if (msg.toLowerCase().includes("database") || msg.toLowerCase().includes("unique")) {
         setFieldErrors({
           code: "Designation code already exists",
         });
-        return; // ❗ stop here (no toast)
+        return;
       }
 
-      // ❌ optional: completely remove this if you don't want ANY error toast
-      // toast({
-      //   variant: "destructive",
-      //   title: "Error",
-      //   description: msg || "Something went wrong",
-      // });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: msg || "Something went wrong",
+      });
     }
   };
   return (

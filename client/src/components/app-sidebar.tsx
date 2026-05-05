@@ -1,33 +1,13 @@
 import { useLocation, Link } from "wouter";
+import { useMemo } from "react";
+import * as LucideIcons from "lucide-react";
 import {
-  LayoutDashboard,
-  Users,
-  UserCheck,
-  Clock,
-  DoorOpen,
-  Cpu,
-  Building2,
   Shield,
-  Key,
-  CalendarDays,
-  Calendar,
-  Bell,
-  FileWarning,
-  Settings,
-  UserCog,
-  MapPin,
-  Layers,
-  CreditCard,
-  BookOpen,
-  LogOut,
-  ChevronRight,
   Zap,
-  FileText,
-  Timer,
-  LucideIcon,
-  Siren,
   ChevronDown,
-  Activity,
+  LogOut,
+  LucideIcon,
+  Circle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -54,162 +34,90 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 
-// --- Types ---
-interface SubItem {
+// --- 1. TypeScript Interfaces ---
+interface MenuPermission {
+  permissionId: number;
+  menuId: number;
   title: string;
-  url: string;
-  icon?: LucideIcon;
+  icon: string | null;
+  parentId: number | null;
+  sortOrder: number;
+  code: string;
+  view: boolean;
 }
 
-interface NavItem {
-  title: string;
-  url: string;
-  icon: LucideIcon;
-  iconColor: string;
-  items?: SubItem[];
+interface AuthUser {
+  id: string;
+  username: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  roleName?: string;
+  menuPermissions?: MenuPermission[];
 }
 
-interface NavGroup {
-  label: string;
-  color: string;
-  bgColor: string;
-  items: NavItem[];
-}
+// --- 2. Configuration & Helpers ---
+const groupStyles: Record<string, { color: string; bgColor: string }> = {
+  Overview: { color: "text-blue-400", bgColor: "bg-blue-500/15" },
+  Employees: { color: "text-cyan-400", bgColor: "bg-cyan-500/15" },
+  "Shifts & Holidays": { color: "text-amber-400", bgColor: "bg-amber-500/15" },
+  Reports: { color: "text-pink-400", bgColor: "bg-pink-500/15" },
+  Automation: { color: "text-orange-400", bgColor: "bg-orange-500/15" },
+  Infrastructure: { color: "text-emerald-400", bgColor: "bg-emerald-500/15" },
+  System: { color: "text-rose-400", bgColor: "bg-rose-500/15" },
+  Default: { color: "text-slate-400", bgColor: "bg-slate-500/15" },
+};
 
-// --- Navigation Configuration ---
-const navGroups: NavGroup[] = [
-  {
-    label: "Overview",
-    color: "text-blue-400",
-    bgColor: "bg-blue-500/15",
-    items: [
-      {
-        title: "Dashboard",
-        url: "/dashboard",
-        icon: LayoutDashboard,
-        iconColor: "text-blue-400",
-        items: [
-          { title: "Attendance Summary", url: "/" },
-          { title: "Shift Analytics", url: "/shift-dashboard" },
-          { title: "Live Access Logs", url: "/live-logs" },
-        ],
-      },
-    ],
-  },
-  {
-    label: "Employees",
-    color: "text-cyan-400",
-    bgColor: "bg-cyan-500/15",
-    items: [
-      {
-        title: "Employees",
-        url: "/people",
-        icon: Users,
-        iconColor: "text-cyan-400",
-      },
-    ],
-  },
-  {
-    label: "Shifts & Holidays",
-    color: "text-amber-400",
-    bgColor: "bg-amber-500/15",
-    items: [
-      {
-        title: "Shifts",
-        url: "/shifts",
-        icon: CalendarDays,
-        iconColor: "text-orange-400",
-      },
-      {
-        title: "Holidays",
-        url: "/holidays",
-        icon: Calendar,
-        iconColor: "text-yellow-400",
-      },
-    ],
-  },
+// Title ko URL friendly banane ke liye helper (e.g. "Shifts & Holidays" -> "shifts-and-holidays")
+const getUrlPath = (title: string) => {
+  return title
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/\s+/g, '-')
+    .replace(/[^\w-]+/g, '');
+};
 
-  {
-    label: "Reports",
-    color: "text-pink-400",
-    bgColor: "bg-pink-500/15",
-    items: [
-      {
-        title: "Reports",
-        url: "/reports",
-        icon: FileText,
-        iconColor: "text-pink-400",
-      },
-    ],
-  },
-  {
-    label: "Automation",
-    color: "text-orange-400",
-    bgColor: "bg-orange-500/15",
-    items: [
-      {
-        title: "Cron Master",
-        url: "/cron-master",
-        icon: Timer,
-        iconColor: "text-orange-400",
-      },
-    ],
-  },
-  {
-    label: "Infrastructure",
-    color: "text-emerald-400",
-    bgColor: "bg-emerald-500/15",
-    items: [
-      // { title: "Sites", url: "/sites", icon: MapPin, iconColor: "text-emerald-400" },
-      {
-        title: "Doors",
-        url: "/zones",
-        icon: DoorOpen,
-        iconColor: "text-green-400",
-      },
-      {
-        title: "Devices",
-        url: "/devices",
-        icon: Cpu,
-        iconColor: "text-lime-400",
-      },
-    ],
-  },
-  {
-    label: "System",
-    color: "text-rose-400",
-    bgColor: "bg-rose-500/15",
-    items: [
-      {
-        title: "Master Data",
-        url: "/master-data",
-        icon: Building2,
-        iconColor: "text-slate-400",
-        items: [
-          { title: "Designations", url: "/master-data/designations" },
-          { title: "Categories", url: "/master-data/categories" },
-          { title: "Companies", url: "/master-data/companies" },
-          { title: "Departments", url: "/master-data/departments" },
-          { title: "Menu", url: "/master-data/menu" },
-          { title: "Roles", url: "/master-data/roles" },
-        ],
-      },
-      {
-        title: "User Admin",
-        url: "/user-admin",
-        icon: UserCog,
-        iconColor: "text-sky-400",
-      },
-    ],
-  },
-];
+const getIcon = (name: string | null): LucideIcon => {
+  if (!name) return Circle;
+  return (LucideIcons as any)[name] || Circle;
+};
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user } = useAuth();
+  const auth = useAuth();
+
+  // User data casting to solve TypeScript errors
+  const user = auth.user as AuthUser | null;
+
   const initials = user
     ? `${(user.firstName || "U")[0]}${(user.lastName || "")[0] || ""}`
     : "?";
+
+  // --- 3. Dynamic Menu Tree Logic ---
+  const navGroups = useMemo(() => {
+    if (!user?.menuPermissions) return [];
+
+    const map: Record<number, any> = {};
+    const roots: any[] = [];
+
+    user.menuPermissions.forEach((item) => {
+      map[item.menuId] = {
+        ...item,
+        renderIcon: getIcon(item.icon),
+        urlPath: `/${getUrlPath(item.title)}`, // Pre-calculate path
+        subItems: [],
+      };
+    });
+
+    user.menuPermissions.forEach((item) => {
+      if (item.parentId && item.parentId !== 0 && map[item.parentId]) {
+        map[item.parentId].subItems.push(map[item.menuId]);
+      } else {
+        roots.push(map[item.menuId]);
+      }
+    });
+
+    return roots.sort((a, b) => a.sortOrder - b.sortOrder);
+  }, [user?.menuPermissions]);
 
   return (
     <Sidebar>
@@ -234,113 +142,81 @@ export function AppSidebar() {
       <Separator className="bg-sidebar-border/50" />
 
       <SidebarContent className="py-2 scrollbar-none">
-        {navGroups.map((group) => (
-          <SidebarGroup key={group.label} className="py-1">
-            <SidebarGroupLabel className="text-[10px] uppercase tracking-tighter text-sidebar-foreground/40 font-bold px-4 flex items-center gap-2">
-              <div
-                className={`w-1 h-1 rounded-full ${group.color} shadow-sm`}
-              />
-              {group.label}
-            </SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => {
-                  const hasSubItems = item.items && item.items.length > 0;
-                  const isAnySubActive = item.items?.some(
-                    (sub) => location === sub.url,
-                  );
-                  const isActive = location === item.url || isAnySubActive;
+        {navGroups.map((group) => {
+          const styles = groupStyles[group.title] || groupStyles["Default"];
+          const hasSubItems = group.subItems && group.subItems.length > 0;
 
-                  if (hasSubItems) {
-                    return (
-                      <Collapsible
-                        key={item.title}
-                        asChild
-                        defaultOpen={isActive}
-                        className="group/collapsible"
-                      >
-                        <SidebarMenuItem>
-                          <CollapsibleTrigger asChild>
-                            <SidebarMenuButton className="mx-2 rounded-lg transition-all duration-200">
-                              <div
-                                className={`flex items-center justify-center w-6 h-6`}
-                              >
-                                <item.icon
-                                  className={`w-4 h-4 ${isActive ? item.iconColor : "text-sidebar-foreground/60 opacity-70"}`}
-                                />
-                              </div>
-                              <span
-                                className={`text-[13px] font-medium ${isActive ? "text-sidebar-foreground font-semibold" : "text-sidebar-foreground/80"}`}
-                              >
-                                {item.title}
-                              </span>
-                              <ChevronDown className="ml-auto w-3 h-3 transition-transform duration-300 group-data-[state=open]/collapsible:rotate-180 opacity-40" />
-                            </SidebarMenuButton>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="transition-all duration-300">
-                            <SidebarMenuSub className="ml-6 border-l border-sidebar-border/60 pl-2 mt-1 space-y-1">
-                              {item.items?.map((subItem) => {
-                                const isSubActive = location === subItem.url;
-                                return (
-                                  <SidebarMenuSubItem key={subItem.title}>
-                                    {/* Link added here */}
-                                    <SidebarMenuSubButton
-                                      asChild
-                                      isActive={isSubActive}
-                                      className="h-8 transition-colors"
-                                    >
-                                      <Link href={subItem.url}>
-                                        <a
-                                          className={`text-[12px] w-full ${isSubActive ? "font-bold text-blue-500" : "text-sidebar-foreground/60 hover:text-sidebar-foreground"}`}
-                                        >
-                                          {subItem.title}
-                                        </a>
-                                      </Link>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                );
-                              })}
-                            </SidebarMenuSub>
-                          </CollapsibleContent>
-                        </SidebarMenuItem>
-                      </Collapsible>
-                    );
-                  }
+          // Logic to check if active
+          const isAnySubActive = group.subItems?.some(
+            (sub: any) => location === sub.urlPath
+          );
+          const isActive = location === group.urlPath || isAnySubActive;
 
-                  return (
-                    <SidebarMenuItem key={item.title}>
-                      <SidebarMenuButton
-                        asChild
-                        data-active={isActive}
-                        className="mx-2 rounded-lg group"
-                      >
-                        <Link href={item.url}>
-                          <a className="flex items-center gap-2 w-full">
-                            <div
-                              className={`flex items-center justify-center w-6 h-6 rounded-md ${isActive ? group.bgColor : "bg-transparent group-hover:bg-sidebar-accent/50"} transition-all duration-200`}
-                            >
-                              <item.icon
-                                className={`w-4 h-4 ${isActive ? item.iconColor : "text-sidebar-foreground/60 opacity-70"}`}
-                              />
+          return (
+            <SidebarGroup key={group.menuId} className="py-1">
+              <SidebarGroupLabel className="text-[10px] uppercase tracking-tighter text-sidebar-foreground/40 font-bold px-4 flex items-center gap-2">
+                <div className={`w-1 h-1 rounded-full ${styles.color} shadow-sm`} />
+                {group.title}
+              </SidebarGroupLabel>
+
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {hasSubItems ? (
+                    <Collapsible asChild defaultOpen={isActive} className="group/collapsible">
+                      <SidebarMenuItem>
+                        <CollapsibleTrigger asChild>
+                          <SidebarMenuButton className="mx-2 rounded-lg transition-all duration-200">
+                            <div className="flex items-center justify-center w-6 h-6">
+                              <group.renderIcon className={`w-4 h-4 ${isActive ? styles.color : "text-sidebar-foreground/60 opacity-70"}`} />
                             </div>
-                            <span
-                              className={`text-[13px] font-medium ${isActive ? "text-sidebar-foreground font-semibold" : "text-sidebar-foreground/80"}`}
-                            >
-                              {item.title}
+                            <span className={`text-[13px] font-medium ${isActive ? "text-sidebar-foreground font-semibold" : "text-sidebar-foreground/80"}`}>
+                              {group.title}
                             </span>
-                            {isActive && (
-                              <div className="w-1.5 h-1.5 rounded-full bg-blue-500 ml-auto shadow-[0_0_8px_rgba(59,130,246,0.5)]" />
-                            )}
+                            <ChevronDown className="ml-auto w-3 h-3 transition-transform duration-300 group-data-[state=open]/collapsible:rotate-180 opacity-40" />
+                          </SidebarMenuButton>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <SidebarMenuSub className="ml-6 border-l border-sidebar-border/60 pl-2 mt-1 space-y-1">
+                            {group.subItems.map((sub: any) => {
+                              const isSubActive = location === sub.urlPath;
+                              return (
+                                <SidebarMenuSubItem key={sub.menuId}>
+                                  <SidebarMenuSubButton asChild isActive={isSubActive} className="h-8 transition-colors">
+                                    <Link href={sub.urlPath}>
+                                      <a className={`text-[12px] w-full ${isSubActive ? "font-bold text-blue-500" : "text-sidebar-foreground/60 hover:text-sidebar-foreground"}`}>
+                                        {sub.title}
+                                      </a>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              );
+                            })}
+                          </SidebarMenuSub>
+                        </CollapsibleContent>
+                      </SidebarMenuItem>
+                    </Collapsible>
+                  ) : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild data-active={isActive} className="mx-2 rounded-lg group">
+                        <Link href={group.urlPath}>
+                          <a className="flex items-center gap-2 w-full">
+                            <div className={`flex items-center justify-center w-6 h-6 rounded-md ${isActive ? styles.bgColor : "bg-transparent group-hover:bg-sidebar-accent/50"} transition-all duration-200`}>
+                              <group.renderIcon className={`w-4 h-4 ${isActive ? styles.color : "text-sidebar-foreground/60 opacity-70"}`} />
+                            </div>
+                            <span className={`text-[13px] font-medium ${isActive ? "text-sidebar-foreground font-semibold" : "text-sidebar-foreground/80"}`}>
+                              {group.title}
+                            </span>
+                            {isActive && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 ml-auto shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
                           </a>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
-                  );
-                })}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
 
       <Separator className="bg-sidebar-border/50" />
@@ -362,14 +238,11 @@ export function AppSidebar() {
             </span>
           </div>
           <Button
-            size="icon"
-            variant="ghost"
+            size="icon" variant="ghost"
             className="h-8 w-8 text-sidebar-foreground/40 hover:text-rose-500 hover:bg-rose-500/10 transition-all rounded-lg"
             onClick={() => {
-              fetch("/api/logout", {
-                method: "POST",
-                credentials: "include",
-              }).then(() => window.location.reload());
+              fetch("/api/logout", { method: "POST", credentials: "include" })
+                .then(() => window.location.reload());
             }}
           >
             <LogOut className="w-3.5 h-3.5" />

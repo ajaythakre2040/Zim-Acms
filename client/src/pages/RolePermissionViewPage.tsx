@@ -84,7 +84,7 @@ export default function RolePermissionViewPage() {
                         <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => navigate("/master-data/roles")}
+                            onClick={() => navigate("/role")}
                             className="group flex items-center gap-2 text-slate-500 hover:text-slate-900 transition-all"
                         >
                             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />

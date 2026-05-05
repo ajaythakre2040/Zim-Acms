@@ -60,8 +60,8 @@ import RolePermissionViewPage from "./pages/RolePermissionViewPage";
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/people" component={PeoplePage} />
+      <Route path="/attendance-summary" component={Dashboard} />
+      <Route path="/employees" component={PeoplePage} />
       <Route path="/visitors" component={VisitorsPage} />
       <Route path="/attendance" component={AttendancePage} />
       <Route path="/access-logs" component={AccessLogsPage} />
@@ -73,7 +73,7 @@ function Router() {
       <Route path="/holidays" component={HolidaysPage} />
       <Route path="/exceptions" component={ExceptionsPage} />
       <Route path="/sites" component={SitesPage} />
-      <Route path="/zones" component={ZonesDoorsPage} />
+      <Route path="/doors" component={ZonesDoorsPage} />
       <Route path="/devices" component={DevicesPage} />
       <Route path="/alerts" component={AlertsPage} />
       <Route path="/master-data" component={MasterDataPage} />
@@ -81,14 +81,14 @@ function Router() {
       <Route path="/settings" component={SettingsPage} />
       <Route path="/reports" component={ReportsPage} />
       <Route path="/cron-master" component={CronMasterPage} />
-      <Route path="/shift-dashboard" component={ShiftDashboard} />
-      <Route path="/live-logs" component={LiveLogsDashboard} />
-      <Route path="/master-data/designations" component={DesignationPage} />
-      <Route path="/master-data/categories" component={CategoriesPage} />
-      <Route path="/master-data/companies" component={CompaniesPage} />
-      <Route path="/master-data/departments" component={DepartmentsPage} />
-      <Route path="/master-data/menu" component={MenuPage} />
-      <Route path="/master-data/roles" component={RolesPage} />
+      <Route path="/shift-analytics" component={ShiftDashboard} />
+      <Route path="/live-access-logs" component={LiveLogsDashboard} />
+      <Route path="/designation" component={DesignationPage} />
+      <Route path="/category" component={CategoriesPage} />
+      <Route path="/company" component={CompaniesPage} />
+      <Route path="/department" component={DepartmentsPage} />
+      <Route path="/menu" component={MenuPage} />
+      <Route path="/role" component={RolesPage} />
       <Route path="/master-data/roles/add" component={RoleFormPage} />
       <Route path="/master-data/roles/edit/:id" component={RoleFormPage} />
       <Route path="/master-data/roles/view/:id" component={RolePermissionViewPage} />      <Route component={NotFound} />

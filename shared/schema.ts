@@ -17,10 +17,13 @@ import { bigint } from "drizzle-orm/pg-core";
 // ==================== USER PROFILES (RBAC) ====================
 export const userProfiles = pgTable("user_profiles", {
   id: serial("id").primaryKey(),
-  userId: varchar("user_id").notNull().unique(),
-  role: text("role", { enum: ["super_admin", "staff", "security_admin", "worker", "employee", "reception", "gate_security"] }).notNull().default("employee"),
-  permissions: jsonb("permissions").$type<Record<string, boolean>>().default({}),
-  employeeId: varchar("employee_id"),
+  userId: varchar("user_id").notNull().unique()
+    .references(() => users.id, { onDelete: "cascade" }),
+  roleId: integer("role_id").notNull()
+    .references(() => roles.id),
+  employeeCode: varchar("employee_code").unique(),
+  // employeeCode: varchar("employee_code").unique()
+  //   .references(() => people.employeeCode, { onDelete: "set null" }),
   department: text("department"),
   designation: text("designation"),
   phone: text("phone"),
@@ -518,6 +521,8 @@ export const systemSettings = pgTable("system_settings", {
 // ==================== RELATIONS ====================
 export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
   user: one(users, { fields: [userProfiles.userId], references: [users.id] }),
+  employee: one(people, { fields: [userProfiles.employeeCode], references: [people.employeeCode] }),
+  role: one(roles, { fields: [userProfiles.roleId], references: [roles.id] }),
 }));
 
 export const buildingsRelations = relations(buildings, ({ one }) => ({
