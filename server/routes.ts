@@ -126,7 +126,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.get("/api/dashboard/attendance/door-wise-stats", async (req, res) => {
     try {
-
       const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
       const doorStats = await storage.getDoorWiseStats(date);
       res.json(doorStats);
@@ -147,9 +146,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
     try {
-      
       const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-
       const shiftStats = await storage.getShiftWiseStats(date);
       res.json(shiftStats);
     } catch (e: any) {
@@ -169,24 +166,53 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(profile || null);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.post("/api/user-profiles", requireAuth, async (req, res) => {
+  app.delete("/api/user-profiles/:id", requireAuth, async (req, res) => {
     try {
-      const input = insertUserProfileSchema.parse(req.body);
-      const profile = await storage.createUserProfile(input);
-      res.status(201).json(profile);
+      const id = parseInt(req.params.id);
+      await storage.deleteUser(id); // Ye storage function upar wala call hoga
+      res.sendStatus(204);
     } catch (e: any) {
-      if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: e.message || "Failed to delete user" });
     }
   });
+  // app.post("/api/user-profiles", requireAuth, async (req, res) => {
+  //   try {
+  //     const input = insertUserProfileSchema.parse(req.body);
+  //     const profile = await storage.createUserProfile(input);
+  //     res.status(201).json(profile);
+  //   } catch (e: any) {
+  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
+  // app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
+  //   try {
+  //     const input = insertUserProfileSchema.partial().parse(req.body);
+  //     const profile = await storage.updateUserProfile(parseInt(req.params.id), input);
+  //     res.json(profile);
+  //   } catch (e: any) {
+  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
+  app.post("/api/user-profiles", requireAuth, async (req, res) => {
+    try {
+      const result = await storage.upsertUser(req.body);
+      res.status(201).json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message || "Failed to save" });
+    }
+  });
+
   app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
     try {
-      const input = insertUserProfileSchema.partial().parse(req.body);
-      const profile = await storage.updateUserProfile(parseInt(req.params.id), input);
-      res.json(profile);
+      const result = await storage.upsertUser({
+        ...req.body,
+        id: req.params.id
+      });
+      res.json(result);
     } catch (e: any) {
-      if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-      res.status(500).json({ message: e.message });
+      res.status(500).json({ message: e.message || "Failed to update" });
     }
   });
   crudRoutes(app, "/api/companies", insertCompanySchema,
@@ -527,12 +553,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         dateTo: req.query.dateTo as string | undefined,
         status: req.query.status as string | undefined,
         deviceId: req.query.deviceId ? String(req.query.deviceId) : undefined,
-        
+
         employeeCode: req.query.employeeCode ? String(req.query.employeeCode) : undefined,
       };
 
 
-      
+
       const data = await storage.getAttendanceReport(filters);
       res.json(data);
     } catch (e: any) {
@@ -728,16 +754,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: error.message });
     }
   });
- 
- 
-  
+
+
+
   crudRoutes(
     app,
     "/api/cron-lists",
     insertCronMasterSchema,
     () => storage.getCronMasters(),
     async (data: any) => {
-      
+
       const existing = await storage.getCronMasters();
       const isDuplicate = existing.some(
         (c) => c.code.toLowerCase() === data.code.toLowerCase()
@@ -749,8 +775,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         throw error;
       }
 
-      
-      
+
+
       const cronData = {
         ...data,
         config: data.config || {},
@@ -761,36 +787,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return await storage.createCronMaster(cronData);
     },
     async (id, data) => {
-      
+
       return await storage.updateCronMaster(id, data);
     },
     async (id) => {
       return await storage.deleteCronMaster(id);
     }
   );
-  
+
   app.get("/api/cron-jobs/main-gate", async (_req, res) => {
     const allCrons = await storage.getCronMasters();
-    
+
     const gateJob = allCrons.find(c => c.code === MAIN_GATE_SYNC.CODE);
     res.json(gateJob ? [gateJob] : []);
   });
 
-  
+
   app.get("/api/cron-jobs/cabin-lock", async (_req, res) => {
     const allCrons = await storage.getCronMasters();
-    
+
     const cabinJob = allCrons.find(c => c.code === CABIN_LOCKOUT_CONFIG.CODE);
     res.json(cabinJob ? [cabinJob] : []);
   })
-  
+
   crudRoutes(
     app,
     "/api/door-devices",
-    insertDoorDeviceSchema, 
+    insertDoorDeviceSchema,
     () => storage.getDoorDevices(),
     async (data: any) => {
-      
+
       const existing = await storage.getDoorDevices();
       const isDuplicate = existing.some((m) => m.doorId === data.doorId);
 
@@ -848,12 +874,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const { enabledIds, disabledIds } = req.body;
 
-      
+
       if (enabledIds && enabledIds.length > 0) {
         await storage.updateDoorLockoutStatusBulk(enabledIds, true);
       }
 
-      
+
       if (disabledIds && disabledIds.length > 0) {
         await storage.updateDoorLockoutStatusBulk(disabledIds, false);
       }
@@ -868,25 +894,25 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const session = req.session as any;
 
-      
+
       const loginId = session.userId;
       if (!loginId) {
         return res.status(401).json({ message: "User session not found. Please re-login." });
       }
 
-      
-      
+
+
       const user = await storage.getUser(loginId.toString());
       const userName = user?.username || "Admin User";
 
-      
-      
+
+
       const result = await storage.executeEmergencybulkUnblock(loginId, userName);
 
-      
+
       res.json({
         success: true,
-        
+
         message: `Emergency unblock initiated for ${result.processedCount} records.`,
         audit: {
           performedBy: userName,
@@ -896,7 +922,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     } catch (error: any) {
       console.error("Route Error:", error);
-      
+
       res.status(500).json({
         message: error.message || "Failed to execute emergency unblock"
       });
@@ -925,7 +951,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         dateTo: dateTo as string,
         employeeCode: employeeCode as string,
         doorId: doorId as string,
-        status: status as string 
+        status: status as string
       });
 
       res.json(data);
@@ -942,7 +968,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  
+
   app.get("/api/employee-door-assignments/:code", async (req, res) => {
     try {
       const data = await storage.getEmployeeDoorAssignmentByCode(req.params.code);
@@ -955,12 +981,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  
+
   app.post("/api/employee-door-assignments", async (req, res) => {
     try {
       const { employeeCode, doorIds } = req.body;
 
-      
+
       if (!employeeCode || !Array.isArray(doorIds)) {
         return res.status(400).json({
           status: "error",
@@ -977,7 +1003,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
 
     } catch (error: any) {
-                 
+
       res.status(400).json({
         status: "error",
         message: error.message || "An unexpected error occurred during assignment."
@@ -985,7 +1011,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  
+
   app.delete("/api/employee-door-assignments/:id", async (req, res) => {
     try {
       await storage.deleteEmployeeDoorAssignment(Number(req.params.id));
@@ -1190,7 +1216,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
- 
+
 
   // Delete Role & its permissions
   app.delete("/api/roles/:id", async (req, res) => {

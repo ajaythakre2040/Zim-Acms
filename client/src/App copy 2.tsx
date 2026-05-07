@@ -91,11 +91,7 @@ function Router() {
       <Route path="/role" component={RolesPage} />
       <Route path="/master-data/roles/add" component={RoleFormPage} />
       <Route path="/master-data/roles/edit/:id" component={RoleFormPage} />
-      <Route
-        path="/master-data/roles/view/:id"
-        component={RolePermissionViewPage}
-      />{" "}
-      <Route component={NotFound} />
+      <Route path="/master-data/roles/view/:id" component={RolePermissionViewPage} />      <Route component={NotFound} />
     </Switch>
   );
 }
@@ -115,7 +111,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [name, setName] = useState("");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (mode === "login") {
@@ -125,7 +121,8 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
         username,
         password,
         email: email || undefined,
-        name: name || undefined,
+        firstName: firstName || undefined,
+        lastName: lastName || undefined,
       });
     }
   };
@@ -239,36 +236,6 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
 
             {mode === "register" && (
               <>
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-xs font-medium">
-                    Name
-                  </Label>
-                  <Input
-                    id="name"
-                    placeholder="Full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    data-testid="input-name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-xs font-medium">
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Email (optional)"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    data-testid="input-email"
-                  />
-                </div>
-              </>
-            )}
-            {/* {mode === "register" && (
-              <>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="firstName" className="text-xs font-medium">
@@ -309,7 +276,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
                   />
                 </div>
               </>
-            )} */}
+            )}
 
             {error && (
               <div

@@ -43,17 +43,17 @@ async function fetchUser(): Promise<User | null> {
 }
 
 export function useAuth() {
-  const queryClient = useQueryClient();
+    const queryClient = useQueryClient();
 
-  const { data: user, isLoading, error } = useQuery<User | null>({
-    queryKey: ["/api/user"],
-    queryFn: fetchUser,
-    retry: false, // Bahut zaroori: Failed auth ko baar-baar retry na karein
-    staleTime: 1000 * 60 * 5, // 5 minutes tak data ko fresh maane
-    refetchOnWindowFocus: false, // Window focus par baar-baar fetch na karein
-  });
-
-
+    const { data: user, isLoading, error } = useQuery<User | null>({
+      queryKey: ["/api/user"],
+      queryFn: fetchUser,
+      retry: false, // Bahut zaroori: Failed auth ko baar-baar retry na karein
+      staleTime: 1000 * 60 * 5, // 5 minutes tak data ko fresh maane
+      refetchOnWindowFocus: false, // Window focus par baar-baar fetch na karein
+    });
+  
+  
   const loginMutation = useMutation({
     mutationFn: async (data: { username: string; password: string }) => {
       const res = await fetch("/api/login", {
@@ -74,7 +74,7 @@ export function useAuth() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: async (data: { username: string; password: string; email?: string; name?: string }) => {
+    mutationFn: async (data: { username: string; password: string; email?: string; firstName?: string; lastName?: string }) => {
       const res = await fetch("/api/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

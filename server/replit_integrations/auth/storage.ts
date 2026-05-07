@@ -2,7 +2,7 @@ import { users, type User, type UpsertUser } from "@shared/models/auth";
 import { db } from "../../db";
 import { eq, and } from "drizzle-orm";
 import { userProfiles, roles, rolePermissions, menuMaster } from "@shared/schema";
-
+import bcrypt from "bcryptjs";
 // TypeScript Interface for Menu Permissions with Details
 export interface MenuPermissionWithDetails {
   permissionId: number;
@@ -124,26 +124,33 @@ class AuthStorage implements IAuthStorage {
       .orderBy(menuMaster.sortOrder);
   }
 
-  // 3. Atomic Transaction for User + Profile
   async upsertUser(userData: any): Promise<any> {
+    let passwordToStore = userData.password;
+
+    if (passwordToStore) {
+      const isHashed = passwordToStore.startsWith('$2a$') || passwordToStore.startsWith('$2b$');
+      if (!isHashed) {
+        passwordToStore = await bcrypt.hash(passwordToStore, 10);
+      }
+    }
+
     return await db.transaction(async (tx) => {
       const [user] = await tx
         .insert(users)
         .values({
           id: userData.id || undefined,
           username: userData.username,
-          password: userData.password,
+          password: passwordToStore,
           email: userData.email,
-          firstName: userData.firstName,
-          lastName: userData.lastName,
+          fullName: userData.employeeName || userData.fullName,
         })
         .onConflictDoUpdate({
           target: users.id,
           set: {
             username: userData.username,
+            ...(passwordToStore ? { password: passwordToStore } : {}),
             email: userData.email,
-            firstName: userData.firstName,
-            lastName: userData.lastName,
+            fullName: userData.employeeName || userData.fullName,
             updatedAt: new Date(),
           },
         })
@@ -155,9 +162,6 @@ class AuthStorage implements IAuthStorage {
           userId: user.id,
           roleId: userData.roleId,
           employeeCode: userData.employeeCode,
-          department: userData.department,
-          designation: userData.designation,
-          phone: userData.phone,
           isActive: userData.isActive ?? true,
         })
         .onConflictDoUpdate({
@@ -165,15 +169,12 @@ class AuthStorage implements IAuthStorage {
           set: {
             roleId: userData.roleId,
             employeeCode: userData.employeeCode,
-            department: userData.department,
-            designation: userData.designation,
-            phone: userData.phone,
             isActive: userData.isActive,
             updatedAt: new Date(),
           },
         });
 
-      return { ...user, roleId: userData.roleId, employeeCode: userData.employeeCode };
+      return user;
     });
   }
 }

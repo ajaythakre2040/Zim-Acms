@@ -11,7 +11,7 @@ import {
   accessCards, shifts, shiftAssignments, holidays, accessLevels, accessRules,
   personAccess, visitors, visits, attendance, accessLogs, alerts, exceptions,
   systemSettings, InsertRole, Role, roles,
-    
+
   type User, type UpsertUser,
   type UserProfile, type InsertUserProfile,
   type Company, type InsertCompany,
@@ -55,10 +55,11 @@ import {
   InsertMenuMaster,
   menuMaster,
   rolePermissions,
+  users,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
-import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte,between, not } from "drizzle-orm";
+import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES } from './constant';
@@ -183,7 +184,7 @@ export interface IStorage {
   // createRole(data: InsertRole): Promise<Role>;
   // updateRole(id: number, data: Partial<InsertRole>): Promise<Role>;
   // deleteRole(id: number): Promise<void>;
- 
+
   getDashboardStats(): Promise<object>;
   getLockoutEligibleDoors(search?: string): Promise<any[]>;
   updateDoorLockoutStatusBulk(doorIds: number[], status: boolean): Promise<any[]>;
@@ -279,12 +280,45 @@ export class DatabaseStorage implements IStorage {
   async upsertUser(user: UpsertUser): Promise<User> {
     return authStorage.upsertUser(user);
   }
-  async getUserProfiles(): Promise<UserProfile[]> {
-    return await db.select().from(userProfiles);
-  }
-  async getUserProfile(id: number): Promise<UserProfile | undefined> {
-    const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.id, id));
+  async getUserProfile(id: number): Promise<any | undefined> {
+    const [profile] = await db
+      .select({
+        id: userProfiles.id,
+        employeeCode: userProfiles.employeeCode,
+        roleId: userProfiles.roleId,
+        isActive: userProfiles.isActive,
+        userId: userProfiles.userId,
+        username: users.username,
+        email: users.email,
+        fullName: users.fullName,
+        roleName: roles.roleName,
+        roleCode: roles.code
+      })
+      .from(userProfiles)
+      .leftJoin(users, eq(userProfiles.userId, users.id))
+      .leftJoin(roles, eq(userProfiles.roleId, roles.id))
+      .where(eq(userProfiles.id, id));
+
     return profile;
+  }
+
+  async getUserProfiles(): Promise<any[]> {
+    return await db
+      .select({
+        id: userProfiles.id,
+        employeeCode: userProfiles.employeeCode,
+        roleId: userProfiles.roleId,
+        isActive: userProfiles.isActive,
+        userId: userProfiles.userId,
+        username: users.username,
+        email: users.email,
+        fullName: users.fullName,
+        roleName: roles.roleName,
+        roleCode: roles.code
+      })
+      .from(userProfiles)
+      .leftJoin(users, eq(userProfiles.userId, users.id))
+      .leftJoin(roles, eq(userProfiles.roleId, roles.id));
   }
   async getUserProfileByUserId(userId: string): Promise<UserProfile | undefined> {
     const [profile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userId));
@@ -297,6 +331,19 @@ export class DatabaseStorage implements IStorage {
   async updateUserProfile(id: number, profile: Partial<InsertUserProfile>): Promise<UserProfile> {
     const [updated] = await db.update(userProfiles).set({ ...profile, updatedAt: new Date() }).where(eq(userProfiles.id, id)).returning();
     return updated;
+  }
+  async deleteUser(id: number): Promise<void> {
+    await db.transaction(async (tx) => {
+      const [profile] = await tx
+        .select()
+        .from(userProfiles)
+        .where(eq(userProfiles.id, id))
+        .limit(1);
+      if (profile) {
+        await tx.delete(userProfiles).where(eq(userProfiles.id, id));
+        await tx.delete(users).where(eq(users.id, profile.userId));
+      }
+    });
   }
   async getCompanies(): Promise<Company[]> {
     return await db.select().from(companies);
@@ -690,79 +737,79 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   async getDevices(): Promise<any[]> {
     try {
       const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
       if (!msDataRaw || msDataRaw.length === 0) return [];
 
       const currentTime = new Date();
-      
+
       const THRESHOLD_MINUTES = 1;
 
       const formattedDevices = msDataRaw.map((d: any) => {
@@ -770,24 +817,24 @@ export class DatabaseStorage implements IStorage {
         let calculatedStatus = "offline";
 
         if (d.LastPing) {
-          
+
           lPing = new Date(d.LastPing);
 
-          
+
           let diffInMs = currentTime.getTime() - lPing.getTime();
           let diffInMinutes = diffInMs / 60000;
 
-         
+
           const absDiff = Math.abs(diffInMinutes);
 
-          
-          
+
+
           if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
             calculatedStatus = "online";
           }
 
-          
-          
+
+
         }
 
         return {
@@ -809,7 +856,7 @@ export class DatabaseStorage implements IStorage {
         };
       });
 
-      
+
       for (const dev of formattedDevices) {
         await db.insert(devices)
           .values(dev)
@@ -1444,8 +1491,8 @@ export class DatabaseStorage implements IStorage {
           deviceName: "—"
         };
         if (logs.length === 0) {
-          rowData.status = "absent";  
-          
+          rowData.status = "absent";
+
         } else {
           const sortedLogs = logs.sort((a, b) => a.time.getTime() - b.time.getTime());
           const firstIn = sortedLogs[0];
@@ -1567,63 +1614,63 @@ export class DatabaseStorage implements IStorage {
       offlineDevices: Math.max(0, devicesCount.count - onlineCount.count)
     };
   }
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   async getDoorWiseStats(date: string) {
     const [totalPeopleResult] = await db.select({
       count: sql<number>`count(*)`
@@ -1679,7 +1726,7 @@ export class DatabaseStorage implements IStorage {
         mainGateInPunches = inCount;
         mainGateOutPunches = outCount;
 
-        
+
         inLogs.forEach(l => uniquePresentEmployees.add(l.EmployeeCode));
       }
 
@@ -1695,11 +1742,11 @@ export class DatabaseStorage implements IStorage {
 
     return {
       doorStats,
-      mainGateIn: mainGateInPunches, 
-      mainGateOut: mainGateOutPunches, 
+      mainGateIn: mainGateInPunches,
+      mainGateOut: mainGateOutPunches,
       mainGateBal: Math.max(0, mainGateInPunches - mainGateOutPunches),
-      totalPresent: totalPresent, 
-      totalAbsent: Math.max(0, totalManpower - totalPresent), 
+      totalPresent: totalPresent,
+      totalAbsent: Math.max(0, totalManpower - totalPresent),
       totalManpower
     };
   }
@@ -1751,36 +1798,36 @@ export class DatabaseStorage implements IStorage {
       });
       const counted = new Set<string>();
       for (const log of rawLogs) {
-  const doorName = deviceToDoor[log.DeviceId];
-  if (!doorName) continue;
+        const doorName = deviceToDoor[log.DeviceId];
+        if (!doorName) continue;
 
-  const [pH, pM, pS] = log.LogTime.split(':');
-  const punchTime = dayjs()
-    .set('hour', parseInt(pH))
-    .set('minute', parseInt(pM))
-    .set('second', parseInt(pS));
+        const [pH, pM, pS] = log.LogTime.split(':');
+        const punchTime = dayjs()
+          .set('hour', parseInt(pH))
+          .set('minute', parseInt(pM))
+          .set('second', parseInt(pS));
 
-  for (const win of windows) {
-    if (punchTime.isBetween(win.start, win.end, null, '[]')) {
+        for (const win of windows) {
+          if (punchTime.isBetween(win.start, win.end, null, '[]')) {
 
-      
-      const key = `${doorName}_${win.name}_${log.EmployeeCode}`;
 
-      
-      if (counted.has(key)) {
-        continue;
+            const key = `${doorName}_${win.name}_${log.EmployeeCode}`;
+
+
+            if (counted.has(key)) {
+              continue;
+            }
+
+
+            counted.add(key);
+
+            stats[doorName][win.name!]++;
+            stats[doorName].totalEmp++;
+
+            break;
+          }
+        }
       }
-
-      
-      counted.add(key);
-
-      stats[doorName][win.name!]++;
-      stats[doorName].totalEmp++;
-
-      break;
-    }
-  }
-}
       return Object.values(stats);
     } catch (error) {
       console.error("IST_STATS_ERROR:", error);
@@ -1866,7 +1913,7 @@ export class DatabaseStorage implements IStorage {
 
 
   async getMachineAccessLogs(date: string) {
-    
+
     const doorMappings = await db.select({
       doorName: doors.name,
       inIds: doorDevices.inDeviceIds,
@@ -1874,7 +1921,7 @@ export class DatabaseStorage implements IStorage {
     }).from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-    
+
     const msSqlData = await mssqlPool.request()
       .input('filterDate', date)
       .query(`
@@ -1894,7 +1941,7 @@ export class DatabaseStorage implements IStorage {
 
     const logs = msSqlData.recordset;
 
-    
+
     const machineFeed = logs.map(log => {
       const door = doorMappings.find(m =>
         (m.inIds || []).includes(log.DeviceId) ||
@@ -1917,7 +1964,7 @@ export class DatabaseStorage implements IStorage {
   }
 
 
- 
+
   async getRoleEligibleDevices(): Promise<any[]> {
     try {
       const msDataRaw = await dbMsSql.select().from({ dbName: 'Devices' }).execute();
@@ -2543,11 +2590,11 @@ export class DatabaseStorage implements IStorage {
     const tree: any[] = [];
 
     allMenus.forEach((item) => {
-      
+
       if (item.parentId === 0 || item.parentId === null) {
         tree.push(menuMap[item.id]);
       } else {
-        
+
         const pId = item.parentId as number;
         if (menuMap[pId]) {
           menuMap[pId].subMenus.push(menuMap[item.id]);
@@ -2614,7 +2661,7 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(menuMaster.sortOrder));
   }
   // Sabhi roles fetch karna
- 
+
   async getRoleByCode(code: string): Promise<any | undefined> {
     const [role] = await db
       .select()
@@ -2666,7 +2713,7 @@ export class DatabaseStorage implements IStorage {
     });
   }
 
- 
+
   async updateRoleWithPermissions(roleId: number, roleData: any, permissions: any[]) {
     return await db.transaction(async (tx) => {
 

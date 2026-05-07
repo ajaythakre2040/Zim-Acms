@@ -141,7 +141,10 @@ export default function DesignationPage() {
       const msg = err?.response?.data?.message || err?.message || "";
 
       // Database Unique Constraint Error handling
-      if (msg.toLowerCase().includes("database") || msg.toLowerCase().includes("unique")) {
+      if (
+        msg.toLowerCase().includes("database") ||
+        msg.toLowerCase().includes("unique")
+      ) {
         setFieldErrors({
           code: "Designation code already exists",
         });
@@ -203,10 +206,12 @@ export default function DesignationPage() {
             key: "code",
             label: "Code",
             required: true,
+            disabled: !!edit, // ✅ EDIT mode me read-only
             onChange: (value, form, setForm) => {
+              if (edit) return; // extra safety
+
               setForm({ ...form, code: value });
 
-              // ✅ error remove on typing
               setFieldErrors((prev) => ({
                 ...prev,
                 code: "",

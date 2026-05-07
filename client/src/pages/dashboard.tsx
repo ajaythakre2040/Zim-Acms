@@ -46,9 +46,9 @@ export default function Dashboard() {
 
   // 🔥 Gradient Cards
   const statCards = [
-    { title: "Total Employees", value: stats?.totalPeople || 0, icon: Users, route: "/people", bg: "bg-gradient-to-r from-blue-500 to-blue-700" },
+    { title: "Total Employees", value: stats?.totalPeople || 0, icon: Users, route: "/employees", bg: "bg-gradient-to-r from-blue-500 to-blue-700" },
     { title: "Total Shifts", value: stats?.totalshift || 0, icon: UserCheck, route: "/shifts", bg: "bg-gradient-to-r from-emerald-500 to-emerald-700" },
-    { title: "Total Doors", value: doors.length, icon: DoorOpen, route: "/zones", bg: "bg-gradient-to-r from-orange-500 to-orange-700" },
+    { title: "Total Doors", value: doors.length, icon: DoorOpen, route: "/doors", bg: "bg-gradient-to-r from-orange-500 to-orange-700" },
     { title: "Total Devices", value: devices.length, icon: Server, route: "/devices", bg: "bg-gradient-to-r from-violet-500 to-violet-700" },
     { title: "Online", value: devices.filter(d => d.status === "online").length, icon: Wifi, route: "/devices", bg: "bg-gradient-to-r from-cyan-500 to-cyan-700" },
     { title: "Offline", value: devices.filter(d => d.status === "offline").length, icon: WifiOff, route: "/devices", bg: "bg-gradient-to-r from-slate-500 to-slate-700" },

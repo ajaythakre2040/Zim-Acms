@@ -47,7 +47,7 @@ const reportTypes = [
   },
   {
     id: "daily-performance",
-    label: "Daily Performance",
+    label: "Monthly Performance",
     icon: Clock,
     color: "text-blue-500",
     bgColor: "bg-blue-50 dark:bg-blue-950/40",
@@ -95,8 +95,20 @@ function statusBadge(status: string) {
 const filterConfig: Record<string, string[]> = {
   attendance: ["dateFrom", "dateTo", "employeeCode", "status"],
   "access-logs": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
-  "daily-performance": ["dateFrom", "dateTo", "employeeCode", "deviceId", "status",],
-  "daily-efficiency": ["dateFrom", "dateTo", "employeeCode", "deviceId", "status",],
+  "daily-performance": [
+    "dateFrom",
+    "dateTo",
+    "employeeCode",
+    "deviceId",
+    "status",
+  ],
+  "daily-efficiency": [
+    "dateFrom",
+    "dateTo",
+    "employeeCode",
+    "deviceId",
+    "status",
+  ],
   "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
 };
 
@@ -133,6 +145,111 @@ function getCurrentMonthRange() {
     dateFrom: format(firstDay),
     dateTo: format(today),
   };
+}
+
+function exportDailyEfficiencyCSV(data: any[], doors: any[]) {
+  if (!data.length) return;
+
+  // 🔥 HEADERS SAME AS TABLE
+  const headers = [
+    "Employee Code",
+    "Employee Name",
+
+    ...doors.flatMap((d) => [
+      `${d.DeviceName || d.name} IN`,
+      `${d.DeviceName || d.name} OUT`,
+    ]),
+
+    "Total Time",
+    "Productive Time",
+    "Efficiency %",
+  ];
+
+  // 🔥 ROWS SAME AS TABLE
+  const rows = data.map((r) => {
+    const doorValues = doors.flatMap((d) => {
+      const key = d.DeviceName || d.name;
+
+      return [r?.doors?.[key]?.in || 0, r?.doors?.[key]?.out || 0];
+    });
+
+    return [
+      r.employeeCode || "-",
+      r.employeeName || "-",
+
+      ...doorValues,
+
+      r.totalTime || "-",
+      r.productiveTime || "-",
+      r.efficiency ? `${r.efficiency}%` : "-",
+    ];
+  });
+
+  // 🔥 CSV GENERATE
+  const csv =
+    headers.join(",") +
+    "\n" +
+    rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "daily-efficiency-report.csv";
+  a.click();
+}
+
+function exportDailyPerformanceCSV(data: any[]) {
+  if (!data.length) return;
+
+  const headers = [
+    "Employee Name",
+    "Gender",
+    "Latest Punch Door",
+    "Shift",
+    "Shift Time",
+    "In Punch",
+    "Out Punch",
+    "Hours Worked",
+    "Duty Status",
+    "OT Hrs",
+  ];
+
+  const rows = data.map((r) => [
+    r.employeeName || "-",
+    r.gender || "-",
+    r.doorName || "-",
+    r.shiftname || "-",
+    r.shifttime || "-",
+    formatTime(r.firstIn),
+    formatTime(r.lastOut),
+
+    r.productiveMinutes
+      ? `${Math.floor(r.productiveMinutes / 60)}h ${r.productiveMinutes % 60}m`
+      : "0h 0m",
+
+    r.attendanceStatus || "-",
+
+    r.overtimeMinutes ? `${Math.floor(r.overtimeMinutes / 60)}h` : "0",
+  ]);
+
+  const csv =
+    headers.join(",") +
+    "\n" +
+    rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+
+  a.href = url;
+  a.download = "daily-performance-details.csv";
+
+  a.click();
 }
 
 function exportMonthlyStatusCSV(data: any[], daysInMonth: number) {
@@ -522,9 +639,7 @@ function AccessLogs({ data }: { data: any[] }) {
               <td className="p-3">
                 {r.employee_name || r.employeeName || "-"}
               </td>
-              <td className="p-3">
-                {r.employeecode || r.employeeCode || "-"}
-              </td>
+              <td className="p-3">{r.employeecode || r.employeeCode || "-"}</td>
               <td className="p-3">{r.department_name || "-"}</td>
               <td className="p-3">{r.designation_name || "-"}</td>
               <td className="p-3">{r.deviceid || r.DeviceId || "-"}</td>
@@ -1001,32 +1116,6 @@ export default function ReportsPage() {
   const [activeReport, setActiveReport] = useState("attendance");
   const [location] = useLocation();
 
-  // useEffect(() => {
-  //   const searchParams = new URLSearchParams(window.location.search);
-  //   const tab = searchParams.get("tab");
-
-  //   if (tab) {
-  //     const validTabs = [
-  //       "attendance",
-  //       "access-logs",
-  //       "daily-performance",
-  //       "daily-efficiency",
-  //       "cabin-lockout",
-  //     ];
-
-  //     if (validTabs.includes(tab)) {
-  //       setActiveReport(tab);
-
-  //       // 🔥 CRITICAL: URL se "?tab=..." ko remove karein
-  //       // Taaki refresh karne par ya wapas aane par ye wapas switch na ho
-  //       const newUrl = window.location.pathname;
-  //       window.history.replaceState({}, "", newUrl);
-  //     }
-  //   }
-  // }, [location]);
-
-  // 🔥 PER REPORT FILTERS
-
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const tab = searchParams.get("tab");
@@ -1169,6 +1258,30 @@ export default function ReportsPage() {
       return res.json();
     },
     placeholderData: (prev) => prev,
+  });
+
+  const { data: performanceData = [] } = useQuery<any[]>({
+    queryKey: ["daily-performance-table", currentAppliedFilters],
+
+    queryFn: async () => {
+      const params = new URLSearchParams();
+
+      Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+        if (v && k !== "_refresh") {
+          params.set(k, String(v));
+        }
+      });
+
+      const res = await fetch(
+        `/api/reports/daily-performance?${params.toString()}`,
+      );
+
+      if (!res.ok) throw new Error("Fetch failed");
+
+      return res.json();
+    },
+
+    enabled: activeReport === "daily-efficiency",
   });
 
   const { data: musterRollData = [], isLoading: isMusterLoading } = useQuery<
@@ -1324,31 +1437,12 @@ export default function ReportsPage() {
             {activeReport === "daily-performance" && (
               <div className="space-y-6">
                 {/* A. Detail Table */}
-                <Card className="shadow-sm border">
-                  <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
-                    <CardTitle className="text-sm font-semibold">
-                      Daily Performance Details
-                    </CardTitle>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        exportCSV("performance-detail", reportData)
-                      }
-                    >
-                      <Download className="w-4 h-4 mr-2" /> Export
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <DaliyPerformanceTable data={reportData} />
-                  </CardContent>
-                </Card>
 
                 {/* B. Status Summary Table (P, A, O) */}
                 <Card className="shadow-sm border">
                   <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                     <CardTitle className="text-sm font-semibold">
-                      Monthly Status Summary (1-31 Days)
+                      Monthly Attendance Summary (1-31 Days)
                     </CardTitle>
 
                     <Button
@@ -1397,24 +1491,53 @@ export default function ReportsPage() {
             )}
             {/* 3. Daily Efficiency */}
             {activeReport === "daily-efficiency" && (
-              <Card className="shadow-sm border">
-                <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
-                  <CardTitle className="text-sm font-semibold">
-                    Daily Efficiency Results ({reportData.length})
-                  </CardTitle>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => exportCSV("daily-efficiency", reportData)}
-                  >
-                    <Download className="w-4 h-4 mr-2" /> Export
-                  </Button>
-                </CardHeader>
+              <div className="space-y-6">
+                {/* PERFORMANCE TABLE */}
+                <Card className="shadow-sm border">
+                  <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
+                    <CardTitle className="text-sm font-semibold">
+                      Daily Performance Details
+                    </CardTitle>
 
-                <CardContent className="p-0">
-                  <DailyEfficiencyTable data={reportData} doors={doorData} />
-                </CardContent>
-              </Card>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => exportDailyPerformanceCSV(performanceData)}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export
+                    </Button>
+                  </CardHeader>
+
+                  <CardContent className="p-0">
+                    <DaliyPerformanceTable data={performanceData} />
+                  </CardContent>
+                </Card>
+
+                {/* EFFICIENCY TABLE */}
+                <Card className="shadow-sm border">
+                  <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
+                    <CardTitle className="text-sm font-semibold">
+                      Daily Efficiency Results
+                    </CardTitle>
+
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        exportDailyEfficiencyCSV(reportData, doorData)
+                      }
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export
+                    </Button>
+                  </CardHeader>
+
+                  <CardContent className="p-0">
+                    <DailyEfficiencyTable data={reportData} doors={doorData} />
+                  </CardContent>
+                </Card>
+              </div>
             )}
             {/* 4. Cabin Lockout */}
             {activeReport === "cabin-lockout" && (
@@ -1443,19 +1566,55 @@ export default function ReportsPage() {
   );
 }
 function exportCSV(id: string, data: any[]) {
-  if (!data.length) return;
-  const header = Object.keys(data[0]).join(",");
-  const rows = data
-    .map((r) =>
-      Object.values(r)
-        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-        .join(","),
-    )
-    .join("\n");
-  const blob = new Blob([header + "\n" + rows], { type: "text/csv" });
+  if (!data || !data.length) return;
+
+  // 🔥 Headers
+  const headers = Object.keys(data[0]);
+
+  // 🔥 Rows
+  const rows = data.map((row) =>
+    headers
+      .map((field) => {
+        let value = row[field];
+
+        // null/undefined
+        if (value === null || value === undefined) {
+          value = "";
+        }
+
+        // object handling
+        else if (typeof value === "object") {
+          value = JSON.stringify(value);
+        }
+
+        // escape quotes
+        value = String(value).replace(/"/g, '""');
+
+        return `"${value}"`;
+      })
+      .join(","),
+  );
+
+  // 🔥 Final CSV
+  const csvContent = [headers.join(","), ...rows].join("\n");
+
+  // 🔥 Download
+  const blob = new Blob([csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
+
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${id}-report.csv`;
-  a.click();
+
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.setAttribute("download", `${id}-report.csv`);
+
+  document.body.appendChild(link);
+
+  link.click();
+
+  document.body.removeChild(link);
+
+  URL.revokeObjectURL(url);
 }

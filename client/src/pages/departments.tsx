@@ -132,7 +132,10 @@ export default function DepartmentsPage() {
       const msg = err?.response?.data?.message || err?.message || "";
 
       // 🔑 Unique Code Error (Database check)
-      if (msg.toLowerCase().includes("database") || msg.toLowerCase().includes("unique")) {
+      if (
+        msg.toLowerCase().includes("database") ||
+        msg.toLowerCase().includes("unique")
+      ) {
         setFieldErrors({
           code: "Department code already exists",
         });
@@ -193,10 +196,16 @@ export default function DepartmentsPage() {
             key: "code",
             label: "Department Code",
             required: true,
+            disabled: !!edit, // ✅ EDIT mode me readonly
             onChange: (value, form, setForm) => {
+              if (edit) return; // safety
+
               setForm({ ...form, code: value });
-              // ✅ Error remove on typing
-              setFieldErrors((prev) => ({ ...prev, code: "" }));
+
+              setFieldErrors((prev) => ({
+                ...prev,
+                code: "",
+              }));
             },
           },
           { key: "description", label: "Description", type: "textarea" },

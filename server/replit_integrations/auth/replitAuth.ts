@@ -68,9 +68,51 @@ export async function setupAuth(app: Express) {
   });
 
   // REGISTER ROUTE
+  // app.post("/api/register", async (req, res) => {
+  //   try {
+  //     const { username, password, email, firstName, lastName } = req.body;
+  //     if (!username || !password) {
+  //       return res.status(400).json({ message: "Username and password are required" });
+  //     }
+
+  //     const existing = await authStorage.getUserByUsername(username);
+  //     if (existing) {
+  //       return res.status(409).json({ message: "Username already exists" });
+  //     }
+
+  //     const bcrypt = await import("bcryptjs");
+  //     const hashedPassword = await bcrypt.hash(password, 10);
+
+  //     // UPDATE: Registration ke waqt default Role ID aur Employee Code (Optional) dena zaroori hai
+  //     const user = await authStorage.upsertUser({
+  //       username,
+  //       password: hashedPassword,
+  //       email: email || null,
+  //       firstName: firstName || username,
+  //       lastName: lastName || null,
+  //       roleId: 0, // Maan lijiye 2 = 'Employee' ya 'Staff' role hai
+  //       isActive: true,
+  //       employeeCode: null, // Self-register ke waqt baad mein link ho sakta hai
+  //     });
+
+  //     req.session.regenerate((err) => {
+  //       if (err) return res.status(500).json({ message: "Registration failed" });
+
+  //       (req.session as any).userId = user.id;
+  //       (req.session as any).authenticated = true;
+
+  //       const { password: _, ...safeUser } = user;
+  //       res.status(201).json(safeUser);
+  //     });
+  //   } catch (error) {
+  //     console.error("Register error:", error);
+  //     res.status(500).json({ message: "Registration failed" });
+  //   }
+  // });
   app.post("/api/register", async (req, res) => {
     try {
       const { username, password, email, firstName, lastName } = req.body;
+
       if (!username || !password) {
         return res.status(400).json({ message: "Username and password are required" });
       }
@@ -80,19 +122,16 @@ export async function setupAuth(app: Express) {
         return res.status(409).json({ message: "Username already exists" });
       }
 
-      const bcrypt = await import("bcryptjs");
-      const hashedPassword = await bcrypt.hash(password, 10);
-
-      // UPDATE: Registration ke waqt default Role ID aur Employee Code (Optional) dena zaroori hai
+      // Ab hum plain password bhej rahe hain
+      // UpsertUser internally check karega: agar password hashed nahi hai to hash kar dega
       const user = await authStorage.upsertUser({
         username,
-        password: hashedPassword,
+        password: password, // Plain text password
         email: email || null,
-        firstName: firstName || username,
-        lastName: lastName || null,
-        roleId: 0, // Maan lijiye 2 = 'Employee' ya 'Staff' role hai
+        employeeName: `${firstName || ""} ${lastName || ""}`.trim() || username,
+        roleId: 2, // Default Role ID (e.g., Employee)
         isActive: true,
-        employeeCode: null, // Self-register ke waqt baad mein link ho sakta hai
+        employeeCode: null,
       });
 
       req.session.regenerate((err) => {
@@ -109,7 +148,6 @@ export async function setupAuth(app: Express) {
       res.status(500).json({ message: "Registration failed" });
     }
   });
-
   // LOGOUT
   app.post("/api/logout", (req, res) => {
     req.session.destroy((err) => {
