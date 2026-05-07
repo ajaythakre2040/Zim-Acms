@@ -7,6 +7,8 @@ import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { validateNoHtml } from "@/lib/validation";
+import { useToast } from "@/hooks/use-toast";
 import {
   Plus,
   Loader2,
@@ -35,7 +37,8 @@ const statusConfig: Record<
 export default function DevicesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Device | null>(null);
-
+  const { toast } = useToast();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // Aapka original CRUD hook
   const {
     data = [],
@@ -151,7 +154,9 @@ export default function DevicesPage() {
               {statusKey === "online" && (
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
               )}
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${cfg.dotClass}`}></span>
+              <span
+                className={`relative inline-flex rounded-full h-2 w-2 ${cfg.dotClass}`}
+              ></span>
             </span>
             <Badge variant={cfg.color as any}>{statusKey}</Badge>
           </div>
@@ -171,8 +176,10 @@ export default function DevicesPage() {
         // Kyunki manual diff nikalne mein hi timezone ki galti hoti hai
         return (
           <div className="flex flex-col leading-tight">
-            <span className={`text-sm font-medium ${d.status === 'online' ? 'text-green-600' : 'text-slate-500'}`}>
-              {d.status === 'online' ? 'Active' : 'Last seen'}
+            <span
+              className={`text-sm font-medium ${d.status === "online" ? "text-green-600" : "text-slate-500"}`}
+            >
+              {d.status === "online" ? "Active" : "Last seen"}
             </span>
             <span className="text-[10px] text-muted-foreground">
               {/* Aapki existing utils function use kar raha hoon */}
@@ -196,6 +203,7 @@ export default function DevicesPage() {
             onClick={(e) => {
               e.stopPropagation();
               setEditing(d);
+              setFieldErrors({});
               setDialogOpen(true);
             }}
           >
@@ -247,18 +255,25 @@ export default function DevicesPage() {
         }
       />
 
-      <div className="grid grid-cols-4 gap-3"> {/* 2 se badha kar 4 kiya */}
+      <div className="grid grid-cols-4 gap-3">
+        {" "}
+        {/* 2 se badha kar 4 kiya */}
         <Card>
-          <CardContent className="p-2 text-center"> {/* Padding bhi p-3 se p-2 kar di */}
+          <CardContent className="p-2 text-center">
+            {" "}
+            {/* Padding bhi p-3 se p-2 kar di */}
             <p className="text-xl font-bold text-green-600">{online}</p>
-            <p className="text-[10px] text-muted-foreground uppercase">Online</p>
+            <p className="text-[10px] text-muted-foreground uppercase">
+              Online
+            </p>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-2 text-center">
             <p className="text-xl font-bold text-muted-foreground">{offline}</p>
-            <p className="text-[10px] text-muted-foreground uppercase">Offline</p>
+            <p className="text-[10px] text-muted-foreground uppercase">
+              Offline
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -274,35 +289,62 @@ export default function DevicesPage() {
 
       <CrudDialog
         open={dialogOpen}
+        errors={fieldErrors}
+
         onClose={() => {
           setDialogOpen(false);
           setEditing(null);
+          setFieldErrors({});
         }}
         title={editing ? "Edit Device" : "Add Device"}
         fields={fields}
         initialData={
           editing
             ? {
-              ...editing,
-              locationId: editing.locationId
-                ? String(editing.locationId)
-                : "",
-              zoneId: editing.zoneId ? String(editing.zoneId) : "",
-            }
+                ...editing,
+                locationId: editing.locationId
+                  ? String(editing.locationId)
+                  : "",
+                zoneId: editing.zoneId ? String(editing.zoneId) : "",
+              }
             : undefined
         }
-        onSubmit={(formData) => {
-          if (formData.locationId)
-            formData.locationId = Number(formData.locationId);
-          if (formData.zoneId) formData.zoneId = Number(formData.zoneId);
-          if (editing) {
-            const updateId = editing.id || (editing as any).msId;
-            update({ id: updateId, data: formData });
-          } else {
-            create(formData);
+        onSubmit={async (formData) => {
+          try {
+            setFieldErrors({});
+
+            // 🛡️ XSS Validation (EDIT ONLY)
+            const validationErrors = validateNoHtml(formData);
+            if (Object.keys(validationErrors).length > 0) {
+              setFieldErrors(validationErrors);
+              return;
+            }
+
+            if (formData.locationId)
+              formData.locationId = Number(formData.locationId);
+
+            if (formData.zoneId) formData.zoneId = Number(formData.zoneId);
+
+            // 🚀 UPDATE ONLY (kyunki add nahi hai)
+            if (editing) {
+              const updateId = editing.id || (editing as any).msId;
+              await update({ id: updateId, data: formData });
+
+              toast({
+                title: "Success",
+                description: "Device updated successfully",
+              });
+            }
+
+            setDialogOpen(false);
+            setEditing(null);
+          } catch (err: any) {
+            toast({
+              variant: "destructive",
+              title: "Error",
+              description: err?.message || "Something went wrong",
+            });
           }
-          setDialogOpen(false);
-          setEditing(null);
         }}
         isPending={isCreating || isUpdating}
       />

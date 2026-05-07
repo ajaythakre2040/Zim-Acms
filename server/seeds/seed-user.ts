@@ -11,10 +11,10 @@ export async function seedAdminUser() {
         const [existingRole] = await db
             .select()
             .from(roles)
-            .where(eq(roles.code, "super_admin"));
+            .where(eq(roles.code, "admin_01"));
 
         if (!existingRole) {
-            throw new Error("'super_admin' role not found. Please run seedRoles first.");
+            throw new Error("'admin_01' role not found. Please run seedRoles first.");
         }
 
         // 2. People table entry (Error Fix: 'employeeName' use kiya)

@@ -227,10 +227,17 @@ export default function UserAdminPage() {
             </div>
 
             <div className="grid gap-2">
-              <Label>Display Name</Label>
+              <Label>Employee Name</Label>
               <Input
                 value={formData.employeeName}
                 onChange={(e) => setFormData({ ...formData, employeeName: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Email</Label>
+              <Input
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
 

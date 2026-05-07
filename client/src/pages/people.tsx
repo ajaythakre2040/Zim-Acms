@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { RefreshCw, Pencil, Eye, Trash2, UserPlus } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { validateNoHtml } from "@/lib/validation";
 import type {
   Person,
   Department,
@@ -95,6 +96,7 @@ export default function PeoplePage() {
     queryKey: ["/api/shifts"],
   });
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { data: deviceLogs = [], refetch: refetchLogs } = useQuery({
     queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
     enabled: !!deviceViewPerson,
@@ -365,10 +367,11 @@ export default function PeoplePage() {
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
-            className={`text-xs font-bold ${isEnabled
-              ? "bg-red-50 text-red-600 border-red-300"
-              : "bg-green-50 text-green-600 border-green-300"
-              }`}
+            className={`text-xs font-bold ${
+              isEnabled
+                ? "bg-red-50 text-red-600 border-red-300"
+                : "bg-green-50 text-green-600 border-green-300"
+            }`}
           >
             {isEnabled ? "ACTIVE" : "INACTIVE"}
           </Badge>
@@ -539,6 +542,7 @@ export default function PeoplePage() {
                   onClick={(e) => {
                     e.stopPropagation();
                     setEditing(p);
+                    setFieldErrors({});
                     setDialogOpen(true);
                   }}
                 >
@@ -601,8 +605,9 @@ export default function PeoplePage() {
               disabled={bulkEmergencyUnblockMut.isPending}
             >
               <RefreshCw
-                className={`w-4 h-4 ${bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""
-                  }`}
+                className={`w-4 h-4 ${
+                  bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""
+                }`}
               />
               <span className="w-[130px] text-center">
                 Emergency Unblock All
@@ -744,10 +749,11 @@ export default function PeoplePage() {
                           <td className="p-3 text-center">
                             <Badge
                               variant={isUnblocked ? "outline" : "destructive"}
-                              className={`text-[9px] font-bold px-2 ${isUnblocked
-                                ? "border-green-500 text-green-600 bg-green-50"
-                                : ""
-                                }`}
+                              className={`text-[9px] font-bold px-2 ${
+                                isUnblocked
+                                  ? "border-green-500 text-green-600 bg-green-50"
+                                  : ""
+                              }`}
                             >
                               {isUnblocked ? "ALLOWED" : "BLOCKED"}
                             </Badge>
@@ -790,15 +796,15 @@ export default function PeoplePage() {
                         .toLowerCase()
                         .includes(deviceSearch.toLowerCase()),
                   ).length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="text-center p-6 text-muted-foreground"
-                        >
-                          No devices found
-                        </td>
-                      </tr>
-                    )}
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="text-center p-6 text-muted-foreground"
+                      >
+                        No devices found
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -813,9 +819,11 @@ export default function PeoplePage() {
 
       <CrudDialog
         open={dialogOpen}
+        errors={fieldErrors}
         onClose={() => {
           setDialogOpen(false);
           setEditing(null);
+          setFieldErrors({});
         }}
         title={editing ? "Edit Person" : "Add Person"}
         // fields={fields}
@@ -823,30 +831,41 @@ export default function PeoplePage() {
         initialData={
           editing
             ? {
-              ...editing,
-              departmentId: editing.departmentId
-                ? String(editing.departmentId)
-                : "",
-              shiftId: editing.shiftId ? String(editing.shiftId) : "",
-              designationId: editing.designationId
-                ? String(editing.designationId)
-                : "",
-              companyId: editing.companyId ? String(editing.companyId) : "",
-              locationId: editing.locationId
-                ? String(editing.locationId)
-                : "",
-              riskTier: editing.riskTier ?? 1,
-            }
+                ...editing,
+                departmentId: editing.departmentId
+                  ? String(editing.departmentId)
+                  : "",
+                shiftId: editing.shiftId ? String(editing.shiftId) : "",
+                designationId: editing.designationId
+                  ? String(editing.designationId)
+                  : "",
+                companyId: editing.companyId ? String(editing.companyId) : "",
+                locationId: editing.locationId
+                  ? String(editing.locationId)
+                  : "",
+                riskTier: editing.riskTier ?? 1,
+              }
             : {
-              companyId: String(
-                companies.find((c) => c.name.toLowerCase().includes("zim"))
-                  ?.id || "",
-              ),
-              status: "active",
-              personType: "employee",
-            }
+                companyId: String(
+                  companies.find((c) => c.name.toLowerCase().includes("zim"))
+                    ?.id || "",
+                ),
+                status: "active",
+                personType: "employee",
+              }
         }
         onSubmit={(data) => {
+          // 🛡️ Reset errors
+          setFieldErrors({});
+
+          // 🛡️ XSS Validation
+          const validationErrors = validateNoHtml(data);
+          if (Object.keys(validationErrors).length > 0) {
+            setFieldErrors(validationErrors);
+            return;
+          }
+
+          // 🔢 Convert numeric fields
           const numericFields = [
             "departmentId",
             "shiftId",
@@ -855,12 +874,17 @@ export default function PeoplePage() {
             "locationId",
             "riskTier",
           ];
+
           numericFields.forEach((k) => {
             if (data[k]) data[k] = Number(data[k]);
           });
-          editing
-            ? updateMut.mutate({ id: editing.id, data })
-            : createMut.mutate(data);
+
+          // 🚀 API Call
+          if (editing) {
+            updateMut.mutate({ id: editing.id, data });
+          } else {
+            createMut.mutate(data);
+          }
         }}
         isPending={createMut.isPending || updateMut.isPending}
       />
@@ -926,10 +950,11 @@ export default function PeoplePage() {
                   .map((door) => (
                     <div
                       key={door.id}
-                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id)
-                        ? "bg-white border-blue-200 shadow-sm"
-                        : "border-transparent hover:bg-white hover:border-slate-200"
-                        }`}
+                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${
+                        selectedDoorIds.includes(door.id)
+                          ? "bg-white border-blue-200 shadow-sm"
+                          : "border-transparent hover:bg-white hover:border-slate-200"
+                      }`}
                       onClick={() =>
                         setSelectedDoorIds((prev) => {
                           const safePrev = Array.isArray(prev) ? prev : [];
@@ -955,10 +980,11 @@ export default function PeoplePage() {
 
                       {/* DOOR NAME */}
                       <span
-                        className={`text-sm ${selectedDoorIds.includes(door.id)
-                          ? "font-bold text-blue-700"
-                          : "text-slate-600"
-                          }`}
+                        className={`text-sm ${
+                          selectedDoorIds.includes(door.id)
+                            ? "font-bold text-blue-700"
+                            : "text-slate-600"
+                        }`}
                       >
                         {door.name}
                       </span>
