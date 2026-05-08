@@ -60,6 +60,7 @@ import RolePermissionViewPage from "./pages/RolePermissionViewPage";
 function Router() {
   return (
     <Switch>
+      <Route path="/" component={Dashboard} />
       <Route path="/attendance-summary" component={Dashboard} />
       <Route path="/employees" component={PeoplePage} />
       <Route path="/visitors" component={VisitorsPage} />
@@ -91,7 +92,7 @@ function Router() {
       <Route path="/role" component={RolesPage} />
       <Route path="/master-data/roles/add" component={RoleFormPage} />
       <Route path="/master-data/roles/edit/:id" component={RoleFormPage} />
-      <Route
+      <Route  
         path="/master-data/roles/view/:id"
         component={RolePermissionViewPage}
       />{" "}

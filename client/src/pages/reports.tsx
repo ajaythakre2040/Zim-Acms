@@ -790,7 +790,17 @@ function DaliyPerformanceSummaryTable({
         <tbody>
           {employees.length > 0 ? (
             employees.map((emp: any, idx) => {
-              const totalDays = emp.present + emp.absent + emp.off;
+              // const totalDays = emp.present + emp.absent + emp.off;
+              const today = new Date().getDate();
+
+              const dynamicAbsent =
+                Array.from({ length: daysInMonth }, (_, i) => i + 1).filter(
+                  (d) => d < today && !emp.days[d],
+                ).length;
+
+              const finalAbsent = emp.absent + dynamicAbsent;
+
+              const totalDays = emp.present + emp.off + finalAbsent;
               const totalPay = emp.present * emp.perDayRate;
 
               return (
@@ -817,7 +827,21 @@ function DaliyPerformanceSummaryTable({
                         {status === "off" && (
                           <span className="text-amber-600 font-bold">O</span>
                         )}
-                        {!status && <span className="text-gray-400">-</span>}
+                        {!status && (() => {
+                          const today = new Date().getDate();
+
+                          // past dates => Absent
+                          if (day < today) {
+                            return (
+                              <span className="text-rose-600 font-bold">A</span>
+                            );
+                          }
+
+                          // future/current dates => -
+                          return (
+                            <span className="text-gray-400">-</span>
+                          );
+                        })()}
                       </td>
                     );
                   })}
@@ -827,7 +851,8 @@ function DaliyPerformanceSummaryTable({
                     ₹{totalPay}
                   </td> */}
                   <td className="p-2 text-center">{emp.off}</td>
-                  <td className="p-2 text-center">{emp.absent}</td>
+                  {/* <td className="p-2 text-center">{emp.absent}</td> */}
+                  <td className="p-2 text-center">{finalAbsent}</td>
                   <td className="p-2 text-center">{totalDays}</td>
                 </tr>
               );

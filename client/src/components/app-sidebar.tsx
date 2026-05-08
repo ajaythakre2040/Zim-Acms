@@ -49,8 +49,8 @@ interface MenuPermission {
 interface AuthUser {
   id: string;
   username: string | null;
-  firstName: string | null;
-  lastName: string | null;
+  fullName: string | null;
+  // lastName: string | null;
   roleName?: string;
   menuPermissions?: MenuPermission[];
 }
@@ -89,36 +89,66 @@ export function AppSidebar() {
   const user = auth.user as AuthUser | null;
 
   const initials = user
-    ? `${(user.firstName || "U")[0]}${(user.lastName || "")[0] || ""}`
+    ? `${(user.fullName || "U")[0]}`
     : "?";
 
+  // --- 3. Dynamic Menu Tree Logic ---
+  // const navGroups = useMemo(() => {
+  //   if (!user?.menuPermissions) return [];
+
+  //   const map: Record<number, any> = {};
+  //   const roots: any[] = [];
+
+  //   user.menuPermissions.forEach((item) => {
+  //     map[item.menuId] = {
+  //       ...item,
+  //       renderIcon: getIcon(item.icon),
+  //       urlPath: `/${getUrlPath(item.title)}`, // Pre-calculate path
+  //       subItems: [],
+  //     };
+  //   });
+
+  //   user.menuPermissions.forEach((item) => {
+  //     if (item.parentId && item.parentId !== 0 && map[item.parentId]) {
+  //       map[item.parentId].subItems.push(map[item.menuId]);
+  //     } else {
+  //       roots.push(map[item.menuId]);
+  //     }
+  //   });
+
+  //   return roots.sort((a, b) => a.sortOrder - b.sortOrder);
+  // }, [user?.menuPermissions]);
   // --- 3. Dynamic Menu Tree Logic ---
   const navGroups = useMemo(() => {
     if (!user?.menuPermissions) return [];
 
+    // FIX: Pehle permissions ko filter karein jahan view: true ho
+    const visiblePermissions = user.menuPermissions.filter(item => item.view === true);
+
     const map: Record<number, any> = {};
     const roots: any[] = [];
 
-    user.menuPermissions.forEach((item) => {
+    // Ab sirf visible items ko map mein daalein
+    visiblePermissions.forEach((item) => {
       map[item.menuId] = {
         ...item,
         renderIcon: getIcon(item.icon),
-        urlPath: `/${getUrlPath(item.title)}`, // Pre-calculate path
+        urlPath: `/${getUrlPath(item.title)}`,
         subItems: [],
       };
     });
 
-    user.menuPermissions.forEach((item) => {
+    visiblePermissions.forEach((item) => {
       if (item.parentId && item.parentId !== 0 && map[item.parentId]) {
         map[item.parentId].subItems.push(map[item.menuId]);
-      } else {
+      } else if (!item.parentId || item.parentId === 0) {
+        // Sirf wahi root mein jayenge jinka parentId 0 hai aur view true hai
         roots.push(map[item.menuId]);
       }
     });
 
     return roots.sort((a, b) => a.sortOrder - b.sortOrder);
   }, [user?.menuPermissions]);
-
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
@@ -230,7 +260,7 @@ export function AppSidebar() {
           </Avatar>
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-xs font-bold truncate text-sidebar-foreground">
-              {user?.firstName || "System"} {user?.lastName || "Admin"}
+              {user?.fullName || "System"} 
             </span>
             <span className="text-[9px] text-emerald-500 font-medium flex items-center gap-1 leading-none mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
