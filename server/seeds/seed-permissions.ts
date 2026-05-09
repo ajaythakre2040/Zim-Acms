@@ -19,7 +19,7 @@ export async function seedPermissions() {
             };
 
             // LOGIC 1: Super Admin - Full Access
-            if (role.code === "super_admin") {
+            if (role.code === "admin_01") {
                 p = { view: true, add: true, edit: true, delete: true, export: true, print: true };
             }
 

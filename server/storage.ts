@@ -2772,6 +2772,179 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(roles).where(eq(roles.id, id));
     });
   }
+  async getEmployeeProductiveReport(filters?: {
+    date?: string;
+    employeeCode?: string;
+  }) {
+    try {
+      const conditions = [];
 
+      // :point_down: date ya current date
+      const selectedDate = filters?.date
+        ? filters.date
+        : new Date().toISOString().split("T")[0];
+
+      // :point_down: onlyDate column pe filter
+      conditions.push(
+        eq(schema.employeeActivityLogs.onlyDate, selectedDate)
+      );
+
+      if (filters?.employeeCode) {
+        conditions.push(
+          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+        );
+      }
+
+      const logs = await db
+        .select({
+          employeeCode: schema.employeeActivityLogs.employeeCode,
+          employeeName: schema.employeeActivityLogs.employeeName,
+          gender: schema.people.gender,
+          shiftName: schema.employeeActivityLogs.shiftName,
+          logDate: schema.employeeActivityLogs.logDate,
+          onlyDate: schema.employeeActivityLogs.onlyDate,
+          direction: schema.employeeActivityLogs.direction,
+          doorId: schema.employeeActivityLogs.doorId,
+          doorName: schema.employeeActivityLogs.doorName,
+          deviceId: schema.employeeActivityLogs.deviceId,
+          doorType: schema.doors.doorType,
+        })
+        .from(schema.employeeActivityLogs)
+        .leftJoin(
+          schema.doors,
+          eq(schema.employeeActivityLogs.doorId, schema.doors.id),
+        )
+        .leftJoin(
+          schema.people,
+          eq(
+            schema.employeeActivityLogs.employeeCode,
+            schema.people.employeeCode,
+          ),
+        )
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(
+          asc(schema.employeeActivityLogs.employeeCode),
+          asc(schema.employeeActivityLogs.logDate),
+        );
+
+      // =========================
+      // GROUP
+      // =========================
+      const grouped: Record<string, any[]> = {};
+
+      for (const log of logs) {
+        const key = `${log.employeeCode}_${log.onlyDate}`;
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(log);
+      }
+
+      const result = [];
+
+      for (const key of Object.keys(grouped)) {
+        const employeeLogs = grouped[key];
+
+        let productiveMinutes = 0;
+        const movementDetails: any[] = [];
+
+        let stack: Record<string, any> = {};
+        // doorId wise IN store
+
+        let firstTime: number | null = null;
+        let lastTime: number | null = null;
+
+        for (const log of employeeLogs) {
+          const time = new Date(log.logDate).getTime();
+          if (firstTime === null) firstTime = time;
+          lastTime = time;
+
+          const isGate = log.doorType === "gate";
+
+          const key = log.doorId;
+
+          // =========================
+          // IN
+          // =========================
+          if (log.direction === "IN") {
+            stack[key] = log;
+          }
+
+          // =========================
+          // OUT
+          // =========================
+          else if (log.direction === "OUT") {
+            const inLog = stack[key];
+            if (!inLog) continue;
+
+            const duration =
+              (new Date(log.logDate).getTime() -
+                new Date(inLog.logDate).getTime()) /
+              60000;
+
+            const safeDuration = Math.max(0, duration);
+
+            // :fire: ONLY NON-GATE ADD TO PRODUCTIVE
+            if (!isGate) {
+              productiveMinutes += safeDuration;
+            }
+
+            movementDetails.push({
+              doorName: log.doorName,
+              doorType: log.doorType,
+              inDeviceId: inLog.deviceId,
+              inTime: inLog.logDate,
+              outDeviceId: log.deviceId,
+              outTime: log.logDate,
+              durationMinutes: Math.floor(safeDuration),
+              isGateEntry: isGate,
+            });
+
+            delete stack[key];
+          }
+        }
+
+        const totalPresenceMinutes =
+          firstTime && lastTime ? (lastTime - firstTime) / 60000 : 0;
+
+        const productiveHours = productiveMinutes / 60;
+
+        const otHours =
+          productiveHours > 8 ? (productiveHours - 8).toFixed(2) : "0.00";
+
+        result.push({
+          employeeCode: employeeLogs[0]?.employeeCode,
+          employeeName: employeeLogs[0]?.employeeName,
+          gender: employeeLogs[0]?.gender || "-",
+          shift: employeeLogs[0]?.shiftName || "-",
+
+          shiftTime: "09:00 AM - 06:00 PM",
+
+          latestPunchDoor: employeeLogs.at(-1)?.doorName || "-",
+          inPunch: employeeLogs[0]?.logDate || null,
+          outPunch: employeeLogs.at(-1)?.logDate || null,
+
+          productiveMinutes: Math.floor(productiveMinutes),
+          productiveHours: productiveHours.toFixed(2),
+
+          totalPresenceMinutes: Math.floor(totalPresenceMinutes),
+          totalPresenceHours: (totalPresenceMinutes / 60).toFixed(2),
+
+          hoursWorked: productiveHours.toFixed(2),
+
+          otHours,
+          dutyStatus: employeeLogs.length ? "Present" : "Absent",
+
+          date: employeeLogs[0]?.onlyDate,
+
+          totalSessions: movementDetails.length,
+          movementDetails,
+        });
+      }
+
+      return result;
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  }
 };
 export const storage = new DatabaseStorage();

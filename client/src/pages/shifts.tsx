@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useCrud } from "@/hooks/use-crud";
+import { usePermission } from "@/hooks/use-permission"; 
 import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
@@ -8,8 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Shift } from "@shared/schema";
 import { validateNoHtml } from "../lib/validation";
+import { MENU_CONFIG } from "../../../server/constant";
 
 export default function ShiftsPage() {
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.SHIFTS.code);
+  if (!canView) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        You do not have permission to view this page.
+      </div>
+    );
+  }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Shift | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -87,10 +97,13 @@ export default function ShiftsPage() {
       label: "Actions",
       render: (s: Shift) => (
         <div className="flex gap-1">
+          {canEdit && (
           <Button
             size="icon"
             variant="ghost"
+            // disabled={!canEdit}
             onClick={(e) => {
+              // if (!canEdit) return;
               e.stopPropagation();
 
               const updatedShift = {
@@ -105,7 +118,8 @@ export default function ShiftsPage() {
           >
             <Pencil className="w-4 h-4" />
           </Button>
-
+          )}
+          {canDelete && (
           <Button
             size="icon"
             variant="ghost"
@@ -117,10 +131,17 @@ export default function ShiftsPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(col => {
+    // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
+    if (col.key === 'actions') {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -128,6 +149,7 @@ export default function ShiftsPage() {
         title="Shifts"
         description="Configure work shifts and schedules"
         action={
+          canAdd &&
           <Button
             onClick={() => {
               setEditing(null);
@@ -148,7 +170,7 @@ export default function ShiftsPage() {
         searchKeys={["name", "code"]}
         emptyMessage="No shifts configured"
       />
-
+      {(canAdd || canEdit) && (
       <CrudDialog
         key={formKey} // 🔥 FORCE RERENDER
         open={dialogOpen}
@@ -162,6 +184,7 @@ export default function ShiftsPage() {
         fields={fields}
         initialData={editing || undefined}
         onSubmit={async (formData) => {
+          if ((editing && !canEdit) || (!editing && !canAdd)) {
           try {
             setErrors({});
 
@@ -194,10 +217,11 @@ export default function ShiftsPage() {
             } else {
               setErrors({ general: "Save failed" });
             }
-          }
+          }}
         }}
         isPending={isCreating || isUpdating}
       />
+      )}
     </div>
   );
 }

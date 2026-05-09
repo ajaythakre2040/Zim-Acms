@@ -26,6 +26,7 @@ import {
   DoorOpen,
 } from "lucide-react";
 import { type Person } from "@shared/schema";
+import React from "react";
 
 // 1. Updated Report Configuration
 const reportTypes = [
@@ -102,13 +103,7 @@ const filterConfig: Record<string, string[]> = {
     "deviceId",
     "status",
   ],
-  "daily-efficiency": [
-    "dateFrom",
-    "dateTo",
-    "employeeCode",
-    "deviceId",
-    "status",
-  ],
+  "daily-efficiency": ["date", "employeeCode", "deviceId", "status"],
   "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
 };
 
@@ -147,66 +142,112 @@ function getCurrentMonthRange() {
   };
 }
 
-function exportDailyEfficiencyCSV(data: any[], doors: any[]) {
-  if (!data.length) return;
+export function exportDailyEfficiencyCSV(apiResponse: any, doors: any[]) {
+  // Backend response se data nikaalna
+  const reportData = apiResponse?.data || apiResponse || [];
+  if (!Array.isArray(reportData) || !reportData.length) return;
 
-  // 🔥 HEADERS SAME AS TABLE
+  const formatTimeCSV = (time: any) => {
+    if (!time || time === "-") return "-";
+    const d = new Date(time);
+    if (isNaN(d.getTime())) return String(time);
+    return d
+      .toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      })
+      .toLowerCase();
+  };
+
+  const rows: any[] = [];
+
+  reportData.forEach((r) => {
+    // 1. Grouping Logic: Har door ke liye multiple entries collect karna
+    const groupedDoors: Record<string, { in: string[]; out: string[] }> = {};
+
+    (r.movementDetails || []).forEach((m: any) => {
+      // Backend se doorName "PT" ya "Main Gate" aata hai
+      const key = String(m.doorName || "")
+        .trim()
+        .toLowerCase();
+      if (!groupedDoors[key]) {
+        groupedDoors[key] = { in: [], out: [] };
+      }
+      if (m.inTime) groupedDoors[key].in.push(formatTimeCSV(m.inTime));
+      if (m.outTime) groupedDoors[key].out.push(formatTimeCSV(m.outTime));
+    });
+
+    // 2. Door Mapping: Multiple timings ko join karna (New Line ke saath)
+    const doorValues = doors.flatMap((d) => {
+      const key = String(d.DeviceName || d.name || "")
+        .trim()
+        .toLowerCase();
+      const doorData = groupedDoors[key];
+
+      // Join with "\n" taaki Excel cell me ek ke niche ek dikhe
+      return [
+        doorData?.in?.length ? doorData.in.join("\n") : "-",
+        doorData?.out?.length ? doorData.out.join("\n") : "-",
+      ];
+    });
+
+    // 3. Calculation Check
+    const prodHrs = parseFloat(r.productiveHours || "0");
+    const presHrs = parseFloat(r.totalPresenceHours || "0");
+    const efficiency =
+      r.efficiency ||
+      (prodHrs > 0 ? `${Math.round((prodHrs / 9) * 100)}%` : "0%");
+
+    // 4. Row Push
+    rows.push([
+      r.employeeCode || "-",
+      r.employeeName || "-",
+      r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-",
+      ...doorValues,
+      `${presHrs.toFixed(2)}h`,
+      `${prodHrs.toFixed(2)}h`,
+      efficiency,
+    ]);
+  });
+
   const headers = [
     "Employee Code",
     "Employee Name",
-
+    "Log Date",
     ...doors.flatMap((d) => [
       `${d.DeviceName || d.name} IN`,
       `${d.DeviceName || d.name} OUT`,
     ]),
-
     "Total Time",
     "Productive Time",
     "Efficiency %",
   ];
 
-  // 🔥 ROWS SAME AS TABLE
-  const rows = data.map((r) => {
-    const doorValues = doors.flatMap((d) => {
-      const key = d.DeviceName || d.name;
+  // 5. CSV Logic: Double quotes (escapeCSV) bahut zaroori hain multi-line data ke liye
+  const escapeCSV = (val: any) => `"${String(val).replace(/"/g, '""')}"`;
 
-      return [r?.doors?.[key]?.in || 0, r?.doors?.[key]?.out || 0];
-    });
+  const csvContent = [
+    headers.map(escapeCSV).join(","),
+    ...rows.map((row) => row.map(escapeCSV).join(",")),
+  ].join("\n");
 
-    return [
-      r.employeeCode || "-",
-      r.employeeName || "-",
-
-      ...doorValues,
-
-      r.totalTime || "-",
-      r.productiveTime || "-",
-      r.efficiency ? `${r.efficiency}%` : "-",
-    ];
-  });
-
-  // 🔥 CSV GENERATE
-  const csv =
-    headers.join(",") +
-    "\n" +
-    rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv" });
-
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "daily-efficiency-report.csv";
-  a.click();
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `Daily_Efficiency_Report.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
-
 function exportDailyPerformanceCSV(data: any[]) {
-  if (!data.length) return;
+  if (!Array.isArray(data) || !data.length) return;
 
   const headers = [
     "Employee Name",
     "Gender",
+    "Log Date",
     "Latest Punch Door",
     "Shift",
     "Shift Time",
@@ -217,30 +258,41 @@ function exportDailyPerformanceCSV(data: any[]) {
     "OT Hrs",
   ];
 
+  const formatHours = (val: any) => {
+    if (!val && val !== 0) return "0h";
+
+    const num = Number(val);
+
+    if (isNaN(num)) return "0h";
+
+    return `${num.toFixed(2)}h`;
+  };
+
   const rows = data.map((r) => [
     r.employeeName || "-",
     r.gender || "-",
-    r.doorName || "-",
-    r.shiftname || "-",
-    r.shifttime || "-",
-    formatTime(r.firstIn),
-    formatTime(r.lastOut),
-
-    r.productiveMinutes
-      ? `${Math.floor(r.productiveMinutes / 60)}h ${r.productiveMinutes % 60}m`
-      : "0h 0m",
-
-    r.attendanceStatus || "-",
-
-    r.overtimeMinutes ? `${Math.floor(r.overtimeMinutes / 60)}h` : "0",
+    r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-",
+    r.latestPunchDoor || "-",
+    r.shift || "-",
+    r.shiftTime || "-",
+    formatTime(r.inPunch),
+    formatTime(r.outPunch),
+    formatHours(r.hoursWorked),
+    r.dutyStatus || "-",
+    formatHours(r.otHours),
   ]);
 
-  const csv =
-    headers.join(",") +
-    "\n" +
-    rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+  const escapeCSV = (val: any) => {
+    if (val === null || val === undefined) return '""';
+    return `"${String(val).replace(/"/g, '""')}"`;
+  };
 
-  const blob = new Blob([csv], { type: "text/csv" });
+  const csv =
+    headers.map(escapeCSV).join(",") +
+    "\n" +
+    rows.map((r) => r.map(escapeCSV).join(",")).join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
 
   const url = URL.createObjectURL(blob);
 
@@ -250,8 +302,9 @@ function exportDailyPerformanceCSV(data: any[]) {
   a.download = "daily-performance-details.csv";
 
   a.click();
-}
 
+  URL.revokeObjectURL(url);
+}
 function exportMonthlyStatusCSV(data: any[], daysInMonth: number) {
   if (!data.length) return;
 
@@ -427,36 +480,55 @@ function ReportFilters({
           {/* 🔥 GRID WRAPPER IMPORTANT */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 flex-1">
             {/* FROM DATE */}
-            {allowed.includes("dateFrom") && (
+            {/* DAILY EFFICIENCY → SINGLE DATE */}
+            {activeReport === "daily-efficiency" && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
-                  FROM DATE
+                  DATE
                 </Label>
                 <Input
                   type="date"
-                  value={filters.dateFrom || ""}
+                  value={filters.date || ""}
                   onChange={(e) =>
-                    setFilters({ ...filters, dateFrom: e.target.value })
+                    setFilters({ ...filters, date: e.target.value })
                   }
                 />
               </div>
             )}
 
-            {/* TO DATE */}
-            {allowed.includes("dateTo") && (
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">
-                  TO DATE
-                </Label>
-                <Input
-                  type="date"
-                  value={filters.dateTo || ""}
-                  onChange={(e) =>
-                    setFilters({ ...filters, dateTo: e.target.value })
-                  }
-                />
-              </div>
-            )}
+            {/* OTHER REPORTS → FROM DATE */}
+            {activeReport !== "daily-efficiency" &&
+              allowed.includes("dateFrom") && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    FROM DATE
+                  </Label>
+                  <Input
+                    type="date"
+                    value={filters.dateFrom || ""}
+                    onChange={(e) =>
+                      setFilters({ ...filters, dateFrom: e.target.value })
+                    }
+                  />
+                </div>
+              )}
+
+            {/* OTHER REPORTS → TO DATE */}
+            {activeReport !== "daily-efficiency" &&
+              allowed.includes("dateTo") && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    TO DATE
+                  </Label>
+                  <Input
+                    type="date"
+                    value={filters.dateTo || ""}
+                    onChange={(e) =>
+                      setFilters({ ...filters, dateTo: e.target.value })
+                    }
+                  />
+                </div>
+              )}
 
             {/* EMPLOYEE */}
             {allowed.includes("employeeCode") && (
@@ -657,6 +729,7 @@ function AccessLogs({ data }: { data: any[] }) {
     </div>
   );
 }
+
 function DaliyPerformanceTable({ data }: { data?: any[] }) {
   const safeData = Array.isArray(data) ? data : [];
 
@@ -668,6 +741,7 @@ function DaliyPerformanceTable({ data }: { data?: any[] }) {
           <tr className="border-b bg-muted/30">
             <th className="text-left p-3 font-medium">Employee Name</th>
             <th className="text-left p-3 font-medium">Gender</th>
+            <th className="text-left p-3 font-medium">Log Date</th>
             <th className="text-left p-3 font-medium">Latest Punch Door</th>
             <th className="text-left p-3 font-medium">Shift</th>
             <th className="text-left p-3 font-medium">Shift Time</th>
@@ -682,34 +756,38 @@ function DaliyPerformanceTable({ data }: { data?: any[] }) {
         <tbody>
           {safeData.length > 0 ? (
             safeData.map((r) => (
-              <tr key={r.id} className="border-b">
+              <tr key={`${r.employeeCode}-${r.date}`} className="border-b">
                 <td className="p-3">{r.employeeName || "-"}</td>
-                <td className="p-3">{r.gender || "-"}</td>
-                <td className="p-3">{r.doorName || "-"}</td>
-                <td className="p-3">{r.shiftname || "-"}</td>
 
-                <td className="p-3">{r.shifttime || "-"}</td>
+                <td className="p-3">{r.gender || "-"}</td>
+                <td className="p-3">
+                  {r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-"}
+                </td>
+
+                <td className="p-3">{r.latestPunchDoor || "-"}</td>
+
+                <td className="p-3">{r.shift || "-"}</td>
+
+                <td className="p-3">{r.shiftTime || "-"}</td>
 
                 <td className="p-3 font-mono text-blue-600 dark:text-blue-400">
-                  {formatTime(r.firstIn)}
+                  {formatTime(r.inPunch)}
                 </td>
 
                 <td className="p-3 font-mono text-orange-600 dark:text-orange-400">
-                  {formatTime(r.lastOut)}
+                  {formatTime(r.outPunch)}
                 </td>
 
                 <td className="p-3">
-                  {r.productiveMinutes
-                    ? `${Math.floor(r.productiveMinutes / 60)}h ${r.productiveMinutes % 60}m`
-                    : "0h 0m"}
+                  {r.hoursWorked
+                    ? `${Number(r.hoursWorked).toFixed(2)}h`
+                    : "0h"}
                 </td>
 
-                <td className="p-3">{r.attendanceStatus}</td>
+                <td className="p-3">{r.dutyStatus || "-"}</td>
 
                 <td className="p-3">
-                  {r.overtimeMinutes
-                    ? `${Math.floor(r.overtimeMinutes / 60)}h`
-                    : "0"}
+                  {r.otHours ? `${Number(r.otHours).toFixed(2)}h` : "0h"}
                 </td>
               </tr>
             ))
@@ -793,10 +871,10 @@ function DaliyPerformanceSummaryTable({
               // const totalDays = emp.present + emp.absent + emp.off;
               const today = new Date().getDate();
 
-              const dynamicAbsent =
-                Array.from({ length: daysInMonth }, (_, i) => i + 1).filter(
-                  (d) => d < today && !emp.days[d],
-                ).length;
+              const dynamicAbsent = Array.from(
+                { length: daysInMonth },
+                (_, i) => i + 1,
+              ).filter((d) => d < today && !emp.days[d]).length;
 
               const finalAbsent = emp.absent + dynamicAbsent;
 
@@ -827,21 +905,22 @@ function DaliyPerformanceSummaryTable({
                         {status === "off" && (
                           <span className="text-amber-600 font-bold">O</span>
                         )}
-                        {!status && (() => {
-                          const today = new Date().getDate();
+                        {!status &&
+                          (() => {
+                            const today = new Date().getDate();
 
-                          // past dates => Absent
-                          if (day < today) {
-                            return (
-                              <span className="text-rose-600 font-bold">A</span>
-                            );
-                          }
+                            // past dates => Absent
+                            if (day < today) {
+                              return (
+                                <span className="text-rose-600 font-bold">
+                                  A
+                                </span>
+                              );
+                            }
 
-                          // future/current dates => -
-                          return (
-                            <span className="text-gray-400">-</span>
-                          );
-                        })()}
+                            // future/current dates => -
+                            return <span className="text-gray-400">-</span>;
+                          })()}
                       </td>
                     );
                   })}
@@ -979,69 +1058,189 @@ function DaliyPerformanceOvertimeSummaryTable({
   );
 }
 
+function getShiftHours(shiftTime?: string) {
+  if (!shiftTime) return 0;
+
+  const [start, end] = shiftTime.split("-").map((t) => t.trim());
+  if (!start || !end) return 0;
+
+  const parseTime = (t: string) => {
+    const [time, modifier] = t.split(" ");
+    let [hours, minutes] = time.split(":").map(Number);
+
+    if (modifier === "PM" && hours !== 12) hours += 12;
+    if (modifier === "AM" && hours === 12) hours = 0;
+
+    return hours + minutes / 60;
+  };
+
+  return parseTime(end) - parseTime(start);
+}
+
 function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
   const safeData = Array.isArray(data) ? data : [];
 
   return (
     <div className="overflow-x-auto border rounded-md">
-      <table className="w-full text-xs">
+      <table className="w-max min-w-full text-xs">
         {/* 🔥 HEADER */}
         <thead>
           <tr className="border-b bg-muted/30">
-            <th className="text-left p-3 font-medium">Employee Code</th>
-            <th className="text-left p-3 font-medium">Employee Name</th>
+            <th className="text-left p-3 font-medium whitespace-nowrap">
+              Employee Code
+            </th>
+
+            <th className="text-left p-3 font-medium whitespace-nowrap">
+              Employee Name
+            </th>
+            <th className="text-left p-3 font-medium whitespace-nowrap">
+              Log Date
+            </th>
 
             {/* 🔥 DYNAMIC DOORS */}
             {doors.map((d, i) => (
-              <>
-                <th key={`in-${i}`} className="text-center p-3 font-medium">
+              <React.Fragment key={i}>
+                <th className="text-center p-3 font-medium">
                   {d.DeviceName || d.name} IN
                 </th>
-                <th key={`out-${i}`} className="text-center p-3 font-medium">
+
+                <th className="text-center p-3 font-medium">
                   {d.DeviceName || d.name} OUT
                 </th>
-              </>
+              </React.Fragment>
             ))}
 
-            <th className="text-center p-3 font-medium">Total Time</th>
-            <th className="text-center p-3 font-medium">Productive Time</th>
-            <th className="text-center p-3 font-medium">Efficiency %</th>
+            <th className="text-left p-3 font-medium whitespace-nowrap">
+              Total Time
+            </th>
+
+            <th className="text-left p-3 font-medium whitespace-nowrap">
+              Productive Time
+            </th>
+
+            <th className="text-left p-3 font-medium whitespace-nowrap">
+              Efficiency %
+            </th>
           </tr>
         </thead>
 
         {/* 🔥 BODY */}
         <tbody>
           {safeData.length > 0 ? (
-            safeData.map((r, i) => (
-              <tr key={i} className="border-b hover:bg-muted/20">
-                <td className="p-3">{r.employeeCode}</td>
-                <td className="p-3">{r.employeeName}</td>
+            safeData.map((r, i) => {
+              // 🔥 GROUP DOOR ENTRIES
+              const groupedDoors: Record<
+                string,
+                {
+                  in: string[];
+                  out: string[];
+                }
+              > = {};
 
-                {/* 🔥 DOOR DATA */}
-                {doors.map((d, j) => {
-                  const key = d.DeviceName || d.name;
+              (r.movementDetails || []).forEach((m: any) => {
+                const key = String(m.doorName || "")
+                  .trim()
+                  .toLowerCase();
 
-                  return (
-                    <>
-                      <td key={`in-${j}`} className="text-center p-3">
-                        {r?.doors?.[key]?.in || 0}
-                      </td>
-                      <td key={`out-${j}`} className="text-center p-3">
-                        {r?.doors?.[key]?.out || 0}
-                      </td>
-                    </>
-                  );
-                })}
+                if (!groupedDoors[key]) {
+                  groupedDoors[key] = {
+                    in: [],
+                    out: [],
+                  };
+                }
 
-                <td className="text-center p-3">{r.totalTime || "-"}</td>
+                groupedDoors[key].in.push(
+                  m.inTime ? formatTime(m.inTime) : "-",
+                );
 
-                <td className="text-center p-3">{r.productiveTime || "-"}</td>
+                groupedDoors[key].out.push(
+                  m.outTime ? formatTime(m.outTime) : "-",
+                );
+              });
+              const shiftHours = getShiftHours(r.shiftTime);
+              return (
+                <tr
+                  key={`${r.employeeCode}-${i}`}
+                  className="border-b hover:bg-muted/20"
+                >
+                  <td className="p-3">{r.employeeCode || "-"}</td>
+                  <td className="p-3">{r.employeeName || "-"}</td>
+                  <td className="p-3">
+                    {r.date
+                      ? new Date(r.date).toLocaleDateString("en-GB")
+                      : "-"}
+                  </td>
+                  {/* 🔥 DOOR COLUMNS */}
+                  {doors.map((d, j) => {
+                    const key = String(d.DeviceName || d.name || "")
+                      .trim()
+                      .toLowerCase();
 
-                <td className="text-center p-3 font-semibold">
-                  {r.efficiency ? `${r.efficiency}%` : "-"}
-                </td>
-              </tr>
-            ))
+                    const doorData = groupedDoors[key];
+
+                    return (
+                      <React.Fragment key={j}>
+                        {/* IN */}
+                        <td className="text-center p-3 align-top">
+                          {doorData?.in?.length ? (
+                            <div className="flex flex-col gap-1">
+                              {doorData.in.map((time: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="text-blue-600 dark:text-blue-400"
+                                >
+                                  {time}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+
+                        {/* OUT */}
+                        <td className="text-center p-3 align-top">
+                          {doorData?.out?.length ? (
+                            <div className="flex flex-col gap-1">
+                              {doorData.out.map((time: string, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="text-orange-600 dark:text-orange-400"
+                                >
+                                  {time}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                      </React.Fragment>
+                    );
+                  })}
+                  {/* TOTAL TIME */}
+                  <td className="text-center p-3">
+                    {r.totalPresenceHours
+                      ? `${Number(r.totalPresenceHours).toFixed(2)}h`
+                      : "-"}
+                  </td>
+                  {/* PRODUCTIVE TIME */}
+                  <td className="text-center p-3">
+                    {r.productiveHours
+                      ? `${Number(r.productiveHours).toFixed(2)}h`
+                      : "-"}
+                  </td>
+                  {/* EFFICIENCY */}
+                  <td className="text-center p-3 font-semibold">
+                    {shiftHours > 0
+                      ? `${Math.round(
+                        (Number(r.productiveHours || 0) / shiftHours) * 100,
+                      )}%`
+                      : "-"}
+                  </td>
+                </tr>
+              );
+            })
           ) : (
             <tr>
               <td
@@ -1196,7 +1395,9 @@ export default function ReportsPage() {
     attendance: {},
     "access-logs": {},
     "daily-performance": getCurrentMonthDates(),
-    "daily-efficiency": {},
+    "daily-efficiency": {
+      date: new Date().toISOString().split("T")[0], // ✅ single date default
+    },
     "cabin-lockout": {},
   });
 
@@ -1297,13 +1498,15 @@ export default function ReportsPage() {
         }
       });
 
+      // 🔥 API CHANGED HERE
       const res = await fetch(
-        `/api/reports/daily-performance?${params.toString()}`,
+        `/api/reports/employee-productive-report?${params.toString()}`,
       );
 
       if (!res.ok) throw new Error("Fetch failed");
 
-      return res.json();
+      const json = await res.json();
+      return json.data || [];
     },
 
     enabled: activeReport === "daily-efficiency",
@@ -1549,6 +1752,7 @@ export default function ReportsPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      disabled={!reportData || reportData.length === 0} // ✅ Empty data pe disable
                       onClick={() =>
                         exportDailyEfficiencyCSV(reportData, doorData)
                       }
@@ -1559,7 +1763,10 @@ export default function ReportsPage() {
                   </CardHeader>
 
                   <CardContent className="p-0">
-                    <DailyEfficiencyTable data={reportData} doors={doorData} />
+                    <DailyEfficiencyTable
+                      data={performanceData}
+                      doors={doorData}
+                    />
                   </CardContent>
                 </Card>
               </div>

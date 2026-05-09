@@ -35,6 +35,7 @@ export async function seedAdminUser() {
         let [adminUser] = await db
             .insert(users)
             .values({
+                fullName: "System Administrator",
                 username: "admin",
                 password: hashedPassword,
             })

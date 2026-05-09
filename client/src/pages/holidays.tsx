@@ -10,6 +10,8 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Holiday, Site } from "@shared/schema";
 import { validateNoHtml } from "@/lib/validation";
 import { useToast } from "@/hooks/use-toast";
+import { MENU_CONFIG } from "../../../server/constant";
+import { usePermission } from "@/hooks/use-permission";
 
 const typeColors: Record<string, string> = {
   national: "default",
@@ -19,6 +21,14 @@ const typeColors: Record<string, string> = {
 };
 
 export default function HolidaysPage() {
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.HOLIDAYS.code);
+  if (!canView) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        You do not have permission to view this page.
+      </div>
+    );
+  }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Holiday | null>(null);
   const {
@@ -78,12 +88,18 @@ export default function HolidaysPage() {
       className: "text-left",
       render: (h: Holiday) => (
         <div className="flex items-center justify-start gap-1">
+          {canEdit && (
+
           <Button
             size="icon"
             variant="ghost"
+            // disabled={!canEdit}
+
             className="h-8 w-8"
             title="Edit"
             onClick={(e) => {
+              // if (!canEdit) return;
+
               e.stopPropagation();
               setEditing(h);
               setFieldErrors({});
@@ -92,6 +108,8 @@ export default function HolidaysPage() {
           >
             <Pencil className="w-4 h-4" />
           </Button>
+          )}
+          {canDelete && (
           <Button
             size="icon"
             variant="ghost"
@@ -108,10 +126,16 @@ export default function HolidaysPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(col => {
+    if (col.key === 'actions') {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -119,6 +143,7 @@ export default function HolidaysPage() {
         title="Holidays"
         description="Manage holiday calendar"
         action={
+          canAdd &&
           <Button
             onClick={() => {
               setEditing(null);
@@ -139,7 +164,7 @@ export default function HolidaysPage() {
         searchKeys={["name"]}
         emptyMessage="No holidays configured"
       />
-
+      {(canAdd || canEdit) && (
       <CrudDialog
         open={dialogOpen}
         errors={fieldErrors}
@@ -202,6 +227,7 @@ export default function HolidaysPage() {
         }}
         isPending={isCreating || isUpdating}
       />
+      )}
     </div>
   );
 }

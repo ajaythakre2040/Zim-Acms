@@ -763,6 +763,7 @@ export const employeeActivityLogs = pgTable("employee_activity_logs", {
 
   // Shift & Organization
   shiftName: text("shift_name"),
+  shiftTime: text("shift_time"),
   departmentName: text("department_name"),
   designationName: text("designation_name"),
   locationName: text("location_name"),

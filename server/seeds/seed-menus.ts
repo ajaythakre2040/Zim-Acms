@@ -1,65 +1,62 @@
+import { MENU_CONFIG } from "../constant";
 import { db } from "../db";
 import { menuMaster } from "@shared/schema";
 
 export async function seedMenus() {
-    console.log("⏳ Syncing All Menus (No Duplicates, Only Updates)...");
+    console.log("⏳ Syncing All Menus from Constants...");
 
-    const upsertMenu = async (data: any) => {
-        return await db.insert(menuMaster).values(data).onConflictDoUpdate({
+    const upsertMenu = async (config: any, parentId: number = 0, sortOrder: number = 1) => {
+        return await db.insert(menuMaster).values({
+            title: config.title,
+            code: config.code,
+            icon: config.icon,
+            parentId: parentId,
+            sortOrder: sortOrder
+        }).onConflictDoUpdate({
             target: [menuMaster.code],
             set: {
-                title: data.title,
-                icon: data.icon,
-                parentId: data.parentId,
-                sortOrder: data.sortOrder
+                title: config.title,
+                icon: config.icon,
+                parentId: parentId,
+                sortOrder: sortOrder
             }
         }).returning();
     };
 
-    // 1. Dashboard & Sub-menus
-    const [dash] = await upsertMenu({
-        title: "Dashboard",
-        code: "dash_00",
-        icon: "LayoutDashboard", // Dashboard default
-        parentId: 0,
-        sortOrder: 1
-    });
+    try {
+        // 1. Dashboard & its Children
+        const [dash] = await upsertMenu(MENU_CONFIG.DASHBOARD, 0, 1);
+        await upsertMenu(MENU_CONFIG.ATTENDANCE_SUMMARY, dash.id, 1);
+        await upsertMenu(MENU_CONFIG.SHIFT_ANALYTICS, dash.id, 2);
+        await upsertMenu(MENU_CONFIG.LIVE_LOGS, dash.id, 3);
 
-    await upsertMenu({ title: "Attendance Summary", code: "dash_01", icon: "Activity", parentId: dash.id, sortOrder: 1 });
-    await upsertMenu({ title: "Shift Analytics", code: "dash_02", icon: "Zap", parentId: dash.id, sortOrder: 2 });
-    await upsertMenu({ title: "Live Access Logs", code: "dash_03", icon: "Clock", parentId: dash.id, sortOrder: 3 });
+        // 2. Master Data & its Children
+        const [mast] = await upsertMenu(MENU_CONFIG.MASTER_DATA, 0, 9);
+        await upsertMenu(MENU_CONFIG.DESIGNATION, mast.id, 1);
+        await upsertMenu(MENU_CONFIG.DEPARTMENT, mast.id, 2);
+        await upsertMenu(MENU_CONFIG.ROLE, mast.id, 3);
+        await upsertMenu(MENU_CONFIG.MENU_MASTER, mast.id, 4);
+        await upsertMenu(MENU_CONFIG.CATEGORY, mast.id, 5);
+        await upsertMenu(MENU_CONFIG.COMPANY, mast.id, 6);
 
-    // 2. Master Data & Sub-menus
-    const [mast] = await upsertMenu({
-        title: "Master Data",
-        code: "mast_00",
-        icon: "Layers", // Layers for stacking data
-        parentId: 0,
-        sortOrder: 9
-    });
+        // 3. Standalone Menus
+        const standalone = [
+            { cfg: MENU_CONFIG.EMPLOYEES, order: 2 },
+            { cfg: MENU_CONFIG.SHIFTS, order: 3 },
+            { cfg: MENU_CONFIG.HOLIDAYS, order: 4 },
+            { cfg: MENU_CONFIG.REPORTS, order: 5 },
+            { cfg: MENU_CONFIG.CRON_MASTER, order: 6 },
+            { cfg: MENU_CONFIG.DOORS, order: 7 },
+            { cfg: MENU_CONFIG.DEVICES, order: 8 },
+            { cfg: MENU_CONFIG.USER_ADMIN, order: 10 },
+        ];
 
-    await upsertMenu({ title: "Designation", code: "mast_01", icon: "UserCheck", parentId: mast.id, sortOrder: 1 });
-    await upsertMenu({ title: "Department", code: "mast_02", icon: "Building2", parentId: mast.id, sortOrder: 2 });
-    await upsertMenu({ title: "Role", code: "mast_03", icon: "Shield", parentId: mast.id, sortOrder: 3 });
-    await upsertMenu({ title: "Menu", code: "mast_04", icon: "Settings", parentId: mast.id, sortOrder: 4 });
-    await upsertMenu({ title: "Category", code: "mast_05", icon: "BookOpen", parentId: mast.id, sortOrder: 5 });
-    await upsertMenu({ title: "Company", code: "mast_06", icon: "MapPin", parentId: mast.id, sortOrder: 6 });
+        for (const item of standalone) {
+            await upsertMenu(item.cfg, 0, item.order);
+        }
 
-    // 3. Standalone Menus (Icons mapped to your Lucide imports)
-    const others = [
-        { title: "Employees", code: "emp_01", icon: "Users", parentId: 0, sortOrder: 2 },
-        { title: "Shifts", code: "shift_01", icon: "CalendarDays", parentId: 0, sortOrder: 3 },
-        { title: "Holidays", code: "holl_01", icon: "Calendar", parentId: 0, sortOrder: 4 },
-        { title: "Reports", code: "repo_01", icon: "FileText", parentId: 0, sortOrder: 5 },
-        { title: "Cron Master", code: "cron_01", icon: "Timer", parentId: 0, sortOrder: 6 },
-        { title: "Doors", code: "door_01", icon: "DoorOpen", parentId: 0, sortOrder: 7 },
-        { title: "Devices", code: "dev_01", icon: "Cpu", parentId: 0, sortOrder: 8 },
-        { title: "User Admin", code: "uadmin_01", icon: "UserCog", parentId: 0, sortOrder: 10 },
-    ];
-
-    for (const m of others) {
-        await upsertMenu(m);
+        console.log("✅ Database Synced successfully with Constants!");
+    } catch (error) {
+        console.error("❌ Seeding failed:", error);
     }
-
-    console.log("✅ Database Synced: Icons and Hierarchy updated successfully.");
 }

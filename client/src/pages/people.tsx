@@ -34,6 +34,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { formatDateTime } from "@/lib/utils";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 type RoleWithDoors = Role & {
   assignedDoorNames?: string;
 };
@@ -50,6 +52,14 @@ const personTypeLabels: Record<string, string> = {
   consultant: "Consultant",
 };
 export default function PeoplePage() {
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.EMPLOYEES.code);
+  if (!canView) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        You do not have permission to view this page.
+      </div>
+    );
+  }
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [roledialogOpen, setRoleDialogOpen] = useState(false);
@@ -367,11 +377,10 @@ export default function PeoplePage() {
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
-            className={`text-xs font-bold ${
-              isEnabled
-                ? "bg-red-50 text-red-600 border-red-300"
-                : "bg-green-50 text-green-600 border-green-300"
-            }`}
+            className={`text-xs font-bold ${isEnabled
+              ? "bg-red-50 text-red-600 border-red-300"
+              : "bg-green-50 text-green-600 border-green-300"
+              }`}
           >
             {isEnabled ? "ACTIVE" : "INACTIVE"}
           </Badge>
@@ -497,62 +506,68 @@ export default function PeoplePage() {
       render: (p: Person) => (
         <TooltipProvider delayDuration={100}>
           <div className="flex">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeviceViewPerson(p); // Is person ko select karo
-                    setDeviceStatusOpen(true); // Modal kholo
-                  }}
-                >
-                  <Eye className="w-4 h-4 text-blue-500" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Device Access Status</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setRoleAssign(p);
-                    setRoleDialogOpen(true);
-                  }}
-                >
-                  <UserPlus className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Assign Role</p>
-              </TooltipContent>
-            </Tooltip>
-            {/* Edit Action */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditing(p);
-                    setFieldErrors({});
-                    setDialogOpen(true);
-                  }}
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Edit</p>
-              </TooltipContent>
-            </Tooltip>
+            {canEdit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeviceViewPerson(p); // Is person ko select karo
+                      setDeviceStatusOpen(true); // Modal kholo
+                    }}
+                  >
+                    <Eye className="w-4 h-4 text-blue-500" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Device Access Status</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {canEdit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRoleAssign(p);
+                      setRoleDialogOpen(true);
+                    }}
+                  >
+                    <UserPlus className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Assign Role</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {canEdit && (
+              < Tooltip >
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditing(p);
+                      setFieldErrors({});
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+              {canDelete && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -576,11 +591,18 @@ export default function PeoplePage() {
                 <p>Delete</p>
               </TooltipContent>
             </Tooltip>
+              )}
           </div>
-        </TooltipProvider>
+        </TooltipProvider >
       ),
     },
-  ];
+  ].filter(col => {
+    // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
+    if (col.key === 'actions') {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -590,6 +612,7 @@ export default function PeoplePage() {
         action={
           <div className="flex gap-2">
             {/* 🔴 EMERGENCY BUTTON */}
+           { canEdit && (
             <Button
               variant="destructive"
               className="w-[220px] flex items-center justify-center gap-2"
@@ -605,15 +628,14 @@ export default function PeoplePage() {
               disabled={bulkEmergencyUnblockMut.isPending}
             >
               <RefreshCw
-                className={`w-4 h-4 ${
-                  bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""
-                }`}
+                className={`w-4 h-4 ${bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""
+                  }`}
               />
               <span className="w-[130px] text-center">
                 Emergency Unblock All
               </span>
             </Button>
-
+                )}
             {/* 🔄 SYNC BUTTON (existing) */}
             {/* <Button
               variant="outline"
@@ -749,11 +771,10 @@ export default function PeoplePage() {
                           <td className="p-3 text-center">
                             <Badge
                               variant={isUnblocked ? "outline" : "destructive"}
-                              className={`text-[9px] font-bold px-2 ${
-                                isUnblocked
-                                  ? "border-green-500 text-green-600 bg-green-50"
-                                  : ""
-                              }`}
+                              className={`text-[9px] font-bold px-2 ${isUnblocked
+                                ? "border-green-500 text-green-600 bg-green-50"
+                                : ""
+                                }`}
                             >
                               {isUnblocked ? "ALLOWED" : "BLOCKED"}
                             </Badge>
@@ -796,15 +817,15 @@ export default function PeoplePage() {
                         .toLowerCase()
                         .includes(deviceSearch.toLowerCase()),
                   ).length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="text-center p-6 text-muted-foreground"
-                      >
-                        No devices found
-                      </td>
-                    </tr>
-                  )}
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="text-center p-6 text-muted-foreground"
+                        >
+                          No devices found
+                        </td>
+                      </tr>
+                    )}
                 </tbody>
               </table>
             </div>
@@ -816,7 +837,7 @@ export default function PeoplePage() {
           </div>
         </DialogContent>
       </Dialog>
-
+      {(canAdd || canEdit) && (
       <CrudDialog
         open={dialogOpen}
         errors={fieldErrors}
@@ -831,28 +852,28 @@ export default function PeoplePage() {
         initialData={
           editing
             ? {
-                ...editing,
-                departmentId: editing.departmentId
-                  ? String(editing.departmentId)
-                  : "",
-                shiftId: editing.shiftId ? String(editing.shiftId) : "",
-                designationId: editing.designationId
-                  ? String(editing.designationId)
-                  : "",
-                companyId: editing.companyId ? String(editing.companyId) : "",
-                locationId: editing.locationId
-                  ? String(editing.locationId)
-                  : "",
-                riskTier: editing.riskTier ?? 1,
-              }
+              ...editing,
+              departmentId: editing.departmentId
+                ? String(editing.departmentId)
+                : "",
+              shiftId: editing.shiftId ? String(editing.shiftId) : "",
+              designationId: editing.designationId
+                ? String(editing.designationId)
+                : "",
+              companyId: editing.companyId ? String(editing.companyId) : "",
+              locationId: editing.locationId
+                ? String(editing.locationId)
+                : "",
+              riskTier: editing.riskTier ?? 1,
+            }
             : {
-                companyId: String(
-                  companies.find((c) => c.name.toLowerCase().includes("zim"))
-                    ?.id || "",
-                ),
-                status: "active",
-                personType: "employee",
-              }
+              companyId: String(
+                companies.find((c) => c.name.toLowerCase().includes("zim"))
+                  ?.id || "",
+              ),
+              status: "active",
+              personType: "employee",
+            }
         }
         onSubmit={(data) => {
           // 🛡️ Reset errors
@@ -888,6 +909,7 @@ export default function PeoplePage() {
         }}
         isPending={createMut.isPending || updateMut.isPending}
       />
+      )}
       <Dialog open={roledialogOpen} onOpenChange={setRoleDialogOpen}>
         <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
           {/* HEADER */}
@@ -950,11 +972,10 @@ export default function PeoplePage() {
                   .map((door) => (
                     <div
                       key={door.id}
-                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${
-                        selectedDoorIds.includes(door.id)
-                          ? "bg-white border-blue-200 shadow-sm"
-                          : "border-transparent hover:bg-white hover:border-slate-200"
-                      }`}
+                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id)
+                        ? "bg-white border-blue-200 shadow-sm"
+                        : "border-transparent hover:bg-white hover:border-slate-200"
+                        }`}
                       onClick={() =>
                         setSelectedDoorIds((prev) => {
                           const safePrev = Array.isArray(prev) ? prev : [];
@@ -980,11 +1001,10 @@ export default function PeoplePage() {
 
                       {/* DOOR NAME */}
                       <span
-                        className={`text-sm ${
-                          selectedDoorIds.includes(door.id)
-                            ? "font-bold text-blue-700"
-                            : "text-slate-600"
-                        }`}
+                        className={`text-sm ${selectedDoorIds.includes(door.id)
+                          ? "font-bold text-blue-700"
+                          : "text-slate-600"
+                          }`}
                       >
                         {door.name}
                       </span>

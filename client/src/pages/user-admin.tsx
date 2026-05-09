@@ -25,6 +25,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 const fallbackColors: Record<string, string> = {
   super_admin: "destructive",
@@ -33,6 +35,14 @@ const fallbackColors: Record<string, string> = {
 };
 
 export default function UserAdminPage() {
+   const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.USER_ADMIN.code);
+            if (!canView) {
+              return (
+                <div className="p-6 text-center text-muted-foreground">
+                  You do not have permission to view this page.
+                </div>
+              );
+            }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [isSearching, setIsSearching] = useState(false);

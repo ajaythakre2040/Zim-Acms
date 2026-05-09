@@ -23,6 +23,8 @@ import {
 } from "lucide-react";
 import type { Device, Site, Zone } from "@shared/schema";
 import { formatDateTime } from "@/lib/utils";
+import { MENU_CONFIG } from "../../../server/constant";
+import { usePermission } from "@/hooks/use-permission";
 
 const statusConfig: Record<
   string,
@@ -35,6 +37,14 @@ const statusConfig: Record<
 };
 
 export default function DevicesPage() {
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.DEVICES.code);
+  if (!canView) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        You do not have permission to view this page.
+      </div>
+    );
+  }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Device | null>(null);
   const { toast } = useToast();
@@ -52,7 +62,13 @@ export default function DevicesPage() {
   } = useCrud<Device>("/api/devices", "Device");
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: zones = [] } = useQuery<Zone[]>({ queryKey: ["/api/zones"] });
-
+  if (!canView) {
+    return (
+      <div className="flex h-[450px] items-center justify-center text-muted-foreground">
+        You do not have permission to view devices.
+      </div>
+    );
+  }
   const online = data.filter((d) => d.status === "online").length;
   const offline = data.filter((d) => d.status === "offline").length;
   const errored = data.filter((d) => d.status === "error").length;
@@ -196,6 +212,7 @@ export default function DevicesPage() {
       label: "Actions",
       render: (d: Device) => (
         <div className="flex gap-1">
+          {canEdit && (
           <Button
             size="icon"
             variant="ghost"
@@ -209,6 +226,8 @@ export default function DevicesPage() {
           >
             <Pencil className="w-4 h-4" />
           </Button>
+          )}
+          {canDelete && ( 
           <Button
             size="icon"
             variant="ghost"
@@ -228,10 +247,17 @@ export default function DevicesPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(col => {
+    // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
+    if (col.key === 'actions') {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
@@ -239,6 +265,7 @@ export default function DevicesPage() {
         title="Devices"
         description="Manage access control devices"
         action={
+          canAdd && (
           <Button
             onClick={() => {
               setEditing(null);
@@ -252,6 +279,7 @@ export default function DevicesPage() {
             />
             {isLoading ? "Syncing..." : "Sync"}
           </Button>
+          )
         }
       />
 
@@ -286,7 +314,7 @@ export default function DevicesPage() {
         searchKeys={["name", "ipAddress", "serialNumber"]}
         emptyMessage="No devices registered"
       />
-
+      {(canAdd || canEdit) && (
       <CrudDialog
         open={dialogOpen}
         errors={fieldErrors}
@@ -301,12 +329,12 @@ export default function DevicesPage() {
         initialData={
           editing
             ? {
-                ...editing,
-                locationId: editing.locationId
-                  ? String(editing.locationId)
-                  : "",
-                zoneId: editing.zoneId ? String(editing.zoneId) : "",
-              }
+              ...editing,
+              locationId: editing.locationId
+                ? String(editing.locationId)
+                : "",
+              zoneId: editing.zoneId ? String(editing.zoneId) : "",
+            }
             : undefined
         }
         onSubmit={async (formData) => {
@@ -348,6 +376,7 @@ export default function DevicesPage() {
         }}
         isPending={isCreating || isUpdating}
       />
+      )}
     </div>
   );
 }

@@ -101,7 +101,7 @@ app.use((req, res, next) => {
     } catch (e) {
       log("Cron reset failed: " + e, "error");
     }
-    // startAttendanceCron();
+    startAttendanceCron();
     // 2. Register API Routes
     await registerRoutes(httpServer, app);
 

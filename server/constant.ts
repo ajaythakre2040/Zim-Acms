@@ -108,3 +108,32 @@ export const ALERT_TEMPLATES = {
 export const ATTENDANCE_CONFIG = {
   OT_THRESHOLD_MINUTES: 120, // 2 Hours Buffer Policy
 };
+
+
+
+export const MENU_CONFIG = {
+  // --- Dashboard Group ---
+  DASHBOARD: { title: "Dashboard", code: "dash_00", icon: "LayoutDashboard" },
+  ATTENDANCE_SUMMARY: { title: "Attendance Summary", code: "dash_01", icon: "Activity" },
+  SHIFT_ANALYTICS: { title: "Shift Analytics", code: "dash_02", icon: "Zap" },
+  LIVE_LOGS: { title: "Live Access Logs", code: "dash_03", icon: "Clock" },
+
+  // --- Master Data Group ---
+  MASTER_DATA: { title: "Master Data", code: "mast_00", icon: "Layers" },
+  DESIGNATION: { title: "Designation", code: "mast_01", icon: "UserCheck" },
+  DEPARTMENT: { title: "Department", code: "mast_02", icon: "Building2" },
+  ROLE: { title: "Role", code: "mast_03", icon: "Shield" },
+  MENU_MASTER: { title: "Menu", code: "mast_04", icon: "Settings" },
+  CATEGORY: { title: "Category", code: "mast_05", icon: "BookOpen" },
+  COMPANY: { title: "Company", code: "mast_06", icon: "MapPin" },
+
+  // --- Standalone Menus ---
+  EMPLOYEES: { title: "Employees", code: "emp_01", icon: "Users" },
+  SHIFTS: { title: "Shifts", code: "shift_01", icon: "CalendarDays" },
+  HOLIDAYS: { title: "Holidays", code: "holl_01", icon: "Calendar" },
+  REPORTS: { title: "Reports", code: "repo_01", icon: "FileText" },
+  CRON_MASTER: { title: "Cron Master", code: "cron_01", icon: "Timer" },
+  DOORS: { title: "Doors", code: "door_01", icon: "DoorOpen" },
+  DEVICES: { title: "Devices", code: "dev_01", icon: "Cpu" },
+  USER_ADMIN: { title: "User Admin", code: "uadmin_01", icon: "UserCog" },
+} as const;

@@ -9,8 +9,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 export default function RolesPage() {
+    const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.ROLE.code);
+          if (!canView) {
+            return (
+              <div className="p-6 text-center text-muted-foreground">
+                You do not have permission to view this page.
+              </div>
+            );
+          }
   const { data, isLoading, remove } = useCrud("/api/roles", "Role");
   const [, navigate] = useLocation();
 

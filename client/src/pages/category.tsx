@@ -7,8 +7,18 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { validateNoHtml } from "@/lib/validation";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 export default function CategoriesPage() {
+    const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.CATEGORY.code);
+          if (!canView) {
+            return (
+              <div className="p-6 text-center text-muted-foreground">
+                You do not have permission to view this page.
+              </div>
+            );
+          }
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 

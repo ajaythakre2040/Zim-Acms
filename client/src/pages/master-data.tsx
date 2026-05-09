@@ -11,6 +11,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import type { Device } from "@shared/schema";
 import { validateNoHtml } from "../lib/validation";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 // MasterTab updated to accept fields as a function or array
 function MasterTab({
@@ -241,6 +243,15 @@ function MasterTab({
 }
 
 export default function MasterDataPage() {
+    const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.MASTER_DATA.code);
+    if (!canView) {
+      return (
+        <div className="p-6 text-center text-muted-foreground">
+          You do not have permission to view this page.
+        </div>
+      );
+    }
+    
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       {/* <PageHeader title="Master Data" description="Manage designations, categories, companies and departments " /> */}

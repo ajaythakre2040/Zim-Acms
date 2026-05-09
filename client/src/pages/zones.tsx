@@ -40,8 +40,18 @@ import {
 import type { Zone, Door, Site } from "@shared/schema";
 import { useQueryClient } from "@tanstack/react-query";
 import { validateNoHtml } from "../lib/validation";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 export default function ZonesDoorsPage() {
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.DOORS.code);
+  if (!canView) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        You do not have permission to view this page.
+      </div>
+    );
+  }
   const queryClient = useQueryClient();
   const [zoneDialog, setZoneDialog] = useState(false);
   const [doorDialog, setDoorDialog] = useState(false);
@@ -294,6 +304,7 @@ export default function ZonesDoorsPage() {
       className: "text-left",
       render: (z: Zone) => (
         <div className="flex gap-1 justify-start items-center">
+          {canEdit && (
           <Button
             size="icon"
             variant="ghost"
@@ -305,6 +316,8 @@ export default function ZonesDoorsPage() {
           >
             <Pencil className="w-4 h-4" />
           </Button>
+          )}
+          {canDelete && (
           <Button
             size="icon"
             variant="ghost"
@@ -315,6 +328,7 @@ export default function ZonesDoorsPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
+          )}
         </div>
       ),
     },
@@ -406,6 +420,7 @@ export default function ZonesDoorsPage() {
       render: (d: Door) => (
         <div className="flex gap-1 justify-start items-center">
           <TooltipProvider delayDuration={300}>
+            {canEdit && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -423,8 +438,11 @@ export default function ZonesDoorsPage() {
               </TooltipTrigger>
               <TooltipContent>Assign Hardware</TooltipContent>
             </Tooltip>
+            )}
+            {canEdit && (
             <Tooltip>
               <TooltipTrigger asChild>
+                
                 <Button
                   size="icon"
                   variant="ghost"
@@ -440,6 +458,8 @@ export default function ZonesDoorsPage() {
               </TooltipTrigger>
               <TooltipContent>Edit Door</TooltipContent>
             </Tooltip>
+            )}
+            {canDelete && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -457,11 +477,18 @@ export default function ZonesDoorsPage() {
               </TooltipTrigger>
               <TooltipContent>Delete Door</TooltipContent>
             </Tooltip>
+            )}
           </TooltipProvider>
         </div>
       ),
     },
-  ];
+  ].filter(col => {
+    // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
+    if (col.key === 'actions') {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -478,6 +505,7 @@ export default function ZonesDoorsPage() {
         
         <TabsContent value="doors">
           <div className="mb-4 flex justify-end">
+            {canAdd && (
             <Button
               onClick={() => {
                 setEditingDoor(null);
@@ -486,6 +514,7 @@ export default function ZonesDoorsPage() {
             >
               <Plus className="w-4 h-4 mr-1" /> Add Door
             </Button>
+            )}
           </div>
           <DataTable
             columns={doorColumns}
@@ -497,6 +526,7 @@ export default function ZonesDoorsPage() {
         </TabsContent>
         <TabsContent value="zones">
           <div className="mb-4 flex justify-end">
+            {canAdd && (
             <Button
               onClick={() => {
                 setEditingZone(null);
@@ -505,6 +535,7 @@ export default function ZonesDoorsPage() {
             >
               <Plus className="w-4 h-4 mr-1" /> Add Zone
             </Button>
+            )}
           </div>
           <DataTable
             columns={zoneColumns}
@@ -517,6 +548,7 @@ export default function ZonesDoorsPage() {
       </Tabs>
 
       {/* Zone Dialog */}
+      {(canAdd || canEdit) && (
       <CrudDialog
         open={zoneDialog}
         errors={errors}
@@ -579,6 +611,7 @@ export default function ZonesDoorsPage() {
         }}
         isPending={zoneCrud.isCreating || zoneCrud.isUpdating}
       />
+      )}
 
       {/* ✅ ADD THIS RIGHT AFTER CrudDialog */}
       {errors.locationId && (
@@ -588,6 +621,7 @@ export default function ZonesDoorsPage() {
       )}
 
       {/* Door Dialog */}
+      {(canAdd || canEdit) && (
       <CrudDialog
         open={doorDialog}
         errors={errors}
@@ -648,7 +682,7 @@ export default function ZonesDoorsPage() {
         }}
         isPending={doorCrud.isCreating || doorCrud.isUpdating}
       />
-
+      )}
       {/* Device Mapping Dialog */}
       <Dialog open={mappingDialog} onOpenChange={setMappingDialog}>
         <DialogContent className="sm:max-w-[520px]">

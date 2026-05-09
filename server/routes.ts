@@ -1234,5 +1234,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
     res.json(data);
   });
+  app.get("/api/reports/employee-productive-report", async (req, res) => {
+    try {
+      const { date, employeeCode } = req.query;
+
+      const data = await storage.getEmployeeProductiveReport({
+        date: date as string,
+        employeeCode: employeeCode as string,
+      });
+
+      res.json({
+        success: true,
+        count: data.length,
+        data,
+      });
+    } catch (error: any) {
+      console.error("Employee Productive Report Error:", error);
+
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch productive report",
+        error: error.message,
+      });
+    }
+  });
   return httpServer;
 }

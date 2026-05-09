@@ -39,8 +39,18 @@ import { useState, useMemo } from "react";
 import { CrudDialog } from "@/components/crud-dialog";
 import { Badge } from "@/components/ui/badge";
 import { validateNoHtml } from "@/lib/validation";
+import { MENU_CONFIG } from "../../../server/constant";
+import { usePermission } from "@/hooks/use-permission";
 
 export default function MenuPage() {
+    const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.MENU_MASTER.code);
+          if (!canView) {
+            return (
+              <div className="p-6 text-center text-muted-foreground">
+                You do not have permission to view this page.
+              </div>
+            );
+          }
   // 1. Hook se setErrors nikalna zaroori hai
   const {
     data = [],
