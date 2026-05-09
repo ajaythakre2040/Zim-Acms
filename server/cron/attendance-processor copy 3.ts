@@ -132,7 +132,7 @@ export async function processAttendanceBatch(rawPunches: any[]) {
             const doorName = mapping?.doorName || device.name;
             const doorId = mapping?.doorId || device.id;
 
-            let detectedShiftName = "General";
+            let detectedShiftName = "-";
             let detectedShiftTime = "N/A";
             let detectedWorkingHours = 8;
 
@@ -186,6 +186,8 @@ export async function processAttendanceBatch(rawPunches: any[]) {
                 isProductive: isIncoming,
                 prevZone: prevZone,
                 currentZone: zoneLabel,
+                shiftName: detectedShiftName,
+                shiftTime: detectedShiftTime, // 👈 ADD THIS
             });
 
             await db.transaction(async (tx) => {
@@ -197,7 +199,7 @@ export async function processAttendanceBatch(rawPunches: any[]) {
                         updatedAt: new Date(),
                     })
                     .where(eq(people.employeeCode, msEmpCode));
-
+                console.log("New UPDATE:", msEmpCode, punchTime.toDate(), shiftMinutes, detectedShiftName, detectedShiftTime);
                 await updateSummaryWithOT(
                     tx,
                     msEmpCode,
@@ -246,6 +248,7 @@ async function updateSummaryWithOT(
     shiftStart: any,
     shiftEnd: any,
 ) {
+    console.log("Updating summary for:", empCode, date, shiftMinutes, shiftName, shiftStart, shiftEnd);
     const [existing] = await tx
         .select()
         .from(dailyAttendanceSummary)
@@ -255,6 +258,7 @@ async function updateSummaryWithOT(
                 eq(dailyAttendanceSummary.workDate, date),
             ),
         );
+    console.log("Existing Summary:", existing);
     const finalShiftName = existing?.shiftname || shiftName || "General";
 
     const finalShiftTime = existing?.shifttime || shiftStart || "N/A";
@@ -279,7 +283,7 @@ async function updateSummaryWithOT(
             employeeName: employeeName,
             workDate: date,
             firstIn: punchTime,
-            lastOut: punchTime,
+            // lastOut: punchTime,
             totalOfficeMinutes: totalOffice,
             productiveMinutes: productive,
             overtimeMinutes: finalOvertime,
