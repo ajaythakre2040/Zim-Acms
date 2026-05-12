@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
+import { formatDateTime } from "@/lib/utils";
 
 export default function LiveLogsDashboard() {
       const { canExport, canView } = usePermission(MENU_CONFIG.LIVE_LOGS.code);
@@ -185,8 +186,9 @@ export default function LiveLogsDashboard() {
                                                     {log.direction}
                                                 </span>
                                             </td>
+                                           
                                             <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
-                                                {log.logDate?.replace("T", " ").split(".")[0]}
+                                                {log.logDate ? formatDateTime(log.logDate) : "-"}
                                             </td>
                                             {/* <td className="px-4 py-3">
                                                 <span
