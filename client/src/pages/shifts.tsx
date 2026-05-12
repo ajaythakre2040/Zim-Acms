@@ -10,7 +10,6 @@ import { Plus, Pencil, Trash2 } from "lucide-react";
 import type { Shift } from "@shared/schema";
 import { validateNoHtml } from "../lib/validation";
 import { MENU_CONFIG } from "../../../server/constant";
-
 export default function ShiftsPage() {
   const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.SHIFTS.code);
   if (!canView) {
@@ -24,26 +23,19 @@ export default function ShiftsPage() {
   const [editing, setEditing] = useState<Shift | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { data = [], isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Shift>("/api/shifts", "Shift");
-  const [formKey, setFormKey] = useState(0); // 🔥 force re-render
-
+  const [formKey, setFormKey] = useState(0); 
   const calculateWorkingHours = (start: string, end: string) => {
     if (!start || !end) return 0;
-
     const [sh, sm] = start.split(":").map(Number);
     const [eh, em] = end.split(":").map(Number);
-
     let startMinutes = sh * 60 + sm;
     let endMinutes = eh * 60 + em;
-
     if (endMinutes < startMinutes) {
       endMinutes += 24 * 60;
     }
-
     const diff = endMinutes - startMinutes;
     return +(diff / 60).toFixed(2);
   };
-
-  // 🔥 FIELDS
   const fields: FieldConfig[] = [
     { key: "name", label: "Shift Name", required: true },
     {
@@ -65,21 +57,16 @@ export default function ShiftsPage() {
       required: true,
     },
     { key: "breakDuration", label: "Break (mins)", type: "number", defaultValue: 0 },
-
-    // 🔥 LIVE DISPLAY
     {
       key: "workingHours",
       label: "Working Hours",
       type: "number",
       disabled: true,
     },
-
     { key: "halfDayHours", label: "Half Day Hours", type: "number", defaultValue: 4 },
     { key: "thresholdMins", label: "Threshold (mins)", type: "number", defaultValue: 30 },
     { key: "isActive", label: "Active", type: "switch", defaultValue: true },
   ];
-
-  // 🔥 COLUMNS
   const columns = [
     { key: "name", label: "Shift", render: (s: Shift) => <span className="font-medium">{s.name}</span> },
     { key: "code", label: "Code", hideOnMobile: true },
@@ -91,7 +78,6 @@ export default function ShiftsPage() {
       render: (s: Shift) =>
         s.isActive ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge>,
     },
-
     {
       key: "actions",
       label: "Actions",
@@ -101,18 +87,14 @@ export default function ShiftsPage() {
           <Button
             size="icon"
             variant="ghost"
-            // disabled={!canEdit}
             onClick={(e) => {
-              // if (!canEdit) return;
               e.stopPropagation();
-
               const updatedShift = {
                 ...s,
                 workingHours: calculateWorkingHours(s.startTime, s.endTime),
               };
-
               setEditing(updatedShift);
-              setFormKey((prev) => prev + 1); // 🔥 force refresh
+              setFormKey((prev) => prev + 1); 
               setDialogOpen(true);
             }}
           >
@@ -136,13 +118,11 @@ export default function ShiftsPage() {
       ),
     },
   ].filter(col => {
-    // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
     if (col.key === 'actions') {
       return canEdit || canDelete;
     }
     return true;
   });
-
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <PageHeader
@@ -153,7 +133,7 @@ export default function ShiftsPage() {
           <Button
             onClick={() => {
               setEditing(null);
-              setFormKey((prev) => prev + 1); // 🔥 reset form
+              setFormKey((prev) => prev + 1); 
               setDialogOpen(true);
             }}
           >
@@ -161,7 +141,6 @@ export default function ShiftsPage() {
           </Button>
         }
       />
-
       <DataTable
         columns={columns}
         data={data}
@@ -172,7 +151,7 @@ export default function ShiftsPage() {
       />
       {(canAdd || canEdit) && (
       <CrudDialog
-        key={formKey} // 🔥 FORCE RERENDER
+        key={formKey} 
         open={dialogOpen}
         errors={errors}
         onClose={() => {
@@ -183,42 +162,40 @@ export default function ShiftsPage() {
         title={editing ? "Edit Shift" : "Add Shift"}
         fields={fields}
         initialData={editing || undefined}
-        onSubmit={async (formData) => {
-          if ((editing && !canEdit) || (!editing && !canAdd)) {
-          try {
-            setErrors({});
-
-            const updatedData = {
-              ...formData,
-              workingHours: calculateWorkingHours(
-                formData.startTime,
-                formData.endTime
-              ),
-            };
-
-            const validationErrors = validateNoHtml(updatedData);
-            if (Object.keys(validationErrors).length > 0) {
-              setErrors(validationErrors);
+          onSubmit={async (formData) => {
+            if ((editing && !canEdit) || (!editing && !canAdd)) {
               return;
             }
-
-            if (editing) {
-              await update({ id: editing.id, data: updatedData });
-            } else {
-              await create(updatedData);
-            }
-
-            setDialogOpen(false);
-            setEditing(null);
-          } catch (err: any) {
-            const msg = err.response?.data?.message || err.message || "";
-            if (msg.toLowerCase().includes("code")) {
-              setErrors({ code: "Shift code already exists" });
-            } else {
-              setErrors({ general: "Save failed" });
+            try {
+              setErrors({});
+              const updatedData = {
+                ...formData,
+                workingHours: calculateWorkingHours(
+                  formData.startTime,
+                  formData.endTime
+                ),
+              };
+              const validationErrors = validateNoHtml(updatedData);
+              if (Object.keys(validationErrors).length > 0) {
+                setErrors(validationErrors);
+                return;
+              }
+              if (editing) {
+                await update({ id: editing.id, data: updatedData });
+              } else {
+                await create(updatedData);
+              }
+              setDialogOpen(false);
+              setEditing(null);
+            } catch (err: any) {
+              const msg = err.response?.data?.message || err.message || "";
+              if (msg.toLowerCase().includes("code")) {
+                setErrors({ code: "Shift code already exists" });
+              } else {
+                setErrors({ general: "Save failed" });
+              }
             }
           }}
-        }}
         isPending={isCreating || isUpdating}
       />
       )}

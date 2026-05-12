@@ -18,35 +18,55 @@ export async function runSyncTask() {
         const request = mssqlPool.request();
         request.input('lastId', lastId);
 
-        // Fetch logs with local date string conversion
+        // // Fetch 1000 records from MS SQL
+        // const result = await request.query(
+        //     `SELECT TOP 1000 * FROM DeviceLogs WHERE DeviceLogId > @lastId ORDER BY DeviceLogId ASC`
+        // );
         const result = await request.query(
             `SELECT TOP 1000 
-                DeviceLogId, DeviceId, EmployeeCode, 
-                CONVERT(varchar, LogDate, 120) as LogDate 
-            FROM DeviceLogs 
-            WHERE DeviceLogId > @lastId 
-            ORDER BY DeviceLogId ASC`
+        DeviceLogId, 
+        DeviceId, 
+        EmployeeCode, 
+        -- LogDate ko YYYY-MM-DD HH:mm:ss format mein convert karo
+        CONVERT(varchar, LogDate, 120) as LogDate, 
+        VerificationType, 
+        GPS, 
+        Direction, 
+        WorkCode, 
+        ParalellSyncStatus
+    FROM DeviceLogs 
+    WHERE DeviceLogId > @lastId 
+    ORDER BY DeviceLogId ASC`
         );
-
         const punches = result.recordset || [];
+        console.log("punches", punches)
         if (punches.length > 0) {
+            const timeStr = new Date().toLocaleTimeString();
+            // console.log(`[${timeStr}] 📥 Processing ${punches.length} records...`);
+
             await processAttendanceBatch(punches);
 
             const latestId = punches[punches.length - 1].DeviceLogId;
+
             await db.insert(syncMeta)
                 .values({ syncCode: MAIN_GATE_SYNC.CODE, lastProcessedId: latestId })
                 .onConflictDoUpdate({
                     target: [syncMeta.syncCode],
                     set: { lastProcessedId: latestId, updatedAt: new Date() }
                 });
+
+            console.log(`[${timeStr}] ✅ Sync Complete. Last ID: ${latestId}`);
         }
     } catch (err: any) {
-        console.error(`❌ Scheduler Error:`, err.message);
+        console.error(`[${new Date().toLocaleTimeString()}] ❌ Sync Error:`, err.message);
     } finally {
         isSyncing = false;
     }
 }
 
 export function startAttendanceCron() {
-    cron.schedule("*/2 * * * * *", () => runSyncTask()); // Runs every 2 seconds
+    console.log("🚀 ZIM-ACMS Sync Service Running (Every 2s)");
+    cron.schedule("*/2 * * * * *", async () => {
+        runSyncTask().catch(err => console.error("Cron Crash:", err));
+    });
 }

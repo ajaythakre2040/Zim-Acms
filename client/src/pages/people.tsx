@@ -8,7 +8,7 @@ import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { RefreshCw, Pencil, Eye, Trash2, UserPlus } from "lucide-react";
+import { ShieldCheck,RefreshCw, Pencil, Eye, Trash2, UserPlus } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { validateNoHtml } from "@/lib/validation";
 import type {
@@ -518,7 +518,7 @@ export default function PeoplePage() {
                       setDeviceStatusOpen(true); // Modal kholo
                     }}
                   >
-                    <Eye className="w-4 h-4 text-blue-500" />
+                    <ShieldCheck className="w-4 h-4 text-blue-500" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
