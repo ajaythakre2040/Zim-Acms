@@ -111,7 +111,7 @@ export async function processAttendanceBatch(rawPunches: any[]) {
             const doorName = mapping?.doorName || device.name;
             const doorId = mapping?.doorId || device.id;
 
-            let detShiftName = "General";
+            let detShiftName = "-";
             let detShiftTime = "N/A";
             let detWorkingHours = 8;
 
