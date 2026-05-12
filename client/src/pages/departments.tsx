@@ -63,6 +63,7 @@ export default function DepartmentsPage() {
       label: "Actions",
       render: (item: any) => (
         <div className="flex gap-1">
+          {canEdit && (
           <Button
             size="icon"
             variant="ghost"
@@ -75,6 +76,8 @@ export default function DepartmentsPage() {
           >
             <Pencil className="w-4 h-4" />
           </Button>
+          )}
+          {canDelete && ( 
 
           <Button
             size="icon"
@@ -106,10 +109,17 @@ export default function DepartmentsPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter((col) => {
+    // Agar actions column hai, toh sirf tab dikhao jab edit ya delete ki permission ho
+    if (col.key === "actions") {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   const handleSubmit = async (formData: any) => {
     try {
@@ -124,8 +134,10 @@ export default function DepartmentsPage() {
 
       // 🚀 API Call Logic
       if (edit) {
+        if (!canEdit) return;
         await update({ id: edit.id, data: formData });
       } else {
+        if (!canAdd) return;
         await create(formData);
       }
 
@@ -171,6 +183,7 @@ export default function DepartmentsPage() {
       </div>
 
       <div className="flex justify-end mb-4">
+        {canAdd && (
         <Button
           onClick={() => {
             setEdit(null);
@@ -179,6 +192,7 @@ export default function DepartmentsPage() {
         >
           <Plus className="w-4 h-4 mr-1" /> Add Department
         </Button>
+        )}
       </div>
 
       {/* TABLE */}

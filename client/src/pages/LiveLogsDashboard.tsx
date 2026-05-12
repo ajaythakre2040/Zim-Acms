@@ -12,8 +12,19 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 export default function LiveLogsDashboard() {
+      const { canExport, canView } = usePermission(MENU_CONFIG.LIVE_LOGS.code);
+      if (!canView) {
+        return (
+          <div className="p-10 text-center">
+            <h2 className="text-xl font-semibold">Access Denied</h2>
+            <p className="text-muted-foreground">You don't have permission to view reports.</p>
+          </div>
+        );
+      }
     const [, setLocation] = useLocation();
     const REFRESH_MS = 2000;
 
@@ -102,6 +113,7 @@ export default function LiveLogsDashboard() {
                         </button>
 
                         {/* Export CSV - Green Theme */}
+                        {canExport && (
                         <button
                             onClick={exportToCSV}
                             className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors shadow-sm font-medium flex items-center gap-1.5"
@@ -121,6 +133,7 @@ export default function LiveLogsDashboard() {
                             </svg>
                             Export CSV
                         </button>
+                        )}
                     </div>
                 </CardHeader>
 

@@ -10,13 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 export default function RoleFormPage() {
+
   const { id } = useParams();
   const roleId = id;
   const isEdit = !!roleId;
   const [, navigate] = useLocation();
-
+  const { canAdd, canEdit, canView, isLoading: isPermLoading } = usePermission(MENU_CONFIG.ROLE.code); const hasAccess = isEdit ? canEdit : canAdd;
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [form, setForm] = useState({
     roleName: "",
@@ -37,12 +40,13 @@ export default function RoleFormPage() {
   }, [toast]);
 
   // ✅ Fetch Menus
-  const { data: menus = [] } = useQuery({
+  const { data: menus = [], isLoading: isMenuLoading } = useQuery({
     queryKey: ["menus"],
     queryFn: async () => {
       const res = await fetch("/api/menus");
       return res.json();
     },
+    enabled: hasAccess,
   });
 
   // ✅ Fetch Role & Permissions for Edit
@@ -124,7 +128,7 @@ export default function RoleFormPage() {
       }
 
       setToast({ message: "Role saved successfully!", type: "success" });
-      setTimeout(() => navigate("/master-data/roles"), 1500);
+      setTimeout(() => navigate("/role"), 1500);
     } catch (err: any) {
       setToast({
         message: err.message || "An unexpected error occurred",
@@ -132,7 +136,42 @@ export default function RoleFormPage() {
       });
     }
   };
+  // ==========================================================
+  // 🛡️ SECURITY CHECK & LOADING UI
+  // ==========================================================
 
+  // 1. Loading State
+  if (isPermLoading || isMenuLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
+
+  // 2. Access Denied State ✅ (YAHAN DALA HAI)
+  if (!hasAccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
+          <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-rose-500" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-800">Access Denied</h2>
+          <p className="text-slate-500 mt-2 text-sm">
+            You do not have permission to {isEdit ? "edit" : "create"} role configurations.
+            Please contact your administrator for access.
+          </p>
+          <Button
+            className="mt-6 w-full bg-slate-900"
+            onClick={() => navigate("/role")}
+          >
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Roles
+          </Button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="min-h-screen bg-slate-50/50 p-6 font-sans">
       <div className="max-w-[1400px] mx-auto space-y-6">
@@ -325,27 +364,34 @@ export default function RoleFormPage() {
           <div className="flex items-center gap-3 pl-4">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+              {isEdit ? "Modifying existing role" : "Creating new role entry"}
               Unsaved changes detected in configuration
             </p>
           </div>
           <div className="flex gap-4">
             <Button
               variant="ghost"
-              onClick={() => navigate("/master-data/roles")}
+              onClick={() => navigate("/role")}
               className="text-slate-500 hover:bg-slate-100 px-8 font-medium"
             >
               Discard
             </Button>
-            <Button
-              onClick={handleSubmit}
-            //   className="bg-slate-900 hover:bg-slate-800 text-white px-12 rounded-xl font-bold shadow-lg transition-all active:scale-95"
-            >
-              <Save className="w-4 h-4 mr-2" /> {isEdit ? "Update Changes" : "Save Role"}
-            </Button>
+
+            {/* Yahan humne permission check add kiya hai */}
+            {hasAccess && (
+              <Button
+                onClick={handleSubmit}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-12 rounded-xl font-bold shadow-lg transition-all active:scale-95"
+              >
+                <Save className="w-4 h-4 mr-2" />
+                {isEdit ? "Update Changes" : "Save Role"}
+              </Button>
+            )}
           </div>
+        </div>
         </div>
 
       </div>
-    </div>
+    
   );
 }

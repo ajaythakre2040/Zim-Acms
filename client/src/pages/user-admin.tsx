@@ -186,9 +186,12 @@ export default function UserAdminPage() {
       label: "Actions",
       render: (p: any) => (
         <div className="flex gap-1">
+          {canEdit && (
           <Button size="icon" variant="ghost" onClick={() => { setEditing(p); setDialogOpen(true); }}>
             <Pencil className="w-4 h-4" />
           </Button>
+          )}
+          {canDelete && ( 
           <Button
             size="icon"
             variant="ghost"
@@ -198,6 +201,7 @@ export default function UserAdminPage() {
           >
             {deleteMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
           </Button>
+          )}
         </div>
       ),
     },
@@ -205,12 +209,15 @@ export default function UserAdminPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto text-left">
+
       <PageHeader
         title="User Administration"
         action={
+          canAdd && (
           <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
             <Plus className="w-4 h-4 mr-1" /> Add User
           </Button>
+          )
         }
       />
 

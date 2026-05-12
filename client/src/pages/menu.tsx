@@ -215,6 +215,7 @@ export default function MenuPage() {
       label: "Actions",
       render: (item: any) => (
         <div className="flex gap-1">
+          {canEdit && (
           <Button
             size="icon"
             variant="ghost"
@@ -227,6 +228,8 @@ export default function MenuPage() {
           >
             <Pencil className="w-4 h-4" />
           </Button>
+          )}
+          {canDelete && (
           <Button
             size="icon"
             variant="ghost"
@@ -237,10 +240,16 @@ export default function MenuPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(col => {
+    if (col.key === 'actions') {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   return (
     <div className="p-6 space-y-6 bg-slate-50/30 h-screen flex flex-col font-sans overflow-hidden">
@@ -253,6 +262,7 @@ export default function MenuPage() {
             Configure hierarchy and visibility for navigation modules.
           </p>
         </div>
+        {canAdd && (
         <Button
           onClick={() => {
             setEdit(null);
@@ -264,6 +274,7 @@ export default function MenuPage() {
         >
           <Plus className="w-4 h-4 stroke-[3]" /> Add Menu Item
         </Button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col flex-1 min-h-0 overflow-hidden">

@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { type Person } from "@shared/schema";
 import React from "react";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 // 1. Updated Report Configuration
 const reportTypes = [
@@ -143,6 +145,14 @@ function getCurrentMonthRange() {
 }
 
 export function exportDailyEfficiencyCSV(apiResponse: any, doors: any[]) {
+   const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.REPORTS.code);
+    if (!canView) {
+      return (
+        <div className="p-6 text-center text-muted-foreground">
+          You do not have permission to view this page.
+        </div>
+      );
+    }
   // Backend response se data nikaalna
   const reportData = apiResponse?.data || apiResponse || [];
   if (!Array.isArray(reportData) || !reportData.length) return;
@@ -1232,9 +1242,11 @@ function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
                   </td>
                   {/* EFFICIENCY */}
                   <td className="text-center p-3 font-semibold">
-                    {shiftHours > 0
+                    {Number(r.totalPresenceHours || 0) > 0
                       ? `${Math.round(
-                        (Number(r.productiveHours || 0) / shiftHours) * 100,
+                        (Number(r.productiveHours || 0) /
+                          Number(r.totalPresenceHours || 0)) *
+                        100,
                       )}%`
                       : "-"}
                   </td>
@@ -1337,6 +1349,15 @@ function getDaysInMonth(dateStr?: string) {
 }
 // 4. Main Page Component
 export default function ReportsPage() {
+  const { canExport, canView } = usePermission(MENU_CONFIG.REPORTS.code);
+  if (!canView) {
+    return (
+      <div className="p-10 text-center">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-muted-foreground">You don't have permission to view reports.</p>
+      </div>
+    );
+  }
   const [activeReport, setActiveReport] = useState("attendance");
   const [location] = useLocation();
 
@@ -1628,6 +1649,7 @@ export default function ReportsPage() {
                   <CardTitle className="text-sm font-semibold">
                     Attendance Results ({reportData.length})
                   </CardTitle>
+                    {canExport && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1635,6 +1657,7 @@ export default function ReportsPage() {
                   >
                     <Download className="w-4 h-4 mr-2" /> Export
                   </Button>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0">
                   <AttendanceTable data={reportData} />
@@ -1647,6 +1670,7 @@ export default function ReportsPage() {
                   <CardTitle className="text-sm font-semibold">
                     Access Logs Results ({reportData.length})
                   </CardTitle>
+                    {canExport && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1654,6 +1678,7 @@ export default function ReportsPage() {
                   >
                     <Download className="w-4 h-4 mr-2" /> Export
                   </Button>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0">
                   <AccessLogs data={reportData} />
@@ -1672,7 +1697,7 @@ export default function ReportsPage() {
                     <CardTitle className="text-sm font-semibold">
                       Monthly Attendance Summary (1-31 Days)
                     </CardTitle>
-
+                      {canExport && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1682,6 +1707,7 @@ export default function ReportsPage() {
                     >
                       <Download className="w-4 h-4 mr-2" /> Export
                     </Button>
+                      )}
                   </CardHeader>
                   <CardContent className="p-0">
                     <DaliyPerformanceSummaryTable
@@ -1697,7 +1723,7 @@ export default function ReportsPage() {
                     <CardTitle className="text-sm font-semibold">
                       Performance Overtime & Hours Summary
                     </CardTitle>
-
+                      {canExport && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1707,6 +1733,7 @@ export default function ReportsPage() {
                     >
                       <Download className="w-4 h-4 mr-2" /> Export
                     </Button>
+                      )}
                   </CardHeader>
                   <CardContent className="p-0">
                     <DaliyPerformanceOvertimeSummaryTable
@@ -1726,7 +1753,7 @@ export default function ReportsPage() {
                     <CardTitle className="text-sm font-semibold">
                       Daily Performance Details
                     </CardTitle>
-
+                      {canExport && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1735,6 +1762,7 @@ export default function ReportsPage() {
                       <Download className="w-4 h-4 mr-2" />
                       Export
                     </Button>
+                      )}
                   </CardHeader>
 
                   <CardContent className="p-0">
@@ -1748,7 +1776,7 @@ export default function ReportsPage() {
                     <CardTitle className="text-sm font-semibold">
                       Daily Efficiency Results
                     </CardTitle>
-
+                      {canExport && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1760,6 +1788,7 @@ export default function ReportsPage() {
                       <Download className="w-4 h-4 mr-2" />
                       Export
                     </Button>
+                      )}
                   </CardHeader>
 
                   <CardContent className="p-0">
@@ -1778,6 +1807,7 @@ export default function ReportsPage() {
                   <CardTitle className="text-sm font-semibold">
                     Lockout Results ({reportData.length})
                   </CardTitle>
+                    {canExport && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1785,6 +1815,7 @@ export default function ReportsPage() {
                   >
                     <Download className="w-4 h-4 mr-2" /> Export
                   </Button>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0">
                   <LockoutReportTable data={reportData} />

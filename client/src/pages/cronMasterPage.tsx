@@ -32,23 +32,27 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
-
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 export default function CronMasterPage() {
+    const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.CRON_MASTER.code);
+    if (!canView) {
+        return (
+            <div className="p-6 text-center text-muted-foreground">
+                You do not have permission to view this page.
+            </div>
+        );
+    }
     const { toast } = useToast();
     const [activeTab, setActiveTab] = useState("mainGate");
     const [editingJob, setEditingJob] = useState<any>(null);
     const [isCabinModalOpen, setIsCabinModalOpen] = useState(false);
     const [isGateModalOpen, setIsGateModalOpen] = useState(false);
     const [isDoorModalOpen, setIsDoorModalOpen] = useState(false);
-
-    // States for Door Selection
     const [selectedDoorIds, setSelectedDoorIds] = useState<number[]>([]);
     const [currentJobForDoors, setCurrentJobForDoors] = useState<any>(null);
     const [doorSearchQuery, setDoorSearchQuery] = useState("");
     const [isBulkUpdating, setIsBulkUpdating] = useState(false);
-
-    // --- API SERVICES ---
-    // Using 'refetch' instead of 'mutate' as per your use-crud hook structure
     const { data: gateJobs, refetch: refetchGate } = useCrud<any>(
         "/api/cron-jobs/main-gate",
         "Main Gate",
@@ -60,69 +64,53 @@ export default function CronMasterPage() {
     const {
         data: eligibleDoors,
         isLoading: isLoadingDoors,
-        refetch: refetchDoors, // 👈 ye add karo
+        refetch: refetchDoors,
     } = useCrud<any>("/api/doors/lockout-eligible", "Eligible Doors");
-
     const { update: updateCronTask, isUpdating: isProcessing } = useCrud<any>(
         "/api/cron-lists",
         "Cron Manager",
     );
-
     const mainGateSyncJob = gateJobs?.[0];
     const cabinLockoutJob = cabinJobs?.[0];
-
-    // --- PERSISTENCE ---
     useEffect(() => {
         const saved = localStorage.getItem("cron_active_tab");
         if (saved) setActiveTab(saved);
     }, []);
-
     useEffect(() => {
         if (isDoorModalOpen) {
             refetchDoors();
         }
     }, [isDoorModalOpen]);
-
     const onTabChange = (value: string) => {
         setActiveTab(value);
         localStorage.setItem("cron_active_tab", value);
     };
     useEffect(() => {
         if (isDoorModalOpen && eligibleDoors) {
-            // Jab modal khule, check karo ki DB se kounse true aa rahe hain
             const enabledOnes = eligibleDoors
                 .filter((d: any) => d.is_lockout_enabled === true)
                 .map((d: any) => d.id);
-
             setSelectedDoorIds(enabledOnes);
         }
     }, [isDoorModalOpen, eligibleDoors]);
-    // --- CORE FUNCTIONS ---
-
     /**
      * 🚪 BULK DOOR UPDATE (Direct Table Update)
      * Calls: /api/doors/bulk-lockout
      */
     const handleAssignDoors = async () => {
         if (!currentJobForDoors || !eligibleDoors) return;
-
-        // Logic: Sab IDs nikaalo aur unhe do groups mein baanto
         const allDoorIds = eligibleDoors.map((d: any) => d.id);
-        const enabledIds = selectedDoorIds; // Jo checked hain
+        const enabledIds = selectedDoorIds;
         const disabledIds = allDoorIds.filter(
             (id: number) => !selectedDoorIds.includes(id),
-        ); // Jo checked nahi hain
-
+        );
         setIsBulkUpdating(true);
         try {
-            // API Call
             const response = await fetch("/api/doors/bulk-lockout", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ enabledIds, disabledIds }),
             });
-
-            // Cron Config Update (Taaki next time modal khule toh selections dikhein)
             await updateCronTask({
                 id: currentJobForDoors.id,
                 data: {
@@ -132,10 +120,9 @@ export default function CronMasterPage() {
                     },
                 },
             });
-
             toast({ title: "Success", description: "Doors updated successfully!" });
             setIsDoorModalOpen(false);
-            refetchCabin(); // Refresh table data
+            refetchCabin();
         } catch (error) {
             toast({
                 title: "Error",
@@ -155,11 +142,8 @@ export default function CronMasterPage() {
                 id: editingJob.id,
                 data: payload,
             });
-
-            // Refreshing specific list based on task type
             if (type === "gate") await refetchGate();
             else await refetchCabin();
-
             toast({
                 title: "Updated",
                 description: "Cron settings saved successfully.",
@@ -174,8 +158,6 @@ export default function CronMasterPage() {
             });
         }
     };
-
-    // --- TABLE COLUMNS ---
     const gateColumns = [
         {
             key: "displayName",
@@ -231,149 +213,27 @@ export default function CronMasterPage() {
             key: "actions",
             label: "Action",
             render: (row: any) => (
-                <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={() => {
-                        setEditingJob(row);
-                        setIsGateModalOpen(true);
-                    }}
-                >
-                    <Pencil className="w-4 h-4 text-slate-400" />
-                </Button>
+                canEdit && (
+                    <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => {
+                            setEditingJob(row);
+                            setIsGateModalOpen(true);
+                        }}
+                    >
+                        <Pencil className="w-4 h-4 text-slate-400" />
+                    </Button>
+                )
             ),
         },
-    ];
-
-    //   const cabinColumns = [
-    //     {
-    //       key: "displayName",
-    //       label: "Task Name",
-    //       render: (row: any) => (
-    //         <span className="font-bold text-slate-700">{row?.displayName}</span>
-    //       ),
-    //     },
-    //     {
-    //       key: "code",
-    //       label: "Code",
-    //       render: (row: any) => (
-    //         <span className="text-[11px] font-mono text-slate-500 uppercase bg-slate-100 px-1.5 py-0.5 rounded">
-    //           {row?.code}
-    //         </span>
-    //       ),
-    //     },
-    //     {
-    //       key: "scheduleTime",
-    //       label: "Scheduled Time",
-    //       render: (row: any) => (
-    //         <div className="text-xs font-semibold text-blue-600">
-    //         {row?.scheduleSecond}s 
-    //         </div>
-    //       ),
-    //     },
-    //     {
-    //       key: "status",
-    //       label: "Status",
-    //       render: (row: any) => (
-    //         <Badge
-    //           variant={row?.isActive ? "outline" : "destructive"}
-    //           className={
-    //             row?.isActive
-    //               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-    //               : ""
-    //           }
-    //         >
-    //           {row?.isActive ? "ACTIVE" : "INACTIVE"}
-    //         </Badge>
-    //       ),
-    //     },
-    //     {
-    //       key: "lastRun",
-    //       label: "Last Run",
-    //       render: (row: any) => (
-    //         <span className="text-xs text-slate-500">
-    //           {row?.lastRun ? row.lastRun.split(".")[0].replace("T", " ") : "Never"}
-    //         </span>
-    //       ),
-    //     },
-    //     // {
-    //     //     key: "actions",
-    //     //     label: "Action",
-    //     //     render: (row: any) => (
-    //     //         <div className="flex gap-1">
-    //     //             <TooltipProvider>
-    //     //                 <Tooltip>
-    //     //                     <TooltipTrigger asChild>
-    //     //                         <Button
-    //     //                             size="icon"
-    //     //                             variant="ghost"
-    //     //                             className="hover:bg-blue-50"
-    //     //                             onClick={() => {
-    //     //                                 setCurrentJobForDoors(row);
-    //     //                                 setSelectedDoorIds(row?.config?.assignedDoors || []);
-    //     //                                 setIsDoorModalOpen(true);
-    //     //                                 setDoorSearchQuery("");
-    //     //                                 refetchDoors();
-    //     //                             }}
-    //     //                         >
-    //     //                             <DoorOpen className="w-4 h-4 text-blue-500" />
-    //     //                         </Button>
-    //     //                     </TooltipTrigger>
-    //     //                     <TooltipContent>Assign Doors</TooltipContent>
-    //     //                 </Tooltip>
-    //     //             </TooltipProvider>
-    //     {
-    //       key: "actions",
-    //       label: "Action",
-    //       render: (row: any) => (
-    //         <div className="flex gap-1">
-    //           <TooltipProvider>
-    //             <Tooltip>
-    //               <TooltipTrigger asChild>
-    //                 <Button
-    //                   size="icon"
-    //                   variant="ghost"
-    //                   className="hover:bg-blue-50"
-    //                   onClick={async () => {
-    //                     // 1. Refetch se result object lo
-    //                     const result = await refetchDoors();
-
-    //                     // 2. Result ke andar se data nikaalo (check karo ki data exist karta h)
-    //                     const freshDoors = result.data;
-
-    //                     // 3. Ab filter kaam karega
-    //                     const preSelectedIds = freshDoors
-    //                       ? freshDoors
-    //                           .filter((d: any) => d.is_lockout_enabled === true)
-    //                           .map((d: any) => d.id)
-    //                       : [];
-
-    //                     setCurrentJobForDoors(row);
-    //                     setSelectedDoorIds(preSelectedIds);
-    //                     setIsDoorModalOpen(true);
-    //                     setDoorSearchQuery("");
-    //                   }}
-    //                 >
-    //                   <DoorOpen className="w-4 h-4 text-blue-500" />
-    //                 </Button>
-    //               </TooltipTrigger>
-    //               <TooltipContent>Assign Doors</TooltipContent>
-    //             </Tooltip>
-    //           </TooltipProvider>
-    //           <Button
-    //             size="icon"
-    //             variant="ghost"
-    //             onClick={() => {
-    //               setEditingJob(row);
-    //               setIsCabinModalOpen(true);
-    //             }}
-    //           >
-    //             <Pencil className="w-4 h-4 text-slate-400" />
-    //           </Button>
-    //         </div>
-    //       ),
-    //     },
-    //   ];
+    ].filter(col => {
+        // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
+        if (col.key === 'actions') {
+            return canEdit ;
+        }
+        return true;
+    });
     const cabinColumns = [
         {
             key: "displayName",
@@ -391,81 +251,40 @@ export default function CronMasterPage() {
                 </span>
             ),
         },
-        // {
-        //     // JSON data se lockoutHours aur lockoutMinutes nikaalna
-        //     key: "lockoutDuration",
-        //     label: "Lockout Duration",
-        //     render: (row: any) => (
-        //         <div className="flex items-center gap-1.5 text-xs font-semibold text-orange-600 bg-orange-50/50 px-2 py-1 rounded-md border border-orange-100 w-fit">
-        //             <Clock className="w-3.5 h-3.5" />
-        //             {/* Agar value 0 hai toh bhi 0 dikhayega */}
-        //             <span>
-        //                 {(row?.lockoutHours ?? 0)}h {(row?.lockoutMinutes ?? 0)}m
-        //             </span>
-        //         </div>
-        //     ),
-        // },
-        //   {
-        //     key: "status",
-        //     label: "Status",
-        //     render: (row: any) => (
-        //       <Badge
-        //         variant={row?.isActive ? "outline" : "destructive"}
-        //         className={
-        //           row?.isActive
-        //             ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-        //             : ""
-        //         }
-        //       >
-        //         {row?.isActive ? "ACTIVE" : "INACTIVE"}
-        //       </Badge>
-        //     ),
-        //   },
-        //   {
-        //     key: "lastRun",
-        //     label: "Last Run",
-        //     render: (row: any) => (
-        //       <span className="text-xs text-slate-500">
-        //         {/* Safe handling agar lastRun null ho (jaise aapke JSON mein hai) */}
-        //         {row?.lastRun 
-        //           ? row.lastRun.split(".")[0].replace("T", " ") 
-        //           : "Never"}
-        //       </span>
-        //     ),
-        //   },
         {
             key: "actions",
             label: "Action",
             render: (row: any) => (
                 <div className="flex gap-1">
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="hover:bg-blue-50"
-                                    onClick={async () => {
-                                        const result = await refetchDoors();
-                                        const freshDoors = result.data;
-                                        const preSelectedIds = freshDoors
-                                            ? freshDoors
-                                                .filter((d: any) => d.is_lockout_enabled === true)
-                                                .map((d: any) => d.id)
-                                            : [];
-
-                                        setCurrentJobForDoors(row);
-                                        setSelectedDoorIds(preSelectedIds);
-                                        setIsDoorModalOpen(true);
-                                        setDoorSearchQuery("");
-                                    }}
-                                >
-                                    <DoorOpen className="w-4 h-4 text-blue-500" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Assign Doors</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
+                    {canEdit && (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="hover:bg-blue-50"
+                                        onClick={async () => {
+                                            const result = await refetchDoors();
+                                            const freshDoors = result.data;
+                                            const preSelectedIds = freshDoors
+                                                ? freshDoors
+                                                    .filter((d: any) => d.is_lockout_enabled === true)
+                                                    .map((d: any) => d.id)
+                                                : [];
+                                            setCurrentJobForDoors(row);
+                                            setSelectedDoorIds(preSelectedIds);
+                                            setIsDoorModalOpen(true);
+                                            setDoorSearchQuery("");
+                                        }}
+                                    >
+                                        <DoorOpen className="w-4 h-4 text-blue-500" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Assign Doors</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
                     {/* <Button
                         size="icon"
                         variant="ghost"
@@ -479,7 +298,13 @@ export default function CronMasterPage() {
                 </div>
             ),
         },
-    ];
+    ].filter(col => {
+        // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
+        if (col.key === 'actions') {
+            return canEdit 
+        }
+        return true;
+    });
     return (
         <div className="p-6 space-y-6 max-w-7xl mx-auto relative">
             {/* Global Loader Overlay */}
@@ -491,12 +316,10 @@ export default function CronMasterPage() {
                     </div>
                 </div>
             )}
-
             <PageHeader
                 title="Automation Hub"
                 description="System-wide cron task orchestration and door lockout management."
             />
-
             <Tabs value={activeTab} onValueChange={onTabChange}>
                 <TabsList className="bg-slate-100 p-1 border shadow-sm">
                     <TabsTrigger value="mainGate" className="gap-2 px-6">
@@ -506,7 +329,6 @@ export default function CronMasterPage() {
                         <ShieldCheck className="w-4 h-4" /> Cabin Lockout
                     </TabsTrigger>
                 </TabsList>
-
                 <div className="mt-4 border rounded-2xl bg-white shadow-sm overflow-hidden border-slate-200">
                     <TabsContent value="mainGate" className="m-0">
                         <DataTable
@@ -522,7 +344,6 @@ export default function CronMasterPage() {
                     </TabsContent>
                 </div>
             </Tabs>
-
             {/* DOOR ASSIGNMENT MODAL */}
             <Dialog open={isDoorModalOpen} onOpenChange={setIsDoorModalOpen}>
                 <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
@@ -542,7 +363,6 @@ export default function CronMasterPage() {
               <X className="w-5 h-5 opacity-70 hover:opacity-100 transition-opacity" />
             </button> */}
                     </div>
-
                     <div className="p-6 space-y-4">
                         <div className="relative">
                             <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
@@ -553,7 +373,6 @@ export default function CronMasterPage() {
                                 className="w-full pl-10 pr-4 py-3 text-sm border-slate-200 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                             />
                         </div>
-
                         <div className="flex justify-between items-center px-1">
                             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
                                 {selectedDoorIds.length} Selected
@@ -577,7 +396,6 @@ export default function CronMasterPage() {
                                 </button>
                             </div>
                         </div>
-
                         <div className="h-[300px] overflow-y-auto rounded-xl border border-slate-100 bg-slate-50/50 p-2">
                             {isLoadingDoors ? (
                                 <div className="h-full flex flex-col items-center justify-center gap-2 text-slate-400">
@@ -617,7 +435,6 @@ export default function CronMasterPage() {
                             )}
                         </div>
                     </div>
-
                     <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
                         <Button
                             variant="outline"
@@ -641,7 +458,6 @@ export default function CronMasterPage() {
                     </div>
                 </DialogContent>
             </Dialog>
-
             {/* CRON CONFIG DIALOGS */}
             <CrudDialog
                 open={isGateModalOpen}
@@ -650,7 +466,6 @@ export default function CronMasterPage() {
                 fields={[
                     { key: "displayName", label: "Task Name", disabled: true },
                     { key: "code", label: "Code", disabled: true },
-                    // Simple text field for Last Run
                     { key: "lastRunDisplay", label: "Last Run", disabled: true },
                     {
                         key: "scheduleSecond",
@@ -683,7 +498,6 @@ export default function CronMasterPage() {
                 }
                 isPending={isProcessing}
             />
-
             <CrudDialog
                 open={isCabinModalOpen}
                 onClose={() => setIsCabinModalOpen(false)}
@@ -691,17 +505,8 @@ export default function CronMasterPage() {
                 fields={[
                     { key: "displayName", label: "Policy Name", disabled: true },
                     { key: "code", label: "Code", disabled: true },
-                    // Simple text field for Last Run
-                    //   { key: "lastRunDisplay", label: "Last Run", disabled: true },
-                    //   { key: "scheduleHour", label: "Trigger Hour (0-23)", type: "number" },
-                    //   {
-                    //     key: "scheduleMinute",
-                    //     label: "Trigger Minute (0-59)",
-                    //     type: "number",
-                    //   },
                     { key: "lockoutHours", label: "Duration Hours", type: "number" },
                     { key: "lockoutMinutes", label: "Duration Minutes", type: "number" },
-                    //   { key: "isActive", label: "Enable Policy", type: "switch" },
                 ]}
                 initialData={
                     editingJob

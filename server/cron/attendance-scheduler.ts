@@ -27,7 +27,7 @@ export async function runSyncTask() {
 
         if (punches.length > 0) {
             const timeStr = new Date().toLocaleTimeString();
-            console.log(`[${timeStr}] 📥 Processing ${punches.length} records...`);
+            // console.log(`[${timeStr}] 📥 Processing ${punches.length} records...`);
 
             await processAttendanceBatch(punches);
 

@@ -70,6 +70,7 @@ export default function DesignationPage() {
       label: "Actions",
       render: (item: any) => (
         <div className="flex gap-1">
+          {canEdit && (
           <Button
             size="icon"
             variant="ghost"
@@ -82,7 +83,8 @@ export default function DesignationPage() {
           >
             <Pencil className="w-4 h-4" />
           </Button>
-
+          )}
+            {canDelete && (
           <Button
             size="icon"
             variant="ghost"
@@ -115,10 +117,17 @@ export default function DesignationPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter((col) => {
+    // Agar column 'actions' hai toh check karo permissions
+    if (col.key === "actions") {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   const handleSubmit = async (formData: any) => {
     try {
@@ -128,13 +137,15 @@ export default function DesignationPage() {
       const validationErrors = validateNoHtml(formData);
       if (Object.keys(validationErrors).length > 0) {
         setFieldErrors(validationErrors);
-        return; // Stop processing
+        return; 
       }
 
       // API Call Logic
       if (edit) {
+        if (!canEdit) return;
         await update({ id: edit.id, data: formData });
       } else {
+        if (!canAdd) return;
         await create(formData);
       }
 
@@ -180,6 +191,7 @@ export default function DesignationPage() {
         </p>
       </div>
       <div className="flex justify-end mb-4">
+        {canAdd && (
         <Button
           onClick={() => {
             setEdit(null);
@@ -188,6 +200,8 @@ export default function DesignationPage() {
         >
           <Plus className="w-4 h-4 mr-1" /> Add Designation
         </Button>
+        )}
+
       </div>
 
       {/* TABLE */}

@@ -81,7 +81,7 @@ export default function RolesPage() {
               </TooltipTrigger>
               <TooltipContent side="top">View Permissions</TooltipContent>
             </Tooltip>
-
+            {canEdit && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -95,7 +95,8 @@ export default function RolesPage() {
               </TooltipTrigger>
               <TooltipContent side="top">Edit Role</TooltipContent>
             </Tooltip>
-
+            )}
+            {canDelete && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -113,6 +114,7 @@ export default function RolesPage() {
               </TooltipTrigger>
               <TooltipContent side="top">Delete Role</TooltipContent>
             </Tooltip>
+            )}
           </div>
         </TooltipProvider>
       ),
@@ -126,12 +128,14 @@ export default function RolesPage() {
           <h1 className="text-2xl font-black tracking-tight text-slate-900">Roles Management</h1>
           <p className="text-sm text-slate-500 font-medium">Define and control user access levels across the system.</p>
         </div>
+        {canAdd && (
         <Button
           onClick={() => navigate("/master-data/roles/add")}
           // className="bg-slate-900 hover:bg-slate-800 text-white shadow-lg shadow-slate-200 gap-2 px-5 rounded-xl font-bold transition-all active:scale-95"
         >
           <Plus className="w-4 h-4 stroke-[3]" /> Add New Role
         </Button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">

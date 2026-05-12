@@ -15,8 +15,19 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 export default function ShiftDashboard() {
+   const { canExport, canView } = usePermission(MENU_CONFIG.SHIFT_ANALYTICS.code);
+            if (!canView) {
+              return (
+                <div className="p-10 text-center">
+                  <h2 className="text-xl font-semibold">Access Denied</h2>
+                  <p className="text-muted-foreground">You don't have permission to view reports.</p>
+                </div>
+              );
+            }
   const REFRESH_MS = 5000;
   const [selectedDate, setSelectedDate] = React.useState(
     new Date().toISOString().split("T")[0],
@@ -52,6 +63,7 @@ export default function ShiftDashboard() {
       <ShiftWiseEmpCount
         selectedDate={selectedDate}
         refreshInterval={REFRESH_MS}
+        canExport={canExport}
       />
     </div>
   );
@@ -62,11 +74,13 @@ export default function ShiftDashboard() {
 interface ShiftWiseEmpCountProps {
   selectedDate: string;
   refreshInterval: number;
+  canExport: boolean;
 }
 
 export function ShiftWiseEmpCount({
   selectedDate,
   refreshInterval,
+  canExport,
 }: ShiftWiseEmpCountProps) {
   const COLORS = [
     "#6366f1",
@@ -143,13 +157,17 @@ export function ShiftWiseEmpCount({
             <TrendingUp className="w-4 h-4 text-violet-500" />
             Shift-wise Employee Count
           </CardTitle>
-
+          {canExport && (
+          
           <button
             onClick={exportToCSV}
             className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors shadow-sm font-medium"
           >
             Export CSV
           </button>
+          )}
+       
+         
         </CardHeader>
 
         <CardContent className="p-0">

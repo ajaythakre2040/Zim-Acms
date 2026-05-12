@@ -3,8 +3,11 @@ import { useLocation, useParams } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Edit3, Loader2, ShieldCheck, LayoutGrid, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 export default function RolePermissionViewPage() {
+    const { canEdit, canView } = usePermission(MENU_CONFIG.ROLE.code);
     const { id } = useParams();
     const [, navigate] = useLocation();
 
@@ -62,7 +65,13 @@ export default function RolePermissionViewPage() {
             children: parent.subMenus || [],
         }));
     }, [menus]);
-
+    if (!canView) {
+        return (
+            <div className="p-6 text-center text-muted-foreground font-medium">
+                You do not have permission to view role details.
+            </div>
+        );
+    }
     if (isLoading) {
         return (
             <div className="flex h-screen items-center justify-center bg-slate-50">
@@ -96,13 +105,14 @@ export default function RolePermissionViewPage() {
                             <p className="text-[11px] text-slate-400 font-medium">Review system access and privilege mapping</p>
                         </div>
                     </div>
-
+                    {canEdit && (
                     <Button
                         onClick={() => navigate(`/master-data/roles/edit/${id}`)}
                     // className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-slate-200"
                     >
                         <Edit3 className="w-4 h-4" /> Edit Configuration
                     </Button>
+                    )}
                 </div>
 
                 {/* --- BASIC INFO CARD --- */}

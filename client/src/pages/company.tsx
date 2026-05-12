@@ -70,6 +70,7 @@ export default function CompaniesPage() {
       label: "Actions",
       render: (item: any) => (
         <div className="flex gap-1">
+          {canEdit && (
           <Button
             size="icon"
             variant="ghost"
@@ -82,6 +83,8 @@ export default function CompaniesPage() {
           >
             <Pencil className="w-4 h-4" />
           </Button>
+          )}
+          {canDelete && (
 
           <Button
             size="icon"
@@ -114,10 +117,17 @@ export default function CompaniesPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(col => {
+    // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
+    if (col.key === 'actions') {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   const handleSubmit = async (formData: any) => {
     try {
@@ -176,6 +186,7 @@ export default function CompaniesPage() {
       </div>
 
       <div className="flex justify-end mb-4">
+        {canAdd && (
         <Button
           onClick={() => {
             setEdit(null);
@@ -184,6 +195,7 @@ export default function CompaniesPage() {
         >
           <Plus className="w-4 h-4 mr-1" /> Add Company
         </Button>
+        )}
       </div>
 
       {/* TABLE */}

@@ -56,6 +56,7 @@ export default function CategoriesPage() {
       label: "Actions",
       render: (item: any) => (
         <div className="flex gap-1">
+          {canEdit && (
           <Button
             size="icon"
             variant="ghost"
@@ -68,6 +69,8 @@ export default function CategoriesPage() {
           >
             <Pencil className="w-4 h-4" />
           </Button>
+          )}
+          {canDelete && ( 
 
           <Button
             size="icon"
@@ -100,10 +103,16 @@ export default function CategoriesPage() {
           >
             <Trash2 className="w-4 h-4" />
           </Button>
+          )}
         </div>
       ),
     },
-  ];
+  ].filter(col => {
+    if (col.key === 'actions') {
+      return canEdit || canDelete;
+    }
+    return true;
+  });
 
   const handleSubmit = async (formData: any) => {
     try {
@@ -162,6 +171,7 @@ export default function CategoriesPage() {
       </div>
 
       <div className="flex justify-end mb-4">
+        {canAdd && (
         <Button
           onClick={() => {
             setEdit(null);
@@ -170,6 +180,7 @@ export default function CategoriesPage() {
         >
           <Plus className="w-4 h-4 mr-1" /> Add Category
         </Button>
+        )}
       </div>
 
       {/* TABLE */}

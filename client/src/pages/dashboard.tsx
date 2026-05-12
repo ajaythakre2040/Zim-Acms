@@ -5,8 +5,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Users, DoorOpen, Sparkles, Wifi, WifiOff, Server, UserCheck } from "lucide-react";
 import type { Device, Door } from "@shared/schema";
 import { navigate } from "wouter/use-browser-location";
+import { usePermission } from "@/hooks/use-permission";
+import { MENU_CONFIG } from "../../../server/constant";
 
 export default function Dashboard() {
+  const { canExport } = usePermission(MENU_CONFIG.ATTENDANCE_SUMMARY.code);
   const REFRESH_MS = 5000;
   const [selectedDate, setSelectedDate] = React.useState(new Date().toISOString().split("T")[0]);
 
@@ -118,7 +121,7 @@ export default function Dashboard() {
       </div>
 
       {/* Table */}
-      <DoorAttendanceTable selectedDate={selectedDate} apiResponse={doorData} />
+      <DoorAttendanceTable selectedDate={selectedDate} apiResponse={doorData} canExport={canExport} />
     </div>
   );
 }
@@ -126,9 +129,11 @@ export default function Dashboard() {
 export function DoorAttendanceTable({
   selectedDate,
   apiResponse,
+  canExport,
 }: {
   selectedDate: string;
   apiResponse: any;
+  canExport: boolean; // Type define karein
 }) {
 
   // 🔹 CSV Export Logic
@@ -178,13 +183,15 @@ export function DoorAttendanceTable({
             }
             className="border rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-400"
           />
-          
+          {canExport && (
           <button
             onClick={exportToCSV}
             className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors shadow-sm font-medium"
           >
             Export CSV
           </button>
+          )}
+
         </div>
       </CardHeader>
 
