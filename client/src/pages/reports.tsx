@@ -651,7 +651,7 @@ function AccessLogs({ data }: { data: any[] }) {
               <td className="p-3">{r.direction || "-"}</td>
               <td className="p-3">
                 {r.logdate || r.LogDate
-                  ? new Date(r.logdate || r.LogDate).toLocaleString()
+                  ? formatDateTime(r.logdate || r.LogDate).toLocaleString()
                   : "-"}
               </td>
             </tr>

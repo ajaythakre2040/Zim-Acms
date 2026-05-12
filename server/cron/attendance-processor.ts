@@ -204,7 +204,7 @@ async function updateSummaryWithOT(
         employeeName: employeeName,
         workDate: date,
         firstIn: sql`${punchStr}::timestamp`, // FIXED: RAW SQL
-        lastOut: sql`${punchStr}::timestamp`,
+        // lastOut: sql`${punchStr}::timestamp`, 
         totalOfficeMinutes: totalOffice,
         productiveMinutes: productive,
         overtimeMinutes: finalOT,
