@@ -196,6 +196,7 @@ async function recalculateAndSyncSummary(tx: any, empCode: string, date: string)
         productiveHours: (productiveMinutes / 60).toFixed(2),
         overtimeMinutes: finalOTHours * 60,
         otHours: finalOTHours.toFixed(2),
+        efficiencyPercent: totalPresenceMinutes > 0 ? ((productiveMinutes / totalPresenceMinutes) * 100).toFixed(2) : "0.00",
         totalPunches: logs.length,
         attendanceStatus: ATTENDANCE_STATUS.PRESENT,
         shiftname: baseShiftName,
@@ -210,6 +211,7 @@ async function recalculateAndSyncSummary(tx: any, empCode: string, date: string)
             productiveHours: (productiveMinutes / 60).toFixed(2),
             overtimeMinutes: finalOTHours * 60,
             otHours: finalOTHours.toFixed(2),
+            efficiencyPercent: totalPresenceMinutes > 0 ? ((productiveMinutes / totalPresenceMinutes) * 100).toFixed(2) : "0.00",
             totalPunches: logs.length,
         },
     });

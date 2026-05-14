@@ -18,7 +18,7 @@ export const MAIN_GATE_SYNC = {
   DISPLAY_NAME: "Main Gate",
   DOOR_TYPE: "gate",           // Physical hardware type
   TASK_NAME: "COMMON_GATE_AUTH",
-  DEFAULT_SECONDS: 30,
+  DEFAULT_SECONDS: 3,
   GROUP: "gate_security",
   PRIORITY: "high",
 };

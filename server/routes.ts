@@ -1258,5 +1258,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+  app.get("/api/reports/emplyee-efficiency-dateRange", async (req, res) => {
+    try {
+      // Frontend se parameters aise aayenge: ?fromDate=...&toDate=...&employeeCode=...
+      const { fromDate, toDate, employeeCode } = req.query;
+
+      // Validation: Date Range hona zaroori hai
+      if (!fromDate || !toDate) {
+        return res.status(400).json({ message: "Bhai, dono dates (From & To) select karo." });
+      }
+
+      const data = await storage.getEmplyeeEefficiency(
+        String(fromDate),
+        String(toDate),
+        employeeCode ? String(employeeCode) : undefined
+      );
+
+      res.json(data);
+    } catch (error: any) {
+      console.error("Report Error:", error);
+      res.status(500).json({ message: "Server mein kuch lafda hai, report nahi ban payi." });
+    }
+  });
   return httpServer;
 }

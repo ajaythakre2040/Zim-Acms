@@ -921,7 +921,12 @@ function DaliyPerformanceOvertimeSummaryTable({
                         key={i}
                         className="text-center p-1 border-x text-[10px]"
                       >
-                        <span className="text-black font-medium">
+                        <span
+                          className={`${Number(hours) > 0
+                              ? "text-green-600 font-bold"
+                              : "text-black font-normal"
+                            }`}
+                        >
                           {hours !== undefined ? Number(hours).toFixed(0) : 0}
                         </span>
                       </td>
@@ -1102,12 +1107,12 @@ function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
                   </td>
                   {/* EFFICIENCY */}
                   <td className="text-center p-3 font-semibold">
-                    {Number(r.totalPresenceHours || 0) > 0
-                      ? `${Math.round(
-                        (Number(r.productiveHours || 0) /
-                          Number(r.totalPresenceHours || 0)) *
-                        100,
-                      )}%`
+                    {Number(r.totalPresenceMinutes || 0) > 0
+                      ? `${(
+                        (Number(r.productiveMinutes || 0) /
+                          Number(r.totalPresenceMinutes || 0)) *
+                        100
+                      ).toFixed(2)}%`
                       : "-"}
                   </td>
                 </tr>

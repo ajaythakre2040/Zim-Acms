@@ -3392,5 +3392,34 @@ export class DatabaseStorage implements IStorage {
       throw err;
     }
   }
+  async getEmplyeeEefficiency(fromDate: string, toDate: string, employeeCode?: string) {
+    // 1. Base Query taiyar karo
+    let conditions = [
+      gte(dailyAttendanceSummary.workDate, fromDate),
+      lte(dailyAttendanceSummary.workDate, toDate)
+    ];
+
+    // 2. Agar user ne specific Employee select kiya hai (aur "all" nahi hai)
+    if (employeeCode && employeeCode !== "all" && employeeCode !== "") {
+      conditions.push(eq(dailyAttendanceSummary.employeeCode, employeeCode));
+    }
+
+    const reportData = await db
+      .select({
+        employeeCode: dailyAttendanceSummary.employeeCode,
+        employeeName: dailyAttendanceSummary.employeeName,
+        // Date range ko string ki tarah format karke bhej rahe hain
+        dateRange: sql<string>`${fromDate} || ' to ' || ${toDate}`,
+        totalDays: sql<number>`COUNT(DISTINCT ${dailyAttendanceSummary.workDate})`,
+        totalHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))`,
+        productiveHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))`,
+        avgEfficiency: sql<string>`ROUND(AVG(CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)), 2)`,
+      })
+      .from(dailyAttendanceSummary)
+      .where(and(...conditions))
+      .groupBy(dailyAttendanceSummary.employeeCode, dailyAttendanceSummary.employeeName);
+
+    return reportData;
+  }
 }
 export const storage = new DatabaseStorage();
