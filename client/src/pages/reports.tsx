@@ -64,6 +64,22 @@ const reportTypes = [
     description: "Daily Efficiency records of Employees",
   },
   {
+    id: "monthly-efficiency", // ✅ FIX
+    label: "Monthly Efficiency",
+    icon: Clock,
+    color: "text-blue-500",
+    bgColor: "bg-blue-50 dark:bg-blue-950/40",
+    description: "Monthly Efficiency records of Employees",
+  },
+  {
+    id: "department", 
+    label: "Department",
+    icon: Clock,
+    color: "text-blue-500",
+    bgColor: "bg-blue-50 dark:bg-blue-950/40",
+    description: "Department Wise Manpower and OT Report",
+  },
+  {
     id: "cabin-lockout", // Cefalo replaced with Lockout
     label: "Cabin Lockout",
     icon: AlertTriangle,
@@ -94,14 +110,10 @@ function statusBadge(status: string) {
 const filterConfig: Record<string, string[]> = {
   attendance: ["dateFrom", "dateTo", "employeeCode", "status"],
   "access-logs": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
-  "daily-performance": [
-    "dateFrom",
-    "dateTo",
-    "employeeCode",
-    "deviceId",
-    "status",
-  ],
+  "daily-performance": [ "dateFrom", "dateTo", "employeeCode", "deviceId", "status", ],
   "daily-efficiency": ["date", "employeeCode", "deviceId", "status"],
+  "monthly-efficiency": ["dateFrom", "dateTo", "employeeCode"],
+  "department": ["dateFrom", "dateTo"],
   "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
 };
 function getCurrentMonthDates() {
@@ -390,7 +402,6 @@ function exportOTSummaryCSV(data: any[], daysInMonth: number) {
   a.download = "ot-summary.csv";
   a.click();
 }
-// 2. Filter Component
 function ReportFilters({
   filters,
   setFilters,
@@ -576,7 +587,6 @@ function ReportFilters({
     </Card>
   ); // return close
 }
-// 3. Tables
 function AttendanceTable({ data }: { data: any[] }) {
   return (
     <div className="overflow-x-auto">
@@ -1094,10 +1104,10 @@ function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
                   <td className="text-center p-3 font-semibold">
                     {Number(r.totalPresenceHours || 0) > 0
                       ? `${Math.round(
-                        (Number(r.productiveHours || 0) /
-                          Number(r.totalPresenceHours || 0)) *
-                        100,
-                      )}%`
+                          (Number(r.productiveHours || 0) /
+                            Number(r.totalPresenceHours || 0)) *
+                            100,
+                        )}%`
                       : "-"}
                   </td>
                 </tr>
@@ -1107,6 +1117,439 @@ function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
             <tr>
               <td
                 colSpan={doors.length * 2 + 5}
+                className="text-center py-6 text-muted-foreground"
+              >
+                No data available
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+function DepartmentWiseManpowerTable({
+  data,
+  departments,
+}: {
+  data?: any[];
+  departments: any[];
+}) {
+  const safeData = Array.isArray(data) ? data : [];
+
+  return (
+    <div className="overflow-x-auto border rounded-md">
+      <table className="w-max min-w-full text-xs border-collapse">
+        {/* 🔥 HEADER */}
+        <thead>
+          {/* TOP HEADER */}
+          <tr className="border-b bg-muted/30">
+            <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
+              Employee Code
+            </th>
+
+            <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
+              Employee Name
+            </th>
+
+            <th
+              rowSpan={2}
+              className="border p-3 text-center whitespace-nowrap"
+            >
+              Per Day Rate
+            </th>
+
+            <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
+              Contractor Name
+            </th>
+
+            {/* 🔥 DYNAMIC DEPARTMENTS */}
+            {departments.map((dept, i) => (
+              <th
+                key={i}
+                colSpan={2}
+                className="border p-3 text-center whitespace-nowrap"
+              >
+                {dept.departmentName || dept.name}
+              </th>
+            ))}
+
+            <th
+              colSpan={2}
+              className="border p-3 text-center whitespace-nowrap"
+            >
+              Total Working
+            </th>
+
+            <th
+              colSpan={2}
+              className="border p-3 text-center whitespace-nowrap"
+            >
+              Amount
+            </th>
+
+            <th
+              rowSpan={1}
+              colSpan={1}
+              className="border p-3 text-center whitespace-nowrap"
+            >
+              Total Wages
+            </th>
+          </tr>
+
+          {/* SUB HEADER */}
+          <tr className="border-b bg-muted/20">
+            {/* 🔥 DYNAMIC SUB COLUMNS */}
+            {departments.map((_, i) => (
+              <React.Fragment key={i}>
+                <th className="border p-2 text-center whitespace-nowrap">
+                  No. of Duty
+                </th>
+
+                <th className="border p-2 text-center whitespace-nowrap">
+                  OT Hrs.
+                </th>
+              </React.Fragment>
+            ))}
+
+            {/* TOTAL WORKING */}
+            <th className="border p-2 text-center whitespace-nowrap">
+              No. of Duty
+            </th>
+
+            <th className="border p-2 text-center whitespace-nowrap">
+              OT Hrs.
+            </th>
+
+            {/* AMOUNT */}
+            <th className="border p-2 text-center whitespace-nowrap">
+              Duty Amt.
+            </th>
+
+            <th className="border p-2 text-center whitespace-nowrap">
+              OT Amt.
+            </th>
+
+            {/* TOTAL */}
+            <th className="border p-2 text-center whitespace-nowrap">
+              Duty & OT
+            </th>
+          </tr>
+        </thead>
+
+        {/* 🔥 BODY */}
+        <tbody>
+          {safeData.length > 0 ? (
+            safeData.map((r, i) => {
+              // 🔥 GROUP DEPARTMENT DATA
+              const groupedDepartments: Record<
+                string,
+                {
+                  duty: number;
+                  otHours: number;
+                }
+              > = {};
+
+              (r.departmentDetails || []).forEach((d: any) => {
+                const key = String(
+                  d.departmentName || d.name || "",
+                ).toLowerCase();
+
+                groupedDepartments[key] = {
+                  duty: Number(d.noOfDuty || 0),
+                  otHours: Number(d.otHours || 0),
+                };
+              });
+
+              // 🔥 TOTALS
+              let totalDuty = 0;
+              let totalOT = 0;
+
+              departments.forEach((dept) => {
+                const key = String(
+                  dept.departmentName || dept.name || "",
+                ).toLowerCase();
+
+                totalDuty += groupedDepartments[key]?.duty || 0;
+                totalOT += groupedDepartments[key]?.otHours || 0;
+              });
+
+              const perDayRate = Number(r.perDayRate || 0);
+
+              const dutyAmount = totalDuty * perDayRate;
+              const otAmount = totalOT * (perDayRate / 8);
+              const totalWages = dutyAmount + otAmount;
+
+              return (
+                <tr
+                  key={`${r.employeeCode}-${i}`}
+                  className="border-b hover:bg-muted/20"
+                >
+                  {/* BASIC INFO */}
+                  <td className="border p-3">{r.employeeCode || "-"}</td>
+
+                  <td className="border p-3">{r.employeeName || "-"}</td>
+
+                  <td className="border p-3 text-center">
+                    {perDayRate || "-"}
+                  </td>
+
+                  <td className="border p-3">{r.contractorName || "-"}</td>
+
+                  {/* 🔥 DYNAMIC DEPARTMENT DATA */}
+                  {departments.map((dept, j) => {
+                    const key = String(
+                      dept.departmentName || dept.name || "",
+                    ).toLowerCase();
+
+                    const deptData = groupedDepartments[key];
+
+                    return (
+                      <React.Fragment key={j}>
+                        <td className="border p-3 text-center">
+                          {deptData?.duty ?? 0}
+                        </td>
+
+                        <td className="border p-3 text-center">
+                          {deptData?.otHours ?? 0}
+                        </td>
+                      </React.Fragment>
+                    );
+                  })}
+
+                  {/* TOTAL WORKING */}
+                  <td className="border p-3 text-center">
+                    {totalDuty.toFixed(2)}
+                  </td>
+
+                  <td className="border p-3 text-center">
+                    {totalOT.toFixed(2)}
+                  </td>
+
+                  {/* AMOUNTS */}
+                  <td className="border p-3 text-center">
+                    ₹{dutyAmount.toFixed(0)}
+                  </td>
+
+                  <td className="border p-3 text-center">
+                    ₹{otAmount.toFixed(0)}
+                  </td>
+
+                  {/* TOTAL WAGES */}
+                  <td className="border p-3 text-center font-semibold">
+                    ₹{totalWages.toFixed(0)}
+                  </td>
+                </tr>
+              );
+            })
+          ) : (
+            <tr>
+              <td
+                colSpan={departments.length * 2 + 9}
+                className="text-center py-6 text-muted-foreground"
+              >
+                No data available
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+function EmployeePerformanceTable({
+  data,
+}: {
+  data?: any[];
+}) {
+  const safeData = Array.isArray(data) ? data : [];
+
+  return (
+    <div className="overflow-x-auto border rounded-md">
+      <table className="w-max min-w-full text-xs border-collapse">
+        {/* HEADER */}
+        <thead>
+          <tr className="border-b bg-muted/30">
+            <th className="border p-3 text-left whitespace-nowrap">
+              Employee Code
+            </th>
+
+            <th className="border p-3 text-left whitespace-nowrap">
+              Employee Name
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Date Range
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Total Days
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Total Hours
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Productive Hours
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Avg. Efficiency %
+            </th>
+          </tr>
+        </thead>
+
+        {/* BODY */}
+        <tbody>
+          {safeData.length > 0 ? (
+            safeData.map((r, i) => {
+              const totalDays = Number(r.totalDays || 0);
+              const totalHours = Number(r.totalHours || 0);
+              const productiveHours = Number(r.productiveHours || 0);
+
+              const efficiency =
+                totalHours > 0
+                  ? (productiveHours / totalHours) * 100
+                  : 0;
+
+              return (
+                <tr
+                  key={`${r.employeeCode}-${i}`}
+                  className="border-b hover:bg-muted/20"
+                >
+                  <td className="border p-3">
+                    {r.employeeCode || "-"}
+                  </td>
+
+                  <td className="border p-3">
+                    {r.employeeName || "-"}
+                  </td>
+
+                  <td className="border p-3 text-center whitespace-nowrap">
+                    {r.dateFrom || "-"} To {r.dateTo || "-"}
+                  </td>
+
+                  <td className="border p-3 text-center">
+                    {totalDays}
+                  </td>
+
+                  <td className="border p-3 text-center">
+                    {totalHours.toFixed(2)}
+                  </td>
+
+                  <td className="border p-3 text-center">
+                    {productiveHours.toFixed(2)}
+                  </td>
+
+                  <td className="border p-3 text-center font-semibold">
+                    {efficiency.toFixed(2)}%
+                  </td>
+                </tr>
+              );
+            })
+          ) : (
+            <tr>
+              <td
+                colSpan={7}
+                className="text-center py-6 text-muted-foreground"
+              >
+                No data available
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+function DepartmentEfficiencyTable({
+  data,
+}: {
+  data?: any[];
+}) {
+  const safeData = Array.isArray(data) ? data : [];
+
+  return (
+    <div className="overflow-x-auto border rounded-md">
+      <table className="w-max min-w-full text-xs border-collapse">
+        {/* HEADER */}
+        <thead>
+          <tr className="border-b bg-muted/30">
+            <th className="border p-3 text-left whitespace-nowrap">
+              Department
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Date Range
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Total Manpower
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Total Man Hours
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Productive Hours
+            </th>
+
+            <th className="border p-3 text-center whitespace-nowrap">
+              Avg. Efficiency %
+            </th>
+          </tr>
+        </thead>
+
+        {/* BODY */}
+        <tbody>
+          {safeData.length > 0 ? (
+            safeData.map((r, i) => {
+              const manpower = Number(r.totalManpower || 0);
+              const totalHours = Number(r.totalManHours || 0);
+              const productiveHours = Number(r.productiveHours || 0);
+
+              const efficiency =
+                totalHours > 0
+                  ? (productiveHours / totalHours) * 100
+                  : 0;
+
+              return (
+                <tr
+                  key={`${r.departmentName}-${i}`}
+                  className="border-b hover:bg-muted/20"
+                >
+                  <td className="border p-3">
+                    {r.departmentName || "-"}
+                  </td>
+
+                  <td className="border p-3 text-center whitespace-nowrap">
+                    {r.dateFrom || "-"} To {r.dateTo || "-"}
+                  </td>
+
+                  <td className="border p-3 text-center">
+                    {manpower}
+                  </td>
+
+                  <td className="border p-3 text-center">
+                    {totalHours.toFixed(2)}
+                  </td>
+
+                  <td className="border p-3 text-center">
+                    {productiveHours.toFixed(2)}
+                  </td>
+
+                  <td className="border p-3 text-center font-semibold">
+                    {efficiency.toFixed(2)}%
+                  </td>
+                </tr>
+              );
+            })
+          ) : (
+            <tr>
+              <td
+                colSpan={6}
                 className="text-center py-6 text-muted-foreground"
               >
                 No data available
@@ -1218,6 +1661,7 @@ export default function ReportsPage() {
         "access-logs",
         "daily-performance",
         "daily-efficiency",
+        "department",
         "cabin-lockout",
       ];
       if (validTabs.includes(tab)) {
@@ -1258,6 +1702,7 @@ export default function ReportsPage() {
     "daily-efficiency": {
       date: new Date().toISOString().split("T")[0], // ✅ single date default
     },
+    department: {},
     "cabin-lockout": {},
   });
   const [appliedFilters, setAppliedFilters] = useState<
@@ -1267,6 +1712,7 @@ export default function ReportsPage() {
     "access-logs": {},
     "daily-performance": {},
     "daily-efficiency": {},
+    department: {},
     "cabin-lockout": {},
   });
   // ✅ CURRENT FILTERS
@@ -1305,6 +1751,9 @@ export default function ReportsPage() {
   });
   const { data: doorData = [] } = useQuery<any[]>({
     queryKey: ["/api/doors"],
+  });
+  const { data: departments = [] } = useQuery<any[]>({
+    queryKey: ["/api/departments"],
   });
   // 🔥 UPDATED QUERY
   const {
@@ -1368,6 +1817,84 @@ export default function ReportsPage() {
     },
     enabled: activeReport === "daily-performance", // 🔥 important
   });
+
+  const { data: departmentManpowerData = [] } = useQuery<any[]>({
+    queryKey: ["department-wise-manpower", currentAppliedFilters],
+
+    queryFn: async () => {
+      const params = new URLSearchParams();
+
+      Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+        if (v && k !== "_refresh") {
+          params.set(k, String(v));
+        }
+      });
+
+      const res = await fetch(
+        `/api/reports/department-wise-manpower?${params.toString()}`,
+      );
+
+      if (!res.ok) throw new Error("Fetch failed");
+
+      const json = await res.json();
+
+      return json.data || [];
+    },
+
+    enabled: activeReport === "department",
+  });
+
+  const { data: employeePerformanceData = [] } = useQuery<any[]>({
+  queryKey: ["employee-performance", currentAppliedFilters],
+
+  queryFn: async () => {
+    const params = new URLSearchParams();
+
+    Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+      if (v && k !== "_refresh") {
+        params.set(k, String(v));
+      }
+    });
+
+    const res = await fetch(
+      `/api/reports/employee-performance?${params.toString()}`,
+    );
+
+    if (!res.ok) throw new Error("Fetch failed");
+
+    const json = await res.json();
+
+    return json.data || [];
+  },
+
+  enabled: activeReport === "monthly-efficiency",
+});
+
+const { data: departmentEfficiencyData = [] } = useQuery<any[]>({
+  queryKey: ["department-efficiency", currentAppliedFilters],
+
+  queryFn: async () => {
+    const params = new URLSearchParams();
+
+    Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+      if (v && k !== "_refresh") {
+        params.set(k, String(v));
+      }
+    });
+
+    const res = await fetch(
+      `/api/reports/department-efficiency?${params.toString()}`,
+    );
+
+    if (!res.ok) throw new Error("Fetch failed");
+
+    const json = await res.json();
+
+    return json.data || [];
+  },
+
+  enabled: activeReport === "monthly-efficiency",
+});
   // const { data: otMatrixData = [], isLoading: isOtLoading } = useQuery<any[]>({
   //   queryKey: ["ot-matrix", currentAppliedFilters],
   //   queryFn: async () => {
@@ -1405,10 +1932,11 @@ export default function ReportsPage() {
             onClick={() => {
               setActiveReport(rt.id);
             }}
-            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
+              activeReport === rt.id
                 ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
                 : "bg-card hover:bg-muted/50"
-              }`}
+            }`}
           >
             <rt.icon
               className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`}
@@ -1601,6 +2129,61 @@ export default function ReportsPage() {
                 </Card>
               </div>
             )}
+
+            {/* 5. Department Wise Manpower */}
+            {activeReport === "department" && (
+              <Card className="shadow-sm border">
+                <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
+                  <CardTitle className="text-sm font-semibold">
+                    Department Wise Manpower & OT Report
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="p-0">
+                  <DepartmentWiseManpowerTable
+                    data={departmentManpowerData}
+                    departments={departments}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
+            {/* 6. Monthly Efficiency */}
+{activeReport === "monthly-efficiency" && (
+  <div className="space-y-6">
+
+    {/* EMPLOYEE PERFORMANCE TABLE */}
+    <Card className="shadow-sm border">
+      <CardHeader className="border-b py-3 px-4">
+        <CardTitle className="text-sm font-semibold">
+          Employee Performance Report
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="p-0">
+        <EmployeePerformanceTable
+          data={employeePerformanceData}
+        />
+      </CardContent>
+    </Card>
+
+    {/* DEPARTMENT EFFICIENCY TABLE */}
+    <Card className="shadow-sm border">
+      <CardHeader className="border-b py-3 px-4">
+        <CardTitle className="text-sm font-semibold">
+          Department Efficiency Report
+        </CardTitle>
+      </CardHeader>
+
+      <CardContent className="p-0">
+        <DepartmentEfficiencyTable
+          data={departmentEfficiencyData}
+        />
+      </CardContent>
+    </Card>
+  </div>
+)}
+
             {/* 4. Cabin Lockout */}
             {activeReport === "cabin-lockout" && (
               <Card className="shadow-sm border">

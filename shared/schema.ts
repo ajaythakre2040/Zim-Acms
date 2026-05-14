@@ -240,6 +240,8 @@ export const people = pgTable("people", {
   lastPunchDoorId: integer("last_punch_door_id"),
   ruleid: integer("rule_id"),
   is_lockout_enabled: boolean("is_lockout_enabled").default(false),
+  activeShiftDate: text("active_shift_date"), // Yahan hum wo date lock karenge jiske liye attendance lag rahi hai
+  isNightShiftActive: boolean("is_night_shift_active").default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .$defaultFn(() => new Date()) // TypeScript automatic handle kar lega
     .notNull(),
@@ -796,9 +798,16 @@ export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
 
   shiftname: text("shift_name"),
   // Data Points
-  totalOfficeMinutes: integer("total_office_minutes").default(0),
+  totalPresenceMinutes: integer("total_presence_minutes").default(0),
+  totalPresenceHours: decimal("total_presence_hours", { precision: 10, scale: 2 }).default("0"),
+  
   productiveMinutes: integer("productive_minutes").default(0),
+  productiveHours: decimal("productive_hours", { precision: 10, scale: 2 }).default("0"),
+
+  
   overtimeMinutes: integer("overtime_minutes").default(0),
+  otHours: decimal("ot_hours", { precision: 10, scale: 2 }).default("0"),
+
   totalPunches: integer("total_punches").default(0),
 
   // Analysis (Image 2 logic)
@@ -808,6 +817,9 @@ export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
   // Fast Reporting Metadata (No Joins Needed)
   departmentName: text("department_name"),
   designationName: text("designation_name"),
+
+  // totalPresenceMinutes: integer("total_presence_minutes").default(0),
+  
 }, (table) => ({
   uniqueDateEmp: uniqueIndex("idx_summary_date_emp").on(table.workDate, table.employeeCode),
   dateIdx: index("idx_summary_date").on(table.workDate),

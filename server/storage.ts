@@ -323,7 +323,6 @@ export interface IStorage {
   // createRole(data: InsertRole): Promise<Role>;
   // updateRole(id: number, data: Partial<InsertRole>): Promise<Role>;
   // deleteRole(id: number): Promise<void>;
-
   getDashboardStats(): Promise<object>;
   getLockoutEligibleDoors(search?: string): Promise<any[]>;
   updateDoorLockoutStatusBulk(
@@ -356,32 +355,26 @@ export class DatabaseStorage implements IStorage {
   }): Promise<any[]> {
     try {
       const conditions = [];
-
       if (filters?.dateFrom) {
         conditions.push(
           gte(schema.employeeActivityLogs.logDate, new Date(filters.dateFrom)),
         );
       }
-
       if (filters?.dateTo) {
         conditions.push(
           lte(schema.employeeActivityLogs.logDate, new Date(filters.dateTo)),
         );
       }
-
       if (filters?.employeeCode) {
         conditions.push(
           eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
         );
       }
-
       // :white_check_mark: FIXED DOOR FILTER
       const doorFilter = filters?.deviceId || filters?.doorName;
-
       if (doorFilter) {
         conditions.push(eq(schema.employeeActivityLogs.doorName, doorFilter));
       }
-
       const logs = await db
         .select({
           devicelogid: schema.employeeActivityLogs.deviceLogId,
@@ -389,17 +382,14 @@ export class DatabaseStorage implements IStorage {
           employeecode: schema.employeeActivityLogs.employeeCode,
           logdate: schema.employeeActivityLogs.logDate,
           direction: schema.employeeActivityLogs.direction,
-
           employee_name: schema.employeeActivityLogs.employeeName,
           department_name: schema.employeeActivityLogs.departmentName,
           designation_name: schema.employeeActivityLogs.designationName,
-
           door_name: schema.employeeActivityLogs.doorName,
         })
         .from(schema.employeeActivityLogs)
         .where(conditions.length ? and(...conditions) : undefined)
         .orderBy(desc(schema.employeeActivityLogs.deviceLogId));
-
       return logs;
     } catch (error) {
       console.error("Error in getDeviceLogsWithEmployee:", error);
@@ -430,10 +420,8 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(userProfiles.userId, users.id))
       .leftJoin(roles, eq(userProfiles.roleId, roles.id))
       .where(eq(userProfiles.id, id));
-
     return profile;
   }
-
   async getUserProfiles(): Promise<any[]> {
     return await db
       .select({
@@ -935,7 +923,6 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-
   async getDevices(): Promise<any[]> {
     try {
       const msDataRaw = await dbMsSql
@@ -943,23 +930,16 @@ export class DatabaseStorage implements IStorage {
         .from({ dbName: "Devices" })
         .execute();
       if (!msDataRaw || msDataRaw.length === 0) return [];
-
       const currentTime = new Date();
-
       const THRESHOLD_MINUTES = 1;
-
       const formattedDevices = msDataRaw.map((d: any) => {
         let lPing: Date | null = null;
         let calculatedStatus = "offline";
-
         if (d.LastPing) {
           lPing = new Date(d.LastPing);
-
           let diffInMs = currentTime.getTime() - lPing.getTime();
           let diffInMinutes = diffInMs / 60000;
-
           const absDiff = Math.abs(diffInMinutes);
-
           if (
             absDiff <= THRESHOLD_MINUTES ||
             Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
@@ -967,7 +947,6 @@ export class DatabaseStorage implements IStorage {
             calculatedStatus = "online";
           }
         }
-
         return {
           msId: d.DeviceId || d.DeviceID,
           name: d.DeviceName || "Unnamed Device",
@@ -986,7 +965,6 @@ export class DatabaseStorage implements IStorage {
           isActive: true,
         };
       });
-
       for (const dev of formattedDevices) {
         await db
           .insert(devices)
@@ -1011,12 +989,10 @@ export class DatabaseStorage implements IStorage {
             },
           });
       }
-
       const currentMsIds = formattedDevices.map((d) => d.msId as number);
       if (currentMsIds.length > 0) {
         await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
       }
-
       return formattedDevices;
     } catch (error) {
       console.error("Device Sync Error:", error);
@@ -1992,16 +1968,13 @@ export class DatabaseStorage implements IStorage {
       offlineDevices: Math.max(0, devicesCount.count - onlineCount.count),
     };
   }
-
   async getDoorWiseStats(date: string) {
     const [totalPeopleResult] = await db
       .select({
         count: sql<number>`count(*)`,
       })
       .from(people);
-
     const totalManpower = Number(totalPeopleResult.count) || 0;
-
     const mappings = await db
       .select({
         doorId: doors.id,
@@ -2013,12 +1986,10 @@ export class DatabaseStorage implements IStorage {
       })
       .from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-
     const allDeviceIds = mappings.flatMap((m) => [
       ...(m.inIds || []),
       ...(m.outIds || []),
     ]);
-
     if (allDeviceIds.length === 0) {
       return {
         doorStats: [],
@@ -2030,7 +2001,6 @@ export class DatabaseStorage implements IStorage {
         totalManpower,
       };
     }
-
     const msSqlData = await mssqlPool.request().input("filterDate", date)
       .query(`
       SELECT 
@@ -2043,13 +2013,10 @@ export class DatabaseStorage implements IStorage {
       AND DeviceId IN (${allDeviceIds.join(",")})
       GROUP BY DeviceId, Direction, EmployeeCode
     `);
-
     const logMap = msSqlData.recordset;
-
     let mainGateInPunches = 0;
     let mainGateOutPunches = 0;
     const uniquePresentEmployees = new Set();
-
     const doorStats = mappings.map((m) => {
       const inLogs = logMap.filter(
         (l) => (m.inIds || []).includes(l.DeviceId) && l.Direction === "IN",
@@ -2057,20 +2024,16 @@ export class DatabaseStorage implements IStorage {
       const outLogs = logMap.filter(
         (l) => (m.outIds || []).includes(l.DeviceId) && l.Direction === "OUT",
       );
-
       const inCount = inLogs.reduce((acc, curr) => acc + curr.totalPunches, 0);
       const outCount = outLogs.reduce(
         (acc, curr) => acc + curr.totalPunches,
         0,
       );
-
       if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
         mainGateInPunches = inCount;
         mainGateOutPunches = outCount;
-
         inLogs.forEach((l) => uniquePresentEmployees.add(l.EmployeeCode));
       }
-
       return {
         doorName: m.doorName,
         inCount,
@@ -2078,9 +2041,7 @@ export class DatabaseStorage implements IStorage {
         balance: Math.max(0, inCount - outCount),
       };
     });
-
     const totalPresent = uniquePresentEmployees.size;
-
     return {
       doorStats,
       mainGateIn: mainGateInPunches,
@@ -2150,26 +2111,20 @@ export class DatabaseStorage implements IStorage {
       for (const log of rawLogs) {
         const doorName = deviceToDoor[log.DeviceId];
         if (!doorName) continue;
-
         const [pH, pM, pS] = log.LogTime.split(":");
         const punchTime = dayjs()
           .set("hour", parseInt(pH))
           .set("minute", parseInt(pM))
           .set("second", parseInt(pS));
-
         for (const win of windows) {
           if (punchTime.isBetween(win.start, win.end, null, "[]")) {
             const key = `${doorName}_${win.name}_${log.EmployeeCode}`;
-
             if (counted.has(key)) {
               continue;
             }
-
             counted.add(key);
-
             stats[doorName][win.name!]++;
             stats[doorName].totalEmp++;
-
             break;
           }
         }
@@ -2188,7 +2143,6 @@ export class DatabaseStorage implements IStorage {
   //     outIds: doorDevices.outDeviceIds,
   //   }).from(doors)
   //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-
   //   // 2. MS SQL Query: UNION ALL Success and Illegal Logs
   //   const msSqlData = await mssqlPool.request()
   //     .input('filterDate', date)
@@ -2202,9 +2156,7 @@ export class DatabaseStorage implements IStorage {
   //     LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
   //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
   //     WHERE CAST(l.LogDate AS DATE) = @filterDate
-
   //     UNION ALL
-
   //     SELECT
   //       e.EmployeeName, l.EmployeeCode, l.DeviceId, d.DeviceName,
   //       d.DeviceDirection as Direction, -- Yahan 'IN' ki jagah d.DeviceDirection liya
@@ -2219,28 +2171,22 @@ export class DatabaseStorage implements IStorage {
   //     LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
   //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
   //     WHERE CAST(l.LogDate AS DATE) = @filterDate
-
   //     ORDER BY LogDate DESC
   //   `);
-
   //   const allLogs = msSqlData.recordset;
-
   //   // 3. Mapping and Photo Conversion
   //   const machineFeed = allLogs.map(log => {
   //     const door = doorMappings.find(m =>
   //       (m.inIds || []).includes(log.DeviceId) ||
   //       (m.outIds || []).includes(log.DeviceId)
   //     );
-
   //     let photoData = null;
   //     if (log.AttPhoto) {
   //       const base64Content = Buffer.isBuffer(log.AttPhoto)
   //         ? log.AttPhoto.toString('base64')
   //         : String(log.AttPhoto);
-
   //       photoData = `data:image/jpeg;base64,${base64Content}`;
   //     }
-
   //     return {
   //       employeeName: log.EmployeeName || (log.LogStatus === 'failed' ? "Unknown" : "Visitor"),
   //       employeeCode: log.EmployeeCode || "N/A",
@@ -2253,10 +2199,8 @@ export class DatabaseStorage implements IStorage {
   //       doorName: door ? door.doorName : (log.DeviceName || "Unknown Door")
   //     };
   //   });
-
   //   return { machineFeed };
   // }
-
   async getMachineAccessLogs(date: string) {
     const doorMappings = await db
       .select({
@@ -2266,7 +2210,6 @@ export class DatabaseStorage implements IStorage {
       })
       .from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-
     const msSqlData = await mssqlPool.request().input("filterDate", date)
       .query(`
       SELECT 
@@ -2282,16 +2225,13 @@ export class DatabaseStorage implements IStorage {
       WHERE CAST(l.LogDate AS DATE) = @filterDate
       ORDER BY l.LogDate DESC
     `);
-
     const logs = msSqlData.recordset;
-
     const machineFeed = logs.map((log) => {
       const door = doorMappings.find(
         (m) =>
           (m.inIds || []).includes(log.DeviceId) ||
           (m.outIds || []).includes(log.DeviceId),
       );
-
       return {
         employeeName: log.EmployeeName || "Unknown",
         employeeCode: log.EmployeeCode,
@@ -2301,12 +2241,10 @@ export class DatabaseStorage implements IStorage {
         doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
       };
     });
-
     return {
       machineFeed,
     };
   }
-
   async getRoleEligibleDevices(): Promise<any[]> {
     try {
       const msDataRaw = await dbMsSql
@@ -2965,7 +2903,6 @@ export class DatabaseStorage implements IStorage {
       .delete(schema.employeeDoorAssignments)
       .where(eq(schema.employeeDoorAssignments.id, id));
   }
-
   // 1 & 5: Daily Performance aur Daily Efficiency ke liye
   async getDailyReport(date: string) {
     return await db
@@ -2973,7 +2910,6 @@ export class DatabaseStorage implements IStorage {
       .from(dailyAttendanceSummary)
       .where(eq(dailyAttendanceSummary.workDate, date));
   }
-
   // 2 & 3: Muster Roll aur Overtime Matrix (Date Range)
   async getRangeReport(startDate: string, endDate: string) {
     return await db
@@ -2995,12 +2931,10 @@ export class DatabaseStorage implements IStorage {
   //       totalHalfDay: sql<number>`count(case when ${dailyAttendanceSummary.status} = 'HD' then 1 end)`,
   //       totalWeeklyOff: sql<number>`count(case when ${dailyAttendanceSummary.status} = 'WO' then 1 end)`,
   //       totalHoliday: sql<number>`count(case when ${dailyAttendanceSummary.status} = 'HL' then 1 end)`,
-
   //       // Minutes to Hours conversion
   //       totalOTHours: sql<number>`sum(${dailyAttendanceSummary.overtimeMinutes}) / 60.0`,
   //       totalProductiveHours: sql<number>`sum(${dailyAttendanceSummary.productiveMinutes}) / 60.0`,
   //       totalOfficeHours: sql<number>`sum(${dailyAttendanceSummary.totalOfficeMinutes}) / 60.0`,
-
   //       avgEfficiency: sql<number>`avg(${dailyAttendanceSummary.efficiencyPercent})`
   //     })
   //     .from(dailyAttendanceSummary)
@@ -3026,7 +2960,6 @@ export class DatabaseStorage implements IStorage {
       .where(eq(dailyAttendanceSummary.workDate, date))
       .groupBy(dailyAttendanceSummary.departmentName);
   }
-
   // 6: Efficiency Analytics (Over a period)
   async getEfficiencyAnalytics(
     startDate: string,
@@ -3036,11 +2969,9 @@ export class DatabaseStorage implements IStorage {
     let conditions = [
       between(dailyAttendanceSummary.workDate, startDate, endDate),
     ];
-
     if (empCode) {
       conditions.push(eq(dailyAttendanceSummary.employeeCode, empCode));
     }
-
     return await db
       .select({
         employeeCode: dailyAttendanceSummary.employeeCode,
@@ -3060,14 +2991,11 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(menuMaster)
       .orderBy(asc(menuMaster.sortOrder));
-
     const menuMap: Record<number, any> = {};
     allMenus.forEach((item) => {
       menuMap[item.id] = { ...item, subMenus: [] };
     });
-
     const tree: any[] = [];
-
     allMenus.forEach((item) => {
       if (item.parentId === 0 || item.parentId === null) {
         tree.push(menuMap[item.id]);
@@ -3078,7 +3006,6 @@ export class DatabaseStorage implements IStorage {
         }
       }
     });
-
     return tree;
   }
   async getMenu(id: number): Promise<MenuMaster | undefined> {
@@ -3094,17 +3021,14 @@ export class DatabaseStorage implements IStorage {
       .from(menuMaster)
       .where(eq(menuMaster.code, insertMenu.code))
       .limit(1);
-
     if (existing) {
       // 💡 'code' aur 'already exists' keywords use karein
       // taaki common handleDbError ise identify kar sake
       throw new Error(`Menu code already exists.`);
     }
-
     const [menu] = await db.insert(menuMaster).values(insertMenu).returning();
     return menu;
   }
-
   async updateMenu(
     id: number,
     data: Partial<InsertMenuMaster>,
@@ -3115,19 +3039,16 @@ export class DatabaseStorage implements IStorage {
         .from(menuMaster)
         .where(and(eq(menuMaster.code, data.code), ne(menuMaster.id, id)))
         .limit(1);
-
       if (existing) {
         // 💡 Yahan bhi keywords ka dhyan rakhein
         throw new Error(`The provided menu code already exists.`);
       }
     }
-
     const [updatedMenu] = await db
       .update(menuMaster)
       .set(data)
       .where(eq(menuMaster.id, id))
       .returning();
-
     return updatedMenu;
   }
   async deleteMenu(id: number): Promise<void> {
@@ -3141,7 +3062,6 @@ export class DatabaseStorage implements IStorage {
       .orderBy(asc(menuMaster.sortOrder));
   }
   // Sabhi roles fetch karna
-
   async getRoleByCode(code: string): Promise<any | undefined> {
     const [role] = await db.select().from(roles).where(eq(roles.code, code));
     return role;
@@ -3154,15 +3074,12 @@ export class DatabaseStorage implements IStorage {
   async getRolePermissions(roleId: number) {
     // 1. Role ki basic details fetch karein
     const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
-
     if (!role) return null;
-
     // 2. Us role ki saari permissions fetch karein
     const permissions = await db
       .select()
       .from(rolePermissions)
       .where(eq(rolePermissions.roleId, roleId));
-
     // 3. Dono ko merge karke return karein
     return {
       ...role,
@@ -3174,7 +3091,6 @@ export class DatabaseStorage implements IStorage {
     return await db.transaction(async (tx) => {
       // 1. Pehle Role insert karein
       const [newRole] = await tx.insert(roles).values(roleData).returning();
-
       // 2. Permissions ko roleId ke sath map karke insert karein
       if (permissions && permissions.length > 0) {
         const permsToInsert = permissions.map((p: any) => ({
@@ -3186,7 +3102,6 @@ export class DatabaseStorage implements IStorage {
       return newRole;
     });
   }
-
   async updateRoleWithPermissions(
     roleId: number,
     roleData: any,
@@ -3206,7 +3121,6 @@ export class DatabaseStorage implements IStorage {
             ),
           )
           .limit(1);
-
         if (existingRole.length > 0) {
           // Yeh message seedha frontend par dikhega
           throw new Error(
@@ -3214,21 +3128,17 @@ export class DatabaseStorage implements IStorage {
           );
         }
       }
-
       // 2. Update Role Metadata
       await tx.update(roles).set(roleData).where(eq(roles.id, roleId));
-
       if (permissions && permissions.length > 0) {
         // 3. Data Sanitization
         const uniquePermissions = Array.from(
           new Map(permissions.map((p) => [p.menuId, p])).values(),
         );
-
         // 4. Clear existing mapping
         await tx
           .delete(rolePermissions)
           .where(eq(rolePermissions.roleId, roleId));
-
         const permsToInsert = uniquePermissions.map((p: any) => ({
           roleId: roleId,
           menuId: p.menuId,
@@ -3239,13 +3149,11 @@ export class DatabaseStorage implements IStorage {
           export: p.export ?? false,
           print: p.print ?? false,
         }));
-
         // 5. Insert new set
         await tx.insert(rolePermissions).values(permsToInsert);
       }
     });
   }
-
   async deleteRole(id: number): Promise<void> {
     await db.transaction(async (tx) => {
       await tx.delete(rolePermissions).where(eq(rolePermissions.roleId, id));
@@ -3258,21 +3166,32 @@ export class DatabaseStorage implements IStorage {
   }) {
     try {
       const conditions = [];
-
-      // :point_down: date ya current date
+      // =========================
+      // Selected Date
+      // =========================
       const selectedDate = filters?.date
         ? filters.date
         : new Date().toISOString().split("T")[0];
-
-      // :point_down: onlyDate column pe filter
-      conditions.push(eq(schema.employeeActivityLogs.onlyDate, selectedDate));
-
+      // Next day (night shift punches ke liye)
+      // Previous Date
+      const previousDateObj = new Date(selectedDate);
+      previousDateObj.setDate(previousDateObj.getDate() - 1);
+      const previousDateStr = previousDateObj.toISOString().split("T")[0];
+      // Next Date
+      const nextDateObj = new Date(selectedDate);
+      nextDateObj.setDate(nextDateObj.getDate() + 1);
+      const nextDateStr = nextDateObj.toISOString().split("T")[0];
+      // Fetch previous + selected + next
+      conditions.push(
+        gte(schema.employeeActivityLogs.onlyDate, previousDateStr),
+      );
+      conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
+      conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
       if (filters?.employeeCode) {
         conditions.push(
           eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
         );
       }
-
       const logs = await db
         .select({
           employeeCode: schema.employeeActivityLogs.employeeCode,
@@ -3310,67 +3229,110 @@ export class DatabaseStorage implements IStorage {
           asc(schema.employeeActivityLogs.employeeCode),
           asc(schema.employeeActivityLogs.logDate),
         );
-
       // =========================
-      // GROUP
+      // GROUP BY EMPLOYEE
       // =========================
       const grouped: Record<string, any[]> = {};
-
       for (const log of logs) {
-        const key = `${log.employeeCode}_${log.onlyDate}`;
-        if (!grouped[key]) grouped[key] = [];
+        const key = log.employeeCode;
+        if (!grouped[key]) {
+          grouped[key] = [];
+        }
         grouped[key].push(log);
       }
-
       const result = [];
-
+      // =========================
+      // PROCESS EACH EMPLOYEE
+      // =========================
       for (const key of Object.keys(grouped)) {
-        const employeeLogs = grouped[key];
-
+        const allLogs = grouped[key];
+        // =========================
+        // Selected date ka FIRST IN
+        // =========================
+        const todayFirstIn = allLogs.find(
+          (l) => l.onlyDate === selectedDate && l.direction === "IN",
+        );
+        // Agar selected date pe IN hi nahi mila
+        if (!todayFirstIn) {
+          continue;
+        }
+        const todayFirstInTime = new Date(todayFirstIn.logDate).getTime();
+        // =========================
+        // Previous date ka FIRST IN
+        // =========================
+        // Previous day ke saare IN punches
+        const previousDayIns = allLogs.filter(
+          (l) => l.onlyDate < selectedDate && l.direction === "IN",
+        );
+        // Check karo kya current first IN
+        // kisi previous session ke andar aa raha hai
+        let isContinuation = false;
+        for (const prevIn of previousDayIns) {
+          const prevStart = new Date(prevIn.logDate).getTime();
+          const prevCutoff = prevStart + 16 * 60 * 60 * 1000;
+          if (todayFirstInTime >= prevStart && todayFirstInTime <= prevCutoff) {
+            isContinuation = true;
+            break;
+          }
+        }
+        if (isContinuation) {
+          continue;
+        }
+        // =========================
+        // FINAL SESSION START
+        // =========================
+        const shiftStartLog = todayFirstIn;
+        // =========================
+        // Session cutoff
+        // =========================
+        const startTime = new Date(shiftStartLog.logDate).getTime();
+        const cutoffTime = startTime + 16 * 60 * 60 * 1000;
+        // =========================
+        // Session logs
+        // =========================
+        const employeeLogs = allLogs.filter((l) => {
+          const logTime = new Date(l.logDate).getTime();
+          return logTime >= startTime && logTime <= cutoffTime;
+        });
+        // =========================
+        // Calculations
+        // =========================
         let productiveMinutes = 0;
         const movementDetails: any[] = [];
-
         let stack: Record<string, any> = {};
-        // doorId wise IN store
-
         let firstTime: number | null = null;
         let lastTime: number | null = null;
-
         for (const log of employeeLogs) {
           const time = new Date(log.logDate).getTime();
-          if (firstTime === null) firstTime = time;
+          if (firstTime === null) {
+            firstTime = time;
+          }
           lastTime = time;
-
           const isGate = log.doorType === "gate";
-
-          const key = log.doorId;
-
+          const doorKey = log.doorId;
           // =========================
           // IN
           // =========================
           if (log.direction === "IN") {
-            stack[key] = log;
+            stack[doorKey] = log;
           }
-
           // =========================
           // OUT
           // =========================
           else if (log.direction === "OUT") {
-            const inLog = stack[key];
-            if (!inLog) continue;
-
+            const inLog = stack[doorKey];
+            if (!inLog) {
+              continue;
+            }
             const duration =
               (new Date(log.logDate).getTime() -
                 new Date(inLog.logDate).getTime()) /
               60000;
-
             const safeDuration = Math.max(0, duration);
-
-            // :fire: ONLY NON-GATE ADD TO PRODUCTIVE
+            // Gate duration productive me add nahi hoga
             if (!isGate) {
               productiveMinutes += safeDuration;
             }
-
             movementDetails.push({
               doorName: log.doorName,
               doorType: log.doorType,
@@ -3381,58 +3343,49 @@ export class DatabaseStorage implements IStorage {
               durationMinutes: Math.floor(safeDuration),
               isGateEntry: isGate,
             });
-
-            delete stack[key];
+            delete stack[doorKey];
           }
         }
-
+        // =========================
+        // Presence
+        // =========================
         const totalPresenceMinutes =
           firstTime && lastTime ? (lastTime - firstTime) / 60000 : 0;
-
         const productiveHours = productiveMinutes / 60;
-
         const shiftHours = Number(employeeLogs[0]?.workingHours || 8);
-
-        // 🔥 Default OT = 0
+        // =========================
+        // OT
+        // =========================
         let otHours = 0;
-
-        // 🔥 Minimum 2 OT complete hona mandatory
         if (productiveHours >= shiftHours + 2) {
           otHours = Math.floor(productiveHours - shiftHours);
         }
-        // const otHours =
-        //   productiveHours > 8 ? (productiveHours - 8).toFixed(2) : "0.00";
-
+        // =========================
+        // FINAL RESULT
+        // =========================
         result.push({
           employeeCode: employeeLogs[0]?.employeeCode,
           employeeName: employeeLogs[0]?.employeeName,
           gender: employeeLogs[0]?.gender || "-",
           shift: employeeLogs[0]?.shiftName || "-",
-
           shiftTime: employeeLogs[0]?.shiftTime || "-",
           workingHours: employeeLogs[0]?.workingHours || "-",
           latestPunchDoor: employeeLogs.at(-1)?.doorName || "-",
           inPunch: employeeLogs[0]?.logDate || null,
           outPunch: employeeLogs.at(-1)?.logDate || null,
-
           productiveMinutes: Math.floor(productiveMinutes),
           productiveHours: productiveHours.toFixed(2),
-
           totalPresenceMinutes: Math.floor(totalPresenceMinutes),
           totalPresenceHours: (totalPresenceMinutes / 60).toFixed(2),
-
           hoursWorked: productiveHours.toFixed(2),
-
           otHours,
-          dutyStatus: employeeLogs.length ? "Present" : "Absent",
-
-          date: employeeLogs[0]?.onlyDate,
-
+          dutyStatus: "Present",
+          // Business date
+          date: selectedDate,
           totalSessions: movementDetails.length,
           movementDetails,
         });
       }
-
       return result;
     } catch (err) {
       console.error(err);

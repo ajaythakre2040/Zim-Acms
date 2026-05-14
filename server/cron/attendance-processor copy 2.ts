@@ -10,306 +10,212 @@ import {
     devices,
     designations,
 } from "@shared/schema";
-import { eq, sql, and } from "drizzle-orm";
+import { eq, sql, and, asc } from "drizzle-orm";
 import { ZONES, ATTENDANCE_STATUS, ATTENDANCE_CONFIG } from "../constant";
 import dayjs from "dayjs";
 import isBetween from "dayjs/plugin/isBetween";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 
 dayjs.extend(isBetween);
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
-// ✅ same imports (no change)
+const TZ = "Asia/Kolkata";
 
 export async function processAttendanceBatch(rawPunches: any[]) {
     if (!rawPunches.length) return;
 
-    const [allDoorMappings, allShifts] = await Promise.all([
-        db
-            .select({
-                doorId: doors.id,
-                doorName: doors.name,
-                inDeviceIds: doorDevices.inDeviceIds,
-                outDeviceIds: doorDevices.outDeviceIds,
-            })
-            .from(doors)
-            .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId)),
+    const [allDoorMappings, allShifts, allDevices] = await Promise.all([
+        db.select({
+            doorId: doors.id,
+            doorName: doors.name,
+            inDeviceIds: doorDevices.inDeviceIds,
+            outDeviceIds: doorDevices.outDeviceIds,
+        }).from(doors).leftJoin(doorDevices, eq(doors.id, doorDevices.doorId)),
         db.select().from(shifts).where(eq(shifts.isActive, true)),
+        db.select().from(devices),
     ]);
-
-    // ✅ SHIFT WINDOW FIXED
-    const shiftWindows = allShifts.map((s) => {
-        const [h, m] = (s.startTime || "00:00").split(":");
-
-        return (punchTime: dayjs.Dayjs) => {
-            const shiftStartTime = punchTime
-                .set("hour", parseInt(h))
-                .set("minute", parseInt(m))
-                .set("second", 0);
-
-            const buffer = s.thresholdMins ?? 30;
-
-            return {
-                name: s.name,
-                shiftTime: `${s.startTime} - ${s.endTime}`,
-                workingHours: s.workingHours || 8,
-                windows: [
-                    {
-                        start: shiftStartTime.subtract(buffer, "minute"),
-                        end: shiftStartTime.add(buffer, "minute"),
-                    },
-                ],
-            };
-        };
-    });
-
-    const activityLogsToInsert: any[] = [];
-    const allDevices = await db.select().from(devices);
 
     for (const punch of rawPunches) {
         try {
             const msEmpCode = String(punch.EmployeeCode || punch.employeecode || "");
             const msDeviceId = Number(punch.DeviceId || punch.deviceid || 0);
-
             const device = allDevices.find((d) => Number(d.msId) === msDeviceId);
-            if (!device) continue;
+
+            if (!device || !msEmpCode) continue;
 
             const rawTime = punch.LogDate || punch.logdate || punch.TransactionStamp;
+            const punchTime = typeof rawTime === "string"
+                ? dayjs.tz(rawTime.replace("Z", ""), TZ)
+                : dayjs.tz(rawTime, TZ);
 
-            const punchTime =
-                typeof rawTime === "string"
-                    ? dayjs(rawTime.replace("Z", ""))
-                    : dayjs(rawTime);
+            if (!punchTime.isValid()) continue;
 
             const onlyDate = punchTime.format("YYYY-MM-DD");
+            const localTimestamp = punchTime.format("YYYY-MM-DD HH:mm:ss");
 
-            if (!msEmpCode || msDeviceId === 0 || !punchTime.isValid()) continue;
-
-            const [empData] = await db
-                .select({
-                    id: people.id,
-                    employeeName: people.employeeName,
-                    deptName: departments.name,
-                    desigName: designations.name,
-                    lastSeenTime: people.lastSeenTime,
-                    currentZone: people.currentZone,
-                    gender: people.gender,
-                })
-                .from(people)
+            const [empData] = await db.select({
+                employeeName: people.employeeName,
+                deptName: departments.name,
+                desigName: designations.name,
+            }).from(people)
                 .leftJoin(departments, eq(people.departmentId, departments.id))
                 .leftJoin(designations, eq(people.designationId, designations.id))
-                .where(eq(people.employeeCode, msEmpCode))
-                .limit(1);
+                .where(eq(people.employeeCode, msEmpCode)).limit(1);
 
             if (!empData) continue;
 
-            // 🔥 OLD mapping fallback (maintained)
-            const mapping = allDoorMappings.find(
-                (m) =>
-                    m.inDeviceIds?.includes(msDeviceId) ||
-                    m.outDeviceIds?.includes(msDeviceId),
+            const mapping = allDoorMappings.find(m =>
+                m.inDeviceIds?.includes(msDeviceId) || m.outDeviceIds?.includes(msDeviceId)
             );
 
-            // ✅ NEW PRIMARY LOGIC
-            let isIncoming = device.deviceDirection === "IN";
-
-            // ✅ fallback: agar direction missing ho ya first punch OUT ho
-            const [existing] = await db
-                .select()
-                .from(dailyAttendanceSummary)
-                .where(
-                    and(
-                        eq(dailyAttendanceSummary.employeeCode, msEmpCode),
-                        eq(dailyAttendanceSummary.workDate, onlyDate),
-                    ),
-                );
-
-            if (!existing && !isIncoming) {
-                isIncoming = true; // first punch always IN
-            }
-
+            const isIncoming = device.deviceDirection === "IN";
             const direction = isIncoming ? "IN" : "OUT";
-
-            // ✅ door fallback
             const doorName = mapping?.doorName || device.name;
             const doorId = mapping?.doorId || device.id;
 
-            let detectedShiftName = "General";
-            let detectedShiftTime = "N/A";
-            let detectedWorkingHours = 8;
+            // Shift Detection (Current Punch)
+            let detShiftName = "-";
+            let detShiftTime = "N/A";
+            let detWorkingHours = 8;
 
-            if (isIncoming) {
-                outerLoop: for (const getWindow of shiftWindows) {
-                    const win = getWindow(punchTime);
+            for (const s of allShifts) {
+                const [h, m] = (s.startTime || "00:00").split(":");
+                const shiftStart = punchTime.clone().set("hour", parseInt(h)).set("minute", parseInt(m)).set("second", 0);
+                const buffer = s.thresholdMins ?? 30;
 
-                    for (const w of win.windows) {
-                        if (punchTime.isBetween(w.start, w.end, null, "[]")) {
-                            detectedShiftName = win.name;
-                            detectedShiftTime = win.shiftTime;
-                            detectedWorkingHours = win.workingHours;
-                            break outerLoop; // 🔥 VERY IMPORTANT
-                        }
-                    }
+                if (punchTime.isBetween(shiftStart.subtract(buffer, "minute"), shiftStart.add(buffer, "minute"), null, "[]")) {
+                    detShiftName = s.name;
+                    detShiftTime = `${s.startTime} - ${s.endTime}`;
+                    detWorkingHours = s.workingHours || 8;
+                    break;
                 }
             }
 
-            const zoneLabel = `${doorName} ${isIncoming ? "In" : "Out"}`;
-            const prevZone = empData.currentZone || "Unknown";
-            const currentZone = isIncoming ? ZONES.IN : ZONES.OUT;
-
-            const shiftMinutes = detectedWorkingHours * 60;
-
-            const lastSeen = empData.lastSeenTime
-                ? dayjs(empData.lastSeenTime)
-                : punchTime;
-
-            const durationMinutes = lastSeen.isSame(punchTime, "day")
-                ? Math.max(0, punchTime.diff(lastSeen, "minute"))
-                : 0;
-
-            activityLogsToInsert.push({
-                deviceLogId: String(
-                    punch.DeviceLogId ||
-                    punch.devicelogid ||
-                    `${Date.now()}-${Math.random()}`,
-                ),
-                employeeCode: msEmpCode,
-                employeeName: empData.employeeName,
-                deviceId: msDeviceId,
-                deviceName: device.name,
-                doorId: doorId,
-                doorName: doorName,
-                direction: direction,
-                logDate: punchTime.toDate(),
-                onlyDate: onlyDate,
-                stayDurationMinutes: durationMinutes,
-                departmentName: empData.deptName || "N/A",
-                designationName: empData.desigName || "N/A",
-                isProductive: isIncoming,
-                prevZone: prevZone,
-                currentZone: zoneLabel,
-            });
-
             await db.transaction(async (tx) => {
-                await tx
-                    .update(people)
-                    .set({
-                        lastSeenTime: punchTime.toDate(),
-                        currentZone: currentZone,
-                        updatedAt: new Date(),
-                    })
-                    .where(eq(people.employeeCode, msEmpCode));
+                await tx.insert(employeeActivityLogs).values({
+                    deviceLogId: Number(punch.DeviceLogId || punch.devicelogid || Date.now()),
+                    employeeCode: msEmpCode,
+                    employeeName: empData.employeeName,
+                    deviceId: msDeviceId,
+                    deviceName: device.name,
+                    doorId: Number(doorId),
+                    doorName: doorName,
+                    direction: direction,
+                    logDate: sql`${localTimestamp}::timestamp`,
+                    onlyDate: onlyDate,
+                    departmentName: empData.deptName || "N/A",
+                    designationName: empData.desigName || "N/A",
+                    isProductive: !doorName.toLowerCase().includes("gate"),
+                    shiftName: detShiftName,
+                    shiftTime: detShiftTime,
+                }).onConflictDoNothing();
 
-                await updateSummaryWithOT(
-                    tx,
-                    msEmpCode,
-                    empData.employeeName,
-                    onlyDate,
-                    punchTime.toDate(),
-                    durationMinutes,
-                    isIncoming,
-                    shiftMinutes,
-                    empData.deptName || "N/A",
-                    empData.desigName || "N/A",
-                    empData.gender || "N/A",
-                    zoneLabel,
-                    detectedShiftName,
-                    detectedShiftTime,
-                    null,
+                await tx.execute(sql`
+                    UPDATE people 
+                    SET last_seen_time = ${localTimestamp}::timestamp, 
+                        current_zone = ${isIncoming ? ZONES.IN : ZONES.OUT},
+                        updated_at = NOW()
+                    WHERE employee_code = ${msEmpCode}
+                `);
 
-                );
+                await recalculateAndSyncSummary(tx, msEmpCode, onlyDate);
             });
+
         } catch (err: any) {
-            console.error(`❌ Sync Error: ${err.message}`);
+            console.error(`❌ Error processing punch for ${punch.EmployeeCode}:`, err.message);
+        }
+    }
+}
+
+async function recalculateAndSyncSummary(tx: any, empCode: string, date: string) {
+    const logs = await tx.select().from(employeeActivityLogs)
+        .where(and(
+            eq(employeeActivityLogs.employeeCode, empCode),
+            eq(employeeActivityLogs.onlyDate, date)
+        ))
+        .orderBy(asc(employeeActivityLogs.logDate));
+
+    if (!logs.length) return;
+
+    // --- LOGIC: Pehle Punch se Shift Name aur Data nikalna ---
+    // Hum sirf pehle log (First-In) ki shift ko hi accurate maante hain
+    const firstLog = logs[0];
+    const baseShiftName = firstLog.shiftName !== "-" ? firstLog.shiftName : " ";
+
+    const [shiftData] = await tx.select().from(shifts).where(eq(shifts.name, baseShiftName)).limit(1);
+    const finalShiftHrs = shiftData ? Number(shiftData.workingHours) : 8.5;
+    const totalShiftMins = finalShiftHrs * 60;
+
+    let productiveMinutes = 0;
+    let stack: Record<number, any> = {};
+    const firstIn = logs[0].logDate;
+    const lastOut = logs[logs.length - 1].logDate;
+
+    for (const log of logs) {
+        if (log.direction === "IN") {
+            stack[log.doorId] = log;
+        } else if (log.direction === "OUT") {
+            const inLog = stack[log.doorId];
+            if (inLog) {
+                const diff = dayjs(log.logDate).diff(dayjs(inLog.logDate), "minute");
+                if (!log.doorName.toLowerCase().includes("gate")) {
+                    productiveMinutes += Math.max(0, diff);
+                }
+                delete stack[log.doorId];
+            }
         }
     }
 
-    if (activityLogsToInsert.length > 0) {
-        await db
-            .insert(employeeActivityLogs)
-            .values(activityLogsToInsert)
-            .onConflictDoNothing();
-    }
-}
-async function updateSummaryWithOT(
-    tx: any,
-    empCode: string,
-    employeeName: string,
-    date: string,
-    punchTime: Date,
-    mins: number,
-    isIncoming: boolean,
-    shiftMinutes: number,
-    departmentName: string,
-    designationName: string,
-    gender: string,
-    doorInfo: string,
-    shiftName: string,
-    shiftStart: any,
-    shiftEnd: any,
-) {
-    const [existing] = await tx
-        .select()
-        .from(dailyAttendanceSummary)
-        .where(
-            and(
-                eq(dailyAttendanceSummary.employeeCode, empCode),
-                eq(dailyAttendanceSummary.workDate, date),
-            ),
-        );
-    const finalShiftName = existing?.shiftname || shiftName || "General";
+    const totalPresenceMinutes = dayjs(lastOut).diff(dayjs(firstIn), "minute");
+    const thresholdMins = ATTENDANCE_CONFIG.OT_THRESHOLD_MINUTES || 120;
 
-    const finalShiftTime = existing?.shifttime || shiftStart || "N/A";
-    const totalOffice = (existing?.totalOfficeMinutes || 0) + mins;
-    const productive =
-        (existing?.productiveMinutes || 0) + (isIncoming ? mins : 0);
-
-    // 🔥 DYNAMIC OT LOGIC
-    const extraMinutes =
-        totalOffice > shiftMinutes ? totalOffice - shiftMinutes : 0;
-
-    // Eligibility: 2 hours (120 mins) threshold check
-    let finalOvertime = 0;
-    if (extraMinutes >= ATTENDANCE_CONFIG.OT_THRESHOLD_MINUTES) {
-        finalOvertime = extraMinutes;
+    // --- OT FLOOR LOGIC ---
+    let finalOTHours = 0;
+    if (productiveMinutes >= (totalShiftMins + thresholdMins)) {
+        const extraMinutes = productiveMinutes - totalShiftMins;
+        finalOTHours = Math.floor(extraMinutes / 60);
     }
 
-    await tx
-        .insert(dailyAttendanceSummary)
-        .values({
-            employeeCode: empCode,
-            employeeName: employeeName,
-            workDate: date,
-            firstIn: punchTime,
-            lastOut: punchTime,
-            totalOfficeMinutes: totalOffice,
-            productiveMinutes: productive,
-            overtimeMinutes: finalOvertime,
-            totalPunches: 1,
-            attendanceStatus: ATTENDANCE_STATUS.PRESENT,
-            departmentName,
-            designationName,
-            gender,
-            doorName: doorInfo,
-            shiftname: finalShiftName,
-            shifttime: finalShiftTime || "N/A",
-        })
-        .onConflictDoUpdate({
-            target: [
-                dailyAttendanceSummary.workDate,
-                dailyAttendanceSummary.employeeCode,
-            ],
-            set: {
-                lastOut: punchTime,
-                totalOfficeMinutes: totalOffice,
-                productiveMinutes: productive,
-                overtimeMinutes: finalOvertime,
-                totalPunches: sql`${dailyAttendanceSummary.totalPunches} + 1`,
-                departmentName: departmentName,
-                designationName: designationName,
-                gender: gender,
-                doorName: doorInfo,
-                shiftname: finalShiftName,
-                shifttime: finalShiftTime || "N/A",
-                employeeName: employeeName,
-            },
-        });
+    console.log(`--- Debug [${empCode}] [${date}] ---`);
+    console.log(`Using First Shift: ${baseShiftName} (${finalShiftHrs} hrs)`);
+    console.log(`Productive Mins: ${productiveMinutes.toFixed(0)}`);
+    console.log(`OT: ${finalOTHours} hrs`);
+    console.log(`----------------------------------`);
+
+    await tx.insert(dailyAttendanceSummary).values({
+        employeeCode: empCode,
+        employeeName: logs[0].employeeName,
+        workDate: date,
+        firstIn: firstIn,
+        lastOut: lastOut,
+        totalPresenceMinutes: Math.floor(totalPresenceMinutes),
+        totalPresenceHours: (totalPresenceMinutes / 60).toFixed(2),
+        productiveMinutes: Math.floor(productiveMinutes),
+        productiveHours: (productiveMinutes / 60).toFixed(2),
+        overtimeMinutes: finalOTHours * 60,
+        otHours: finalOTHours.toFixed(2),
+        efficiencyPercent: totalPresenceMinutes > 0 ? ((productiveMinutes / totalPresenceMinutes) * 100).toFixed(2) : "0.00",
+        totalPunches: logs.length,
+        attendanceStatus: ATTENDANCE_STATUS.PRESENT,
+        shiftname: baseShiftName,
+        shifttime: firstLog.shiftTime,
+        doorName: logs[logs.length - 1].doorName,
+    }).onConflictDoUpdate({
+        target: [dailyAttendanceSummary.workDate, dailyAttendanceSummary.employeeCode],
+        set: {
+            lastOut: lastOut,
+            totalPresenceMinutes: Math.floor(totalPresenceMinutes),
+            totalPresenceHours: (totalPresenceMinutes / 60).toFixed(2),
+            productiveMinutes: Math.floor(productiveMinutes),
+            productiveHours: (productiveMinutes / 60).toFixed(2),
+            overtimeMinutes: finalOTHours * 60,
+            otHours: finalOTHours.toFixed(2),
+            efficiencyPercent: totalPresenceMinutes > 0 ? ((productiveMinutes / totalPresenceMinutes) * 100).toFixed(2) : "0.00",
+            totalPunches: logs.length,
+            doorName: logs[logs.length - 1].doorName,
+            shiftname: baseShiftName, // Ensure shift name stays consistent
+        },
+    });
 }
