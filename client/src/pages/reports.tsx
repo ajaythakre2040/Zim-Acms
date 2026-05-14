@@ -72,7 +72,7 @@ const reportTypes = [
     description: "Monthly Efficiency records of Employees",
   },
   {
-    id: "department", 
+    id: "department",
     label: "Department",
     icon: Clock,
     color: "text-blue-500",
@@ -110,7 +110,7 @@ function statusBadge(status: string) {
 const filterConfig: Record<string, string[]> = {
   attendance: ["dateFrom", "dateTo", "employeeCode", "status"],
   "access-logs": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
-  "daily-performance": [ "dateFrom", "dateTo", "employeeCode", "deviceId", "status", ],
+  "daily-performance": ["dateFrom", "dateTo", "employeeCode", "deviceId", "status",],
   "daily-efficiency": ["date", "employeeCode", "deviceId", "status"],
   "monthly-efficiency": ["dateFrom", "dateTo", "employeeCode"],
   "department": ["dateFrom", "dateTo"],
@@ -1104,10 +1104,10 @@ function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
                   <td className="text-center p-3 font-semibold">
                     {Number(r.totalPresenceHours || 0) > 0
                       ? `${Math.round(
-                          (Number(r.productiveHours || 0) /
-                            Number(r.totalPresenceHours || 0)) *
-                            100,
-                        )}%`
+                        (Number(r.productiveHours || 0) /
+                          Number(r.totalPresenceHours || 0)) *
+                        100,
+                      )}%`
                       : "-"}
                   </td>
                 </tr>
@@ -1779,6 +1779,7 @@ export default function ReportsPage() {
     },
     placeholderData: (prev) => prev,
   });
+
   const { data: performanceData = [] } = useQuery<any[]>({
     queryKey: ["daily-performance-table", currentAppliedFilters],
     queryFn: async () => {
@@ -1797,9 +1798,29 @@ export default function ReportsPage() {
       return json.data || [];
     },
     enabled:
-      activeReport === "daily-efficiency" ||
-      activeReport === "daily-performance",
+      activeReport === "daily-efficiency"
   });
+
+  const { data: otMatrixData = [], isLoading: isOtLoading } = useQuery<any[]>({
+    queryKey: ["ot-matrix", currentAppliedFilters],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+
+      Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+        if (v && k !== "_refresh") {
+          params.set(k, String(v));
+        }
+      });
+
+      const res = await fetch(`/api/reports/ot-matrix?${params.toString()}`);
+
+      if (!res.ok) throw new Error("Fetch failed");
+
+      return res.json();
+    },
+    enabled: activeReport === "daily-performance", // 🔥 only for this tab
+  });
+
   const { data: musterRollData = [], isLoading: isMusterLoading } = useQuery<
     any[]
   >({
@@ -1845,56 +1866,56 @@ export default function ReportsPage() {
   });
 
   const { data: employeePerformanceData = [] } = useQuery<any[]>({
-  queryKey: ["employee-performance", currentAppliedFilters],
+    queryKey: ["employee-performance", currentAppliedFilters],
 
-  queryFn: async () => {
-    const params = new URLSearchParams();
+    queryFn: async () => {
+      const params = new URLSearchParams();
 
-    Object.entries(currentAppliedFilters).forEach(([k, v]) => {
-      if (v && k !== "_refresh") {
-        params.set(k, String(v));
-      }
-    });
+      Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+        if (v && k !== "_refresh") {
+          params.set(k, String(v));
+        }
+      });
 
-    const res = await fetch(
-      `/api/reports/employee-performance?${params.toString()}`,
-    );
+      const res = await fetch(
+        `/api/reports/employee-performance?${params.toString()}`,
+      );
 
-    if (!res.ok) throw new Error("Fetch failed");
+      if (!res.ok) throw new Error("Fetch failed");
 
-    const json = await res.json();
+      const json = await res.json();
 
-    return json.data || [];
-  },
+      return json.data || [];
+    },
 
-  enabled: activeReport === "monthly-efficiency",
-});
+    enabled: activeReport === "monthly-efficiency",
+  });
 
-const { data: departmentEfficiencyData = [] } = useQuery<any[]>({
-  queryKey: ["department-efficiency", currentAppliedFilters],
+  const { data: departmentEfficiencyData = [] } = useQuery<any[]>({
+    queryKey: ["department-efficiency", currentAppliedFilters],
 
-  queryFn: async () => {
-    const params = new URLSearchParams();
+    queryFn: async () => {
+      const params = new URLSearchParams();
 
-    Object.entries(currentAppliedFilters).forEach(([k, v]) => {
-      if (v && k !== "_refresh") {
-        params.set(k, String(v));
-      }
-    });
+      Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+        if (v && k !== "_refresh") {
+          params.set(k, String(v));
+        }
+      });
 
-    const res = await fetch(
-      `/api/reports/department-efficiency?${params.toString()}`,
-    );
+      const res = await fetch(
+        `/api/reports/department-efficiency?${params.toString()}`,
+      );
 
-    if (!res.ok) throw new Error("Fetch failed");
+      if (!res.ok) throw new Error("Fetch failed");
 
-    const json = await res.json();
+      const json = await res.json();
 
-    return json.data || [];
-  },
+      return json.data || [];
+    },
 
-  enabled: activeReport === "monthly-efficiency",
-});
+    enabled: activeReport === "monthly-efficiency",
+  });
   // const { data: otMatrixData = [], isLoading: isOtLoading } = useQuery<any[]>({
   //   queryKey: ["ot-matrix", currentAppliedFilters],
   //   queryFn: async () => {
@@ -1932,11 +1953,10 @@ const { data: departmentEfficiencyData = [] } = useQuery<any[]>({
             onClick={() => {
               setActiveReport(rt.id);
             }}
-            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
-              activeReport === rt.id
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
                 ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
                 : "bg-card hover:bg-muted/50"
-            }`}
+              }`}
           >
             <rt.icon
               className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`}
@@ -2058,7 +2078,7 @@ const { data: departmentEfficiencyData = [] } = useQuery<any[]>({
                         size="sm"
                         variant="outline"
                         onClick={() =>
-                          exportOTSummaryCSV(performanceData, daysInMonth)
+                          exportOTSummaryCSV(otMatrixData, daysInMonth)
                         }
                       >
                         <Download className="w-4 h-4 mr-2" /> Export
@@ -2067,7 +2087,7 @@ const { data: departmentEfficiencyData = [] } = useQuery<any[]>({
                   </CardHeader>
                   <CardContent className="p-0">
                     <DaliyPerformanceOvertimeSummaryTable
-                      data={performanceData}
+                      data={otMatrixData}
                       daysInMonth={daysInMonth}
                     />
                   </CardContent>
@@ -2149,40 +2169,40 @@ const { data: departmentEfficiencyData = [] } = useQuery<any[]>({
             )}
 
             {/* 6. Monthly Efficiency */}
-{activeReport === "monthly-efficiency" && (
-  <div className="space-y-6">
+            {activeReport === "monthly-efficiency" && (
+              <div className="space-y-6">
 
-    {/* EMPLOYEE PERFORMANCE TABLE */}
-    <Card className="shadow-sm border">
-      <CardHeader className="border-b py-3 px-4">
-        <CardTitle className="text-sm font-semibold">
-          Employee Performance Report
-        </CardTitle>
-      </CardHeader>
+                {/* EMPLOYEE PERFORMANCE TABLE */}
+                <Card className="shadow-sm border">
+                  <CardHeader className="border-b py-3 px-4">
+                    <CardTitle className="text-sm font-semibold">
+                      Employee Performance Report
+                    </CardTitle>
+                  </CardHeader>
 
-      <CardContent className="p-0">
-        <EmployeePerformanceTable
-          data={employeePerformanceData}
-        />
-      </CardContent>
-    </Card>
+                  <CardContent className="p-0">
+                    <EmployeePerformanceTable
+                      data={employeePerformanceData}
+                    />
+                  </CardContent>
+                </Card>
 
-    {/* DEPARTMENT EFFICIENCY TABLE */}
-    <Card className="shadow-sm border">
-      <CardHeader className="border-b py-3 px-4">
-        <CardTitle className="text-sm font-semibold">
-          Department Efficiency Report
-        </CardTitle>
-      </CardHeader>
+                {/* DEPARTMENT EFFICIENCY TABLE */}
+                <Card className="shadow-sm border">
+                  <CardHeader className="border-b py-3 px-4">
+                    <CardTitle className="text-sm font-semibold">
+                      Department Efficiency Report
+                    </CardTitle>
+                  </CardHeader>
 
-      <CardContent className="p-0">
-        <DepartmentEfficiencyTable
-          data={departmentEfficiencyData}
-        />
-      </CardContent>
-    </Card>
-  </div>
-)}
+                  <CardContent className="p-0">
+                    <DepartmentEfficiencyTable
+                      data={departmentEfficiencyData}
+                    />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
             {/* 4. Cabin Lockout */}
             {activeReport === "cabin-lockout" && (
