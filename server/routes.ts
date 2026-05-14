@@ -1261,16 +1261,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/reports/emplyee-efficiency-dateRange", async (req, res) => {
     try {
       // Frontend se parameters aise aayenge: ?fromDate=...&toDate=...&employeeCode=...
-      const { fromDate, toDate, employeeCode } = req.query;
+      const { dateFrom, dateTo, employeeCode } = req.query;
 
       // Validation: Date Range hona zaroori hai
-      if (!fromDate || !toDate) {
-        return res.status(400).json({ message: "Bhai, dono dates (From & To) select karo." });
-      }
+      return res.status(400).json({
+        message: "Please select both Start Date and End Date to proceed."
+      });
 
       const data = await storage.getEmplyeeEefficiency(
-        String(fromDate),
-        String(toDate),
+        String(dateFrom),
+        String(dateTo),
         employeeCode ? String(employeeCode) : undefined
       );
 
