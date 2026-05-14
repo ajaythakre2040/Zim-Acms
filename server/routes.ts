@@ -1258,26 +1258,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/reports/emplyee-efficiency-dateRange", async (req, res) => {
+  app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
     try {
-      // Frontend se parameters aise aayenge: ?fromDate=...&toDate=...&employeeCode=...
+      // Frontend query params: ?dateFrom=...&dateTo=...&employeeCode=...
       const { dateFrom, dateTo, employeeCode } = req.query;
 
-      // Validation: Date Range hona zaroori hai
-      return res.status(400).json({
-        message: "Please select both Start Date and End Date to proceed."
-      });
+      // ✅ Proper Validation: Check if dates are present
+      if (!dateFrom || !dateTo) {
+        return res.status(400).json({
+          success: false,
+          message: "Date range is required. Please select both Start Date and End Date to proceed."
+        });
+      }
 
+      // Call storage with validated dates
       const data = await storage.getEmplyeeEefficiency(
         String(dateFrom),
         String(dateTo),
         employeeCode ? String(employeeCode) : undefined
       );
 
-      res.json(data);
+      // ✅ Professional Success Response
+      res.json({
+        success: true,
+        count: data.length,
+        data: data
+      });
+
     } catch (error: any) {
-      console.error("Report Error:", error);
-      res.status(500).json({ message: "Server mein kuch lafda hai, report nahi ban payi." });
+      console.error("Efficiency Report Error:", error);
+
+      // ✅ Professional Error Message
+      res.status(500).json({
+        success: false,
+        message: "An internal server error occurred while generating the efficiency report. Please try again later."
+      });
     }
   });
   return httpServer;
