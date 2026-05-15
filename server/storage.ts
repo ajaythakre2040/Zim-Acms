@@ -478,8 +478,9 @@ export class DatabaseStorage implements IStorage {
       }
     });
   }
-  async getCompanies(): Promise<Company[]> {
-    return await db.select().from(companies);
+  async getCompanies(page?: number, pageSize?: number): Promise<any> {
+    const query = db.select().from(companies).orderBy(asc(companies.id));
+    return await withPagination(db, companies, query, page, pageSize);
   }
   async createCompany(data: InsertCompany): Promise<Company> {
     const [created] = await db.insert(companies).values(data).returning();
@@ -499,8 +500,9 @@ export class DatabaseStorage implements IStorage {
   async deleteCompany(id: number): Promise<void> {
     await db.delete(companies).where(eq(companies.id, id));
   }
-  async getDepartments(): Promise<Department[]> {
-    return await db.select().from(departments);
+  async getDepartments(page?: number, pageSize?: number): Promise<any> {
+    const query = db.select().from(departments).orderBy(asc(departments.name));
+    return await withPagination(db, departments, query, page, pageSize);
   }
   async createDepartment(data: InsertDepartment): Promise<Department> {
     const [created] = await db.insert(departments).values(data).returning();
@@ -542,8 +544,9 @@ export class DatabaseStorage implements IStorage {
   async deleteDesignation(id: number): Promise<void> {
     await db.delete(designations).where(eq(designations.id, id));
   }
-  async getCategories(): Promise<Category[]> {
-    return await db.select().from(categories);
+  async getCategories(page?: number, pageSize?: number): Promise<any> {
+    const query = db.select().from(categories).orderBy(asc(categories.id));
+    return await withPagination(db, categories, query, page, pageSize);
   }
   async createCategory(data: InsertCategory): Promise<Category> {
     const [created] = await db.insert(categories).values(data).returning();

@@ -215,18 +215,42 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message || "Failed to update" });
     }
   });
-  crudRoutes(app, "/api/companies", insertCompanySchema,
-    () => storage.getCompanies(), (d) => storage.createCompany(d),
-    (id, d) => storage.updateCompany(id, d), (id) => storage.deleteCompany(id));
-  crudRoutes(app, "/api/departments", insertDepartmentSchema,
-    () => storage.getDepartments(), (d) => storage.createDepartment(d),
-    (id, d) => storage.updateDepartment(id, d), (id) => storage.deleteDepartment(id));
-  crudRoutes(app, "/api/designations", insertDesignationSchema,
-    () => storage.getDesignations(), (d) => storage.createDesignation(d),
-    (id, d) => storage.updateDesignation(id, d), (id) => storage.deleteDesignation(id));
-  crudRoutes(app, "/api/categories", insertCategorySchema,
-    () => storage.getCategories(), (d) => storage.createCategory(d),
-    (id, d) => storage.updateCategory(id, d), (id) => storage.deleteCategory(id));
+  crudRoutes(
+    app,
+    "/api/companies",
+    insertCompanySchema,
+    (query: any) => storage.getCompanies(query.page, query.pageSize),
+    (d) => storage.createCompany(d),
+    (id, d) => storage.updateCompany(id, d),
+    (id) => storage.deleteCompany(id)
+  );
+  crudRoutes(
+    app,
+    "/api/departments",
+    insertDepartmentSchema,
+    (query: any) => storage.getDepartments(query.page, query.pageSize),
+    (d) => storage.createDepartment(d),
+    (id, d) => storage.updateDepartment(id, d),
+    (id) => storage.deleteDepartment(id)
+  );
+  crudRoutes(
+    app,
+    "/api/designations",
+    insertDesignationSchema,
+    (query: any) => storage.getDesignations(query.page, query.pageSize),
+    (d) => storage.createDesignation(d),
+    (id, d) => storage.updateDesignation(id, d),
+    (id) => storage.deleteDesignation(id)
+  );
+  crudRoutes(
+    app,
+    "/api/categories",
+    insertCategorySchema,
+    (query: any) => storage.getCategories(query.page, query.pageSize),
+    (d) => storage.createCategory(d),
+    (id, d) => storage.updateCategory(id, d),
+    (id) => storage.deleteCategory(id)
+  );
   crudRoutes(app, "/api/vendors", insertVendorSchema,
     () => storage.getVendors(), (d) => storage.createVendor(d),
     (id, d) => storage.updateVendor(id, d), (id) => storage.deleteVendor(id));
@@ -324,14 +348,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // crudRoutes(app, "/api/shifts", insertShiftSchema,
   //   () => storage.getShifts(), (d) => storage.createShift(d),
   //   (id, d) => storage.updateShift(id, d), (id) => storage.deleteShift(id));
-  crudRoutes(
-    app,
-    "/api/designations",
-    insertDesignationSchema,
-    (query: any) => storage.getDesignations(query.page, query.pageSize),
-    (d) => storage.createDesignation(d),
-    (id, d) => storage.updateDesignation(id, d),
-    (id) => storage.deleteDesignation(id)
+  crudRoutes(app, "/api/shifts", insertShiftSchema,
+    (query: any) => storage.getShifts(query.page, query.pageSize),
+    (d) => storage.createShift(d),
+    (id, d) => storage.updateShift(id, d),
+    (id) => storage.deleteShift(id)
   );
   app.get("/api/shift-assignments", async (req, res) => {
     try {

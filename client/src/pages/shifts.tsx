@@ -20,7 +20,7 @@ export default function ShiftsPage() {
     );
   }
   const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const pageSize = 5;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Shift | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
