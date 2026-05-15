@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { useCrud } from "@/hooks/use-crud";
-import { usePermission } from "@/hooks/use-permission"; 
+import { usePermission } from "@/hooks/use-permission";
 import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft } from "lucide-react";
 import type { Shift } from "@shared/schema";
 import { validateNoHtml } from "../lib/validation";
 import { MENU_CONFIG } from "../../../server/constant";
@@ -19,11 +19,19 @@ export default function ShiftsPage() {
       </div>
     );
   }
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Shift | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const { data = [], isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Shift>("/api/shifts", "Shift");
-  const [formKey, setFormKey] = useState(0); 
+  // const { data = [], isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Shift>("/api/shifts", "Shift");
+  const { data: response, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(
+    `/api/shifts?page=${page}&pageSize=${pageSize}`,
+    "Shift"
+  ) as any;
+  const shiftsData = response?.data || [];
+  const totalPages = response?.totalPages || 1;
+  const [formKey, setFormKey] = useState(0);
   const calculateWorkingHours = (start: string, end: string) => {
     if (!start || !end) return 0;
     const [sh, sm] = start.split(":").map(Number);
@@ -84,35 +92,35 @@ export default function ShiftsPage() {
       render: (s: Shift) => (
         <div className="flex gap-1">
           {canEdit && (
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={(e) => {
-              e.stopPropagation();
-              const updatedShift = {
-                ...s,
-                workingHours: calculateWorkingHours(s.startTime, s.endTime),
-              };
-              setEditing(updatedShift);
-              setFormKey((prev) => prev + 1); 
-              setDialogOpen(true);
-            }}
-          >
-            <Pencil className="w-4 h-4" />
-          </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                const updatedShift = {
+                  ...s,
+                  workingHours: calculateWorkingHours(s.startTime, s.endTime),
+                };
+                setEditing(updatedShift);
+                setFormKey((prev) => prev + 1);
+                setDialogOpen(true);
+              }}
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
           )}
           {canDelete && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (window.confirm("Delete shift?")) remove(s.id);
-            }}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-destructive"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm("Delete shift?")) remove(s.id);
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           )}
         </div>
       ),
@@ -133,7 +141,7 @@ export default function ShiftsPage() {
           <Button
             onClick={() => {
               setEditing(null);
-              setFormKey((prev) => prev + 1); 
+              setFormKey((prev) => prev + 1);
               setDialogOpen(true);
             }}
           >
@@ -141,27 +149,128 @@ export default function ShiftsPage() {
           </Button>
         }
       />
-      <DataTable
+      {/* <DataTable
         columns={columns}
         data={data}
         isLoading={isLoading}
         searchable
         searchKeys={["name", "code"]}
         emptyMessage="No shifts configured"
+      /> */}
+      <DataTable
+        columns={columns}
+        data={shiftsData} // Sirf shifts ka array bhejein
+        isLoading={isLoading}
+        searchable
+        searchKeys={["name", "code"]}
+        emptyMessage="No shifts configured"
       />
+
+      {/* Professional Pagination Controls */}
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+
+        {/* Left Side: Stats */}
+        <div className="text-sm text-muted-foreground order-2 md:order-1">
+          Showing <span className="font-semibold text-foreground">{(page - 1) * pageSize + 1}</span> to{" "}
+          <span className="font-semibold text-foreground">
+            {Math.min(page * pageSize, response?.totalCount || 0)}
+          </span>{" "}
+          of <span className="font-semibold text-foreground">{response?.totalCount || 0}</span> shifts
+        </div>
+
+        {/* Right Side: Controls */}
+        <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+
+          {/* Direct Jump (Professional Touch) */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Go to Page</span>
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              defaultValue={page}
+              className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const val = Number(e.currentTarget.value);
+                  if (val >= 1 && val <= totalPages) setPage(val);
+                }
+              }}
+            />
+          </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex items-center space-x-1">
+            {/* First Page */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+            >
+              <span className="sr-only">First Page</span>
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+
+            {/* Previous */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Prev
+            </Button>
+
+            {/* Page Indicator */}
+            <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+              {page} / {totalPages}
+            </div>
+
+            {/* Next */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+
+            {/* Last Page */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setPage(totalPages)}
+              disabled={page === totalPages}
+            >
+              <span className="sr-only">Last Page</span>
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+
       {(canAdd || canEdit) && (
-      <CrudDialog
-        key={formKey} 
-        open={dialogOpen}
-        errors={errors}
-        onClose={() => {
-          setDialogOpen(false);
-          setEditing(null);
-          setErrors({});
-        }}
-        title={editing ? "Edit Shift" : "Add Shift"}
-        fields={fields}
-        initialData={editing || undefined}
+        <CrudDialog
+          key={formKey}
+          open={dialogOpen}
+          errors={errors}
+          onClose={() => {
+            setDialogOpen(false);
+            setEditing(null);
+            setErrors({});
+          }}
+          title={editing ? "Edit Shift" : "Add Shift"}
+          fields={fields}
+          initialData={editing || undefined}
           onSubmit={async (formData) => {
             if ((editing && !canEdit) || (!editing && !canAdd)) {
               return;
@@ -196,8 +305,8 @@ export default function ShiftsPage() {
               }
             }
           }}
-        isPending={isCreating || isUpdating}
-      />
+          isPending={isCreating || isUpdating}
+        />
       )}
     </div>
   );

@@ -148,6 +148,7 @@ import {
 } from "./constant";
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
+import { withPagination } from "./utils/pagination.utils";
 dayjs.extend(isBetween);
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -519,8 +520,9 @@ export class DatabaseStorage implements IStorage {
   async deleteDepartment(id: number): Promise<void> {
     await db.delete(departments).where(eq(departments.id, id));
   }
-  async getDesignations(): Promise<Designation[]> {
-    return await db.select().from(designations);
+  async getDesignations(page?: number, pageSize?: number): Promise<any> {
+    const query = db.select().from(designations).orderBy(asc(designations.name));
+    return await withPagination(db, designations, query, page, pageSize);
   }
   async createDesignation(data: InsertDesignation): Promise<Designation> {
     const [created] = await db.insert(designations).values(data).returning();
@@ -1311,8 +1313,12 @@ export class DatabaseStorage implements IStorage {
   async deleteAccessCard(id: number): Promise<void> {
     await db.delete(accessCards).where(eq(accessCards.id, id));
   }
-  async getShifts(): Promise<Shift[]> {
-    return await db.select().from(shifts).orderBy(asc(shifts.id));
+  // async getShifts(): Promise<Shift[]> {
+  //   return await db.select().from(shifts).orderBy(asc(shifts.id));
+  // }
+  async getShifts(page?: number, pageSize?: number): Promise<any> {
+    const query = db.select().from(shifts).orderBy(asc(shifts.id));
+    return await withPagination(db, shifts, query, page, pageSize);
   }
   async createShift(data: InsertShift): Promise<Shift> {
     if (!data.code) {
@@ -3266,17 +3272,33 @@ export class DatabaseStorage implements IStorage {
         );
         // Check karo kya current first IN
         // kisi previous session ke andar aa raha hai
-        let isContinuation = false;
-        for (const prevIn of previousDayIns) {
-          const prevStart = new Date(prevIn.logDate).getTime();
-          const prevCutoff = prevStart + 16 * 60 * 60 * 1000;
-          if (todayFirstInTime >= prevStart && todayFirstInTime <= prevCutoff) {
-            isContinuation = true;
-            break;
+        // Previous date ke gate logs
+        const previousGateLogs = allLogs.filter(
+          (l) => l.onlyDate < selectedDate && l.doorType === "gate",
+        );
+
+        // Previous session ka last gate log
+        const lastPreviousGateLog = previousGateLogs.at(-1);
+
+        // Agar previous session gate OUT pe end hua hai
+        // to next day ka IN new session hoga
+        const previousSessionClosed = lastPreviousGateLog?.direction === "OUT";
+
+        // Agar previous session closed nahi hua
+        // aur current IN subah ka continuation hai
+        if (!previousSessionClosed) {
+          const previousLogTime = new Date(
+            lastPreviousGateLog?.logDate,
+          ).getTime();
+
+          const diffHours =
+            (todayFirstInTime - previousLogTime) / (1000 * 60 * 60);
+
+          // 12 hr ke andar firse IN
+          // matlab continuation
+          if (diffHours <= 12) {
+            continue;
           }
-        }
-        if (isContinuation) {
-          continue;
         }
         // =========================
         // FINAL SESSION START
@@ -3398,12 +3420,10 @@ export class DatabaseStorage implements IStorage {
       gte(dailyAttendanceSummary.workDate, fromDate),
       lte(dailyAttendanceSummary.workDate, toDate)
     ];
-
     // 2. Agar user ne specific Employee select kiya hai (aur "all" nahi hai)
     if (employeeCode && employeeCode !== "all" && employeeCode !== "") {
       conditions.push(eq(dailyAttendanceSummary.employeeCode, employeeCode));
     }
-
     const reportData = await db
       .select({
         employeeCode: dailyAttendanceSummary.employeeCode,
@@ -3418,7 +3438,6 @@ export class DatabaseStorage implements IStorage {
       .from(dailyAttendanceSummary)
       .where(and(...conditions))
       .groupBy(dailyAttendanceSummary.employeeCode, dailyAttendanceSummary.employeeName);
-
     return reportData;
   }
   async getDepartmentEfficiencyReport(fromDate: string, toDate: string, filterDeptId?: number) {
@@ -3427,12 +3446,10 @@ export class DatabaseStorage implements IStorage {
       gte(dailyAttendanceSummary.workDate, fromDate),
       lte(dailyAttendanceSummary.workDate, toDate)
     ];
-
     // 2. Direct ID Filter: Agar dropdown se Department ID aayi hai
     if (filterDeptId && filterDeptId !== 0) {
       conditions.push(eq(dailyAttendanceSummary.departmentId, filterDeptId));
     }
-
     const reportData = await db
       .select({
         // Display ke liye departmentName use karenge, par filter ID se hoga
@@ -3446,7 +3463,6 @@ export class DatabaseStorage implements IStorage {
       .from(dailyAttendanceSummary)
       .where(and(...conditions))
       .groupBy(dailyAttendanceSummary.departmentName, dailyAttendanceSummary.departmentId);
-
     return reportData;
   }
 }

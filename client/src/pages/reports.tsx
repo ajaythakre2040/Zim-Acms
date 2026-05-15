@@ -1520,10 +1520,17 @@ function DepartmentEfficiencyTable({ data }: { data?: any[] }) {
                   key={`${r.departmentName}-${i}`}
                   className="border-b hover:bg-muted/20"
                 >
-                  <td className="border p-3">{r.departmentName || "-"}</td>
+                  <td className="border p-3">{r.department || "-"}</td>
 
                   <td className="border p-3 text-center whitespace-nowrap">
-                    {r.dateFrom || "-"} To {r.dateTo || "-"}
+                    {r.dateRange
+                      ? r.dateRange
+                        .split(" to ")
+                        .map((d: string) =>
+                          new Date(d).toLocaleDateString("en-GB"),
+                        )
+                        .join(" To ")
+                      : "-"}
                   </td>
 
                   <td className="border p-3 text-center">{manpower}</td>

@@ -321,9 +321,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/access-cards", insertAccessCardSchema,
     () => storage.getAccessCards(), (d) => storage.createAccessCard(d),
     (id, d) => storage.updateAccessCard(id, d), (id) => storage.deleteAccessCard(id));
-  crudRoutes(app, "/api/shifts", insertShiftSchema,
-    () => storage.getShifts(), (d) => storage.createShift(d),
-    (id, d) => storage.updateShift(id, d), (id) => storage.deleteShift(id));
+  // crudRoutes(app, "/api/shifts", insertShiftSchema,
+  //   () => storage.getShifts(), (d) => storage.createShift(d),
+  //   (id, d) => storage.updateShift(id, d), (id) => storage.deleteShift(id));
+  crudRoutes(
+    app,
+    "/api/designations",
+    insertDesignationSchema,
+    (query: any) => storage.getDesignations(query.page, query.pageSize),
+    (d) => storage.createDesignation(d),
+    (id, d) => storage.updateDesignation(id, d),
+    (id) => storage.deleteDesignation(id)
+  );
   app.get("/api/shift-assignments", async (req, res) => {
     try {
       const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
