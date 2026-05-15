@@ -1523,11 +1523,12 @@ export class DatabaseStorage implements IStorage {
   async deleteShiftAssignment(id: number): Promise<void> {
     await db.delete(shiftAssignments).where(eq(shiftAssignments.id, id));
   }
-  async getHolidays(): Promise<Holiday[]> {
+  async getHolidays(page?: number, pageSize?: number): Promise<any> {
     const [pgData, msDataRaw] = await Promise.all([
-      db.select().from(holidays),
+      db.select().from(holidays).orderBy(asc(holidays.id)),
       dbMsSql.select().from({ dbName: "Holidays" }).execute(),
     ]);
+
     for (const msRow of msDataRaw || []) {
       const msId = msRow.Id || msRow.id;
       if (!pgData.find((p) => p.msId === msId)) {
@@ -1542,12 +1543,44 @@ export class DatabaseStorage implements IStorage {
             holidayType: "company",
           })
           .returning();
-        pgData.push(newRec);
+        if (newRec) pgData.push(newRec);
       }
     }
-    return Array.from(
+
+    // Aapka original deduplication logic (bilkul same hai)
+    const uniqueHolidays = Array.from(
       new Map(pgData.map((h) => [`${h.name}-${h.date}`, h])).values(),
     );
+
+    // Sirf return format change hoga agar pageSize milega toh
+    if (!pageSize) {
+      return uniqueHolidays;
+    }
+
+    const p = page && Number(page) > 0 ? Number(page) : 1;
+    const size = Number(pageSize);
+
+    if (size === -1) {
+      return {
+        data: uniqueHolidays,
+        totalCount: uniqueHolidays.length,
+        totalPages: 1,
+        currentPage: 1,
+        pageSize: uniqueHolidays.length
+      };
+    }
+
+    const start = (p - 1) * size;
+    const end = start + size;
+    const paginatedData = uniqueHolidays.slice(start, end);
+
+    return {
+      data: paginatedData,
+      totalCount: uniqueHolidays.length,
+      totalPages: Math.ceil(uniqueHolidays.length / size),
+      currentPage: p,
+      pageSize: size
+    };
   }
   async createHoliday(data: InsertHoliday): Promise<Holiday> {
     let mssqlId: number | null = null;

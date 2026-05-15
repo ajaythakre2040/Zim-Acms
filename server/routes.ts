@@ -375,11 +375,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/shift-assignments", insertShiftAssignmentSchema,
     () => storage.getShiftAssignments(), (d) => storage.createShiftAssignment(d),
     (id, d) => storage.updateShiftAssignment(id, d), (id) => storage.deleteShiftAssignment(id));
-  crudRoutes(app, "/api/holidays", insertHolidaySchema,
-    () => storage.getHolidays(),
+  crudRoutes(
+    app,
+    "/api/holidays",
+    insertHolidaySchema,
+    (query: any) => storage.getHolidays(query.page, query.pageSize),
     (d) => storage.createHoliday(d),
     (id, d) => storage.updateHoliday(id, d),
-    (id) => storage.deleteHoliday(id));
+    (id) => storage.deleteHoliday(id)
+  );
   crudRoutes(app, "/api/access-levels", insertAccessLevelSchema,
     () => storage.getAccessLevels(), (d) => storage.createAccessLevel(d),
     (id, d) => storage.updateAccessLevel(id, d), (id) => storage.deleteAccessLevel(id));
