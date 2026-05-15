@@ -778,6 +778,8 @@ export const employeeActivityLogs = pgTable("employee_activity_logs", {
   prevZone: text("prev_zone"),
   currentZone: text("current_zone"),
   isProductive: boolean("is_productive").default(false),
+  departmentId: integer("department_id"),
+  designationId: integer("designation_id"),
 }, (table) => ({
   empDateIdx: index("idx_logs_emp_date").on(table.employeeCode, table.onlyDate),
 }));
@@ -817,6 +819,8 @@ export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
   // Fast Reporting Metadata (No Joins Needed)
   departmentName: text("department_name"),
   designationName: text("designation_name"),
+  departmentId: integer("department_id"),
+  designationId: integer("designation_id"),
 
   // totalPresenceMinutes: integer("total_presence_minutes").default(0),
   

@@ -110,10 +110,16 @@ function statusBadge(status: string) {
 const filterConfig: Record<string, string[]> = {
   attendance: ["dateFrom", "dateTo", "employeeCode", "status"],
   "access-logs": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
-  "daily-performance": ["dateFrom", "dateTo", "employeeCode", "deviceId", "status",],
+  "daily-performance": [
+    "dateFrom",
+    "dateTo",
+    "employeeCode",
+    "deviceId",
+    "status",
+  ],
   "daily-efficiency": ["date", "employeeCode", "deviceId", "status"],
   "monthly-efficiency": ["dateFrom", "dateTo", "employeeCode"],
-  "department": ["dateFrom", "dateTo"],
+  department: ["dateFrom", "dateTo"],
   "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
 };
 function getCurrentMonthDates() {
@@ -1362,11 +1368,7 @@ function DepartmentWiseManpowerTable({
     </div>
   );
 }
-function EmployeePerformanceTable({
-  data,
-}: {
-  data?: any[];
-}) {
+function EmployeePerformanceTable({ data }: { data?: any[] }) {
   const safeData = Array.isArray(data) ? data : [];
 
   return (
@@ -1414,30 +1416,29 @@ function EmployeePerformanceTable({
               const productiveHours = Number(r.productiveHours || 0);
 
               const efficiency =
-                totalHours > 0
-                  ? (productiveHours / totalHours) * 100
-                  : 0;
+                totalHours > 0 ? (productiveHours / totalHours) * 100 : 0;
 
               return (
                 <tr
                   key={`${r.employeeCode}-${i}`}
                   className="border-b hover:bg-muted/20"
                 >
-                  <td className="border p-3">
-                    {r.employeeCode || "-"}
-                  </td>
+                  <td className="border p-3">{r.employeeCode || "-"}</td>
 
-                  <td className="border p-3">
-                    {r.employeeName || "-"}
-                  </td>
+                  <td className="border p-3">{r.employeeName || "-"}</td>
 
                   <td className="border p-3 text-center whitespace-nowrap">
-                    {r.dateFrom || "-"} To {r.dateTo || "-"}
+                    {r.dateRange
+                      ? r.dateRange
+                        .split(" to ")
+                        .map((d: string) =>
+                          new Date(d).toLocaleDateString("en-GB"),
+                        )
+                        .join(" To ")
+                      : "-"}
                   </td>
 
-                  <td className="border p-3 text-center">
-                    {totalDays}
-                  </td>
+                  <td className="border p-3 text-center">{totalDays}</td>
 
                   <td className="border p-3 text-center">
                     {totalHours.toFixed(2)}
@@ -1468,11 +1469,7 @@ function EmployeePerformanceTable({
     </div>
   );
 }
-function DepartmentEfficiencyTable({
-  data,
-}: {
-  data?: any[];
-}) {
+function DepartmentEfficiencyTable({ data }: { data?: any[] }) {
   const safeData = Array.isArray(data) ? data : [];
 
   return (
@@ -1516,26 +1513,20 @@ function DepartmentEfficiencyTable({
               const productiveHours = Number(r.productiveHours || 0);
 
               const efficiency =
-                totalHours > 0
-                  ? (productiveHours / totalHours) * 100
-                  : 0;
+                totalHours > 0 ? (productiveHours / totalHours) * 100 : 0;
 
               return (
                 <tr
                   key={`${r.departmentName}-${i}`}
                   className="border-b hover:bg-muted/20"
                 >
-                  <td className="border p-3">
-                    {r.departmentName || "-"}
-                  </td>
+                  <td className="border p-3">{r.departmentName || "-"}</td>
 
                   <td className="border p-3 text-center whitespace-nowrap">
                     {r.dateFrom || "-"} To {r.dateTo || "-"}
                   </td>
 
-                  <td className="border p-3 text-center">
-                    {manpower}
-                  </td>
+                  <td className="border p-3 text-center">{manpower}</td>
 
                   <td className="border p-3 text-center">
                     {totalHours.toFixed(2)}
@@ -1802,8 +1793,7 @@ export default function ReportsPage() {
       const json = await res.json();
       return json.data || [];
     },
-    enabled:
-      activeReport === "daily-efficiency"
+    enabled: activeReport === "daily-efficiency",
   });
 
   const { data: otMatrixData = [], isLoading: isOtLoading } = useQuery<any[]>({
@@ -1883,7 +1873,7 @@ export default function ReportsPage() {
       });
 
       const res = await fetch(
-        `/api/reports/employee-performance?${params.toString()}`,
+        `/api/reports/employee-efficiency-dateRange?${params.toString()}`,
       );
 
       if (!res.ok) throw new Error("Fetch failed");
@@ -2176,7 +2166,6 @@ export default function ReportsPage() {
             {/* 6. Monthly Efficiency */}
             {activeReport === "monthly-efficiency" && (
               <div className="space-y-6">
-
                 {/* EMPLOYEE PERFORMANCE TABLE */}
                 <Card className="shadow-sm border">
                   <CardHeader className="border-b py-3 px-4">
@@ -2186,9 +2175,7 @@ export default function ReportsPage() {
                   </CardHeader>
 
                   <CardContent className="p-0">
-                    <EmployeePerformanceTable
-                      data={employeePerformanceData}
-                    />
+                    <EmployeePerformanceTable data={employeePerformanceData} />
                   </CardContent>
                 </Card>
 

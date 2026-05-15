@@ -3421,5 +3421,33 @@ export class DatabaseStorage implements IStorage {
 
     return reportData;
   }
+  async getDepartmentEfficiencyReport(fromDate: string, toDate: string, filterDeptId?: number) {
+    // 1. Base filters (Date Range)
+    let conditions = [
+      gte(dailyAttendanceSummary.workDate, fromDate),
+      lte(dailyAttendanceSummary.workDate, toDate)
+    ];
+
+    // 2. Direct ID Filter: Agar dropdown se Department ID aayi hai
+    if (filterDeptId && filterDeptId !== 0) {
+      conditions.push(eq(dailyAttendanceSummary.departmentId, filterDeptId));
+    }
+
+    const reportData = await db
+      .select({
+        // Display ke liye departmentName use karenge, par filter ID se hoga
+        department: dailyAttendanceSummary.departmentName,
+        dateRange: sql<string>`${fromDate} || ' to ' || ${toDate}`,
+        totalManpower: sql<number>`COUNT(DISTINCT ${dailyAttendanceSummary.employeeCode})`,
+        totalManHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))`,
+        productiveHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))`,
+        avgEfficiency: sql<string>`ROUND(AVG(CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)), 2)`,
+      })
+      .from(dailyAttendanceSummary)
+      .where(and(...conditions))
+      .groupBy(dailyAttendanceSummary.departmentName, dailyAttendanceSummary.departmentId);
+
+    return reportData;
+  }
 }
 export const storage = new DatabaseStorage();

@@ -1295,5 +1295,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+  app.get("/api/reports/department-efficiency", async (req, res) => {
+    try {
+      const { fromDate, toDate, deptId } = req.query;
+
+      if (!fromDate || !toDate) {
+        return res.status(400).json({
+          success: false,
+          message: "Missing required parameters: fromDate and toDate are mandatory."
+        });
+      }
+
+      const data = await storage.getDepartmentEfficiencyReport(
+        String(fromDate),
+        String(toDate),
+        deptId ? Number(deptId) : undefined
+      );
+
+      res.status(200).json({
+        success: true,
+        count: data.length,
+        data: data
+      });
+
+    } catch (error: any) {
+      console.error(`[Report API Error] - ${new Date().toISOString()}:`, error.stack);
+
+      res.status(500).json({
+        success: false,
+        message: "An internal server error occurred while generating the department efficiency report."
+      });
+    }
+  });
   return httpServer;
 }
