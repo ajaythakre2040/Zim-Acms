@@ -832,31 +832,30 @@ export class DatabaseStorage implements IStorage {
   async deleteZone(id: number): Promise<void> {
     await db.delete(zones).where(eq(zones.id, id));
   }
-  async getDoors(): Promise<any[]> {
+  async getDoors(page?: number, pageSize?: number): Promise<any> {
     try {
       const [allDoors, allDoorDevices, allDevices] = await Promise.all([
-        db.select().from(doors),
+        db.select().from(doors).orderBy(asc(doors.id)),
         db.select().from(doorDevices),
         db.select().from(devices),
       ]);
-      return allDoors.map((door) => {
+
+      const resolvedDoors = allDoors.map((door) => {
         const mapping = allDoorDevices.find((md) => md.doorId === door.id);
+
         const resolveDevices = (ids: any[] | null) => {
           if (!ids || !Array.isArray(ids)) return [];
           return ids
             .map((id) => {
               const dev = allDevices.find((d) => Number(d.msId) === Number(id));
-              return dev
-                ? { id: dev.id, msId: dev.msId, name: dev.name }
-                : null;
+              return dev ? { id: dev.id, msId: dev.msId, name: dev.name } : null;
             })
-            .filter(
-              (d): d is { id: number; msId: number; name: string } =>
-                d !== null,
-            );
+            .filter((d): d is { id: number; msId: number; name: string } => d !== null);
         };
+
         const inDevices = resolveDevices(mapping?.inDeviceIds || []);
         const outDevices = resolveDevices(mapping?.outDeviceIds || []);
+
         return {
           ...door,
           inDevices,
@@ -865,9 +864,45 @@ export class DatabaseStorage implements IStorage {
           outCount: outDevices.length,
         };
       });
+
+      // Agar pageSize nahi milta toh All Data return karo
+      if (!pageSize) {
+        return {
+          data: resolvedDoors,
+          totalCount: resolvedDoors.length,
+          totalPages: 1,
+          currentPage: 1,
+          pageSize: resolvedDoors.length
+        };
+      }
+
+      const p = page && Number(page) > 0 ? Number(page) : 1;
+      const size = Number(pageSize);
+
+      if (size === -1) {
+        return {
+          data: resolvedDoors,
+          totalCount: resolvedDoors.length,
+          totalPages: 1,
+          currentPage: 1,
+          pageSize: resolvedDoors.length
+        };
+      }
+
+      const start = (p - 1) * size;
+      const end = start + size;
+      const paginatedData = resolvedDoors.slice(start, end);
+
+      return {
+        data: paginatedData,
+        totalCount: resolvedDoors.length,
+        totalPages: Math.ceil(resolvedDoors.length / size),
+        currentPage: p,
+        pageSize: size
+      };
     } catch (error) {
-      console.error("getDoors MS_ID Sync Error:", error);
-      return [];
+      console.error("getDoors Sync Error:", error);
+      return { data: [], totalCount: 0, totalPages: 0, currentPage: 1 };
     }
   }
   async createDoor(data: InsertDoor): Promise<Door> {
@@ -928,15 +963,20 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-  async getDevices(): Promise<any[]> {
+  async getDevices(page?: number, pageSize?: number): Promise<any> {
     try {
       const msDataRaw = await dbMsSql
         .select()
         .from({ dbName: "Devices" })
         .execute();
-      if (!msDataRaw || msDataRaw.length === 0) return [];
+
+      if (!msDataRaw || msDataRaw.length === 0) {
+        return pageSize ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1 } : [];
+      }
+
       const currentTime = new Date();
       const THRESHOLD_MINUTES = 1;
+
       const formattedDevices = msDataRaw.map((d: any) => {
         let lPing: Date | null = null;
         let calculatedStatus = "offline";
@@ -970,40 +1010,131 @@ export class DatabaseStorage implements IStorage {
           isActive: true,
         };
       });
+
+      // Sync to Local Postgres
       for (const dev of formattedDevices) {
-        await db
-          .insert(devices)
-          .values(dev)
-          .onConflictDoUpdate({
-            target: devices.msId,
-            set: {
-              name: dev.name,
-              deviceDirection: dev.deviceDirection,
-              serialNumber: dev.serialNumber,
-              opstamp: dev.opstamp,
-              lastPing: dev.lastPing,
-              lastreset: dev.lastreset,
-              activationCode: dev.activationCode,
-              isAttendanceDevice: dev.isAttendanceDevice,
-              deviceType: dev.deviceType,
-              locationId: dev.locationId,
-              ipAddress: dev.ipAddress,
-              lastHeartbeat: dev.lastHeartbeat,
-              status: dev.status,
-              isActive: true,
-            },
-          });
+        await db.insert(devices).values(dev).onConflictDoUpdate({
+          target: devices.msId,
+          set: { ...dev },
+        });
       }
+
       const currentMsIds = formattedDevices.map((d) => d.msId as number);
       if (currentMsIds.length > 0) {
         await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
       }
-      return formattedDevices;
+
+      // --- Pagination Logic ---
+      if (!pageSize) {
+        return formattedDevices; // Purana format: Simple Array
+      }
+
+      const p = page && Number(page) > 0 ? Number(page) : 1;
+      const size = Number(pageSize);
+
+      if (size === -1) {
+        return {
+          data: formattedDevices,
+          totalCount: formattedDevices.length,
+          totalPages: 1,
+          currentPage: 1,
+          pageSize: formattedDevices.length
+        };
+      }
+
+      const start = (p - 1) * size;
+      const end = start + size;
+      const paginatedData = formattedDevices.slice(start, end);
+
+      return {
+        data: paginatedData,
+        totalCount: formattedDevices.length,
+        totalPages: Math.ceil(formattedDevices.length / size),
+        currentPage: p,
+        pageSize: size
+      };
+
     } catch (error) {
       console.error("Device Sync Error:", error);
-      return [];
+      return pageSize ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1 } : [];
     }
   }
+  // async getDevices(): Promise<any[]> {
+  //   try {
+  //     const msDataRaw = await dbMsSql
+  //       .select()
+  //       .from({ dbName: "Devices" })
+  //       .execute();
+  //     if (!msDataRaw || msDataRaw.length === 0) return [];
+  //     const currentTime = new Date();
+  //     const THRESHOLD_MINUTES = 1;
+  //     const formattedDevices = msDataRaw.map((d: any) => {
+  //       let lPing: Date | null = null;
+  //       let calculatedStatus = "offline";
+  //       if (d.LastPing) {
+  //         lPing = new Date(d.LastPing);
+  //         let diffInMs = currentTime.getTime() - lPing.getTime();
+  //         let diffInMinutes = diffInMs / 60000;
+  //         const absDiff = Math.abs(diffInMinutes);
+  //         if (
+  //           absDiff <= THRESHOLD_MINUTES ||
+  //           Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
+  //         ) {
+  //           calculatedStatus = "online";
+  //         }
+  //       }
+  //       return {
+  //         msId: d.DeviceId || d.DeviceID,
+  //         name: d.DeviceName || "Unnamed Device",
+  //         deviceDirection: d.DeviceDirection || null,
+  //         serialNumber: d.SerialNumber || d.serialno,
+  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
+  //         lastPing: lPing,
+  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
+  //         activationCode: d.ActivationCode || "",
+  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
+  //         locationId: d.LocationId || null,
+  //         ipAddress: d.IpAddress || "",
+  //         lastHeartbeat: lPing,
+  //         status: calculatedStatus,
+  //         isActive: true,
+  //       };
+  //     });
+  //     for (const dev of formattedDevices) {
+  //       await db
+  //         .insert(devices)
+  //         .values(dev)
+  //         .onConflictDoUpdate({
+  //           target: devices.msId,
+  //           set: {
+  //             name: dev.name,
+  //             deviceDirection: dev.deviceDirection,
+  //             serialNumber: dev.serialNumber,
+  //             opstamp: dev.opstamp,
+  //             lastPing: dev.lastPing,
+  //             lastreset: dev.lastreset,
+  //             activationCode: dev.activationCode,
+  //             isAttendanceDevice: dev.isAttendanceDevice,
+  //             deviceType: dev.deviceType,
+  //             locationId: dev.locationId,
+  //             ipAddress: dev.ipAddress,
+  //             lastHeartbeat: dev.lastHeartbeat,
+  //             status: dev.status,
+  //             isActive: true,
+  //           },
+  //         });
+  //     }
+  //     const currentMsIds = formattedDevices.map((d) => d.msId as number);
+  //     if (currentMsIds.length > 0) {
+  //       await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
+  //     }
+  //     return formattedDevices;
+  //   } catch (error) {
+  //     console.error("Device Sync Error:", error);
+  //     return [];
+  //   }
+  // }
   async createDevice(data: InsertDevice): Promise<Device> {
     let mssqlId: number | null = null;
     try {

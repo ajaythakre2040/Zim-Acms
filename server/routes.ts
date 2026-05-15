@@ -284,12 +284,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/zones", insertZoneSchema,
     () => storage.getZones(), (d) => storage.createZone(d),
     (id, d) => storage.updateZone(id, d), (id) => storage.deleteZone(id));
-  crudRoutes(app, "/api/doors", insertDoorSchema,
-    () => storage.getDoors(), (d) => storage.createDoor(d),
-    (id, d) => storage.updateDoor(id, d), (id) => storage.deleteDoor(id));
-  crudRoutes(app, "/api/devices", insertDeviceSchema,
-    () => storage.getDevices(), (d) => storage.createDevice(d),
-    (id, d) => storage.updateDevice(id, d), (id) => storage.deleteDevice(id));
+  crudRoutes(
+    app,
+    "/api/doors",
+    insertDoorSchema,
+    (query: any) => storage.getDoors(query.page, query.pageSize),
+    (d) => storage.createDoor(d),
+    (id, d) => storage.updateDoor(id, d),
+    (id) => storage.deleteDoor(id)
+  );
+  crudRoutes(
+    app,
+    "/api/devices",
+    insertDeviceSchema,
+    (query: any) => storage.getDevices(query.page, query.pageSize),
+    (d) => storage.createDevice(d),
+    (id, d) => storage.updateDevice(id, d),
+    (id) => storage.deleteDevice(id)
+  );
   app.get("/api/people", async (req, res) => {
     try {
       const search = req.query.search as string | undefined;
