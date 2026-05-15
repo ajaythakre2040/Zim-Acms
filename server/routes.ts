@@ -1297,9 +1297,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.get("/api/reports/department-efficiency", async (req, res) => {
     try {
-      const { fromDate, toDate, deptId } = req.query;
+      const { dateFrom, dateTo, deptId } = req.query;
 
-      if (!fromDate || !toDate) {
+      if (!dateFrom || !dateTo) {
         return res.status(400).json({
           success: false,
           message: "Missing required parameters: fromDate and toDate are mandatory."
@@ -1307,8 +1307,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       }
 
       const data = await storage.getDepartmentEfficiencyReport(
-        String(fromDate),
-        String(toDate),
+        String(dateFrom),
+        String(dateTo),
         deptId ? Number(deptId) : undefined
       );
 
