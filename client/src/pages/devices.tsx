@@ -37,7 +37,9 @@ const statusConfig: Record<
 };
 
 export default function DevicesPage() {
-  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.DEVICES.code);
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
+    MENU_CONFIG.DEVICES.code,
+  );
   if (!canView) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -46,12 +48,24 @@ export default function DevicesPage() {
     );
   }
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
   const [editing, setEditing] = useState<Device | null>(null);
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // Aapka original CRUD hook
+  type PaginatedDeviceResponse = {
+    data: Device[];
+    totalPages: number;
+    totalCount: number;
+  };
+
   const {
-    data = [],
+    data: response = {
+      data: [],
+      totalPages: 1,
+      totalCount: 0,
+    },
     isLoading,
     create,
     update,
@@ -59,7 +73,16 @@ export default function DevicesPage() {
     isCreating,
     isUpdating,
     refetch,
-  } = useCrud<Device>("/api/devices", "Device");
+  } = useCrud<PaginatedDeviceResponse>(
+    `/api/devices?page=${page}&pageSize=${pageSize}`,
+    "Device",
+  );
+  const paginatedResponse = response as unknown as PaginatedDeviceResponse;
+
+  const data: Device[] = paginatedResponse?.data || [];
+  const totalPages = paginatedResponse?.totalPages || 1;
+  const totalCount = paginatedResponse?.totalCount || 0;
+
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: zones = [] } = useQuery<Zone[]>({ queryKey: ["/api/zones"] });
   if (!canView) {
@@ -69,9 +92,9 @@ export default function DevicesPage() {
       </div>
     );
   }
-  const online = data.filter((d) => d.status === "online").length;
-  const offline = data.filter((d) => d.status === "offline").length;
-  const errored = data.filter((d) => d.status === "error").length;
+  const online = data.filter((d: Device) => d.status === "online").length;
+  const offline = data.filter((d: Device) => d.status === "offline").length;
+  const errored = data.filter((d: Device) => d.status === "error").length;
 
   const fields: FieldConfig[] = [
     { key: "name", label: "Device Name", required: true },
@@ -213,47 +236,47 @@ export default function DevicesPage() {
       render: (d: Device) => (
         <div className="flex gap-1">
           {canEdit && (
-          <Button
-            size="icon"
-            variant="ghost"
-            title="Edit"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditing(d);
-              setFieldErrors({});
-              setDialogOpen(true);
-            }}
-          >
-            <Pencil className="w-4 h-4" />
-          </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              title="Edit"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditing(d);
+                setFieldErrors({});
+                setDialogOpen(true);
+              }}
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
           )}
-          {canDelete && ( 
-          <Button
-            size="icon"
-            variant="ghost"
-            title="Delete"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              const idToDelete = d.id || (d as any).msId;
-              if (
-                idToDelete &&
-                window.confirm("Are you sure you want to delete this device?")
-              ) {
-                remove(idToDelete);
-              }
-            }}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+          {canDelete && (
+            <Button
+              size="icon"
+              variant="ghost"
+              title="Delete"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const idToDelete = d.id || (d as any).msId;
+                if (
+                  idToDelete &&
+                  window.confirm("Are you sure you want to delete this device?")
+                ) {
+                  remove(idToDelete);
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           )}
         </div>
       ),
     },
-  ].filter(col => {
+  ].filter((col) => {
     // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
-    if (col.key === 'actions') {
+    if (col.key === "actions") {
       return canEdit || canDelete;
     }
     return true;
@@ -266,19 +289,19 @@ export default function DevicesPage() {
         description="Manage access control devices"
         action={
           canAdd && (
-          <Button
-            onClick={() => {
-              setEditing(null);
-              refetch(); // <--- Sirf ye call karna hai data fresh karne ke liye
-            }}
-            className="gap-2"
-            disabled={isLoading} // Optional: Fetching ke waqt double click rokne ke liye
-          >
-            <RefreshCw
-              className={`w-4 h-4 mr-1 ${isLoading ? "animate-spin" : "transition-transform group-hover:rotate-180"}`}
-            />
-            {isLoading ? "Syncing..." : "Sync"}
-          </Button>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                refetch(); // <--- Sirf ye call karna hai data fresh karne ke liye
+              }}
+              className="gap-2"
+              disabled={isLoading} // Optional: Fetching ke waqt double click rokne ke liye
+            >
+              <RefreshCw
+                className={`w-4 h-4 mr-1 ${isLoading ? "animate-spin" : "transition-transform group-hover:rotate-180"}`}
+              />
+              {isLoading ? "Syncing..." : "Sync"}
+            </Button>
           )
         }
       />
@@ -314,68 +337,107 @@ export default function DevicesPage() {
         searchKeys={["name", "ipAddress", "serialNumber"]}
         emptyMessage="No devices registered"
       />
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+        {/* Left Side */}
+        <div className="text-sm text-muted-foreground">
+          Showing{" "}
+          <span className="font-semibold text-foreground">
+            {(page - 1) * pageSize + 1}
+          </span>{" "}
+          to{" "}
+          <span className="font-semibold text-foreground">
+            {Math.min(page * pageSize, totalCount)}
+          </span>{" "}
+          of <span className="font-semibold text-foreground">{totalCount}</span>{" "}
+          devices
+        </div>
+
+        {/* Right Side */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+
+          <div className="px-3 py-1 border rounded text-sm font-medium">
+            {page} / {totalPages}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
       {(canAdd || canEdit) && (
-      <CrudDialog
-        open={dialogOpen}
-        errors={fieldErrors}
-
-        onClose={() => {
-          setDialogOpen(false);
-          setEditing(null);
-          setFieldErrors({});
-        }}
-        title={editing ? "Edit Device" : "Add Device"}
-        fields={fields}
-        initialData={
-          editing
-            ? {
-              ...editing,
-              locationId: editing.locationId
-                ? String(editing.locationId)
-                : "",
-              zoneId: editing.zoneId ? String(editing.zoneId) : "",
-            }
-            : undefined
-        }
-        onSubmit={async (formData) => {
-          try {
-            setFieldErrors({});
-
-            // 🛡️ XSS Validation (EDIT ONLY)
-            const validationErrors = validateNoHtml(formData);
-            if (Object.keys(validationErrors).length > 0) {
-              setFieldErrors(validationErrors);
-              return;
-            }
-
-            if (formData.locationId)
-              formData.locationId = Number(formData.locationId);
-
-            if (formData.zoneId) formData.zoneId = Number(formData.zoneId);
-
-            // 🚀 UPDATE ONLY (kyunki add nahi hai)
-            if (editing) {
-              const updateId = editing.id || (editing as any).msId;
-              await update({ id: updateId, data: formData });
-
-              toast({
-                title: "Success",
-                description: "Device updated successfully",
-              });
-            }
-
+        <CrudDialog
+          open={dialogOpen}
+          errors={fieldErrors}
+          onClose={() => {
             setDialogOpen(false);
             setEditing(null);
-          } catch (err: any) {
-            toast({
-              variant: "destructive",
-              title: "Error",
-              description: err?.message || "Something went wrong",
-            });
+            setFieldErrors({});
+          }}
+          title={editing ? "Edit Device" : "Add Device"}
+          fields={fields}
+          initialData={
+            editing
+              ? {
+                  ...editing,
+                  locationId: editing.locationId
+                    ? String(editing.locationId)
+                    : "",
+                  zoneId: editing.zoneId ? String(editing.zoneId) : "",
+                }
+              : undefined
           }
-        }}
-        isPending={isCreating || isUpdating}
-      />
+          onSubmit={async (formData) => {
+            try {
+              setFieldErrors({});
+
+              // 🛡️ XSS Validation (EDIT ONLY)
+              const validationErrors = validateNoHtml(formData);
+              if (Object.keys(validationErrors).length > 0) {
+                setFieldErrors(validationErrors);
+                return;
+              }
+
+              if (formData.locationId)
+                formData.locationId = Number(formData.locationId);
+
+              if (formData.zoneId) formData.zoneId = Number(formData.zoneId);
+
+              // 🚀 UPDATE ONLY (kyunki add nahi hai)
+              if (editing) {
+                const updateId = editing.id || (editing as any).msId;
+                await update({ id: updateId, data: formData });
+
+                toast({
+                  title: "Success",
+                  description: "Device updated successfully",
+                });
+              }
+
+              setDialogOpen(false);
+              setEditing(null);
+            } catch (err: any) {
+              toast({
+                variant: "destructive",
+                title: "Error",
+                description: err?.message || "Something went wrong",
+              });
+            }
+          }}
+          isPending={isCreating || isUpdating}
+        />
       )}
     </div>
   );
