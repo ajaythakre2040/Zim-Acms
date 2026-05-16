@@ -832,41 +832,44 @@ export class DatabaseStorage implements IStorage {
   async deleteZone(id: number): Promise<void> {
     await db.delete(zones).where(eq(zones.id, id));
   }
-  async getDoors(page?: number, pageSize?: number): Promise<any> {
+  async getDoors(page?: number | string, pageSize?: number | string): Promise<any> {
     try {
+      // Data fetch karte waqt hi order laga diya taaki sorting bani rahe
       const [allDoors, allDoorDevices, allDevices] = await Promise.all([
         db.select().from(doors).orderBy(asc(doors.id)),
         db.select().from(doorDevices),
-        db.select().from(devices),
+        db.select().from(devices)
       ]);
 
       const resolvedDoors = allDoors.map((door) => {
         const mapping = allDoorDevices.find((md) => md.doorId === door.id);
-
         const resolveDevices = (ids: any[] | null) => {
           if (!ids || !Array.isArray(ids)) return [];
-          return ids
-            .map((id) => {
-              const dev = allDevices.find((d) => Number(d.msId) === Number(id));
-              return dev ? { id: dev.id, msId: dev.msId, name: dev.name } : null;
-            })
-            .filter((d): d is { id: number; msId: number; name: string } => d !== null);
+          return ids.map(id => {
+            const dev = allDevices.find(d => Number(d.msId) === Number(id));
+            return dev ? { id: dev.id, msId: dev.msId, name: dev.name } : null;
+          }).filter((d): d is { id: number; msId: number; name: string } => d !== null);
         };
-
         const inDevices = resolveDevices(mapping?.inDeviceIds || []);
         const outDevices = resolveDevices(mapping?.outDeviceIds || []);
-
         return {
           ...door,
           inDevices,
           outDevices,
           inCount: inDevices.length,
-          outCount: outDevices.length,
+          outCount: outDevices.length
         };
       });
 
-      // Agar pageSize nahi milta toh All Data return karo
+      // --- Pagination Layer ---
+
+      // Rule: Agar pageSize nahi mila, toh jaise abhi simple array response aa raha hai, waisa hi return karo
       if (!pageSize) {
+        return resolvedDoors;
+      }
+
+      // Rule: Agar pageSize -1 hai, toh object format mein all data do
+      if (pageSize === -1 || pageSize === "-1") {
         return {
           data: resolvedDoors,
           totalCount: resolvedDoors.length,
@@ -877,17 +880,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       const p = page && Number(page) > 0 ? Number(page) : 1;
-      const size = Number(pageSize);
-
-      if (size === -1) {
-        return {
-          data: resolvedDoors,
-          totalCount: resolvedDoors.length,
-          totalPages: 1,
-          currentPage: 1,
-          pageSize: resolvedDoors.length
-        };
-      }
+      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
 
       const start = (p - 1) * size;
       const end = start + size;
@@ -900,11 +893,44 @@ export class DatabaseStorage implements IStorage {
         currentPage: p,
         pageSize: size
       };
+
     } catch (error) {
-      console.error("getDoors Sync Error:", error);
-      return { data: [], totalCount: 0, totalPages: 0, currentPage: 1 };
+      console.error("getDoors MS_ID Sync Error:", error);
+      // Fallback response handling based on pageSize presence
+      return pageSize ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0 } : [];
     }
   }
+  // async getDoors(): Promise<any[]> {
+  //   try {
+  //     const [allDoors, allDoorDevices, allDevices] = await Promise.all([
+  //       db.select().from(doors),
+  //       db.select().from(doorDevices),
+  //       db.select().from(devices)
+  //     ]);
+  //     return allDoors.map((door) => {
+  //       const mapping = allDoorDevices.find((md) => md.doorId === door.id);
+  //       const resolveDevices = (ids: any[] | null) => {
+  //         if (!ids || !Array.isArray(ids)) return [];
+  //         return ids.map(id => {
+  //           const dev = allDevices.find(d => Number(d.msId) === Number(id));
+  //           return dev ? { id: dev.id, msId: dev.msId, name: dev.name } : null;
+  //         }).filter((d): d is { id: number; msId: number; name: string } => d !== null);
+  //       };
+  //       const inDevices = resolveDevices(mapping?.inDeviceIds || []);
+  //       const outDevices = resolveDevices(mapping?.outDeviceIds || []);
+  //       return {
+  //         ...door,
+  //         inDevices,
+  //         outDevices,
+  //         inCount: inDevices.length,
+  //         outCount: outDevices.length
+  //       };
+  //     });
+  //   } catch (error) {
+  //     console.error("getDoors MS_ID Sync Error:", error);
+  //     return [];
+  //   }
+  // }
   async createDoor(data: InsertDoor): Promise<Door> {
     if (data.name) {
       const [existingName] = await db
@@ -963,7 +989,7 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-  async getDevices(page?: number, pageSize?: number): Promise<any> {
+  async getDevices(page?: number | string, pageSize?: number | string): Promise<any> {
     try {
       const msDataRaw = await dbMsSql
         .select()
@@ -971,7 +997,9 @@ export class DatabaseStorage implements IStorage {
         .execute();
 
       if (!msDataRaw || msDataRaw.length === 0) {
-        return pageSize ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1 } : [];
+        return pageSize
+          ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0 }
+          : [];
       }
 
       const currentTime = new Date();
@@ -1025,14 +1053,14 @@ export class DatabaseStorage implements IStorage {
       }
 
       // --- Pagination Logic ---
+
+      // Rule: Agar pageSize nahi mila, toh jaise abhi simple array response aa raha hai, waisa hi return karo
       if (!pageSize) {
-        return formattedDevices; // Purana format: Simple Array
+        return formattedDevices;
       }
 
-      const p = page && Number(page) > 0 ? Number(page) : 1;
-      const size = Number(pageSize);
-
-      if (size === -1) {
+      // Rule: Agar pageSize -1 hai, toh object format mein all data do
+      if (pageSize === -1 || pageSize === "-1") {
         return {
           data: formattedDevices,
           totalCount: formattedDevices.length,
@@ -1041,6 +1069,9 @@ export class DatabaseStorage implements IStorage {
           pageSize: formattedDevices.length
         };
       }
+
+      const p = page && Number(page) > 0 ? Number(page) : 1;
+      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
 
       const start = (p - 1) * size;
       const end = start + size;
@@ -1056,7 +1087,9 @@ export class DatabaseStorage implements IStorage {
 
     } catch (error) {
       console.error("Device Sync Error:", error);
-      return pageSize ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1 } : [];
+      return pageSize
+        ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0 }
+        : [];
     }
   }
   // async getDevices(): Promise<any[]> {
