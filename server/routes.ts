@@ -293,6 +293,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     (id, d) => storage.updateDoor(id, d),
     (id) => storage.deleteDoor(id)
   );
+  // crudRoutes(app, "/api/doors", insertDoorSchema,
+  //     () => storage.getDoors(), (d) => storage.createDoor(d),
+  //     (id, d) => storage.updateDoor(id, d), (id) => storage.deleteDoor(id));
   crudRoutes(
     app,
     "/api/devices",
