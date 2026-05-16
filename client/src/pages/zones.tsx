@@ -42,9 +42,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { validateNoHtml } from "../lib/validation";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
-
+type PaginatedResponse<T> = {
+  data: T[];
+  totalPages: number;
+  totalCount: number;
+};
 export default function ZonesDoorsPage() {
-  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.DOORS.code);
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
+    MENU_CONFIG.DOORS.code,
+  );
   if (!canView) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -52,6 +58,8 @@ export default function ZonesDoorsPage() {
       </div>
     );
   }
+  const [doorPage, setDoorPage] = useState(1);
+  const pageSize = 2;
   const queryClient = useQueryClient();
   const [zoneDialog, setZoneDialog] = useState(false);
   const [doorDialog, setDoorDialog] = useState(false);
@@ -71,8 +79,16 @@ export default function ZonesDoorsPage() {
   });
 
   const zoneCrud = useCrud<Zone>("/api/zones", "Zone");
-  const doorCrud = useCrud<Door>("/api/doors", "Door");
+  const doorCrud = useCrud<Door>(
+    `/api/doors?page=${doorPage}&pageSize=${pageSize}`,
+    "Door",
+  );
   const mappingCrud = useCrud<any>("/api/door-devices", "Device Mapping");
+  const paginatedData = doorCrud.data as unknown as PaginatedResponse<Door>;
+
+  const doors = paginatedData?.data || [];
+  const doorTotalPages = paginatedData?.totalPages || 1;
+  const doorTotalCount = paginatedData?.totalCount || 0;
 
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: devices = [] } = useQuery<any[]>({
@@ -305,29 +321,29 @@ export default function ZonesDoorsPage() {
       render: (z: Zone) => (
         <div className="flex gap-1 justify-start items-center">
           {canEdit && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            onClick={() => {
-              setEditingZone(z);
-              setZoneDialog(true);
-            }}
-          >
-            <Pencil className="w-4 h-4" />
-          </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              onClick={() => {
+                setEditingZone(z);
+                setZoneDialog(true);
+              }}
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
           )}
           {canDelete && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-            onClick={() => {
-              if (window.confirm("Delete this zone?")) zoneCrud.remove(z.id);
-            }}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={() => {
+                if (window.confirm("Delete this zone?")) zoneCrud.remove(z.id);
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           )}
         </div>
       ),
@@ -421,70 +437,69 @@ export default function ZonesDoorsPage() {
         <div className="flex gap-1 justify-start items-center">
           <TooltipProvider delayDuration={300}>
             {canEdit && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedDoorForMapping(d);
-                    setMappingDialog(true);
-                  }}
-                >
-                  <MonitorSmartphone className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Assign Hardware</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDoorForMapping(d);
+                      setMappingDialog(true);
+                    }}
+                  >
+                    <MonitorSmartphone className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Assign Hardware</TooltipContent>
+              </Tooltip>
             )}
             {canEdit && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingDoor(d);
-                    setDoorDialog(true);
-                  }}
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Edit Door</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingDoor(d);
+                      setDoorDialog(true);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit Door</TooltipContent>
+              </Tooltip>
             )}
             {canDelete && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (window.confirm("Delete this door?"))
-                      doorCrud.remove(d.id);
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Delete Door</TooltipContent>
-            </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm("Delete this door?"))
+                        doorCrud.remove(d.id);
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete Door</TooltipContent>
+              </Tooltip>
             )}
           </TooltipProvider>
         </div>
       ),
     },
-  ].filter(col => {
+  ].filter((col) => {
     // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
-    if (col.key === 'actions') {
+    if (col.key === "actions") {
       return canEdit || canDelete;
     }
     return true;
@@ -502,39 +517,82 @@ export default function ZonesDoorsPage() {
           <TabsTrigger value="doors">Doors</TabsTrigger>
           {/* <TabsTrigger value="zones">Zones</TabsTrigger> */}
         </TabsList>
-        
+
         <TabsContent value="doors">
           <div className="mb-4 flex justify-end">
             {canAdd && (
-            <Button
-              onClick={() => {
-                setEditingDoor(null);
-                setDoorDialog(true);
-              }}
-            >
-              <Plus className="w-4 h-4 mr-1" /> Add Door
-            </Button>
+              <Button
+                onClick={() => {
+                  setEditingDoor(null);
+                  setDoorDialog(true);
+                }}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add Door
+              </Button>
             )}
           </div>
           <DataTable
             columns={doorColumns}
-            data={doorCrud.data}
+            data={doors}
             isLoading={doorCrud.isLoading}
             searchable
             searchKeys={["name", "code"]}
           />
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+            <div className="text-sm text-muted-foreground">
+              Showing{" "}
+              <span className="font-semibold text-foreground">
+                {(doorPage - 1) * pageSize + 1}
+              </span>{" "}
+              to{" "}
+              <span className="font-semibold text-foreground">
+                {Math.min(doorPage * pageSize, doorTotalCount)}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-foreground">
+                {doorTotalCount}
+              </span>{" "}
+              doors
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={doorPage === 1}
+                onClick={() => setDoorPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </Button>
+
+              <div className="px-3 py-1 border rounded text-sm font-medium">
+                {doorPage} / {doorTotalPages}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={doorPage === doorTotalPages}
+                onClick={() =>
+                  setDoorPage((p) => Math.min(doorTotalPages, p + 1))
+                }
+              >
+                Next
+              </Button>
+            </div>
+          </div>
         </TabsContent>
         <TabsContent value="zones">
           <div className="mb-4 flex justify-end">
             {canAdd && (
-            <Button
-              onClick={() => {
-                setEditingZone(null);
-                setZoneDialog(true);
-              }}
-            >
-              <Plus className="w-4 h-4 mr-1" /> Add Zone
-            </Button>
+              <Button
+                onClick={() => {
+                  setEditingZone(null);
+                  setZoneDialog(true);
+                }}
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add Zone
+              </Button>
             )}
           </div>
           <DataTable
@@ -549,68 +607,72 @@ export default function ZonesDoorsPage() {
 
       {/* Zone Dialog */}
       {(canAdd || canEdit) && (
-      <CrudDialog
-        open={zoneDialog}
-        errors={errors}
-        onClose={() => {
-          setZoneDialog(false);
-          setEditingZone(null);
-          setErrors({}); // ✅ reset error on close
-        }}
-        title={editingZone ? "Edit Zone" : "Add Zone"}
-        fields={zoneFields}
-        initialData={
-          editingZone
-            ? { ...editingZone, locationId: String(editingZone.locationId) }
-            : undefined
-        }
-       
-        onSubmit={async (data) => {
-          try {
-            setErrors({}); // Reset previous errors
-
-            // :fire: 1. HTML Validation Check (Jaise Shift/Site mein kiya tha)
-            const validationErrors = validateNoHtml(data);
-            if (Object.keys(validationErrors).length > 0) {
-              setErrors(validationErrors);
-              return; // :x: Agar HTML mila toh yahi stop kar do
-            }
-
-            // 2. Specific field check (Location selection)
-            if (data.locationId === "placeholder") {
-              setErrors({ locationId: "Please select a site" });
-              return;
-            }
-
-            // 3. Payload preparation
-            const payload = {
-              ...data,
-              locationId: Number(data.locationId),
-            };
-
-            // 4. API Calls
-            if (editingZone) {
-              await zoneCrud.update({ id: editingZone.id, data: payload });
-            } else {
-              await zoneCrud.create(payload);
-            }
-
-            // :white_check_mark: Success: Error nahi aaya toh hi close hoga
+        <CrudDialog
+          open={zoneDialog}
+          errors={errors}
+          onClose={() => {
             setZoneDialog(false);
             setEditingZone(null);
-          } catch (err: any) {
-            // Agar duplicate code ka error aaya
-            const msg = err.response?.data?.message || err.message || "";
-            if (msg.toLowerCase().includes("unique") || msg.toLowerCase().includes("code")) {
-              setErrors({ code: "This code is already in use. Please use a unique code." });
-            } else {
-              setErrors({ general: "Failed to save zone." });
-            }
-            // Dialog close nahi hoga, user error dekh payega
+            setErrors({}); // ✅ reset error on close
+          }}
+          title={editingZone ? "Edit Zone" : "Add Zone"}
+          fields={zoneFields}
+          initialData={
+            editingZone
+              ? { ...editingZone, locationId: String(editingZone.locationId) }
+              : undefined
           }
-        }}
-        isPending={zoneCrud.isCreating || zoneCrud.isUpdating}
-      />
+          onSubmit={async (data) => {
+            try {
+              setErrors({}); // Reset previous errors
+
+              // :fire: 1. HTML Validation Check (Jaise Shift/Site mein kiya tha)
+              const validationErrors = validateNoHtml(data);
+              if (Object.keys(validationErrors).length > 0) {
+                setErrors(validationErrors);
+                return; // :x: Agar HTML mila toh yahi stop kar do
+              }
+
+              // 2. Specific field check (Location selection)
+              if (data.locationId === "placeholder") {
+                setErrors({ locationId: "Please select a site" });
+                return;
+              }
+
+              // 3. Payload preparation
+              const payload = {
+                ...data,
+                locationId: Number(data.locationId),
+              };
+
+              // 4. API Calls
+              if (editingZone) {
+                await zoneCrud.update({ id: editingZone.id, data: payload });
+              } else {
+                await zoneCrud.create(payload);
+              }
+
+              // :white_check_mark: Success: Error nahi aaya toh hi close hoga
+              setZoneDialog(false);
+              setEditingZone(null);
+            } catch (err: any) {
+              // Agar duplicate code ka error aaya
+              const msg = err.response?.data?.message || err.message || "";
+              if (
+                msg.toLowerCase().includes("unique") ||
+                msg.toLowerCase().includes("code")
+              ) {
+                setErrors({
+                  code: "This code is already in use. Please use a unique code.",
+                });
+              } else {
+                setErrors({ general: "Failed to save zone." });
+              }
+              // Dialog close nahi hoga, user error dekh payega
+            }
+          }}
+          isPending={zoneCrud.isCreating || zoneCrud.isUpdating}
+        />
       )}
 
       {/* ✅ ADD THIS RIGHT AFTER CrudDialog */}
@@ -622,66 +684,70 @@ export default function ZonesDoorsPage() {
 
       {/* Door Dialog */}
       {(canAdd || canEdit) && (
-      <CrudDialog
-        open={doorDialog}
-        errors={errors}
-        onClose={() => {
-          setDoorDialog(false);
-          setEditingDoor(null);
-        }}
-        title={editingDoor ? "Edit Door" : "Add Door"}
-        fields={doorFields}
-        initialData={
-          editingDoor
-            ? {
-              ...editingDoor,
-              locationId: editingDoor.locationId
-                ? String(editingDoor.locationId)
-                : "",
-              zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "",
-            }
-            : undefined
-        }
-     
-        onSubmit={async (data) => {
-          try {
-            setErrors({}); // Reset errors
-
-            // :fire: 1. HTML Validation Check (Consistent with other pages)
-            const validationErrors = validateNoHtml(data);
-            if (Object.keys(validationErrors).length > 0) {
-              setErrors(validationErrors);
-              return; // :x: Stop if HTML is found
-            }
-
-            // 2. Prepare Payload (Converting IDs to Numbers)
-            const payload = {
-              ...data,
-              locationId: data.locationId ? Number(data.locationId) : null,
-              zoneId: data.zoneId ? Number(data.zoneId) : null,
-            };
-
-            // 3. API Operation with 'await'
-            if (editingDoor) {
-              await doorCrud.update({ id: editingDoor.id, data: payload });
-            } else {
-              await doorCrud.create(payload);
-            }
-
-            // :white_check_mark: Success path
+        <CrudDialog
+          open={doorDialog}
+          errors={errors}
+          onClose={() => {
             setDoorDialog(false);
             setEditingDoor(null);
-          } catch (err: any) {
-            const msg = err.response?.data?.message || err.message || "";
-            if (msg.toLowerCase().includes("unique") || msg.toLowerCase().includes("code")) {
-              setErrors({ code: "Duplicate door code. Please enter a unique one." });
-            } else {
-              setErrors({ general: "Error saving door details." });
-            }
+          }}
+          title={editingDoor ? "Edit Door" : "Add Door"}
+          fields={doorFields}
+          initialData={
+            editingDoor
+              ? {
+                  ...editingDoor,
+                  locationId: editingDoor.locationId
+                    ? String(editingDoor.locationId)
+                    : "",
+                  zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "",
+                }
+              : undefined
           }
-        }}
-        isPending={doorCrud.isCreating || doorCrud.isUpdating}
-      />
+          onSubmit={async (data) => {
+            try {
+              setErrors({}); // Reset errors
+
+              // :fire: 1. HTML Validation Check (Consistent with other pages)
+              const validationErrors = validateNoHtml(data);
+              if (Object.keys(validationErrors).length > 0) {
+                setErrors(validationErrors);
+                return; // :x: Stop if HTML is found
+              }
+
+              // 2. Prepare Payload (Converting IDs to Numbers)
+              const payload = {
+                ...data,
+                locationId: data.locationId ? Number(data.locationId) : null,
+                zoneId: data.zoneId ? Number(data.zoneId) : null,
+              };
+
+              // 3. API Operation with 'await'
+              if (editingDoor) {
+                await doorCrud.update({ id: editingDoor.id, data: payload });
+              } else {
+                await doorCrud.create(payload);
+              }
+
+              // :white_check_mark: Success path
+              setDoorDialog(false);
+              setEditingDoor(null);
+            } catch (err: any) {
+              const msg = err.response?.data?.message || err.message || "";
+              if (
+                msg.toLowerCase().includes("unique") ||
+                msg.toLowerCase().includes("code")
+              ) {
+                setErrors({
+                  code: "Duplicate door code. Please enter a unique one.",
+                });
+              } else {
+                setErrors({ general: "Error saving door details." });
+              }
+            }
+          }}
+          isPending={doorCrud.isCreating || doorCrud.isUpdating}
+        />
       )}
       {/* Device Mapping Dialog */}
       <Dialog open={mappingDialog} onOpenChange={setMappingDialog}>
