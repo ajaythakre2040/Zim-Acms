@@ -1231,7 +1231,7 @@ export class DatabaseStorage implements IStorage {
       await db.delete(devices).where(eq(devices.msId, msId));
     }
   }
-  async getPeople(search?: string): Promise<Person[]> {
+  async getPeople(search?: string, page?: number | string, pageSize?: number | string): Promise<any> {
     const [pgDataRaw, msDataRaw] = await Promise.all([
       db
         .select({
@@ -1247,10 +1247,12 @@ export class DatabaseStorage implements IStorage {
         .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
       dbMsSql.select().from({ dbName: "Employees" }).execute(),
     ]);
+
     const msIds = new Set();
     const ruleIdToName = Object.fromEntries(
       Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
     );
+
     const currentPgData = pgDataRaw.map((row) => ({
       ...row.person,
       departmentName: row.departmentName || "N/A",
@@ -1260,6 +1262,7 @@ export class DatabaseStorage implements IStorage {
           ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
           : "NO_RULE",
     }));
+
     for (const msRow of msDataRaw || []) {
       const mapped = PersonAdapter.toPostgres(msRow);
       if (!mapped.msId) continue;
@@ -1334,13 +1337,15 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }
+
     for (const pgRow of currentPgData) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(people).where(eq(people.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
+
     let results = currentPgData;
     if (search) {
       const term = search.toLowerCase();
@@ -1352,13 +1357,176 @@ export class DatabaseStorage implements IStorage {
           (p.ruleName && p.ruleName.toLowerCase().includes(term)),
       );
     }
+
     results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
-    return Array.from(
+
+    const uniquePeople = Array.from(
       new Map(
         results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
       ).values(),
-    ) as Person[];
+    );
+
+    // --- PAGINATION LAYER (Bilkul Safe Check) ---
+
+    // Condition 1: Frontend se agar page/pageSize nahi bheja, toh 100% purana format array hi return hoga
+    if (!pageSize) {
+      return uniquePeople as Person[];
+    }
+
+    // Condition 2: Dropdown se "All" (-1) select karne par metadata object format milega
+    if (pageSize === -1 || pageSize === "-1") {
+      return {
+        data: uniquePeople,
+        totalCount: uniquePeople.length,
+        totalPages: 1,
+        currentPage: 1,
+        pageSize: uniquePeople.length,
+      };
+    }
+
+    const p = page && Number(page) > 0 ? Number(page) : 1;
+    const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+
+    const start = (p - 1) * size;
+    const end = start + size;
+    const paginatedData = uniquePeople.slice(start, end);
+
+    return {
+      data: paginatedData,
+      totalCount: uniquePeople.length,
+      totalPages: Math.ceil(uniquePeople.length / size),
+      currentPage: p,
+      pageSize: size,
+    };
   }
+  // async getPeople(search?: string): Promise<Person[]> {
+  //   const [pgDataRaw, msDataRaw] = await Promise.all([
+  //     db
+  //       .select({
+  //         person: {
+  //           ...people,
+  //           lastSeenTime: sql<string>`TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')`,
+  //         },
+  //         departmentName: departments.name,
+  //         lastPunchDoorName: doors.name,
+  //       })
+  //       .from(people)
+  //       .leftJoin(departments, eq(people.departmentId, departments.id))
+  //       .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
+  //     dbMsSql.select().from({ dbName: "Employees" }).execute(),
+  //   ]);
+  //   const msIds = new Set();
+  //   const ruleIdToName = Object.fromEntries(
+  //     Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
+  //   );
+  //   const currentPgData = pgDataRaw.map((row) => ({
+  //     ...row.person,
+  //     departmentName: row.departmentName || "N/A",
+  //     lastPunchDoorName: row.lastPunchDoorName || "No Door",
+  //     ruleName:
+  //       row.person.ruleid !== null
+  //         ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
+  //         : "NO_RULE",
+  //   }));
+  //   for (const msRow of msDataRaw || []) {
+  //     const mapped = PersonAdapter.toPostgres(msRow);
+  //     if (!mapped.msId) continue;
+  //     msIds.add(mapped.msId);
+  //     const existingIndex = currentPgData.findIndex(
+  //       (p) => p.msId === mapped.msId,
+  //     );
+  //     if (existingIndex === -1) {
+  //       try {
+  //         const [newRec] = await db
+  //           .insert(people)
+  //           .values({
+  //             msId: mapped.msId,
+  //             employeeCode: mapped.employeeCode,
+  //             employeeName: mapped.employeeName ?? "Unknown",
+  //             address: mapped.address ?? null,
+  //             ruleid: mapped.ruleid ?? null,
+  //             locationId: mapped.locationId ?? null,
+  //             externalId: mapped.externalId ?? null,
+  //             overtimeEligible: mapped.overtimeEligible ?? false,
+  //             personType: "employee",
+  //             status: "active",
+  //             sourceSystem: "mssql_bio",
+  //             updatedAt: new Date(),
+  //             createdAt: new Date(),
+  //           })
+  //           .returning();
+  //         if (newRec?.employeeCode) {
+  //           await this.executeHardwareSync(newRec.employeeCode, null, true);
+  //         }
+  //         currentPgData.push({
+  //           ...newRec,
+  //           departmentName: "N/A",
+  //           lastPunchDoorName: "No Door",
+  //           ruleName:
+  //             newRec.ruleid !== null
+  //               ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
+  //               : "NO_ROLE",
+  //         });
+  //       } catch (e) {
+  //         console.error("New employee sync error:", e);
+  //       }
+  //     } else {
+  //       const existing = currentPgData[existingIndex];
+  //       const hasChanged =
+  //         existing.employeeName !== mapped.employeeName ||
+  //         existing.employeeCode !== mapped.employeeCode ||
+  //         existing.ruleid !== mapped.ruleid;
+  //       if (hasChanged) {
+  //         try {
+  //           const [updatedRec] = await db
+  //             .update(people)
+  //             .set({
+  //               employeeName: mapped.employeeName ?? "Unknown",
+  //               employeeCode: mapped.employeeCode,
+  //               address: mapped.address ?? null,
+  //               updatedAt: new Date(),
+  //             })
+  //             .where(eq(people.msId, mapped.msId))
+  //             .returning();
+  //           currentPgData[existingIndex] = {
+  //             ...existing,
+  //             ...updatedRec,
+  //             ruleName:
+  //               updatedRec.ruleid !== null
+  //                 ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
+  //                 : "NO_ROLE",
+  //           };
+  //         } catch (e) {
+  //           console.error("Employee update sync error:", e);
+  //         }
+  //       }
+  //     }
+  //   }
+  //   for (const pgRow of currentPgData) {
+  //     if (pgRow.msId && !msIds.has(pgRow.msId)) {
+  //       try {
+  //         await db.delete(people).where(eq(people.msId, pgRow.msId));
+  //       } catch (e) {}
+  //     }
+  //   }
+  //   let results = currentPgData;
+  //   if (search) {
+  //     const term = search.toLowerCase();
+  //     results = results.filter(
+  //       (p) =>
+  //         p.employeeName.toLowerCase().includes(term) ||
+  //         (p.employeeCode && p.employeeCode.toLowerCase().includes(term)) ||
+  //         (p.departmentName && p.departmentName.toLowerCase().includes(term)) ||
+  //         (p.ruleName && p.ruleName.toLowerCase().includes(term)),
+  //     );
+  //   }
+  //   results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+  //   return Array.from(
+  //     new Map(
+  //       results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
+  //     ).values(),
+  //   ) as Person[];
+  // }
   async getPerson(id: number): Promise<Person | undefined> {
     const [person] = await db.select().from(people).where(eq(people.id, id));
     return person;

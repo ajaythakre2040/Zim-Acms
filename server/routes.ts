@@ -305,11 +305,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     (id, d) => storage.updateDevice(id, d),
     (id) => storage.deleteDevice(id)
   );
+  // app.get("/api/people", async (req, res) => {
+  //   try {
+  //     const search = req.query.search as string | undefined;
+  //     res.json(await storage.getPeople(search));
+  //   } catch (e: any) { res.status(500).json({ message: e.message }); }
+  // });
   app.get("/api/people", async (req, res) => {
     try {
       const search = req.query.search as string | undefined;
-      res.json(await storage.getPeople(search));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+
+      const page = req.query.page as string | undefined;
+      const pageSize = req.query.pageSize as string | undefined;
+
+      res.json(await storage.getPeople(search, page, pageSize));
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.get("/api/people/:id", async (req, res) => {
     try {
