@@ -617,26 +617,46 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/reports/attendance", requireAuth, async (req, res) => {
+  app.get("/api/reports/attendance", async (req, res) => {
     try {
       const filters = {
         dateFrom: req.query.dateFrom as string | undefined,
         dateTo: req.query.dateTo as string | undefined,
         status: req.query.status as string | undefined,
         deviceId: req.query.deviceId ? String(req.query.deviceId) : undefined,
-
         employeeCode: req.query.employeeCode ? String(req.query.employeeCode) : undefined,
       };
 
+      const page = req.query.page ? String(req.query.page) : undefined;
+      const pageSize = req.query.pageSize ? String(req.query.pageSize) : undefined;
 
-
-      const data = await storage.getAttendanceReport(filters);
+      const data = await storage.getAttendanceReport(filters, page, pageSize);
       res.json(data);
     } catch (e: any) {
       console.error("Attendance Report Error:", e);
       res.status(500).json({ message: e.message });
     }
   });
+  // app.get("/api/reports/attendance", requireAuth, async (req, res) => {
+  //   try {
+  //     const filters = {
+  //       dateFrom: req.query.dateFrom as string | undefined,
+  //       dateTo: req.query.dateTo as string | undefined,
+  //       status: req.query.status as string | undefined,
+  //       deviceId: req.query.deviceId ? String(req.query.deviceId) : undefined,
+
+  //       employeeCode: req.query.employeeCode ? String(req.query.employeeCode) : undefined,
+  //     };
+
+
+
+  //     const data = await storage.getAttendanceReport(filters);
+  //     res.json(data);
+  //   } catch (e: any) {
+  //     console.error("Attendance Report Error:", e);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
   app.get("/api/reports/late-coming", requireAuth, async (req, res) => {
     try {
       const filters = {
