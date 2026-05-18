@@ -55,10 +55,12 @@ export default function DevicesPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // Aapka original CRUD hook
   type PaginatedDeviceResponse = {
-    data: Device[];
-    totalPages: number;
-    totalCount: number;
-  };
+  data: Device[];
+  totalPages: number;
+  totalCount: number;
+  onlineCount: number;
+  offlineCount: number;
+};
 
   // const {
   //   data: response = {
@@ -88,6 +90,8 @@ export default function DevicesPage() {
     data: [],
     totalPages: 1,
     totalCount: 0,
+    onlineCount: 0,
+    offlineCount: 0,
   });
 
 const {
@@ -126,9 +130,8 @@ const totalCount = pagedResponse?.totalCount || 0;
       </div>
     );
   }
-  const online = data.filter((d: Device) => d.status === "online").length;
-  const offline = data.filter((d: Device) => d.status === "offline").length;
-  const errored = data.filter((d: Device) => d.status === "error").length;
+  const online = pagedResponse?.onlineCount || 0;
+const offline = pagedResponse?.offlineCount || 0;
 
   const fields: FieldConfig[] = [
     { key: "name", label: "Device Name", required: true },

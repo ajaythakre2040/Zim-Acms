@@ -28,6 +28,12 @@ import { Plus, Pencil, Trash2, Search, Loader2 } from "lucide-react";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
 
+type PaginatedResponse<T> = {
+  data: T[];
+  totalPages: number;
+  totalCount: number;
+};
+
 const fallbackColors: Record<string, string> = {
   super_admin: "destructive",
   admin: "default",
@@ -35,7 +41,9 @@ const fallbackColors: Record<string, string> = {
 };
 
 export default function UserAdminPage() {
-  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.USER_ADMIN.code);
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
+    MENU_CONFIG.USER_ADMIN.code,
+  );
   if (!canView) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -47,7 +55,8 @@ export default function UserAdminPage() {
   const [editing, setEditing] = useState<any | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const { toast } = useToast();
-
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
   const [formData, setFormData] = useState({
     employeeCode: "",
     employeeName: "",
@@ -62,9 +71,47 @@ export default function UserAdminPage() {
     queryKey: ["/api/roles"],
   });
 
-  const { data: profiles = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/user-profiles"],
+  // const { data: profiles = [], isLoading } = useQuery<any[]>({
+  //   queryKey: ["/api/user-profiles"],
+  // });
+
+  // const { data: profilesResponse, isLoading } = useQuery<
+  //   PaginatedResponse<any>
+  // >({
+  //   queryKey: [`/api/user-profiles?page=${page}&pageSize=${pageSize}`],
+  // });
+
+  const [pagedResponse, setPagedResponse] = useState<PaginatedResponse<any>>({
+    data: [],
+    totalPages: 1,
+    totalCount: 0,
   });
+
+  const [isLoading, setIsLoading] = useState(false);
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+
+      const res = await fetch(
+        `/api/user-profiles?page=${page}&pageSize=${pageSize}`,
+      );
+
+      const data = await res.json();
+
+      setPagedResponse(data);
+    } catch (err) {
+      console.error("Failed to fetch users", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  useEffect(() => {
+    fetchUsers();
+  }, [page]);
+  const profiles = pagedResponse?.data || [];
+  const totalPages = pagedResponse?.totalPages || 1;
+  const totalCount = pagedResponse?.totalCount || 0;
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (editing && dialogOpen) {
@@ -94,7 +141,10 @@ export default function UserAdminPage() {
     if (!formData.employeeCode) return;
     setIsSearching(true);
     try {
-      const res = await apiRequest("GET", `/api/peoplebycode/${formData.employeeCode}`);
+      const res = await apiRequest(
+        "GET",
+        `/api/peoplebycode/${formData.employeeCode}`,
+      );
       const data = await res.json();
       if (data) {
         setFormData((prev) => ({
@@ -104,7 +154,11 @@ export default function UserAdminPage() {
         }));
       }
     } catch (err) {
-      toast({ variant: "destructive", title: "Error", description: "Not found" });
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Not found",
+      });
     } finally {
       setIsSearching(false);
     }
@@ -112,38 +166,63 @@ export default function UserAdminPage() {
 
   const saveMut = useMutation({
     mutationFn: async (data: any) => {
-      const url = editing ? `/api/user-profiles/${editing.id}` : "/api/user-profiles";
+      const url = editing
+        ? `/api/user-profiles/${editing.id}`
+        : "/api/user-profiles";
       const method = editing ? "PUT" : "POST";
       const payload = { ...data, roleId: parseInt(data.roleId) };
       if (editing) delete payload.password;
       await apiRequest(method, url, payload);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user-profiles"] });
+    onSuccess: async () => {
+      await fetchUsers();
+
       setDialogOpen(false);
-      toast({ title: "User saved successfully" });
+      setEditing(null);
+
+      toast({
+        title: editing
+          ? "User updated successfully"
+          : "User created successfully",
+      });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    }
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
 
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
       await apiRequest("DELETE", `/api/user-profiles/${id}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/user-profiles"] });
-      toast({ title: "User deleted successfully" });
+    onSuccess: async () => {
+      await fetchUsers();
+
+      toast({
+        title: "User deleted successfully",
+      });
     },
     onError: (error: any) => {
-      toast({ title: "Delete failed", description: error.message, variant: "destructive" });
-    }
+      toast({
+        title: "Delete failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
   });
-
-  const handleDelete = (id: number, name: string) => {
+  const handleDelete = async (id: number, name: string) => {
     if (window.confirm(`Are you sure you want to delete user: ${name}?`)) {
-      deleteMut.mutate(id);
+      setDeletingId(id);
+
+      try {
+        await deleteMut.mutateAsync(id);
+      } finally {
+        setDeletingId(null);
+      }
     }
   };
 
@@ -154,10 +233,14 @@ export default function UserAdminPage() {
       render: (p: any) => (
         <div className="flex items-center gap-2">
           <Avatar className="w-8 h-8">
-            <AvatarFallback>{(p.fullName || p.employeeName || "U")[0]}</AvatarFallback>
+            <AvatarFallback>
+              {(p.fullName || p.employeeName || "U")[0]}
+            </AvatarFallback>
           </Avatar>
           <div className="text-left">
-            <p className="text-sm font-medium">{p.fullName || p.employeeName}</p>
+            <p className="text-sm font-medium">
+              {p.fullName || p.employeeName}
+            </p>
             <p className="text-xs text-muted-foreground">{p.employeeCode}</p>
           </div>
         </div>
@@ -167,7 +250,11 @@ export default function UserAdminPage() {
       key: "role",
       label: "Role",
       render: (p: any) => (
-        <Badge variant={(fallbackColors[p.roleCode?.toLowerCase()] as any) || "secondary"}>
+        <Badge
+          variant={
+            (fallbackColors[p.roleCode?.toLowerCase()] as any) || "secondary"
+          }
+        >
           {p.roleName || "No Role"}
         </Badge>
       ),
@@ -187,7 +274,14 @@ export default function UserAdminPage() {
       render: (p: any) => (
         <div className="flex gap-1">
           {canEdit && (
-            <Button size="icon" variant="ghost" onClick={() => { setEditing(p); setDialogOpen(true); }}>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                setEditing(p);
+                setDialogOpen(true);
+              }}
+            >
               <Pencil className="w-4 h-4" />
             </Button>
           )}
@@ -196,10 +290,14 @@ export default function UserAdminPage() {
               size="icon"
               variant="ghost"
               className="text-destructive"
-              disabled={deleteMut.isPending}
+              disabled={deletingId === p.id}
               onClick={() => handleDelete(p.id, p.fullName || p.employeeName)}
             >
-              {deleteMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {deletingId === p.id ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4" />
+              )}
             </Button>
           )}
         </div>
@@ -209,12 +307,16 @@ export default function UserAdminPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto text-left">
-
       <PageHeader
         title="User Administration"
         action={
           canAdd && (
-            <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setDialogOpen(true);
+              }}
+            >
               <Plus className="w-4 h-4 mr-1" /> Add User
             </Button>
           )
@@ -228,11 +330,51 @@ export default function UserAdminPage() {
         searchable
         searchKeys={["fullName", "employeeCode", "username"]}
       />
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+        <div className="text-sm text-muted-foreground">
+          Showing{" "}
+          <span className="font-semibold text-foreground">
+            {(page - 1) * pageSize + 1}
+          </span>{" "}
+          to{" "}
+          <span className="font-semibold text-foreground">
+            {Math.min(page * pageSize, totalCount)}
+          </span>{" "}
+          of <span className="font-semibold text-foreground">{totalCount}</span>{" "}
+          users
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+
+          <div className="px-3 py-1 border rounded text-sm font-medium">
+            {page} / {totalPages}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[450px]">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit User Profile" : "Create New User"}</DialogTitle>
+            <DialogTitle>
+              {editing ? "Edit User Profile" : "Create New User"}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
@@ -241,10 +383,21 @@ export default function UserAdminPage() {
               <div className="flex gap-2">
                 <Input
                   value={formData.employeeCode}
-                  onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, employeeCode: e.target.value })
+                  }
                 />
-                <Button type="button" variant="secondary" onClick={handleSearch} disabled={isSearching || !!editing}>
-                  {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={handleSearch}
+                  disabled={isSearching || !!editing}
+                >
+                  {isSearching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
             </div>
@@ -253,7 +406,9 @@ export default function UserAdminPage() {
               <Label>Employee Name</Label>
               <Input
                 value={formData.employeeName}
-                onChange={(e) => setFormData({ ...formData, employeeName: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, employeeName: e.target.value })
+                }
               />
             </div>
 
@@ -261,16 +416,22 @@ export default function UserAdminPage() {
               <Label>Email</Label>
               <Input
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
               />
             </div>
 
-            <div className={`grid ${editing ? "grid-cols-1" : "grid-cols-2"} gap-4`}>
+            <div
+              className={`grid ${editing ? "grid-cols-1" : "grid-cols-2"} gap-4`}
+            >
               <div className="grid gap-2 text-left">
                 <Label>Username *</Label>
                 <Input
                   value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  onChange={(e) =>
+                    setFormData({ ...formData, username: e.target.value })
+                  }
                 />
               </div>
 
@@ -280,7 +441,9 @@ export default function UserAdminPage() {
                   <Input
                     type="password"
                     value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, password: e.target.value })
+                    }
                   />
                 </div>
               )}
@@ -291,7 +454,9 @@ export default function UserAdminPage() {
                 <Label>Assigned Role *</Label>
                 <Select
                   value={formData.roleId}
-                  onValueChange={(val) => setFormData({ ...formData, roleId: val })}
+                  onValueChange={(val) =>
+                    setFormData({ ...formData, roleId: val })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Role" />
@@ -311,7 +476,9 @@ export default function UserAdminPage() {
                   <span className="text-sm">Active</span>
                   <Switch
                     checked={formData.isActive}
-                    onCheckedChange={(val) => setFormData({ ...formData, isActive: val })}
+                    onCheckedChange={(val) =>
+                      setFormData({ ...formData, isActive: val })
+                    }
                   />
                 </div>
               </div>
@@ -324,7 +491,11 @@ export default function UserAdminPage() {
               onClick={() => saveMut.mutate(formData)}
               disabled={saveMut.isPending}
             >
-              {saveMut.isPending ? "Processing..." : editing ? "Update User" : "Create User"}
+              {saveMut.isPending
+                ? "Processing..."
+                : editing
+                  ? "Update User"
+                  : "Create User"}
             </Button>
           </DialogFooter>
         </DialogContent>
