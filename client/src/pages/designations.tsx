@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect  } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog } from "@/components/crud-dialog";
@@ -34,21 +34,46 @@ export default function DesignationPage() {
   const [page, setPage] = useState(1);
   const pageSize = 5;
 
-  const {
-    data: response,
-    isLoading,
-    create,
-    update,
-    remove,
-    isCreating,
-    isUpdating,
-  } = useCrud<any>(
-    `/api/designations?page=${page}&pageSize=${pageSize}`,
-    "Designation",
-  ) as any;
+  // const {
+  //   data: response,
+  //   isLoading,
+  //   create,
+  //   update,
+  //   remove,
+  //   isCreating,
+  //   isUpdating,
+  // } = useCrud<any>(
+  //   `/api/designations?page=${page}&pageSize=${pageSize}`,
+  //   "Designation",
+  // ) as any;
 
-  const data = response?.data || [];
-  const totalPages = response?.totalPages || 1;
+  const [pagedResponse, setPagedResponse] = useState<any>(null);
+
+const {
+  isLoading,
+  create,
+  update,
+  remove,
+  isCreating,
+  isUpdating,
+} = useCrud<any>("/api/designations", "Designation") as any;
+
+const fetchDesignations = async () => {
+  const res = await fetch(
+    `/api/designations?page=${page}&pageSize=${pageSize}`
+  );
+
+  const data = await res.json();
+
+  setPagedResponse(data);
+};
+
+useEffect(() => {
+  fetchDesignations();
+}, [page]);
+
+const data = pagedResponse?.data || [];
+const totalPages = pagedResponse?.totalPages || 1;
 
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<any>(null);
@@ -126,10 +151,15 @@ export default function DesignationPage() {
                 if (confirmed) {
                   try {
                     await remove(item.id);
-                    toast({
-                      title: "Deleted",
-                      description: "Designation deleted successfully",
-                    });
+
+setTimeout(async () => {
+  await fetchDesignations();
+}, 300);
+
+toast({
+  title: "Deleted",
+  description: "Designation deleted successfully",
+});
                   } catch (error) {
                     toast({
                       variant: "destructive",
@@ -167,12 +197,14 @@ export default function DesignationPage() {
 
       // API Call Logic
       if (edit) {
-        if (!canEdit) return;
-        await update({ id: edit.id, data: formData });
-      } else {
-        if (!canAdd) return;
-        await create(formData);
-      }
+  if (!canEdit) return;
+  await update({ id: edit.id, data: formData });
+} else {
+  if (!canAdd) return;
+  await create(formData);
+}
+
+await fetchDesignations();
 
       toast({
         title: "Success",
@@ -247,11 +279,11 @@ export default function DesignationPage() {
           </span>{" "}
           to{" "}
           <span className="font-semibold text-foreground">
-            {Math.min(page * pageSize, response?.totalCount || 0)}
+            {Math.min(page * pageSize, pagedResponse?.totalCount || 0)}
           </span>{" "}
           of{" "}
           <span className="font-semibold text-foreground">
-            {response?.totalCount || 0}
+            {pagedResponse?.totalCount || 0}
           </span>{" "}
           designations
         </div>

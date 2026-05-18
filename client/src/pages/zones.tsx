@@ -58,8 +58,7 @@ export default function ZonesDoorsPage() {
       </div>
     );
   }
-  const [doorPage, setDoorPage] = useState(1);
-  const pageSize = 2;
+
   const queryClient = useQueryClient();
   const [zoneDialog, setZoneDialog] = useState(false);
   const [doorDialog, setDoorDialog] = useState(false);
@@ -69,6 +68,7 @@ export default function ZonesDoorsPage() {
   const [editingDoor, setEditingDoor] = useState<Door | null>(null);
   const [selectedDoorForMapping, setSelectedDoorForMapping] =
     useState<Door | null>(null);
+  const mappingCrud = useCrud<any>("/api/door-devices", "Device Mapping");
 
   const [pendingMapping, setPendingMapping] = useState<{
     inDeviceIds: number[];
@@ -79,16 +79,49 @@ export default function ZonesDoorsPage() {
   });
 
   const zoneCrud = useCrud<Zone>("/api/zones", "Zone");
-  const doorCrud = useCrud<Door>(
-    `/api/doors?page=${doorPage}&pageSize=${pageSize}`,
-    "Door",
-  );
-  const mappingCrud = useCrud<any>("/api/door-devices", "Device Mapping");
-  const paginatedData = doorCrud.data as unknown as PaginatedResponse<Door>;
 
-  const doors = paginatedData?.data || [];
-  const doorTotalPages = paginatedData?.totalPages || 1;
-  const doorTotalCount = paginatedData?.totalCount || 0;
+  // ==========================
+  // PAGINATION STATES
+  // ==========================
+  const [doorPage, setDoorPage] = useState(1);
+  const pageSize = 5;
+
+  // ==========================
+  // CRUD
+  // ==========================
+  const doorCrud = useCrud<Door>("/api/doors", "Door");
+
+  // ==========================
+  // PAGINATION RESPONSE STATE
+  // ==========================
+  const [pagedDoors, setPagedDoors] = useState<PaginatedResponse<Door> | null>(
+    null,
+  );
+
+  // ==========================
+  // FETCH DOORS
+  // ==========================
+  const fetchDoors = async () => {
+    const res = await fetch(`/api/doors?page=${doorPage}&pageSize=${pageSize}`);
+
+    const data = await res.json();
+
+    setPagedDoors(data);
+  };
+
+  // ==========================
+  // INITIAL + PAGE CHANGE FETCH
+  // ==========================
+  useEffect(() => {
+    fetchDoors();
+  }, [doorPage]);
+
+  // ==========================
+  // PAGINATION DATA
+  // ==========================
+  const doors = pagedDoors?.data || [];
+  const doorTotalPages = pagedDoors?.totalPages || 1;
+  const doorTotalCount = pagedDoors?.totalCount || 0;
 
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: devices = [] } = useQuery<any[]>({
@@ -136,29 +169,61 @@ export default function ZonesDoorsPage() {
     }));
   };
 
+  // const handleSaveMapping = async () => {
+  //   if (!selectedDoorForMapping) return;
+
+  //   const payload = {
+  //     doorId: selectedDoorForMapping.id,
+  //     inDeviceIds: pendingMapping.inDeviceIds,
+  //     outDeviceIds: pendingMapping.outDeviceIds,
+  //   };
+
+  //   try {
+  //     if (currentMapping) {
+  //       await mappingCrud.update({ id: currentMapping.id, data: payload });
+  //     } else {
+  //       await mappingCrud.create(payload);
+  //     }
+  //     queryClient.invalidateQueries({ queryKey: ["/api/doors"] });
+  //     queryClient.invalidateQueries({ queryKey: ["/api/door-devices"] });
+  //     setMappingDialog(false);
+  //   } catch (err) {
+  //     console.error("Save failed", err);
+  //   }
+  // };
+
   const handleSaveMapping = async () => {
-    if (!selectedDoorForMapping) return;
+  if (!selectedDoorForMapping) return;
 
-    const payload = {
-      doorId: selectedDoorForMapping.id,
-      inDeviceIds: pendingMapping.inDeviceIds,
-      outDeviceIds: pendingMapping.outDeviceIds,
-    };
-
-    try {
-      if (currentMapping) {
-        await mappingCrud.update({ id: currentMapping.id, data: payload });
-      } else {
-        await mappingCrud.create(payload);
-      }
-      queryClient.invalidateQueries({ queryKey: ["/api/doors"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/door-devices"] });
-      setMappingDialog(false);
-    } catch (err) {
-      console.error("Save failed", err);
-    }
+  const payload = {
+    doorId: selectedDoorForMapping.id,
+    inDeviceIds: pendingMapping.inDeviceIds,
+    outDeviceIds: pendingMapping.outDeviceIds,
   };
 
+  try {
+    if (currentMapping) {
+      await mappingCrud.update({
+        id: currentMapping.id,
+        data: payload,
+      });
+    } else {
+      await mappingCrud.create(payload);
+    }
+
+    // ✅ latest data fetch karo
+    await fetchDoors();
+
+    // optional
+    queryClient.invalidateQueries({
+      queryKey: ["/api/door-devices"],
+    });
+
+    setMappingDialog(false);
+  } catch (err) {
+    console.error("Save failed", err);
+  }
+};
   const zoneFields: FieldConfig[] = useMemo(
     () => [
       { key: "name", label: "Zone Name", required: true },
@@ -481,10 +546,16 @@ export default function ZonesDoorsPage() {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (window.confirm("Delete this door?"))
-                        doorCrud.remove(d.id);
+
+                      if (window.confirm("Delete this door?")) {
+                        await doorCrud.remove(d.id);
+
+                        setTimeout(async () => {
+                          await fetchDoors();
+                        }, 300);
+                      }
                     }}
                   >
                     <Trash2 className="w-4 h-4" />
@@ -728,6 +799,8 @@ export default function ZonesDoorsPage() {
               } else {
                 await doorCrud.create(payload);
               }
+
+              await fetchDoors();
 
               // :white_check_mark: Success path
               setDoorDialog(false);

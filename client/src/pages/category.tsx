@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect  } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog } from "@/components/crud-dialog";
@@ -33,21 +33,44 @@ export default function CategoriesPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const pageSize = 5;
-  const {
-    data: response,
-    isLoading,
-    create,
-    update,
-    remove,
-    isCreating,
-    isUpdating,
-  } = useCrud<any>(
-    `/api/categories?page=${page}&pageSize=${pageSize}`,
-    "Category",
-  ) as any;
+  const [pagedResponse, setPagedResponse] = useState<any>(null);
+  // const {
+  //   data: response,
+  //   isLoading,
+  //   create,
+  //   update,
+  //   remove,
+  //   isCreating,
+  //   isUpdating,
+  // } = useCrud<any>(
+  //   `/api/categories?page=${page}&pageSize=${pageSize}`,
+  //   "Category",
+  // ) as any;
 
-  const data = response?.data || [];
-  const totalPages = response?.totalPages || 1;
+  const {
+  isLoading,
+  create,
+  update,
+  remove,
+  isCreating,
+  isUpdating,
+} = useCrud<any>("/api/categories", "Category") as any;
+
+const fetchCategories = async () => {
+  const res = await fetch(
+    `/api/categories?page=${page}&pageSize=${pageSize}`
+  );
+
+  const data = await res.json();
+
+  setPagedResponse(data);
+};
+useEffect(() => {
+  fetchCategories();
+}, [page]);
+
+  const data = pagedResponse?.data || [];
+const totalPages = pagedResponse?.totalPages || 1;
 
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<any>(null);
@@ -108,20 +131,25 @@ export default function CategoriesPage() {
                 );
 
                 if (confirmed) {
-                  try {
-                    await remove(item.id);
-                    toast({
-                      title: "Deleted",
-                      description: "Category deleted successfully",
-                    });
-                  } catch (err: any) {
-                    toast({
-                      variant: "destructive",
-                      title: "Error",
-                      description: err.message || "Failed to delete category",
-                    });
-                  }
-                }
+  try {
+    await remove(item.id);
+
+    setTimeout(async () => {
+      await fetchCategories();
+    }, 300);
+
+    toast({
+      title: "Deleted",
+      description: "Category deleted successfully",
+    });
+  } catch (err: any) {
+    toast({
+      variant: "destructive",
+      title: "Error",
+      description: err.message || "Failed to delete category",
+    });
+  }
+}
               }}
             >
               <Trash2 className="w-4 h-4" />
@@ -154,6 +182,7 @@ export default function CategoriesPage() {
       } else {
         await create(formData);
       }
+      await fetchCategories();
 
       toast({
         title: "Success",
@@ -229,11 +258,11 @@ export default function CategoriesPage() {
           </span>{" "}
           to{" "}
           <span className="font-semibold text-foreground">
-            {Math.min(page * pageSize, response?.totalCount || 0)}
+            {Math.min(page * pageSize, pagedResponse?.totalCount || 0)}
           </span>{" "}
           of{" "}
           <span className="font-semibold text-foreground">
-            {response?.totalCount || 0}
+            {pagedResponse?.totalCount || 0}
           </span>{" "}
           categories
         </div>

@@ -8,7 +8,14 @@ import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ShieldCheck,RefreshCw, Pencil, Eye, Trash2, UserPlus } from "lucide-react";
+import {
+  ShieldCheck,
+  RefreshCw,
+  Pencil,
+  Eye,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { validateNoHtml } from "@/lib/validation";
 import type {
@@ -52,7 +59,9 @@ const personTypeLabels: Record<string, string> = {
   consultant: "Consultant",
 };
 export default function PeoplePage() {
-  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.EMPLOYEES.code);
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
+    MENU_CONFIG.EMPLOYEES.code,
+  );
   if (!canView) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -69,12 +78,56 @@ export default function PeoplePage() {
   const { toast } = useToast();
   const [selectedDoorIds, setSelectedDoorIds] = useState<number[]>([]);
   const [doorSearch, setDoorSearch] = useState("");
-  const {
-    data: people = [],
-    isLoading,
-    refetch,
-    isFetching,
-  } = useQuery<Person[]>({ queryKey: ["/api/people"] });
+  // type PaginatedResponse<T> = {
+  //   data: T[];
+  //   totalPages: number;
+  //   totalCount: number;
+  // };
+
+  // const [page, setPage] = useState(1);
+  // const pageSize = 2;
+
+  // const {
+  //   data: peopleResponse,
+  //   isLoading,
+  //   refetch,
+  //   isFetching,
+  // } = useQuery<PaginatedResponse<Person>>({
+  //   queryKey: [`/api/people?page=${page}&pageSize=${pageSize}`],
+  // });
+  type PaginatedResponse<T> = {
+  data: T[];
+  totalPages: number;
+  totalCount: number;
+};
+
+const [page, setPage] = useState(1);
+const pageSize = 2;
+
+const {
+  data: peopleResponse,
+  isLoading,
+  refetch,
+  isFetching,
+} = useQuery<PaginatedResponse<Person>, Error>({
+  queryKey: ["/api/people", page, pageSize],
+
+  queryFn: async (): Promise<PaginatedResponse<Person>> => {
+    const res = await apiRequest(
+      "GET",
+      `/api/people?page=${page}&pageSize=${pageSize}`,
+    );
+
+    return await res.json();
+  },
+
+  placeholderData: (previousData) => previousData,
+});
+
+const people = peopleResponse?.data || [];
+const totalPages = peopleResponse?.totalPages || 1;
+const totalCount = peopleResponse?.totalCount || 0;
+
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ["/api/departments"],
   });
@@ -194,10 +247,16 @@ export default function PeoplePage() {
       const r = await apiRequest("POST", "/api/people", data);
       return r.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/people"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/people"],
+      });
+
       setDialogOpen(false);
-      toast({ title: "Person created" });
+
+      toast({
+        title: "Person created",
+      });
     },
     onError: (e: Error) =>
       toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -207,11 +266,17 @@ export default function PeoplePage() {
       const r = await apiRequest("PUT", `/api/people/${id}`, data);
       return r.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/people"] });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/people"],
+      });
+
       setDialogOpen(false);
       setEditing(null);
-      toast({ title: "Person updated" });
+
+      toast({
+        title: "Person updated",
+      });
     },
     onError: (e: Error) =>
       toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -220,9 +285,15 @@ export default function PeoplePage() {
     mutationFn: async (id: number) => {
       await apiRequest("DELETE", `/api/people/${id}`);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/people"] });
-      toast({ title: "Success", description: "Person deleted successfully." });
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/people"],
+      });
+
+      toast({
+        title: "Success",
+        description: "Person deleted successfully.",
+      });
     },
     onError: (e: Error) => {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -377,10 +448,11 @@ export default function PeoplePage() {
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
-            className={`text-xs font-bold ${isEnabled
-              ? "bg-red-50 text-red-600 border-red-300"
-              : "bg-green-50 text-green-600 border-green-300"
-              }`}
+            className={`text-xs font-bold ${
+              isEnabled
+                ? "bg-red-50 text-red-600 border-red-300"
+                : "bg-green-50 text-green-600 border-green-300"
+            }`}
           >
             {isEnabled ? "ACTIVE" : "INACTIVE"}
           </Badge>
@@ -547,7 +619,7 @@ export default function PeoplePage() {
               </Tooltip>
             )}
             {canEdit && (
-              < Tooltip >
+              <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     size="icon"
@@ -567,38 +639,38 @@ export default function PeoplePage() {
                 </TooltipContent>
               </Tooltip>
             )}
-              {canDelete && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="hover:text-destructive"
-                  disabled={deleteMut.isPending}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (
-                      window.confirm("Delete this person from all systems?")
-                    ) {
-                      deleteMut.mutate(p.id);
-                    }
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Delete</p>
-              </TooltipContent>
-            </Tooltip>
-              )}
+            {canDelete && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="hover:text-destructive"
+                    disabled={deleteMut.isPending}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (
+                        window.confirm("Delete this person from all systems?")
+                      ) {
+                        deleteMut.mutate(p.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Delete</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
-        </TooltipProvider >
+        </TooltipProvider>
       ),
     },
-  ].filter(col => {
+  ].filter((col) => {
     // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
-    if (col.key === 'actions') {
+    if (col.key === "actions") {
       return canEdit || canDelete;
     }
     return true;
@@ -612,30 +684,31 @@ export default function PeoplePage() {
         action={
           <div className="flex gap-2">
             {/* 🔴 EMERGENCY BUTTON */}
-           { canEdit && (
-            <Button
-              variant="destructive"
-              className="w-[220px] flex items-center justify-center gap-2"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "⚠️ ALERT: This will UNBLOCK ALL employees on ALL devices. Proceed?",
-                  )
-                ) {
-                  bulkEmergencyUnblockMut.mutate();
-                }
-              }}
-              disabled={bulkEmergencyUnblockMut.isPending}
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""
+            {canEdit && (
+              <Button
+                variant="destructive"
+                className="w-[220px] flex items-center justify-center gap-2"
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "⚠️ ALERT: This will UNBLOCK ALL employees on ALL devices. Proceed?",
+                    )
+                  ) {
+                    bulkEmergencyUnblockMut.mutate();
+                  }
+                }}
+                disabled={bulkEmergencyUnblockMut.isPending}
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${
+                    bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""
                   }`}
-              />
-              <span className="w-[130px] text-center">
-                Emergency Unblock All
-              </span>
-            </Button>
-                )}
+                />
+                <span className="w-[130px] text-center">
+                  Emergency Unblock All
+                </span>
+              </Button>
+            )}
             {/* 🔄 SYNC BUTTON (existing) */}
             {/* <Button
               variant="outline"
@@ -700,6 +773,44 @@ export default function PeoplePage() {
         searchKeys={["employeeName", "employeeCode", "email"]}
         emptyMessage="No people registered yet"
       />
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+        <div className="text-sm text-muted-foreground">
+          Showing{" "}
+          <span className="font-semibold text-foreground">
+            {(page - 1) * pageSize + 1}
+          </span>{" "}
+          to{" "}
+          <span className="font-semibold text-foreground">
+            {Math.min(page * pageSize, totalCount)}
+          </span>{" "}
+          of <span className="font-semibold text-foreground">{totalCount}</span>{" "}
+          employees
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            Previous
+          </Button>
+
+          <div className="px-3 py-1 border rounded text-sm font-medium">
+            {page} / {totalPages}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
       {/* --- DEVICE ACCESS MODAL --- */}
       <Dialog open={deviceStatusOpen} onOpenChange={setDeviceStatusOpen}>
         <DialogContent className="max-w-md h-[520px] p-0 overflow-hidden flex flex-col">
@@ -771,10 +882,11 @@ export default function PeoplePage() {
                           <td className="p-3 text-center">
                             <Badge
                               variant={isUnblocked ? "outline" : "destructive"}
-                              className={`text-[9px] font-bold px-2 ${isUnblocked
-                                ? "border-green-500 text-green-600 bg-green-50"
-                                : ""
-                                }`}
+                              className={`text-[9px] font-bold px-2 ${
+                                isUnblocked
+                                  ? "border-green-500 text-green-600 bg-green-50"
+                                  : ""
+                              }`}
                             >
                               {isUnblocked ? "ALLOWED" : "BLOCKED"}
                             </Badge>
@@ -817,15 +929,15 @@ export default function PeoplePage() {
                         .toLowerCase()
                         .includes(deviceSearch.toLowerCase()),
                   ).length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="text-center p-6 text-muted-foreground"
-                        >
-                          No devices found
-                        </td>
-                      </tr>
-                    )}
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="text-center p-6 text-muted-foreground"
+                      >
+                        No devices found
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -838,77 +950,77 @@ export default function PeoplePage() {
         </DialogContent>
       </Dialog>
       {(canAdd || canEdit) && (
-      <CrudDialog
-        open={dialogOpen}
-        errors={fieldErrors}
-        onClose={() => {
-          setDialogOpen(false);
-          setEditing(null);
-          setFieldErrors({});
-        }}
-        title={editing ? "Edit Person" : "Add Person"}
-        // fields={fields}
-        fields={filteredFields}
-        initialData={
-          editing
-            ? {
-              ...editing,
-              departmentId: editing.departmentId
-                ? String(editing.departmentId)
-                : "",
-              shiftId: editing.shiftId ? String(editing.shiftId) : "",
-              designationId: editing.designationId
-                ? String(editing.designationId)
-                : "",
-              companyId: editing.companyId ? String(editing.companyId) : "",
-              locationId: editing.locationId
-                ? String(editing.locationId)
-                : "",
-              riskTier: editing.riskTier ?? 1,
-            }
-            : {
-              companyId: String(
-                companies.find((c) => c.name.toLowerCase().includes("zim"))
-                  ?.id || "",
-              ),
-              status: "active",
-              personType: "employee",
-            }
-        }
-        onSubmit={(data) => {
-          // 🛡️ Reset errors
-          setFieldErrors({});
-
-          // 🛡️ XSS Validation
-          const validationErrors = validateNoHtml(data);
-          if (Object.keys(validationErrors).length > 0) {
-            setFieldErrors(validationErrors);
-            return;
+        <CrudDialog
+          open={dialogOpen}
+          errors={fieldErrors}
+          onClose={() => {
+            setDialogOpen(false);
+            setEditing(null);
+            setFieldErrors({});
+          }}
+          title={editing ? "Edit Person" : "Add Person"}
+          // fields={fields}
+          fields={filteredFields}
+          initialData={
+            editing
+              ? {
+                  ...editing,
+                  departmentId: editing.departmentId
+                    ? String(editing.departmentId)
+                    : "",
+                  shiftId: editing.shiftId ? String(editing.shiftId) : "",
+                  designationId: editing.designationId
+                    ? String(editing.designationId)
+                    : "",
+                  companyId: editing.companyId ? String(editing.companyId) : "",
+                  locationId: editing.locationId
+                    ? String(editing.locationId)
+                    : "",
+                  riskTier: editing.riskTier ?? 1,
+                }
+              : {
+                  companyId: String(
+                    companies.find((c) => c.name.toLowerCase().includes("zim"))
+                      ?.id || "",
+                  ),
+                  status: "active",
+                  personType: "employee",
+                }
           }
+          onSubmit={(data) => {
+            // 🛡️ Reset errors
+            setFieldErrors({});
 
-          // 🔢 Convert numeric fields
-          const numericFields = [
-            "departmentId",
-            "shiftId",
-            "designationId",
-            "companyId",
-            "locationId",
-            "riskTier",
-          ];
+            // 🛡️ XSS Validation
+            const validationErrors = validateNoHtml(data);
+            if (Object.keys(validationErrors).length > 0) {
+              setFieldErrors(validationErrors);
+              return;
+            }
 
-          numericFields.forEach((k) => {
-            if (data[k]) data[k] = Number(data[k]);
-          });
+            // 🔢 Convert numeric fields
+            const numericFields = [
+              "departmentId",
+              "shiftId",
+              "designationId",
+              "companyId",
+              "locationId",
+              "riskTier",
+            ];
 
-          // 🚀 API Call
-          if (editing) {
-            updateMut.mutate({ id: editing.id, data });
-          } else {
-            createMut.mutate(data);
-          }
-        }}
-        isPending={createMut.isPending || updateMut.isPending}
-      />
+            numericFields.forEach((k) => {
+              if (data[k]) data[k] = Number(data[k]);
+            });
+
+            // 🚀 API Call
+            if (editing) {
+              updateMut.mutate({ id: editing.id, data });
+            } else {
+              createMut.mutate(data);
+            }
+          }}
+          isPending={createMut.isPending || updateMut.isPending}
+        />
       )}
       <Dialog open={roledialogOpen} onOpenChange={setRoleDialogOpen}>
         <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
@@ -972,10 +1084,11 @@ export default function PeoplePage() {
                   .map((door) => (
                     <div
                       key={door.id}
-                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id)
-                        ? "bg-white border-blue-200 shadow-sm"
-                        : "border-transparent hover:bg-white hover:border-slate-200"
-                        }`}
+                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${
+                        selectedDoorIds.includes(door.id)
+                          ? "bg-white border-blue-200 shadow-sm"
+                          : "border-transparent hover:bg-white hover:border-slate-200"
+                      }`}
                       onClick={() =>
                         setSelectedDoorIds((prev) => {
                           const safePrev = Array.isArray(prev) ? prev : [];
@@ -1001,10 +1114,11 @@ export default function PeoplePage() {
 
                       {/* DOOR NAME */}
                       <span
-                        className={`text-sm ${selectedDoorIds.includes(door.id)
-                          ? "font-bold text-blue-700"
-                          : "text-slate-600"
-                          }`}
+                        className={`text-sm ${
+                          selectedDoorIds.includes(door.id)
+                            ? "font-bold text-blue-700"
+                            : "text-slate-600"
+                        }`}
                       >
                         {door.name}
                       </span>

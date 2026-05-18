@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect  } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
@@ -60,28 +60,62 @@ export default function DevicesPage() {
     totalCount: number;
   };
 
-  const {
-    data: response = {
-      data: [],
-      totalPages: 1,
-      totalCount: 0,
-    },
-    isLoading,
-    create,
-    update,
-    remove,
-    isCreating,
-    isUpdating,
-    refetch,
-  } = useCrud<PaginatedDeviceResponse>(
-    `/api/devices?page=${page}&pageSize=${pageSize}`,
-    "Device",
-  );
-  const paginatedResponse = response as unknown as PaginatedDeviceResponse;
+  // const {
+  //   data: response = {
+  //     data: [],
+  //     totalPages: 1,
+  //     totalCount: 0,
+  //   },
+  //   isLoading,
+  //   create,
+  //   update,
+  //   remove,
+  //   isCreating,
+  //   isUpdating,
+  //   refetch,
+  // } = useCrud<PaginatedDeviceResponse>(
+  //   `/api/devices?page=${page}&pageSize=${pageSize}`,
+  //   "Device",
+  // );
+  // const paginatedResponse = response as unknown as PaginatedDeviceResponse;
 
-  const data: Device[] = paginatedResponse?.data || [];
-  const totalPages = paginatedResponse?.totalPages || 1;
-  const totalCount = paginatedResponse?.totalCount || 0;
+  // const data: Device[] = paginatedResponse?.data || [];
+  // const totalPages = paginatedResponse?.totalPages || 1;
+  // const totalCount = paginatedResponse?.totalCount || 0;
+
+  const [pagedResponse, setPagedResponse] =
+  useState<PaginatedDeviceResponse>({
+    data: [],
+    totalPages: 1,
+    totalCount: 0,
+  });
+
+const {
+  isLoading,
+  create,
+  update,
+  remove,
+  isCreating,
+  isUpdating,
+} = useCrud<any>("/api/devices", "Device");
+
+const fetchDevices = async () => {
+  const res = await fetch(
+    `/api/devices?page=${page}&pageSize=${pageSize}`
+  );
+
+  const data = await res.json();
+
+  setPagedResponse(data);
+};
+
+useEffect(() => {
+  fetchDevices();
+}, [page]);
+
+const data: Device[] = pagedResponse?.data || [];
+const totalPages = pagedResponse?.totalPages || 1;
+const totalCount = pagedResponse?.totalCount || 0;
 
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: zones = [] } = useQuery<Zone[]>({ queryKey: ["/api/zones"] });
@@ -252,24 +286,30 @@ export default function DevicesPage() {
           )}
           {canDelete && (
             <Button
-              size="icon"
-              variant="ghost"
-              title="Delete"
-              className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const idToDelete = d.id || (d as any).msId;
-                if (
-                  idToDelete &&
-                  window.confirm("Are you sure you want to delete this device?")
-                ) {
-                  remove(idToDelete);
-                }
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+  size="icon"
+  variant="ghost"
+  title="Delete"
+  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+  onClick={async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const idToDelete = d.id || (d as any).msId;
+
+    if (
+      idToDelete &&
+      window.confirm("Are you sure you want to delete this device?")
+    ) {
+      await remove(idToDelete);
+
+      setTimeout(async () => {
+        await fetchDevices();
+      }, 300);
+    }
+  }}
+>
+  <Trash2 className="w-4 h-4" />
+</Button>
           )}
         </div>
       ),
@@ -290,10 +330,10 @@ export default function DevicesPage() {
         action={
           canAdd && (
             <Button
-              onClick={() => {
-                setEditing(null);
-                refetch(); // <--- Sirf ye call karna hai data fresh karne ke liye
-              }}
+              onClick={async () => {
+  setEditing(null);
+  await fetchDevices();
+}}
               className="gap-2"
               disabled={isLoading} // Optional: Fetching ke waqt double click rokne ke liye
             >
@@ -420,10 +460,12 @@ export default function DevicesPage() {
                 const updateId = editing.id || (editing as any).msId;
                 await update({ id: updateId, data: formData });
 
-                toast({
-                  title: "Success",
-                  description: "Device updated successfully",
-                });
+await fetchDevices();
+
+toast({
+  title: "Success",
+  description: "Device updated successfully",
+});
               }
 
               setDialogOpen(false);

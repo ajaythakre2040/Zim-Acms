@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect  } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog } from "@/components/crud-dialog";
@@ -34,21 +34,45 @@ export default function CompaniesPage() {
   const [page, setPage] = useState(1);
   const pageSize = 5;
 
-  const {
-    data: response,
-    isLoading,
-    create,
-    update,
-    remove,
-    isCreating,
-    isUpdating,
-  } = useCrud<any>(
-    `/api/companies?page=${page}&pageSize=${pageSize}`,
-    "Company",
-  ) as any;
+  // const {
+  //   data: response,
+  //   isLoading,
+  //   create,
+  //   update,
+  //   remove,
+  //   isCreating,
+  //   isUpdating,
+  // } = useCrud<any>(
+  //   `/api/companies?page=${page}&pageSize=${pageSize}`,
+  //   "Company",
+  // ) as any;
+const [pagedResponse, setPagedResponse] = useState<any>(null);
 
-  const data = response?.data || [];
-  const totalPages = response?.totalPages || 1;
+const {
+  isLoading,
+  create,
+  update,
+  remove,
+  isCreating,
+  isUpdating,
+} = useCrud<any>("/api/companies", "Company") as any;
+
+const fetchCompanies = async () => {
+  const res = await fetch(
+    `/api/companies?page=${page}&pageSize=${pageSize}`
+  );
+
+  const data = await res.json();
+
+  setPagedResponse(data);
+};
+
+useEffect(() => {
+  fetchCompanies();
+}, [page]);
+
+const data = pagedResponse?.data || [];
+const totalPages = pagedResponse?.totalPages || 1;
 
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<any>(null);
@@ -125,6 +149,10 @@ export default function CompaniesPage() {
                 if (confirmed) {
                   try {
                     await remove(item.id);
+
+setTimeout(async () => {
+  await fetchCompanies();
+}, 300);
                     toast({
                       title: "Deleted",
                       description: "Company deleted successfully",
@@ -166,10 +194,12 @@ export default function CompaniesPage() {
 
       // 🚀 API Call
       if (edit) {
-        await update({ id: edit.id, data: formData });
-      } else {
-        await create(formData);
-      }
+  await update({ id: edit.id, data: formData });
+} else {
+  await create(formData);
+}
+
+await fetchCompanies();
 
       toast({
         title: "Success",
@@ -245,11 +275,11 @@ export default function CompaniesPage() {
           </span>{" "}
           to{" "}
           <span className="font-semibold text-foreground">
-            {Math.min(page * pageSize, response?.totalCount || 0)}
+            {Math.min(page * pageSize, pagedResponse?.totalCount || 0)}
           </span>{" "}
           of{" "}
           <span className="font-semibold text-foreground">
-            {response?.totalCount || 0}
+            {pagedResponse?.totalCount || 0}
           </span>{" "}
           companies
         </div>

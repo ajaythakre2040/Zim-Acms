@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { usePermission } from "@/hooks/use-permission";
 import { PageHeader } from "@/components/page-header";
@@ -6,12 +6,22 @@ import { DataTable } from "@/components/data-table";
 import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  ChevronsRight,
+  ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
+} from "lucide-react";
 import type { Shift } from "@shared/schema";
 import { validateNoHtml } from "../lib/validation";
 import { MENU_CONFIG } from "../../../server/constant";
 export default function ShiftsPage() {
-  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.SHIFTS.code);
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
+    MENU_CONFIG.SHIFTS.code,
+  );
   if (!canView) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -25,12 +35,39 @@ export default function ShiftsPage() {
   const [editing, setEditing] = useState<Shift | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   // const { data = [], isLoading, create, update, remove, isCreating, isUpdating } = useCrud<Shift>("/api/shifts", "Shift");
-  const { data: response, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(
-    `/api/shifts?page=${page}&pageSize=${pageSize}`,
-    "Shift"
-  ) as any;
-  const shiftsData = response?.data || [];
-  const totalPages = response?.totalPages || 1;
+
+  // const { data: response, isLoading, create, update, remove, isCreating, isUpdating } = useCrud<any>(
+  //   `/api/shifts?page=${page}&pageSize=${pageSize}`,
+  //   "Shift"
+  // ) as any;
+  const {
+    data: response,
+    isLoading,
+    create,
+    update,
+    remove,
+    isCreating,
+    isUpdating,
+  } = useCrud<any>("/api/shifts", "Shift") as any;
+
+  const [pagedResponse, setPagedResponse] = useState<any>(null);
+
+  const fetchShifts = async () => {
+  const res = await fetch(
+    `/api/shifts?page=${page}&pageSize=${pageSize}`
+  );
+
+  const data = await res.json();
+
+  setPagedResponse(data);
+};
+
+  useEffect(() => {
+  fetchShifts();
+}, [page]);
+
+  const shiftsData = pagedResponse?.data || [];
+  const totalPages = pagedResponse?.totalPages || 1;
   const [formKey, setFormKey] = useState(0);
   const calculateWorkingHours = (start: string, end: string) => {
     if (!start || !end) return 0;
@@ -64,27 +101,59 @@ export default function ShiftsPage() {
       type: "time",
       required: true,
     },
-    { key: "breakDuration", label: "Break (mins)", type: "number", defaultValue: 0 },
+    {
+      key: "breakDuration",
+      label: "Break (mins)",
+      type: "number",
+      defaultValue: 0,
+    },
     {
       key: "workingHours",
       label: "Working Hours",
       type: "number",
       disabled: true,
     },
-    { key: "halfDayHours", label: "Half Day Hours", type: "number", defaultValue: 4 },
-    { key: "thresholdMins", label: "Threshold (mins)", type: "number", defaultValue: 30 },
+    {
+      key: "halfDayHours",
+      label: "Half Day Hours",
+      type: "number",
+      defaultValue: 4,
+    },
+    {
+      key: "thresholdMins",
+      label: "Threshold (mins)",
+      type: "number",
+      defaultValue: 30,
+    },
     { key: "isActive", label: "Active", type: "switch", defaultValue: true },
   ];
   const columns = [
-    { key: "name", label: "Shift", render: (s: Shift) => <span className="font-medium">{s.name}</span> },
+    {
+      key: "name",
+      label: "Shift",
+      render: (s: Shift) => <span className="font-medium">{s.name}</span>,
+    },
     { key: "code", label: "Code", hideOnMobile: true },
-    { key: "time", label: "Time", render: (s: Shift) => `${s.startTime} - ${s.endTime}` },
-    { key: "hours", label: "Hours", hideOnMobile: true, render: (s: Shift) => `${s.workingHours}h` },
+    {
+      key: "time",
+      label: "Time",
+      render: (s: Shift) => `${s.startTime} - ${s.endTime}`,
+    },
+    {
+      key: "hours",
+      label: "Hours",
+      hideOnMobile: true,
+      render: (s: Shift) => `${s.workingHours}h`,
+    },
     {
       key: "isActive",
       label: "Status",
       render: (s: Shift) =>
-        s.isActive ? <Badge>Active</Badge> : <Badge variant="secondary">Inactive</Badge>,
+        s.isActive ? (
+          <Badge>Active</Badge>
+        ) : (
+          <Badge variant="secondary">Inactive</Badge>
+        ),
     },
     {
       key: "actions",
@@ -110,23 +179,38 @@ export default function ShiftsPage() {
             </Button>
           )}
           {canDelete && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (window.confirm("Delete shift?")) remove(s.id);
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+           <Button
+  size="icon"
+  variant="ghost"
+  className="text-destructive"
+  onClick={async (e) => {
+    e.stopPropagation();
+
+    const confirmed = window.confirm("Delete shift?");
+
+    if (!confirmed) return;
+
+    try {
+      await remove(s.id);
+
+      // thoda wait taki backend commit ho jaye
+      setTimeout(async () => {
+        await fetchShifts();
+      }, 300);
+
+    } catch (err) {
+      console.error("Delete failed", err);
+    }
+  }}
+>
+  <Trash2 className="w-4 h-4" />
+</Button>
           )}
         </div>
       ),
     },
-  ].filter(col => {
-    if (col.key === 'actions') {
+  ].filter((col) => {
+    if (col.key === "actions") {
       return canEdit || canDelete;
     }
     return true;
@@ -137,16 +221,17 @@ export default function ShiftsPage() {
         title="Shifts"
         description="Configure work shifts and schedules"
         action={
-          canAdd &&
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setFormKey((prev) => prev + 1);
-              setDialogOpen(true);
-            }}
-          >
-            <Plus className="w-4 h-4 mr-1" /> Add Shift
-          </Button>
+          canAdd && (
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setFormKey((prev) => prev + 1);
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="w-4 h-4 mr-1" /> Add Shift
+            </Button>
+          )
         }
       />
       {/* <DataTable
@@ -168,22 +253,30 @@ export default function ShiftsPage() {
 
       {/* Professional Pagination Controls */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
-
         {/* Left Side: Stats */}
         <div className="text-sm text-muted-foreground order-2 md:order-1">
-          Showing <span className="font-semibold text-foreground">{(page - 1) * pageSize + 1}</span> to{" "}
+          Showing{" "}
           <span className="font-semibold text-foreground">
-            {Math.min(page * pageSize, response?.totalCount || 0)}
+            {(page - 1) * pageSize + 1}
           </span>{" "}
-          of <span className="font-semibold text-foreground">{response?.totalCount || 0}</span> shifts
+          to{" "}
+          <span className="font-semibold text-foreground">
+            {Math.min(page * pageSize, pagedResponse?.totalCount || 0)}
+          </span>{" "}
+          of{" "}
+          <span className="font-semibold text-foreground">
+            {pagedResponse?.totalCount || 0}
+          </span>{" "}
+          shifts
         </div>
 
         {/* Right Side: Controls */}
         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
-
           {/* Direct Jump (Professional Touch) */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Go to Page</span>
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Go to Page
+            </span>
             <input
               type="number"
               min={1}
@@ -257,7 +350,6 @@ export default function ShiftsPage() {
         </div>
       </div>
 
-
       {(canAdd || canEdit) && (
         <CrudDialog
           key={formKey}
@@ -281,7 +373,7 @@ export default function ShiftsPage() {
                 ...formData,
                 workingHours: calculateWorkingHours(
                   formData.startTime,
-                  formData.endTime
+                  formData.endTime,
                 ),
               };
               const validationErrors = validateNoHtml(updatedData);
@@ -290,10 +382,12 @@ export default function ShiftsPage() {
                 return;
               }
               if (editing) {
-                await update({ id: editing.id, data: updatedData });
-              } else {
-                await create(updatedData);
-              }
+  await update({ id: editing.id, data: updatedData });
+} else {
+  await create(updatedData);
+}
+
+await fetchShifts();
               setDialogOpen(false);
               setEditing(null);
             } catch (err: any) {
