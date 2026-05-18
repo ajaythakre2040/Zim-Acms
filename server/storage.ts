@@ -1001,12 +1001,16 @@ export class DatabaseStorage implements IStorage {
 
       if (!msDataRaw || msDataRaw.length === 0) {
         return pageSize
-          ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0 }
+          ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 }
           : [];
       }
 
       const currentTime = new Date();
       const THRESHOLD_MINUTES = 1;
+
+      // Counts track karne ke liye counters
+      let onlineCount = 0;
+      let offlineCount = 0;
 
       const formattedDevices = msDataRaw.map((d: any) => {
         let lPing: Date | null = null;
@@ -1023,6 +1027,14 @@ export class DatabaseStorage implements IStorage {
             calculatedStatus = "online";
           }
         }
+
+        // Loop chalte waise hi status count kar rahe hain (Alag se loop chalane ki zarurat nahi, performance bachegi)
+        if (calculatedStatus === "online") {
+          onlineCount++;
+        } else {
+          offlineCount++;
+        }
+
         return {
           msId: d.DeviceId || d.DeviceID,
           name: d.DeviceName || "Unnamed Device",
@@ -1057,19 +1069,21 @@ export class DatabaseStorage implements IStorage {
 
       // --- Pagination Logic ---
 
-      // Rule: Agar pageSize nahi mila, toh jaise abhi simple array response aa raha hai, waisa hi return karo
+      // Rule: Agar pageSize nahi mila, toh normal array format
       if (!pageSize) {
         return formattedDevices;
       }
 
-      // Rule: Agar pageSize -1 hai, toh object format mein all data do
+      // Rule: Agar pageSize -1 hai, toh object format mein all data + counts
       if (pageSize === -1 || pageSize === "-1") {
         return {
           data: formattedDevices,
           totalCount: formattedDevices.length,
           totalPages: 1,
           currentPage: 1,
-          pageSize: formattedDevices.length
+          pageSize: formattedDevices.length,
+          onlineCount,   // <-- Added here
+          offlineCount   // <-- Added here
         };
       }
 
@@ -1085,13 +1099,15 @@ export class DatabaseStorage implements IStorage {
         totalCount: formattedDevices.length,
         totalPages: Math.ceil(formattedDevices.length / size),
         currentPage: p,
-        pageSize: size
+        pageSize: size,
+        onlineCount,     // <-- Added here
+        offlineCount     // <-- Added here
       };
 
     } catch (error) {
       console.error("Device Sync Error:", error);
       return pageSize
-        ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0 }
+        ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 }
         : [];
     }
   }
