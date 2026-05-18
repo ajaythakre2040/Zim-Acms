@@ -35,14 +35,14 @@ const fallbackColors: Record<string, string> = {
 };
 
 export default function UserAdminPage() {
-  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.USER_ADMIN.code);
-  if (!canView) {
-    return (
-      <div className="p-6 text-center text-muted-foreground">
-        You do not have permission to view this page.
-      </div>
-    );
-  }
+   const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.USER_ADMIN.code);
+            if (!canView) {
+              return (
+                <div className="p-6 text-center text-muted-foreground">
+                  You do not have permission to view this page.
+                </div>
+              );
+            }
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -187,20 +187,20 @@ export default function UserAdminPage() {
       render: (p: any) => (
         <div className="flex gap-1">
           {canEdit && (
-            <Button size="icon" variant="ghost" onClick={() => { setEditing(p); setDialogOpen(true); }}>
-              <Pencil className="w-4 h-4" />
-            </Button>
+          <Button size="icon" variant="ghost" onClick={() => { setEditing(p); setDialogOpen(true); }}>
+            <Pencil className="w-4 h-4" />
+          </Button>
           )}
-          {canDelete && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-destructive"
-              disabled={deleteMut.isPending}
-              onClick={() => handleDelete(p.id, p.fullName || p.employeeName)}
-            >
-              {deleteMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-            </Button>
+          {canDelete && ( 
+          <Button
+            size="icon"
+            variant="ghost"
+            className="text-destructive"
+            disabled={deleteMut.isPending}
+            onClick={() => handleDelete(p.id, p.fullName || p.employeeName)}
+          >
+            {deleteMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </Button>
           )}
         </div>
       ),
@@ -214,9 +214,9 @@ export default function UserAdminPage() {
         title="User Administration"
         action={
           canAdd && (
-            <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
-              <Plus className="w-4 h-4 mr-1" /> Add User
-            </Button>
+          <Button onClick={() => { setEditing(null); setDialogOpen(true); }}>
+            <Plus className="w-4 h-4 mr-1" /> Add User
+          </Button>
           )
         }
       />

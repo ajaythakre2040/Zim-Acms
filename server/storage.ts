@@ -423,8 +423,8 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userProfiles.id, id));
     return profile;
   }
-  async getUserProfiles(): Promise<any[]> {
-    return await db
+  async getUserProfiles(page?: number | string, pageSize?: number | string): Promise<any> {
+    const query = db
       .select({
         id: userProfiles.id,
         employeeCode: userProfiles.employeeCode,
@@ -439,7 +439,10 @@ export class DatabaseStorage implements IStorage {
       })
       .from(userProfiles)
       .leftJoin(users, eq(userProfiles.userId, users.id))
-      .leftJoin(roles, eq(userProfiles.roleId, roles.id));
+      .leftJoin(roles, eq(userProfiles.roleId, roles.id))
+      .orderBy(asc(userProfiles.id));
+
+    return await withPagination(db, userProfiles, query, page, pageSize);
   }
   async getUserProfileByUserId(
     userId: string,

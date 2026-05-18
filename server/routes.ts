@@ -154,10 +154,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Error fetching shift stats" });
     }
   });
-  app.get("/api/user-profiles", requireAuth, async (_req, res) => {
-    try { res.json(await storage.getUserProfiles()); }
-    catch (e: any) { res.status(500).json({ message: e.message }); }
+  app.get("/api/user-profiles", requireAuth, async (req, res) => {
+    try {
+      const page = req.query.page as string | undefined;
+      const pageSize = req.query.pageSize as string | undefined;
+
+      res.json(await storage.getUserProfiles(page, pageSize));
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
+  // app.get("/api/user-profiles", requireAuth, async (_req, res) => {
+  //   try { res.json(await storage.getUserProfiles()); }
+  //   catch (e: any) { res.status(500).json({ message: e.message }); }
+  // });
   app.get("/api/user-profiles/me", requireAuth, async (req, res) => {
     try {
       const userId = (req.session as any)?.userId;
