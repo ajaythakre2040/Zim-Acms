@@ -49,13 +49,17 @@ export default function DepartmentsPage() {
  const [pagedResponse, setPagedResponse] = useState<any>(null);
 
 const {
-  isLoading,
   create,
   update,
   remove,
   isCreating,
   isUpdating,
-} = useCrud<any>("/api/departments", "Department") as any;
+} = useCrud<any>("/api/departments", "Department") ;
+
+const {
+  isLoading,
+  
+} = useCrud<any>("/api/departments?page=${page}&pageSize=${pageSize}", "Department");
 
 const fetchDepartments = async () => {
   const res = await fetch(

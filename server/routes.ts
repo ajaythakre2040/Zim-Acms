@@ -721,19 +721,65 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(otRecords);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.get("/api/reports/access-log", requireAuth, async (req, res) => {
-    try {
-      const filters = {
-        dateFrom: req.query.dateFrom as string | undefined,
-        dateTo: req.query.dateTo as string | undefined,
-        eventType: req.query.eventType as string | undefined,
-        personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
-        siteId: req.query.siteId ? parseInt(req.query.siteId as string) : undefined,
-        doorId: req.query.doorId ? parseInt(req.query.doorId as string) : undefined,
-      };
-      res.json(await storage.getAccessLogReport(filters));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+
+  // app.get("/api/reports/access-log", requireAuth, async (req, res) => {
+  //   try {
+  //     const filters = {
+  //       dateFrom: req.query.dateFrom as string | undefined,
+  //       dateTo: req.query.dateTo as string | undefined,
+  //       eventType: req.query.eventType as string | undefined,
+  //       personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
+  //       siteId: req.query.siteId ? parseInt(req.query.siteId as string) : undefined,
+  //       doorId: req.query.doorId ? parseInt(req.query.doorId as string) : undefined,
+  //     };
+  //     res.json(await storage.getAccessLogReport(filters));
+  //   } catch (e: any) { res.status(500).json({ message: e.message }); }
+  // });
+
+app.get("/api/reports/access-log", requireAuth, async (req, res) => {
+  try {
+
+    const filters = {
+      dateFrom: req.query.dateFrom as string | undefined,
+      dateTo: req.query.dateTo as string | undefined,
+      eventType: req.query.eventType as string | undefined,
+
+      personId: req.query.personId
+        ? parseInt(req.query.personId as string)
+        : undefined,
+
+      locationId: req.query.locationId
+        ? parseInt(req.query.locationId as string)
+        : undefined,
+
+      doorId: req.query.doorId
+        ? parseInt(req.query.doorId as string)
+        : undefined,
+    };
+
+    const page = req.query.page
+      ? String(req.query.page)
+      : undefined;
+
+    const pageSize = req.query.pageSize
+      ? String(req.query.pageSize)
+      : undefined;
+
+    const data = await storage.getAccessLogReport(
+      filters,
+      page,
+      pageSize
+    );
+
+    res.json(data);
+
+  } catch (e: any) {
+    res.status(500).json({
+      message: e.message,
+    });
+  }
+});
+
   app.get("/api/reports/visitor", requireAuth, async (req, res) => {
     try {
       const filters = {
