@@ -24,10 +24,6 @@ import {
   Filter,
   RefreshCw,
   DoorOpen,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
 } from "lucide-react";
 import { type Person } from "@shared/schema";
 import React from "react";
@@ -1640,7 +1636,6 @@ function LockoutReportTable({ data }: { data: any[] }) {
     </div>
   );
 }
-
 function getDaysInMonth(dateStr?: string) {
   const date = dateStr ? new Date(dateStr) : new Date();
   return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -1659,8 +1654,6 @@ export default function ReportsPage() {
     );
   }
   const [activeReport, setActiveReport] = useState("attendance");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [location] = useLocation();
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -1768,19 +1761,11 @@ export default function ReportsPage() {
   });
   // 🔥 UPDATED QUERY
   const {
-    data: reportResponse = {
-      data: [],
-      totalCount: 0,
-      totalPages: 1,
-      currentPage: 1,
-      pageSize: 10,
-    },
-
+    data: reportData = [],
     isLoading,
     isFetching,
-  } = useQuery({
-    queryKey: ["reports", activeReport, currentAppliedFilters, page, pageSize],
-
+  } = useQuery<any[]>({
+    queryKey: ["reports", activeReport, currentAppliedFilters],
     queryFn: async () => {
       const params = new URLSearchParams();
       Object.entries(currentAppliedFilters).forEach(([k, v]) => {
@@ -1788,25 +1773,16 @@ export default function ReportsPage() {
           params.set(k, String(v));
         }
       });
-      let url = "";
-
-      if (activeReport === "attendance") {
-        params.set("page", String(page));
-        params.set("pageSize", String(pageSize));
-
-        url = `/api/reports/attendance?${params.toString()}`;
-      } else if (activeReport === "access-logs") {
-        url = `/api/reports_access_logs?${params.toString()}`;
-      } else {
-        url = `/api/reports/${activeReport}?${params.toString()}`;
-      }
+      const url =
+        activeReport === "access-logs"
+          ? `/api/reports_access_logs?${params.toString()}`
+          : `/api/reports/${activeReport}?${params.toString()}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Fetch failed");
       return res.json();
     },
     placeholderData: (prev) => prev,
   });
-  const totalPages = reportResponse?.totalPages || 1;
 
   const { data: performanceData = [] } = useQuery<any[]>({
     queryKey: ["daily-performance-table", currentAppliedFilters],
@@ -1849,8 +1825,7 @@ export default function ReportsPage() {
   });
 
   const { data: musterRollData = [], isLoading: isMusterLoading } = useQuery<
-    any[]
-  >({
+    any[]  >({
     queryKey: ["muster-roll", currentAppliedFilters],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -1943,7 +1918,7 @@ export default function ReportsPage() {
 
     enabled: activeReport === "monthly-efficiency",
   });
-
+  
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center">
@@ -1965,11 +1940,10 @@ export default function ReportsPage() {
             onClick={() => {
               setActiveReport(rt.id);
             }}
-            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
-              activeReport === rt.id
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
                 ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
                 : "bg-card hover:bg-muted/50"
-            }`}
+              }`}
           >
             <rt.icon
               className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`}
@@ -1995,7 +1969,7 @@ export default function ReportsPage() {
       />
       {/* RESULTS SECTION */}
       <div className="space-y-6">
-        {isLoading && !reportResponse.data.length ? (
+        {isLoading && !reportData.length ? (
           <Card className="p-8 space-y-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <Skeleton key={i} className="h-10 w-full" />
@@ -2013,150 +1987,41 @@ export default function ReportsPage() {
               <Card className="shadow-sm border">
                 <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                   <CardTitle className="text-sm font-semibold">
-                    Attendance Results ({reportResponse.totalCount})
+                    Attendance Results ({reportData.length})
                   </CardTitle>
                   {canExport && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() =>
-                        exportCSV("attendance", reportResponse.data)
-                      }
+                      onClick={() => exportCSV("attendance", reportData)}
                     >
                       <Download className="w-4 h-4 mr-2" /> Export
                     </Button>
                   )}
-                  
                 </CardHeader>
                 <CardContent className="p-0">
-                  <AttendanceTable data={reportResponse.data} />
-
-                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
-                    {/* Left Side */}
-                    <div className="text-sm text-muted-foreground order-2 md:order-1">
-                      Showing{" "}
-                      <span className="font-semibold text-foreground">
-                        {(page - 1) * pageSize + 1}
-                      </span>{" "}
-                      to{" "}
-                      <span className="font-semibold text-foreground">
-                        {Math.min(
-                          page * pageSize,
-                          reportResponse?.totalCount || 0,
-                        )}
-                      </span>{" "}
-                      of{" "}
-                      <span className="font-semibold text-foreground">
-                        {reportResponse?.totalCount || 0}
-                      </span>{" "}
-                      attendance records
-                    </div>
-
-                    {/* Right Side */}
-                    <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
-                      {/* Go To Page */}
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                          Go to Page
-                        </span>
-
-                        <input
-                          type="number"
-                          min={1}
-                          max={totalPages}
-                          defaultValue={page}
-                          className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              const val = Number(e.currentTarget.value);
-
-                              if (val >= 1 && val <= totalPages) {
-                                setPage(val);
-                              }
-                            }
-                          }}
-                        />
-                      </div>
-
-                      {/* Buttons */}
-                      <div className="flex items-center space-x-1">
-                        {/* First */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setPage(1)}
-                          disabled={page === 1}
-                        >
-                          <ChevronsLeft className="h-4 w-4" />
-                        </Button>
-
-                        {/* Prev */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
-                          onClick={() => setPage((p) => Math.max(1, p - 1))}
-                          disabled={page === 1}
-                        >
-                          <ChevronLeft className="h-4 w-4" />
-                          Prev
-                        </Button>
-
-                        {/* Current Page */}
-                        <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
-                          {page} / {totalPages}
-                        </div>
-
-                        {/* Next */}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
-                          onClick={() =>
-                            setPage((p) => Math.min(totalPages, p + 1))
-                          }
-                          disabled={page === totalPages}
-                        >
-                          Next
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-
-                        {/* Last */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => setPage(totalPages)}
-                          disabled={page === totalPages}
-                        >
-                          <ChevronsRight className="h-4 w-4" />
-                        </Button>
-
-                      </div>
-                    </div>
-                  </div>
+                  <AttendanceTable data={reportData} />
                 </CardContent>
               </Card>
             )}
-{activeReport === "access-logs" && (
+            {activeReport === "access-logs" && (
               <Card className="shadow-sm border">
                 <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                   <CardTitle className="text-sm font-semibold">
-                    Access Logs Results ({reportResponse.length})
+                    Access Logs Results ({reportData.length})
                   </CardTitle>
                   {canExport && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => exportCSV("access-logs", reportResponse)}
+                      onClick={() => exportCSV("access-logs", reportData)}
                     >
                       <Download className="w-4 h-4 mr-2" /> Export
                     </Button>
                   )}
                 </CardHeader>
                 <CardContent className="p-0">
-                  <AccessLogs data={reportResponse} />
+                  <AccessLogs data={reportData} />
                 </CardContent>
               </Card>
             )}
@@ -2252,9 +2117,9 @@ export default function ReportsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!reportResponse || reportResponse.length === 0} // ✅ Empty data pe disable
+                        disabled={!reportData || reportData.length === 0} // ✅ Empty data pe disable
                         onClick={() =>
-                          exportDailyEfficiencyCSV(reportResponse, doorData)
+                          exportDailyEfficiencyCSV(reportData, doorData)
                         }
                       >
                         <Download className="w-4 h-4 mr-2" />
@@ -2328,20 +2193,20 @@ export default function ReportsPage() {
               <Card className="shadow-sm border">
                 <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                   <CardTitle className="text-sm font-semibold">
-                    Lockout Results ({reportResponse.length})
+                    Lockout Results ({reportData.length})
                   </CardTitle>
                   {canExport && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => exportCSV("lockout", reportResponse)}
+                      onClick={() => exportCSV("lockout", reportData)}
                     >
                       <Download className="w-4 h-4 mr-2" /> Export
                     </Button>
                   )}
                 </CardHeader>
                 <CardContent className="p-0">
-                  <LockoutReportTable data={reportResponse} />
+                  <LockoutReportTable data={reportData} />
                 </CardContent>
               </Card>
             )}

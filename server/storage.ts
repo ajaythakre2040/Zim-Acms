@@ -2351,33 +2351,82 @@ async getAttendanceReport(
   return withPagination(null, null, processedData, page, pageSize);
 }
 
-  async getAccessLogReport(filters: any): Promise<any[]> {
-    const conditions = [
-      filters.dateFrom &&
-        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
-      filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
-      filters.eventType && eq(accessLogs.eventType, filters.eventType),
-      filters.personId && eq(accessLogs.personId, filters.personId),
-      filters.locationId && eq(accessLogs.locationId, filters.locationId),
-      filters.doorId && eq(accessLogs.doorId, filters.doorId),
-    ].filter(Boolean);
-    const query = db
-      .select({
-        id: accessLogs.id,
-        employeeName: people.employeeName,
-        employeeCode: people.employeeCode,
-        eventType: accessLogs.eventType,
-        isAuthorized: accessLogs.isAuthorized,
-        timestamp: accessLogs.timestamp,
-        locationId: accessLogs.locationId,
-      })
-      .from(accessLogs)
-      .leftJoin(people, eq(accessLogs.personId, people.id))
-      .orderBy(desc(accessLogs.timestamp));
-    return conditions.length
-      ? await query.where(and(...conditions))
-      : await query.limit(500);
-  }
+  // async getAccessLogReport(filters: any): Promise<any[]> {
+  //   const conditions = [
+  //     filters.dateFrom &&
+  //       sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+  //     filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
+  //     filters.eventType && eq(accessLogs.eventType, filters.eventType),
+  //     filters.personId && eq(accessLogs.personId, filters.personId),
+  //     filters.locationId && eq(accessLogs.locationId, filters.locationId),
+  //     filters.doorId && eq(accessLogs.doorId, filters.doorId),
+  //   ].filter(Boolean);
+  //   const query = db
+  //     .select({
+  //       id: accessLogs.id,
+  //       employeeName: people.employeeName,
+  //       employeeCode: people.employeeCode,
+  //       eventType: accessLogs.eventType,
+  //       isAuthorized: accessLogs.isAuthorized,
+  //       timestamp: accessLogs.timestamp,
+  //       locationId: accessLogs.locationId,
+  //     })
+  //     .from(accessLogs)
+  //     .leftJoin(people, eq(accessLogs.personId, people.id))
+  //     .orderBy(desc(accessLogs.timestamp));
+  //   return conditions.length
+  //     ? await query.where(and(...conditions))
+  //     : await query.limit(500);
+  // }
+
+  async getAccessLogReport(
+  filters: any,
+  page?: number | string,
+  pageSize?: number | string
+): Promise<any> {
+
+  const conditions = [
+    filters.dateFrom &&
+      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+
+    filters.dateTo &&
+      sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
+
+    filters.eventType &&
+      eq(accessLogs.eventType, filters.eventType),
+
+    filters.personId &&
+      eq(accessLogs.personId, filters.personId),
+
+    filters.locationId &&
+      eq(accessLogs.locationId, filters.locationId),
+
+    filters.doorId &&
+      eq(accessLogs.doorId, filters.doorId),
+  ].filter(Boolean);
+
+  const query = db
+    .select({
+      id: accessLogs.id,
+      employeeName: people.employeeName,
+      employeeCode: people.employeeCode,
+      eventType: accessLogs.eventType,
+      isAuthorized: accessLogs.isAuthorized,
+      timestamp: accessLogs.timestamp,
+      locationId: accessLogs.locationId,
+    })
+    .from(accessLogs)
+    .leftJoin(people, eq(accessLogs.personId, people.id))
+    .orderBy(desc(accessLogs.timestamp));
+
+  const data = conditions.length
+    ? await query.where(and(...conditions))
+    : await query.limit(500);
+
+  // Pagination Apply
+  return withPagination(null, null, data, page, pageSize);
+}
+
   async getVisitorReport(filters: {
     dateFrom?: string;
     dateTo?: string;
@@ -2414,6 +2463,7 @@ async getAttendanceReport(
     }
     return await query.orderBy(desc(visits.createdAt)).limit(500);
   }
+
   async getEmployeeSummaryReport(filters: {
     departmentId?: number;
     status?: string;
