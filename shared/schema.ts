@@ -870,8 +870,19 @@ export const rolePermissions = pgTable("role_permissions", {
     roleMenuUnique: unique("role_menu_unique").on(table.roleId, table.menuId),
   };
 });
-
+export const auditLogs = pgTable("audit_logs", {
+  id: bigserial("id", { mode: "number" }).primaryKey(),
+  userId: text("user_id").notNull(),     // Kisne change kiya (User ID)
+  userName: text("user_name"),           // User ka Naam (visha, ajay etc.)
+  tableName: text("table_name").notNull(), // Kis table me change hua (people, devices etc.)
+  recordId: text("record_id").notNull(),   // Jis row ko badla uski ID
+  action: text("action").notNull(),       // Kya kiya: 'ADD', 'EDIT', 'DELETE'
+  oldData: jsonb("old_data"),             // Badalne se pehle kya data tha
+  newData: jsonb("new_data"),             // Badalne ke baad kya data hua
+  createdAt: timestamp("created_at").defaultNow().notNull(), // Kab kiya
+});
 // ==================== INSERT SCHEMAS ====================
+
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
 export const insertDepartmentSchema = createInsertSchema(departments).omit({ id: true, createdAt: true });
@@ -933,7 +944,10 @@ export const insertRolePermissionSchema = createInsertSchema(rolePermissions).om
   export: z.boolean().default(false),
   print: z.boolean().default(false),
 });
-
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
+  id: true,
+  createdAt: true
+});
 
 // ==================== TYPES ====================
 // Menu Master Types
@@ -1027,5 +1041,7 @@ export type DoorDevice = typeof doorDevices.$inferSelect;
 export type InsertDoorDevice = z.infer<typeof insertDoorDeviceSchema>;
 export type EmployeeDoorAssignment = typeof employeeDoorAssignments.$inferSelect;
 export type InsertEmployeeDoorAssignment = z.infer<typeof insertEmployeeDoorAssignmentSchema>;
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 
 

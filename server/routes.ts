@@ -4,6 +4,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import { storage } from "./storage";
 import { z } from "zod";
 import dayjs from "dayjs";
+// import { withAudit } from "../auditWrapper"; // sahi file path de dena
 import {
   insertCompanySchema, insertDepartmentSchema, insertDesignationSchema,
   insertCategorySchema, insertVendorSchema, insertSiteSchema, insertBuildingSchema,
@@ -21,6 +22,7 @@ import {
   insertMenuMasterSchema,
 } from "@shared/schema";
 import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC } from "./constant";
+import { withAudit } from "./utils/auditWrapper";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
   next();
@@ -118,6 +120,7 @@ function crudRoutes<T>(
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
+
   app.get("/api/dashboard/stats", async (_req, res) => {
     try {
       const stats = await storage.getDashboardStats();
@@ -176,15 +179,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(profile || null);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.delete("/api/user-profiles/:id", requireAuth, async (req, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      await storage.deleteUser(id); // Ye storage function upar wala call hoga
-      res.sendStatus(204);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message || "Failed to delete user" });
-    }
-  });
+  // app.delete("/api/user-profiles/:id", requireAuth, async (req, res) => {
+  //   try {
+  //     const id = parseInt(req.params.id);
+  //     await storage.deleteUser(id); // Ye storage function upar wala call hoga
+  //     res.sendStatus(204);
+  //   } catch (e: any) {
+  //     res.status(500).json({ message: e.message || "Failed to delete user" });
+  //   }
+  // });
+  app.delete("/api/user-profiles/:id", requireAuth, withAudit("user_profiles", "DELETE", async (req) => {
+    const id = parseInt(req.params.id);
+    return await storage.deleteUser(id);
+  }, 204)); 
   // app.post("/api/user-profiles", requireAuth, async (req, res) => {
   //   try {
   //     const input = insertUserProfileSchema.parse(req.body);
@@ -195,6 +202,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //     res.status(500).json({ message: e.message });
   //   }
   // });
+  app.post("/api/user-profiles", requireAuth, withAudit("user_profiles", "ADD/EDIT", async (req) => {
+    return await storage.upsertUser(req.body);
+  }, 201));
   // app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
   //   try {
   //     const input = insertUserProfileSchema.partial().parse(req.body);
@@ -205,14 +215,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //     res.status(500).json({ message: e.message });
   //   }
   // });
-  app.post("/api/user-profiles", requireAuth, async (req, res) => {
-    try {
-      const result = await storage.upsertUser(req.body);
-      res.status(201).json(result);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message || "Failed to save" });
-    }
-  });
+  // app.post("/api/user-profiles", requireAuth, async (req, res) => {
+  //   try {
+  //     const result = await storage.upsertUser(req.body);
+  //     res.status(201).json(result);
+  //   } catch (e: any) {
+  //     res.status(500).json({ message: e.message || "Failed to save" });
+  //   }
+  // });
 
   app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
     try {

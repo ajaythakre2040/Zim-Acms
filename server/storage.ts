@@ -110,6 +110,8 @@ import {
   menuMaster,
   rolePermissions,
   users,
+  auditLogs,
+  InsertAuditLog,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
@@ -3959,5 +3961,21 @@ async getAttendanceReport(
       .groupBy(dailyAttendanceSummary.departmentName, dailyAttendanceSummary.departmentId);
     return reportData;
   }
+  async logAudit(db: any, logData: InsertAuditLog): Promise<void> {
+    try {
+      await db.insert(auditLogs).values({
+        userId: String(logData.userId),
+        userName: logData.userName,
+        tableName: logData.tableName,
+        recordId: String(logData.recordId),
+        action: logData.action,
+        oldData: logData.oldData ? logData.oldData : null,
+        newData: logData.newData ? logData.newData : null,
+      });
+    } catch (error) {
+      console.error("Audit log background me save nahi ho paya:", error);
+    }
+  }
+
 }
 export const storage = new DatabaseStorage();
