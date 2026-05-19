@@ -1,4 +1,4 @@
-import { useState, useEffect  } from "react";
+import { useState, useEffect } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog } from "@/components/crud-dialog";
@@ -48,32 +48,36 @@ export default function DesignationPage() {
   // ) as any;
 
   const [pagedResponse, setPagedResponse] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const crud = useCrud<any>("/api/designations", "Designation") as any;
 
-const {
-  isLoading,
-  create,
-  update,
-  remove,
-  isCreating,
-  isUpdating,
-} = useCrud<any>("/api/designations", "Designation") as any;
+  const { create, update, remove, isCreating, isUpdating } = crud;
 
-const fetchDesignations = async () => {
-  const res = await fetch(
-    `/api/designations?page=${page}&pageSize=${pageSize}`
-  );
+  const fetchDesignations = async () => {
+    try {
+      setLoading(true);
 
-  const data = await res.json();
+      const res = await fetch(
+        `/api/designations?page=${page}&pageSize=${pageSize}`,
+      );
 
-  setPagedResponse(data);
-};
+      const data = await res.json();
 
-useEffect(() => {
-  fetchDesignations();
-}, [page]);
+      setPagedResponse(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-const data = pagedResponse?.data || [];
-const totalPages = pagedResponse?.totalPages || 1;
+  // ✅ YE ADD KARO
+  useEffect(() => {
+    fetchDesignations();
+  }, [page]);
+
+  const data = pagedResponse?.data || [];
+  const totalPages = pagedResponse?.totalPages || 1;
 
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<any>(null);
@@ -152,14 +156,14 @@ const totalPages = pagedResponse?.totalPages || 1;
                   try {
                     await remove(item.id);
 
-setTimeout(async () => {
-  await fetchDesignations();
-}, 300);
+                    setTimeout(async () => {
+                      await fetchDesignations();
+                    }, 300);
 
-toast({
-  title: "Deleted",
-  description: "Designation deleted successfully",
-});
+                    toast({
+                      title: "Deleted",
+                      description: "Designation deleted successfully",
+                    });
                   } catch (error) {
                     toast({
                       variant: "destructive",
@@ -197,14 +201,14 @@ toast({
 
       // API Call Logic
       if (edit) {
-  if (!canEdit) return;
-  await update({ id: edit.id, data: formData });
-} else {
-  if (!canAdd) return;
-  await create(formData);
-}
+        if (!canEdit) return;
+        await update({ id: edit.id, data: formData });
+      } else {
+        if (!canAdd) return;
+        await create(formData);
+      }
 
-await fetchDesignations();
+      await fetchDesignations();
 
       toast({
         title: "Success",
@@ -264,7 +268,7 @@ await fetchDesignations();
       <DataTable
         columns={columns}
         data={data}
-        isLoading={isLoading}
+        isLoading={loading}
         searchable
         searchKeys={["name", "code", "level", "description"]}
         emptyMessage="No designations found"

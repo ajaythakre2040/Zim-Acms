@@ -20,6 +20,10 @@ import {
   Wrench,
   RefreshCw,
   RotateCw,
+  ChevronsRight,
+  ChevronRight,
+  ChevronLeft,
+  ChevronsLeft,
 } from "lucide-react";
 import type { Device, Site, Zone } from "@shared/schema";
 import { formatDateTime } from "@/lib/utils";
@@ -381,43 +385,100 @@ const offline = pagedResponse?.offlineCount || 0;
         emptyMessage="No devices registered"
       />
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
-        {/* Left Side */}
-        <div className="text-sm text-muted-foreground">
+        {/* Left Side: Stats */}
+        <div className="text-sm text-muted-foreground order-2 md:order-1">
           Showing{" "}
           <span className="font-semibold text-foreground">
             {(page - 1) * pageSize + 1}
           </span>{" "}
           to{" "}
           <span className="font-semibold text-foreground">
-            {Math.min(page * pageSize, totalCount)}
+            {Math.min(page * pageSize, pagedResponse?.totalCount || 0)}
           </span>{" "}
-          of <span className="font-semibold text-foreground">{totalCount}</span>{" "}
-          devices
+          of{" "}
+          <span className="font-semibold text-foreground">
+            {pagedResponse?.totalCount || 0}
+          </span>{" "}
+          shifts
         </div>
 
-        {/* Right Side */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Previous
-          </Button>
-
-          <div className="px-3 py-1 border rounded text-sm font-medium">
-            {page} / {totalPages}
+        {/* Right Side: Controls */}
+        <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+          {/* Direct Jump (Professional Touch) */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Go to Page
+            </span>
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              defaultValue={page}
+              className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const val = Number(e.currentTarget.value);
+                  if (val >= 1 && val <= totalPages) setPage(val);
+                }
+              }}
+            />
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            Next
-          </Button>
+          {/* Navigation Buttons */}
+          <div className="flex items-center space-x-1">
+            {/* First Page */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+            >
+              <span className="sr-only">First Page</span>
+              <ChevronsLeft className="h-4 w-4" />
+            </Button>
+
+            {/* Previous */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Prev
+            </Button>
+
+            {/* Page Indicator */}
+            <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+              {page} / {totalPages}
+            </div>
+
+            {/* Next */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+
+            {/* Last Page */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setPage(totalPages)}
+              disabled={page === totalPages}
+            >
+              <span className="sr-only">Last Page</span>
+              <ChevronsRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </div>
       {(canAdd || canEdit) && (

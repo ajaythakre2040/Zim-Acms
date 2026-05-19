@@ -96,37 +96,37 @@ export default function PeoplePage() {
   //   queryKey: [`/api/people?page=${page}&pageSize=${pageSize}`],
   // });
   type PaginatedResponse<T> = {
-  data: T[];
-  totalPages: number;
-  totalCount: number;
-};
+    data: T[];
+    totalPages: number;
+    totalCount: number;
+  };
 
-const [page, setPage] = useState(1);
-const pageSize = 2;
+  const [page, setPage] = useState(1);
+  const pageSize = 5;
 
-const {
-  data: peopleResponse,
-  isLoading,
-  refetch,
-  isFetching,
-} = useQuery<PaginatedResponse<Person>, Error>({
-  queryKey: ["/api/people", page, pageSize],
+  const {
+    data: peopleResponse,
+    isLoading,
+    refetch,
+    isFetching,
+  } = useQuery<PaginatedResponse<Person>, Error>({
+    queryKey: ["/api/people", page, pageSize],
 
-  queryFn: async (): Promise<PaginatedResponse<Person>> => {
-    const res = await apiRequest(
-      "GET",
-      `/api/people?page=${page}&pageSize=${pageSize}`,
-    );
+    queryFn: async (): Promise<PaginatedResponse<Person>> => {
+      const res = await apiRequest(
+        "GET",
+        `/api/people?page=${page}&pageSize=${pageSize}`,
+      );
 
-    return await res.json();
-  },
+      return await res.json();
+    },
 
-  placeholderData: (previousData) => previousData,
-});
+    placeholderData: (previousData) => previousData,
+  });
 
-const people = peopleResponse?.data || [];
-const totalPages = peopleResponse?.totalPages || 1;
-const totalCount = peopleResponse?.totalCount || 0;
+  const people = peopleResponse?.data || [];
+  const totalPages = peopleResponse?.totalPages || 1;
+  const totalCount = peopleResponse?.totalCount || 0;
 
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ["/api/departments"],
@@ -774,7 +774,8 @@ const totalCount = peopleResponse?.totalCount || 0;
         emptyMessage="No people registered yet"
       />
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
-        <div className="text-sm text-muted-foreground">
+        {/* Left Side: Stats */}
+        <div className="text-sm text-muted-foreground order-2 md:order-1">
           Showing{" "}
           <span className="font-semibold text-foreground">
             {(page - 1) * pageSize + 1}
@@ -787,28 +788,82 @@ const totalCount = peopleResponse?.totalCount || 0;
           employees
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            Previous
-          </Button>
+        {/* Right Side Controls */}
+        <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+          {/* Go to Page */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              Go to Page
+            </span>
 
-          <div className="px-3 py-1 border rounded text-sm font-medium">
-            {page} / {totalPages}
+            <input
+              type="number"
+              min={1}
+              max={totalPages}
+              defaultValue={page}
+              className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const val = Number(e.currentTarget.value);
+                  if (val >= 1 && val <= totalPages) {
+                    setPage(val);
+                  }
+                }
+              }}
+            />
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page === totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            Next
-          </Button>
+          {/* Navigation Buttons */}
+          <div className="flex items-center space-x-1">
+            {/* First */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+            >
+              ⏮
+            </Button>
+
+            {/* Prev */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
+              ◀ Prev
+            </Button>
+
+            {/* Page Indicator */}
+            <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+              {page} / {totalPages}
+            </div>
+
+            {/* Next */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
+              Next ▶
+            </Button>
+
+            {/* Last */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setPage(totalPages)}
+              disabled={page === totalPages}
+            >
+              ⏭
+            </Button>
+          </div>
         </div>
       </div>
       {/* --- DEVICE ACCESS MODAL --- */}

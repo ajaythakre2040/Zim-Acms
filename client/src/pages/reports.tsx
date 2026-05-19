@@ -1696,6 +1696,7 @@ export default function ReportsPage() {
       }));
     }
   }, [activeReport]);
+
   const [filters, setFilters] = useState<
     Record<string, Record<string, string>>
   >({
@@ -1824,8 +1825,7 @@ export default function ReportsPage() {
   });
 
   const { data: musterRollData = [], isLoading: isMusterLoading } = useQuery<
-    any[]
-  >({
+    any[]  >({
     queryKey: ["muster-roll", currentAppliedFilters],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -1918,22 +1918,7 @@ export default function ReportsPage() {
 
     enabled: activeReport === "monthly-efficiency",
   });
-  // const { data: otMatrixData = [], isLoading: isOtLoading } = useQuery<any[]>({
-  //   queryKey: ["ot-matrix", currentAppliedFilters],
-  //   queryFn: async () => {
-  //     const params = new URLSearchParams();
-  //     Object.entries(currentAppliedFilters).forEach(([k, v]) => {
-  //       if (v && k !== "_refresh") {
-  //         params.set(k, String(v));
-  //       }
-  //     });
-  //     const res = await fetch(`/api/reports/ot-matrix?${params.toString()}`);
-  //     if (!res.ok) throw new Error("Fetch failed");
-  //     return res.json();
-  //   },
-  //   enabled: activeReport === "daily-performance", // 🔥 only for this tab
-  // });
-  // const handleApply = () => setAppliedFilters({ ...filters, _refresh: Date.now().toString() });
+  
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
       <div className="flex justify-between items-center">

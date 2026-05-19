@@ -2350,6 +2350,7 @@ async getAttendanceReport(
   // 7. Dynamic Util Pagination (Case A Trigger)
   return withPagination(null, null, processedData, page, pageSize);
 }
+
   async getAccessLogReport(filters: any): Promise<any[]> {
     const conditions = [
       filters.dateFrom &&
