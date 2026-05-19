@@ -736,7 +736,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //   } catch (e: any) { res.status(500).json({ message: e.message }); }
   // });
 
-app.get("/api/reports/access-log", requireAuth, async (req, res) => {
+app.get("/api/reports/access-log", async (req, res) => {
   try {
 
     const filters = {

@@ -614,14 +614,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     return currentSites;
@@ -695,7 +695,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) {}
+        } catch (e) { }
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -2021,9 +2021,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-                3600000
-              ).toFixed(2)
+              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+              3600000
+            ).toFixed(2)
             : "0.00",
       };
     });
@@ -2246,112 +2246,112 @@ export class DatabaseStorage implements IStorage {
   //     .sort((a, b) => b.date.localeCompare(a.date));
   // }
 
-async getAttendanceReport(
-  filters: {
-    dateFrom?: string;
-    dateTo?: string;
-    status?: string;
-    employeeCode?: string | number;
-  },
-  page?: number | string,
-  pageSize?: number | string
-): Promise<any> {
+  async getAttendanceReport(
+    filters: {
+      dateFrom?: string;
+      dateTo?: string;
+      status?: string;
+      employeeCode?: string | number;
+    },
+    page?: number | string,
+    pageSize?: number | string
+  ): Promise<any> {
 
-  // 1. Agar frontend se date nahi aayi toh Aaj ki date default set hogi
-  const todayStr = new Date().toISOString().split("T")[0];
-  const fromDate = filters.dateFrom || todayStr;
-  const toDate = filters.dateTo || todayStr;
+    // 1. Agar frontend se date nahi aayi toh Aaj ki date default set hogi
+    const todayStr = new Date().toISOString().split("T")[0];
+    const fromDate = filters.dateFrom || todayStr;
+    const toDate = filters.dateTo || todayStr;
 
-  // 2. Fetch All Active Employees
-  const allEmployees = await db
-    .select({
-      employeeCode: people.employeeCode,
-      employeeName: people.employeeName, 
-    })
-    .from(people);
+    // 2. Fetch All Active Employees
+    const allEmployees = await db
+      .select({
+        employeeCode: people.employeeCode,
+        employeeName: people.employeeName,
+      })
+      .from(people);
 
-  // 3. Fetch Present Data from Daily Summary Table
-  const presentRecords = await db
-    .select({
-      employeeCode: dailyAttendanceSummary.employeeCode,
-      firstName: dailyAttendanceSummary.employeeName,
-      date: dailyAttendanceSummary.workDate,
-      clockIn: dailyAttendanceSummary.firstIn,
-      status: dailyAttendanceSummary.attendanceStatus,
-    })
-    .from(dailyAttendanceSummary)
-    .where(
-      and(
-        gte(dailyAttendanceSummary.workDate, fromDate),
-        lte(dailyAttendanceSummary.workDate, toDate)
-      )
-    );
+    // 3. Fetch Present Data from Daily Summary Table
+    const presentRecords = await db
+      .select({
+        employeeCode: dailyAttendanceSummary.employeeCode,
+        firstName: dailyAttendanceSummary.employeeName,
+        date: dailyAttendanceSummary.workDate,
+        clockIn: dailyAttendanceSummary.firstIn,
+        status: dailyAttendanceSummary.attendanceStatus,
+      })
+      .from(dailyAttendanceSummary)
+      .where(
+        and(
+          gte(dailyAttendanceSummary.workDate, fromDate),
+          lte(dailyAttendanceSummary.workDate, toDate)
+        )
+      );
 
-  const presentMap = new Map<string, any>();
-  presentRecords.forEach((rec) => {
-    const key = `${rec.employeeCode}_${rec.date}`;
-    presentMap.set(key, rec);
-  });
-
-  // 4. Generate Date Array Safely (Timezone issues avoid karne ke liye string calculation)
-  const reportDates: string[] = [];
-  let dStart = new Date(fromDate);
-  const dEnd = new Date(toDate);
-  
-  while (dStart <= dEnd) {
-    reportDates.push(dStart.toISOString().split("T")[0]);
-    dStart.setDate(dStart.getDate() + 1);
-  }
-
-  // 5. Merge Data: loop dates aur employees ke base par chalega taaki absent entries create ho sakein
-  const finalReport: any[] = [];
-
-  allEmployees.forEach((emp) => {
-    reportDates.forEach((dateStr) => {
-      const key = `${emp.employeeCode}_${dateStr}`;
-      const presentRow = presentMap.get(key);
-
-      if (presentRow) {
-        finalReport.push({
-          id: `${emp.employeeCode}-${dateStr}`,
-          firstName: presentRow.firstName || emp.employeeName,
-          employeeCode: emp.employeeCode,
-          date: dateStr,
-          clockIn: presentRow.clockIn,
-          status: String(presentRow.status).toLowerCase() === "p" || String(presentRow.status).toLowerCase() === "present" ? "present" : presentRow.status,
-        });
-      } else {
-        // Agar date range ke andar summary table me entry nahi mili, toh bande ko strictly ABSENT add kiya jayega
-        finalReport.push({
-          id: `${emp.employeeCode}-${dateStr}`,
-          firstName: emp.employeeName || "Unknown",
-          employeeCode: emp.employeeCode,
-          date: dateStr,
-          clockIn: null,
-          status: "absent",
-        });
-      }
+    const presentMap = new Map<string, any>();
+    presentRecords.forEach((rec) => {
+      const key = `${rec.employeeCode}_${rec.date}`;
+      presentMap.set(key, rec);
     });
-  });
 
-  // 6. Global Filters Application (Dono types ke rows par filter execute hoga)
-  const processedData = finalReport
-    .filter((row) => {
-      const matchesEmployee = !filters.employeeCode || filters.employeeCode === "all"
-        ? true
-        : String(row.employeeCode) === String(filters.employeeCode);
+    // 4. Generate Date Array Safely (Timezone issues avoid karne ke liye string calculation)
+    const reportDates: string[] = [];
+    let dStart = new Date(fromDate);
+    const dEnd = new Date(toDate);
 
-      const matchesStatus = !filters.status || filters.status === "all"
-        ? true
-        : String(row.status).toLowerCase() === String(filters.status).toLowerCase();
+    while (dStart <= dEnd) {
+      reportDates.push(dStart.toISOString().split("T")[0]);
+      dStart.setDate(dStart.getDate() + 1);
+    }
 
-      return matchesEmployee && matchesStatus;
-    })
-    .sort((a, b) => b.date.localeCompare(a.date));
+    // 5. Merge Data: loop dates aur employees ke base par chalega taaki absent entries create ho sakein
+    const finalReport: any[] = [];
 
-  // 7. Dynamic Util Pagination (Case A Trigger)
-  return withPagination(null, null, processedData, page, pageSize);
-}
+    allEmployees.forEach((emp) => {
+      reportDates.forEach((dateStr) => {
+        const key = `${emp.employeeCode}_${dateStr}`;
+        const presentRow = presentMap.get(key);
+
+        if (presentRow) {
+          finalReport.push({
+            id: `${emp.employeeCode}-${dateStr}`,
+            firstName: presentRow.firstName || emp.employeeName,
+            employeeCode: emp.employeeCode,
+            date: dateStr,
+            clockIn: presentRow.clockIn,
+            status: String(presentRow.status).toLowerCase() === "p" || String(presentRow.status).toLowerCase() === "present" ? "present" : presentRow.status,
+          });
+        } else {
+          // Agar date range ke andar summary table me entry nahi mili, toh bande ko strictly ABSENT add kiya jayega
+          finalReport.push({
+            id: `${emp.employeeCode}-${dateStr}`,
+            firstName: emp.employeeName || "Unknown",
+            employeeCode: emp.employeeCode,
+            date: dateStr,
+            clockIn: null,
+            status: "absent",
+          });
+        }
+      });
+    });
+
+    // 6. Global Filters Application (Dono types ke rows par filter execute hoga)
+    const processedData = finalReport
+      .filter((row) => {
+        const matchesEmployee = !filters.employeeCode || filters.employeeCode === "all"
+          ? true
+          : String(row.employeeCode) === String(filters.employeeCode);
+
+        const matchesStatus = !filters.status || filters.status === "all"
+          ? true
+          : String(row.status).toLowerCase() === String(filters.status).toLowerCase();
+
+        return matchesEmployee && matchesStatus;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    // 7. Dynamic Util Pagination (Case A Trigger)
+    return withPagination(null, null, processedData, page, pageSize);
+  }
 
   // async getAccessLogReport(filters: any): Promise<any[]> {
   //   const conditions = [
@@ -2382,52 +2382,52 @@ async getAttendanceReport(
   // }
 
   async getAccessLogReport(
-  filters: any,
-  page?: number | string,
-  pageSize?: number | string
-): Promise<any> {
+    filters: any,
+    page?: number | string,
+    pageSize?: number | string
+  ): Promise<any> {
 
-  const conditions = [
-    filters.dateFrom &&
+    const conditions = [
+      filters.dateFrom &&
       sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
 
-    filters.dateTo &&
+      filters.dateTo &&
       sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
 
-    filters.eventType &&
+      filters.eventType &&
       eq(accessLogs.eventType, filters.eventType),
 
-    filters.personId &&
+      filters.personId &&
       eq(accessLogs.personId, filters.personId),
 
-    filters.locationId &&
+      filters.locationId &&
       eq(accessLogs.locationId, filters.locationId),
 
-    filters.doorId &&
+      filters.doorId &&
       eq(accessLogs.doorId, filters.doorId),
-  ].filter(Boolean);
+    ].filter(Boolean);
 
-  const query = db
-    .select({
-      id: accessLogs.id,
-      employeeName: people.employeeName,
-      employeeCode: people.employeeCode,
-      eventType: accessLogs.eventType,
-      isAuthorized: accessLogs.isAuthorized,
-      timestamp: accessLogs.timestamp,
-      locationId: accessLogs.locationId,
-    })
-    .from(accessLogs)
-    .leftJoin(people, eq(accessLogs.personId, people.id))
-    .orderBy(desc(accessLogs.timestamp));
+    const query = db
+      .select({
+        id: accessLogs.id,
+        employeeName: people.employeeName,
+        employeeCode: people.employeeCode,
+        eventType: accessLogs.eventType,
+        isAuthorized: accessLogs.isAuthorized,
+        timestamp: accessLogs.timestamp,
+        locationId: accessLogs.locationId,
+      })
+      .from(accessLogs)
+      .leftJoin(people, eq(accessLogs.personId, people.id))
+      .orderBy(desc(accessLogs.timestamp));
 
-  const data = conditions.length
-    ? await query.where(and(...conditions))
-    : await query.limit(500);
+    const data = conditions.length
+      ? await query.where(and(...conditions))
+      : await query.limit(500);
 
-  // Pagination Apply
-  return withPagination(null, null, data, page, pageSize);
-}
+    // Pagination Apply
+    return withPagination(null, null, data, page, pageSize);
+  }
 
   async getVisitorReport(filters: {
     dateFrom?: string;
