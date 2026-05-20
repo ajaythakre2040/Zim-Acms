@@ -2265,7 +2265,7 @@ export default function ReportsPage() {
   const [deptEffPage, setDeptEffPage] = useState(1);
   const [deptEffPageSize] = useState(10);
 
-  const [lockoutPage, setLockoutPage] = useState(10);
+  const [lockoutPage, setLockoutPage] = useState(1);
   const [lockoutPageSize] = useState(5);
 
   const [location] = useLocation();
@@ -3944,7 +3944,7 @@ export default function ReportsPage() {
               <Card className="shadow-sm border">
                 <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                   <CardTitle className="text-sm font-semibold">
-                    Lockout Results ({reportResponse.length})
+                    Lockout Results ({lockoutTotalCount})
                   </CardTitle>
                   {canExport && (
                     <Button
