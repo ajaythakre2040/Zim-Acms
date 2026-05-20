@@ -408,40 +408,29 @@ export class DatabaseStorage implements IStorage {
       doorName?: string;
     },
     page?: number | string,
-    pageSize?: number | string
+    pageSize?: number | string,
   ): Promise<any> {
     try {
       const conditions = [];
       if (filters?.dateFrom) {
         conditions.push(
-          gte(
-            schema.employeeActivityLogs.logDate,
-            new Date(filters.dateFrom),
-          ),
+          gte(schema.employeeActivityLogs.logDate, new Date(filters.dateFrom)),
         );
       }
       if (filters?.dateTo) {
         conditions.push(
-          lte(
-            schema.employeeActivityLogs.logDate,
-            new Date(filters.dateTo),
-          ),
+          lte(schema.employeeActivityLogs.logDate, new Date(filters.dateTo)),
         );
       }
       if (filters?.employeeCode) {
         conditions.push(
-          eq(
-            schema.employeeActivityLogs.employeeCode,
-            filters.employeeCode,
-          ),
+          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
         );
       }
       // Door Filter
       const doorFilter = filters?.deviceId || filters?.doorName;
       if (doorFilter) {
-        conditions.push(
-          eq(schema.employeeActivityLogs.doorName, doorFilter),
-        );
+        conditions.push(eq(schema.employeeActivityLogs.doorName, doorFilter));
       }
       const logs = await db
         .select({
@@ -463,7 +452,7 @@ export class DatabaseStorage implements IStorage {
         null,
         JSON.parse(JSON.stringify(logs)),
         page,
-        pageSize
+        pageSize,
       );
     } catch (error) {
       console.error("Error in getDeviceLogsWithEmployee:", error);
@@ -496,7 +485,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userProfiles.id, id));
     return profile;
   }
-  async getUserProfiles(page?: number | string, pageSize?: number | string): Promise<any> {
+  async getUserProfiles(
+    page?: number | string,
+    pageSize?: number | string,
+  ): Promise<any> {
     const query = db
       .select({
         id: users.id, // Frontend ko main ID hamesha users table ki UUID milegi
@@ -546,9 +538,7 @@ export class DatabaseStorage implements IStorage {
       throw new Error("User ID is required for deletion.");
     }
     await db.transaction(async (tx) => {
-      await tx
-        .delete(userProfiles)
-        .where(eq(userProfiles.userId, userId));
+      await tx.delete(userProfiles).where(eq(userProfiles.userId, userId));
       const [deletedUser] = await tx
         .delete(users)
         .where(eq(users.id, userId))
@@ -603,7 +593,10 @@ export class DatabaseStorage implements IStorage {
     await db.delete(departments).where(eq(departments.id, id));
   }
   async getDesignations(page?: number, pageSize?: number): Promise<any> {
-    const query = db.select().from(designations).orderBy(asc(designations.name));
+    const query = db
+      .select()
+      .from(designations)
+      .orderBy(asc(designations.name));
     return await withPagination(db, designations, query, page, pageSize);
   }
   async createDesignation(data: InsertDesignation): Promise<Designation> {
@@ -689,14 +682,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     return currentSites;
@@ -770,7 +763,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) { }
+        } catch (e) {}
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -912,22 +905,32 @@ export class DatabaseStorage implements IStorage {
   async deleteZone(id: number): Promise<void> {
     await db.delete(zones).where(eq(zones.id, id));
   }
-  async getDoors(page?: number | string, pageSize?: number | string): Promise<any> {
+  async getDoors(
+    page?: number | string,
+    pageSize?: number | string,
+  ): Promise<any> {
     try {
       // Data fetch karte waqt hi order laga diya taaki sorting bani rahe
       const [allDoors, allDoorDevices, allDevices] = await Promise.all([
         db.select().from(doors).orderBy(asc(doors.id)),
         db.select().from(doorDevices),
-        db.select().from(devices)
+        db.select().from(devices),
       ]);
       const resolvedDoors = allDoors.map((door) => {
         const mapping = allDoorDevices.find((md) => md.doorId === door.id);
         const resolveDevices = (ids: any[] | null) => {
           if (!ids || !Array.isArray(ids)) return [];
-          return ids.map(id => {
-            const dev = allDevices.find(d => Number(d.msId) === Number(id));
-            return dev ? { id: dev.id, msId: dev.msId, name: dev.name } : null;
-          }).filter((d): d is { id: number; msId: number; name: string } => d !== null);
+          return ids
+            .map((id) => {
+              const dev = allDevices.find((d) => Number(d.msId) === Number(id));
+              return dev
+                ? { id: dev.id, msId: dev.msId, name: dev.name }
+                : null;
+            })
+            .filter(
+              (d): d is { id: number; msId: number; name: string } =>
+                d !== null,
+            );
         };
         const inDevices = resolveDevices(mapping?.inDeviceIds || []);
         const outDevices = resolveDevices(mapping?.outDeviceIds || []);
@@ -936,7 +939,7 @@ export class DatabaseStorage implements IStorage {
           inDevices,
           outDevices,
           inCount: inDevices.length,
-          outCount: outDevices.length
+          outCount: outDevices.length,
         };
       });
       // --- Pagination Layer ---
@@ -951,7 +954,7 @@ export class DatabaseStorage implements IStorage {
           totalCount: resolvedDoors.length,
           totalPages: 1,
           currentPage: 1,
-          pageSize: resolvedDoors.length
+          pageSize: resolvedDoors.length,
         };
       }
       const p = page && Number(page) > 0 ? Number(page) : 1;
@@ -964,12 +967,20 @@ export class DatabaseStorage implements IStorage {
         totalCount: resolvedDoors.length,
         totalPages: Math.ceil(resolvedDoors.length / size),
         currentPage: p,
-        pageSize: size
+        pageSize: size,
       };
     } catch (error) {
       console.error("getDoors MS_ID Sync Error:", error);
       // Fallback response handling based on pageSize presence
-      return pageSize ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0 } : [];
+      return pageSize
+        ? {
+            data: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: 1,
+            pageSize: 0,
+          }
+        : [];
     }
   }
   // async getDoors(): Promise<any[]> {
@@ -1061,7 +1072,10 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-  async getDevices(page?: number | string, pageSize?: number | string): Promise<any> {
+  async getDevices(
+    page?: number | string,
+    pageSize?: number | string,
+  ): Promise<any> {
     try {
       const msDataRaw = await dbMsSql
         .select()
@@ -1069,7 +1083,15 @@ export class DatabaseStorage implements IStorage {
         .execute();
       if (!msDataRaw || msDataRaw.length === 0) {
         return pageSize
-          ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 }
+          ? {
+              data: [],
+              totalCount: 0,
+              totalPages: 0,
+              currentPage: 1,
+              pageSize: 0,
+              onlineCount: 0,
+              offlineCount: 0,
+            }
           : [];
       }
       const currentTime = new Date();
@@ -1118,10 +1140,13 @@ export class DatabaseStorage implements IStorage {
       });
       // Sync to Local Postgres
       for (const dev of formattedDevices) {
-        await db.insert(devices).values(dev).onConflictDoUpdate({
-          target: devices.msId,
-          set: { ...dev },
-        });
+        await db
+          .insert(devices)
+          .values(dev)
+          .onConflictDoUpdate({
+            target: devices.msId,
+            set: { ...dev },
+          });
       }
       const currentMsIds = formattedDevices.map((d) => d.msId as number);
       if (currentMsIds.length > 0) {
@@ -1140,8 +1165,8 @@ export class DatabaseStorage implements IStorage {
           totalPages: 1,
           currentPage: 1,
           pageSize: formattedDevices.length,
-          onlineCount,   // <-- Added here
-          offlineCount   // <-- Added here
+          onlineCount, // <-- Added here
+          offlineCount, // <-- Added here
         };
       }
       const p = page && Number(page) > 0 ? Number(page) : 1;
@@ -1155,13 +1180,21 @@ export class DatabaseStorage implements IStorage {
         totalPages: Math.ceil(formattedDevices.length / size),
         currentPage: p,
         pageSize: size,
-        onlineCount,     // <-- Added here
-        offlineCount     // <-- Added here
+        onlineCount, // <-- Added here
+        offlineCount, // <-- Added here
       };
     } catch (error) {
       console.error("Device Sync Error:", error);
       return pageSize
-        ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 }
+        ? {
+            data: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: 1,
+            pageSize: 0,
+            onlineCount: 0,
+            offlineCount: 0,
+          }
         : [];
     }
   }
@@ -1304,7 +1337,11 @@ export class DatabaseStorage implements IStorage {
       await db.delete(devices).where(eq(devices.msId, msId));
     }
   }
-  async getPeople(search?: string, page?: number | string, pageSize?: number | string): Promise<any> {
+  async getPeople(
+    search?: string,
+    page?: number | string,
+    pageSize?: number | string,
+  ): Promise<any> {
     const [pgDataRaw, msDataRaw] = await Promise.all([
       db
         .select({
@@ -1411,7 +1448,7 @@ export class DatabaseStorage implements IStorage {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(people).where(eq(people.msId, pgRow.msId));
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     let results = currentPgData;
@@ -1822,7 +1859,7 @@ export class DatabaseStorage implements IStorage {
         totalCount: uniqueHolidays.length,
         totalPages: 1,
         currentPage: 1,
-        pageSize: uniqueHolidays.length
+        pageSize: uniqueHolidays.length,
       };
     }
     const start = (p - 1) * size;
@@ -1833,7 +1870,7 @@ export class DatabaseStorage implements IStorage {
       totalCount: uniqueHolidays.length,
       totalPages: Math.ceil(uniqueHolidays.length / size),
       currentPage: p,
-      pageSize: size
+      pageSize: size,
     };
   }
   async createHoliday(data: InsertHoliday): Promise<Holiday> {
@@ -2053,9 +2090,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-              3600000
-            ).toFixed(2)
+                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+                3600000
+              ).toFixed(2)
             : "0.00",
       };
     });
@@ -2285,7 +2322,7 @@ export class DatabaseStorage implements IStorage {
       employeeCode?: string | number;
     },
     page?: number | string,
-    pageSize?: number | string
+    pageSize?: number | string,
   ): Promise<any> {
     // 1. Agar frontend se date nahi aayi toh Aaj ki date default set hogi
     const todayStr = new Date().toISOString().split("T")[0];
@@ -2311,8 +2348,8 @@ export class DatabaseStorage implements IStorage {
       .where(
         and(
           gte(dailyAttendanceSummary.workDate, fromDate),
-          lte(dailyAttendanceSummary.workDate, toDate)
-        )
+          lte(dailyAttendanceSummary.workDate, toDate),
+        ),
       );
     const presentMap = new Map<string, any>();
     presentRecords.forEach((rec) => {
@@ -2340,7 +2377,11 @@ export class DatabaseStorage implements IStorage {
             employeeCode: emp.employeeCode,
             date: dateStr,
             clockIn: presentRow.clockIn,
-            status: String(presentRow.status).toLowerCase() === "p" || String(presentRow.status).toLowerCase() === "present" ? "present" : presentRow.status,
+            status:
+              String(presentRow.status).toLowerCase() === "p" ||
+              String(presentRow.status).toLowerCase() === "present"
+                ? "present"
+                : presentRow.status,
           });
         } else {
           // Agar date range ke andar summary table me entry nahi mili, toh bande ko strictly ABSENT add kiya jayega
@@ -2358,12 +2399,15 @@ export class DatabaseStorage implements IStorage {
     // 6. Global Filters Application (Dono types ke rows par filter execute hoga)
     const processedData = finalReport
       .filter((row) => {
-        const matchesEmployee = !filters.employeeCode || filters.employeeCode === "all"
-          ? true
-          : String(row.employeeCode) === String(filters.employeeCode);
-        const matchesStatus = !filters.status || filters.status === "all"
-          ? true
-          : String(row.status).toLowerCase() === String(filters.status).toLowerCase();
+        const matchesEmployee =
+          !filters.employeeCode || filters.employeeCode === "all"
+            ? true
+            : String(row.employeeCode) === String(filters.employeeCode);
+        const matchesStatus =
+          !filters.status || filters.status === "all"
+            ? true
+            : String(row.status).toLowerCase() ===
+              String(filters.status).toLowerCase();
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => b.date.localeCompare(a.date));
@@ -2400,21 +2444,16 @@ export class DatabaseStorage implements IStorage {
   async getAccessLogReport(
     filters: any,
     page?: number | string,
-    pageSize?: number | string
+    pageSize?: number | string,
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
-      filters.dateTo &&
-      sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
-      filters.eventType &&
-      eq(accessLogs.eventType, filters.eventType),
-      filters.personId &&
-      eq(accessLogs.personId, filters.personId),
-      filters.locationId &&
-      eq(accessLogs.locationId, filters.locationId),
-      filters.doorId &&
-      eq(accessLogs.doorId, filters.doorId),
+        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+      filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
+      filters.eventType && eq(accessLogs.eventType, filters.eventType),
+      filters.personId && eq(accessLogs.personId, filters.personId),
+      filters.locationId && eq(accessLogs.locationId, filters.locationId),
+      filters.doorId && eq(accessLogs.doorId, filters.doorId),
     ].filter(Boolean);
     const query = db
       .select({
@@ -3342,10 +3381,9 @@ export class DatabaseStorage implements IStorage {
       status?: string;
     },
     page?: number | string,
-    pageSize?: number | string
+    pageSize?: number | string,
   ) {
     try {
-
       const conditions = [];
 
       if (filters.doorId && filters.doorId !== "all") {
@@ -3355,9 +3393,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       if (filters.status && filters.status !== "all") {
-        conditions.push(
-          eq(schema.cabinLockouts.status, filters.status),
-        );
+        conditions.push(eq(schema.cabinLockouts.status, filters.status));
       }
 
       if (filters.employeeCode && filters.employeeCode !== "all") {
@@ -3378,13 +3414,9 @@ export class DatabaseStorage implements IStorage {
           const end = new Date(filters.dateTo);
           end.setHours(23, 59, 59, 999);
 
-          conditions.push(
-            gte(schema.cabinLockouts.createdAt, start),
-          );
+          conditions.push(gte(schema.cabinLockouts.createdAt, start));
 
-          conditions.push(
-            lte(schema.cabinLockouts.createdAt, end),
-          );
+          conditions.push(lte(schema.cabinLockouts.createdAt, end));
         }
       }
 
@@ -3410,9 +3442,7 @@ export class DatabaseStorage implements IStorage {
           schema.doors,
           eq(schema.cabinLockouts.doorId, schema.doors.id),
         )
-        .where(
-          conditions.length > 0 ? and(...conditions) : undefined,
-        )
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
         .orderBy(desc(schema.cabinLockouts.createdAt))
         .execute();
 
@@ -3421,9 +3451,8 @@ export class DatabaseStorage implements IStorage {
         null,
         JSON.parse(JSON.stringify(results)),
         page,
-        pageSize
+        pageSize,
       );
-
     } catch (error) {
       console.error("Lockout Join Report Error:", error);
       throw error;
@@ -3567,7 +3596,7 @@ export class DatabaseStorage implements IStorage {
   async getDailyReport(
     date: string,
     page?: number | string,
-    pageSize?: number | string
+    pageSize?: number | string,
   ) {
     const data = await db
       .select()
@@ -3578,7 +3607,7 @@ export class DatabaseStorage implements IStorage {
       null,
       JSON.parse(JSON.stringify(data)),
       page,
-      pageSize
+      pageSize,
     );
   }
   // 2 & 3: Muster Roll aur Overtime Matrix (Date Range)
@@ -3589,10 +3618,24 @@ export class DatabaseStorage implements IStorage {
   //     .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
   //     .orderBy(asc(dailyAttendanceSummary.workDate));
   // }
-  async getRangeReport(startDate: string, endDate: string, page?: number | string, pageSize?: number | string) {
-    const data = await db.select().from(dailyAttendanceSummary).where(between(dailyAttendanceSummary.workDate, startDate, endDate))
+  async getRangeReport(
+    startDate: string,
+    endDate: string,
+    page?: number | string,
+    pageSize?: number | string,
+  ) {
+    const data = await db
+      .select()
+      .from(dailyAttendanceSummary)
+      .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
       .orderBy(asc(dailyAttendanceSummary.workDate));
-    return withPagination(null, null, JSON.parse(JSON.stringify(data)), page, pageSize);
+    return withPagination(
+      null,
+      null,
+      JSON.parse(JSON.stringify(data)),
+      page,
+      pageSize,
+    );
   }
   // async getRangeReport(startDate: string, endDate: string) {
   //   return await db
@@ -4085,7 +4128,7 @@ export class DatabaseStorage implements IStorage {
       employeeCode?: string;
     },
     page?: number | string,
-    pageSize?: number | string
+    pageSize?: number | string,
   ) {
     try {
       const conditions = [];
@@ -4097,45 +4140,21 @@ export class DatabaseStorage implements IStorage {
         : new Date().toISOString().split("T")[0];
       // Previous Date
       const previousDateObj = new Date(selectedDate);
-      previousDateObj.setDate(
-        previousDateObj.getDate() - 1
-      );
-      const previousDateStr = previousDateObj
-        .toISOString()
-        .split("T")[0];
+      previousDateObj.setDate(previousDateObj.getDate() - 1);
+      const previousDateStr = previousDateObj.toISOString().split("T")[0];
       // Next Date
       const nextDateObj = new Date(selectedDate);
-      nextDateObj.setDate(
-        nextDateObj.getDate() + 1
-      );
-      const nextDateStr = nextDateObj
-        .toISOString()
-        .split("T")[0];
+      nextDateObj.setDate(nextDateObj.getDate() + 1);
+      const nextDateStr = nextDateObj.toISOString().split("T")[0];
       // Fetch previous + selected + next
       conditions.push(
-        gte(
-          schema.employeeActivityLogs.onlyDate,
-          previousDateStr
-        ),
+        gte(schema.employeeActivityLogs.onlyDate, previousDateStr),
       );
-      conditions.push(
-        lte(
-          schema.employeeActivityLogs.onlyDate,
-          nextDateStr
-        )
-      );
-      conditions.push(
-        lte(
-          schema.employeeActivityLogs.onlyDate,
-          nextDateStr
-        )
-      );
+      conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
+      conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
       if (filters?.employeeCode) {
         conditions.push(
-          eq(
-            schema.employeeActivityLogs.employeeCode,
-            filters.employeeCode
-          ),
+          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
         );
       }
       const logs = await db
@@ -4157,10 +4176,7 @@ export class DatabaseStorage implements IStorage {
         .from(schema.employeeActivityLogs)
         .leftJoin(
           schema.doors,
-          eq(
-            schema.employeeActivityLogs.doorId,
-            schema.doors.id
-          ),
+          eq(schema.employeeActivityLogs.doorId, schema.doors.id),
         )
         .leftJoin(
           schema.people,
@@ -4171,16 +4187,9 @@ export class DatabaseStorage implements IStorage {
         )
         .leftJoin(
           schema.shifts,
-          eq(
-            schema.employeeActivityLogs.shiftName,
-            schema.shifts.name
-          ),
+          eq(schema.employeeActivityLogs.shiftName, schema.shifts.name),
         )
-        .where(
-          conditions.length
-            ? and(...conditions)
-            : undefined
-        )
+        .where(conditions.length ? and(...conditions) : undefined)
         .orderBy(
           asc(schema.employeeActivityLogs.employeeCode),
           asc(schema.employeeActivityLogs.logDate),
@@ -4206,37 +4215,28 @@ export class DatabaseStorage implements IStorage {
         // Selected date ka FIRST IN
         // =========================
         const todayFirstIn = allLogs.find(
-          (l) =>
-            l.onlyDate === selectedDate &&
-            l.direction === "IN",
+          (l) => l.onlyDate === selectedDate && l.direction === "IN",
         );
         // Agar selected date pe IN hi nahi mila
         if (!todayFirstIn) {
           continue;
         }
-        const todayFirstInTime = new Date(
-          todayFirstIn.logDate
-        ).getTime();
+        const todayFirstInTime = new Date(todayFirstIn.logDate).getTime();
         // Previous date ke gate logs
         const previousGateLogs = allLogs.filter(
-          (l) =>
-            l.onlyDate < selectedDate &&
-            l.doorType === "gate",
+          (l) => l.onlyDate < selectedDate && l.doorType === "gate",
         );
         // Previous session ka last gate log
-        const lastPreviousGateLog =
-          previousGateLogs.at(-1);
+        const lastPreviousGateLog = previousGateLogs.at(-1);
         // Agar previous session gate OUT pe end hua hai
-        const previousSessionClosed =
-          lastPreviousGateLog?.direction === "OUT";
+        const previousSessionClosed = lastPreviousGateLog?.direction === "OUT";
         // Continuation logic
         if (!previousSessionClosed) {
           const previousLogTime = new Date(
             lastPreviousGateLog?.logDate,
           ).getTime();
           const diffHours =
-            (todayFirstInTime - previousLogTime) /
-            (1000 * 60 * 60);
+            (todayFirstInTime - previousLogTime) / (1000 * 60 * 60);
           if (diffHours <= 12) {
             continue;
           }
@@ -4246,20 +4246,12 @@ export class DatabaseStorage implements IStorage {
         // =========================
         const shiftStartLog = todayFirstIn;
         // Session cutoff
-        const startTime = new Date(
-          shiftStartLog.logDate
-        ).getTime();
-        const cutoffTime =
-          startTime + 16 * 60 * 60 * 1000;
+        const startTime = new Date(shiftStartLog.logDate).getTime();
+        const cutoffTime = startTime + 16 * 60 * 60 * 1000;
         // Session logs
         const employeeLogs = allLogs.filter((l) => {
-          const logTime = new Date(
-            l.logDate
-          ).getTime();
-          return (
-            logTime >= startTime &&
-            logTime <= cutoffTime
-          );
+          const logTime = new Date(l.logDate).getTime();
+          return logTime >= startTime && logTime <= cutoffTime;
         });
         // =========================
         // Calculations
@@ -4270,15 +4262,12 @@ export class DatabaseStorage implements IStorage {
         let firstTime: number | null = null;
         let lastTime: number | null = null;
         for (const log of employeeLogs) {
-          const time = new Date(
-            log.logDate
-          ).getTime();
+          const time = new Date(log.logDate).getTime();
           if (firstTime === null) {
             firstTime = time;
           }
           lastTime = time;
-          const isGate =
-            log.doorType === "gate";
+          const isGate = log.doorType === "gate";
           const doorKey = log.doorId;
           // IN
           if (log.direction === "IN") {
@@ -4291,12 +4280,10 @@ export class DatabaseStorage implements IStorage {
               continue;
             }
             const duration =
-              (
-                new Date(log.logDate).getTime() -
-                new Date(inLog.logDate).getTime()
-              ) / 60000;
-            const safeDuration =
-              Math.max(0, duration);
+              (new Date(log.logDate).getTime() -
+                new Date(inLog.logDate).getTime()) /
+              60000;
+            const safeDuration = Math.max(0, duration);
             // Gate duration productive me add nahi hoga
             if (!isGate) {
               productiveMinutes += safeDuration;
@@ -4316,20 +4303,13 @@ export class DatabaseStorage implements IStorage {
         }
         // Presence
         const totalPresenceMinutes =
-          firstTime && lastTime
-            ? (lastTime - firstTime) / 60000
-            : 0;
-        const productiveHours =
-          productiveMinutes / 60;
-        const shiftHours = Number(
-          employeeLogs[0]?.workingHours || 8
-        );
+          firstTime && lastTime ? (lastTime - firstTime) / 60000 : 0;
+        const productiveHours = productiveMinutes / 60;
+        const shiftHours = Number(employeeLogs[0]?.workingHours || 8);
         // OT
         let otHours = 0;
         if (productiveHours >= shiftHours + 2) {
-          otHours = Math.floor(
-            productiveHours - shiftHours
-          );
+          otHours = Math.floor(productiveHours - shiftHours);
         }
         // FINAL RESULT
         result.push({
@@ -4338,24 +4318,15 @@ export class DatabaseStorage implements IStorage {
           gender: employeeLogs[0]?.gender || "-",
           shift: employeeLogs[0]?.shiftName || "-",
           shiftTime: employeeLogs[0]?.shiftTime || "-",
-          workingHours:
-            employeeLogs[0]?.workingHours || "-",
-          latestPunchDoor:
-            employeeLogs.at(-1)?.doorName || "-",
-          inPunch:
-            employeeLogs[0]?.logDate || null,
-          outPunch:
-            employeeLogs.at(-1)?.logDate || null,
-          productiveMinutes:
-            Math.floor(productiveMinutes),
-          productiveHours:
-            productiveHours.toFixed(2),
-          totalPresenceMinutes:
-            Math.floor(totalPresenceMinutes),
-          totalPresenceHours:
-            (totalPresenceMinutes / 60).toFixed(2),
-          hoursWorked:
-            productiveHours.toFixed(2),
+          workingHours: employeeLogs[0]?.workingHours || "-",
+          latestPunchDoor: employeeLogs.at(-1)?.doorName || "-",
+          inPunch: employeeLogs[0]?.logDate || null,
+          outPunch: employeeLogs.at(-1)?.logDate || null,
+          productiveMinutes: Math.floor(productiveMinutes),
+          productiveHours: productiveHours.toFixed(2),
+          totalPresenceMinutes: Math.floor(totalPresenceMinutes),
+          totalPresenceHours: (totalPresenceMinutes / 60).toFixed(2),
+          hoursWorked: productiveHours.toFixed(2),
           otHours,
           dutyStatus: "Present",
           date: selectedDate,
@@ -4368,7 +4339,7 @@ export class DatabaseStorage implements IStorage {
         null,
         JSON.parse(JSON.stringify(result)),
         page,
-        pageSize
+        pageSize,
       );
     } catch (err) {
       console.error(err);
@@ -4402,66 +4373,75 @@ export class DatabaseStorage implements IStorage {
   //   return reportData;
   // }
   async getEmplyeeEefficiency(
-    fromDate: string,
-    toDate: string,
-    employeeCode?: string,
-    page?: number | string,
-    pageSize?: number | string
+  fromDate: string,
+  toDate: string,
+  employeeCode?: string,
+  page?: number | string,
+  pageSize?: number | string
+) {
+
+  // Base Conditions
+  let conditions = [
+    gte(dailyAttendanceSummary.workDate, fromDate),
+    lte(dailyAttendanceSummary.workDate, toDate)
+  ];
+
+  // Employee Filter
+  if (
+    employeeCode &&
+    employeeCode !== "all" &&
+    employeeCode !== ""
   ) {
-    // Base Conditions
-    let conditions = [
-      gte(dailyAttendanceSummary.workDate, fromDate),
-      lte(dailyAttendanceSummary.workDate, toDate)
-    ];
-    // Employee Filter
-    if (
-      employeeCode &&
-      employeeCode !== "all" &&
-      employeeCode !== ""
-    ) {
-      conditions.push(
-        eq(dailyAttendanceSummary.employeeCode, employeeCode)
-      );
-    }
-    const reportData = await db
-      .select({
-        employeeCode: dailyAttendanceSummary.employeeCode,
-        employeeName: dailyAttendanceSummary.employeeName,
-        dateRange: sql<string>`
-        ${fromDate} || ' to ' || ${toDate}
-      `,
-        totalDays: sql<number>`
-        COUNT(DISTINCT ${dailyAttendanceSummary.workDate})
-      `,
-        totalHours: sql<string>`
-        SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))
-      `,
-        productiveHours: sql<string>`
-        SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))
-      `,
-        avgEfficiency: sql<string>`
-        ROUND(
-          AVG(
-            CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)
-          ),
-          2
-        )
-      `,
-      })
-      .from(dailyAttendanceSummary)
-      .where(and(...conditions))
-      .groupBy(
-        dailyAttendanceSummary.employeeCode,
-        dailyAttendanceSummary.employeeName
-      );
-    return withPagination(
-      null,
-      null,
-      JSON.parse(JSON.stringify(reportData)),
-      page,
-      pageSize
+    conditions.push(
+      eq(dailyAttendanceSummary.employeeCode, employeeCode)
     );
   }
+
+  const reportData = await db
+    .select({
+      employeeCode: dailyAttendanceSummary.employeeCode,
+      employeeName: dailyAttendanceSummary.employeeName,
+
+      dateRange: sql<string>`
+        ${fromDate} || ' to ' || ${toDate}
+      `,
+
+      totalDays: sql<number>`
+        COUNT(DISTINCT ${dailyAttendanceSummary.workDate})
+      `,
+
+      totalHours: sql<string>`
+        SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))
+      `,
+
+      productiveHours: sql<string>`
+        SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))
+      `,
+
+      avgEfficiency: sql<string>`
+        ROUND(
+          AVG(
+            CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)
+          ),
+          2
+        )
+      `,
+    })
+    .from(dailyAttendanceSummary)
+    .where(and(...conditions))
+    .groupBy(
+      dailyAttendanceSummary.employeeCode,
+      dailyAttendanceSummary.employeeName
+    );
+
+  return withPagination(
+    null,
+    null,
+    JSON.parse(JSON.stringify(reportData)),
+    page,
+    pageSize
+  );
+}
   // async getDepartmentEfficiencyReport(fromDate: string, toDate: string, filterDeptId?: number) {
   //   // 1. Base filters (Date Range)
   //   let conditions = [
@@ -4492,25 +4472,21 @@ export class DatabaseStorage implements IStorage {
     toDate: string,
     filterDeptId?: number,
     page?: number | string,
-    pageSize?: number | string
+    pageSize?: number | string,
   ) {
-
     // Base Filters
     let conditions = [
       gte(dailyAttendanceSummary.workDate, fromDate),
-      lte(dailyAttendanceSummary.workDate, toDate)
+      lte(dailyAttendanceSummary.workDate, toDate),
     ];
 
     // Department Filter
     if (filterDeptId && filterDeptId !== 0) {
-      conditions.push(
-        eq(dailyAttendanceSummary.departmentId, filterDeptId)
-      );
+      conditions.push(eq(dailyAttendanceSummary.departmentId, filterDeptId));
     }
 
     const reportData = await db
       .select({
-
         department: dailyAttendanceSummary.departmentName,
 
         dateRange: sql<string>`
@@ -4546,7 +4522,7 @@ ${fromDate} || ' to ' || ${toDate}
       .where(and(...conditions))
       .groupBy(
         dailyAttendanceSummary.departmentName,
-        dailyAttendanceSummary.departmentId
+        dailyAttendanceSummary.departmentId,
       );
 
     return withPagination(
@@ -4554,7 +4530,7 @@ ${fromDate} || ' to ' || ${toDate}
       null,
       JSON.parse(JSON.stringify(reportData)),
       page,
-      pageSize
+      pageSize,
     );
   }
   async logAudit(db: any, logData: InsertAuditLog): Promise<void> {
