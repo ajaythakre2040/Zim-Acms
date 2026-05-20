@@ -4,6 +4,7 @@ import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
+import { validateNoHtml } from "@/lib/validation";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
@@ -116,7 +117,12 @@ export async function setupAuth(app: Express) {
       if (!username || !password) {
         return res.status(400).json({ message: "Username and password are required" });
       }
-
+      const validationErrors = validateNoHtml(req.body);
+      if (Object.keys(validationErrors).length > 0) {
+        // Agar password check fail hua ya kisi ne HTML tag bheja, toh yahan se single/multiple errors return honge
+        const firstErrorMessage = Object.values(validationErrors)[0] as string;
+        return res.status(400).json({ message: firstErrorMessage, errors: validationErrors });
+      }
       const existing = await authStorage.getUserByUsername(username);
       if (existing) {
         return res.status(409).json({ message: "Username already exists" });

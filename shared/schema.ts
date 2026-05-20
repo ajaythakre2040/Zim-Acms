@@ -873,7 +873,6 @@ export const rolePermissions = pgTable("role_permissions", {
 export const auditLogs = pgTable("audit_logs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   userId: text("user_id").notNull(),     // Kisne change kiya (User ID)
-  userName: text("user_name"),           // User ka Naam (visha, ajay etc.)
   tableName: text("table_name").notNull(), // Kis table me change hua (people, devices etc.)
   recordId: text("record_id").notNull(),   // Jis row ko badla uski ID
   action: text("action").notNull(),       // Kya kiya: 'ADD', 'EDIT', 'DELETE'
@@ -922,18 +921,7 @@ export const insertEmployeeDoorAssignmentSchema = createInsertSchema(employeeDoo
 export const insertEmployeeActivityLogSchema = createInsertSchema(employeeActivityLogs, { logDate: z.any(), onlyDate: z.any() }).omit({ id: true });
 export const insertDailyAttendanceSummarySchema = createInsertSchema(dailyAttendanceSummary, { workDate: z.any() }).omit({ id: true });
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true })
-
-
-export const insertMenuMasterSchema = createInsertSchema(menuMaster).omit({
-  id: true
-}).extend({
-  // parentId ko optional ya null allow karne ke liye extend kar sakte hain
-  parentId: z.number().nullable().optional().default(0),
-  sortOrder: z.number().optional().default(0),
-  isActive: z.boolean().optional().default(true),
-});
-
-// --- Role Permissions Schema ---
+export const insertMenuMasterSchema = createInsertSchema(menuMaster).omit({ id: true }).extend({ parentId: z.number().nullable().optional().default(0), sortOrder: z.number().optional().default(0), isActive: z.boolean().optional().default(true), });
 export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({
   id: true
 }).extend({
@@ -944,10 +932,7 @@ export const insertRolePermissionSchema = createInsertSchema(rolePermissions).om
   export: z.boolean().default(false),
   print: z.boolean().default(false),
 });
-export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({
-  id: true,
-  createdAt: true
-});
+export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
 
 // ==================== TYPES ====================
 // Menu Master Types

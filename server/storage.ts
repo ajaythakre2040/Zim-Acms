@@ -349,34 +349,99 @@ export interface IStorage {
   deleteMenu(id: number): Promise<void>;
 }
 export class DatabaseStorage implements IStorage {
-  async getDeviceLogsWithEmployee(filters?: {
-    dateFrom?: string;
-    dateTo?: string;
-    employeeCode?: string;
-    deviceId?: string;
-    doorName?: string;
-  }): Promise<any[]> {
+  // async getDeviceLogsWithEmployee(filters?: {
+  //   dateFrom?: string;
+  //   dateTo?: string;
+  //   employeeCode?: string;
+  //   deviceId?: string;
+  //   doorName?: string;
+  // }): Promise<any[]> {
+  //   try {
+  //     const conditions = [];
+  //     if (filters?.dateFrom) {
+  //       conditions.push(
+  //         gte(schema.employeeActivityLogs.logDate, new Date(filters.dateFrom)),
+  //       );
+  //     }
+  //     if (filters?.dateTo) {
+  //       conditions.push(
+  //         lte(schema.employeeActivityLogs.logDate, new Date(filters.dateTo)),
+  //       );
+  //     }
+  //     if (filters?.employeeCode) {
+  //       conditions.push(
+  //         eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+  //       );
+  //     }
+  //     // :white_check_mark: FIXED DOOR FILTER
+  //     const doorFilter = filters?.deviceId || filters?.doorName;
+  //     if (doorFilter) {
+  //       conditions.push(eq(schema.employeeActivityLogs.doorName, doorFilter));
+  //     }
+  //     const logs = await db
+  //       .select({
+  //         devicelogid: schema.employeeActivityLogs.deviceLogId,
+  //         deviceid: schema.employeeActivityLogs.deviceId,
+  //         employeecode: schema.employeeActivityLogs.employeeCode,
+  //         logdate: schema.employeeActivityLogs.logDate,
+  //         direction: schema.employeeActivityLogs.direction,
+  //         employee_name: schema.employeeActivityLogs.employeeName,
+  //         department_name: schema.employeeActivityLogs.departmentName,
+  //         designation_name: schema.employeeActivityLogs.designationName,
+  //         door_name: schema.employeeActivityLogs.doorName,
+  //       })
+  //       .from(schema.employeeActivityLogs)
+  //       .where(conditions.length ? and(...conditions) : undefined)
+  //       .orderBy(desc(schema.employeeActivityLogs.deviceLogId));
+  //     return logs;
+  //   } catch (error) {
+  //     console.error("Error in getDeviceLogsWithEmployee:", error);
+  //     throw error;
+  //   }
+  // }
+  async getDeviceLogsWithEmployee(
+    filters?: {
+      dateFrom?: string;
+      dateTo?: string;
+      employeeCode?: string;
+      deviceId?: string;
+      doorName?: string;
+    },
+    page?: number | string,
+    pageSize?: number | string
+  ): Promise<any> {
     try {
       const conditions = [];
       if (filters?.dateFrom) {
         conditions.push(
-          gte(schema.employeeActivityLogs.logDate, new Date(filters.dateFrom)),
+          gte(
+            schema.employeeActivityLogs.logDate,
+            new Date(filters.dateFrom),
+          ),
         );
       }
       if (filters?.dateTo) {
         conditions.push(
-          lte(schema.employeeActivityLogs.logDate, new Date(filters.dateTo)),
+          lte(
+            schema.employeeActivityLogs.logDate,
+            new Date(filters.dateTo),
+          ),
         );
       }
       if (filters?.employeeCode) {
         conditions.push(
-          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+          eq(
+            schema.employeeActivityLogs.employeeCode,
+            filters.employeeCode,
+          ),
         );
       }
-      // :white_check_mark: FIXED DOOR FILTER
+      // Door Filter
       const doorFilter = filters?.deviceId || filters?.doorName;
       if (doorFilter) {
-        conditions.push(eq(schema.employeeActivityLogs.doorName, doorFilter));
+        conditions.push(
+          eq(schema.employeeActivityLogs.doorName, doorFilter),
+        );
       }
       const logs = await db
         .select({
@@ -393,7 +458,13 @@ export class DatabaseStorage implements IStorage {
         .from(schema.employeeActivityLogs)
         .where(conditions.length ? and(...conditions) : undefined)
         .orderBy(desc(schema.employeeActivityLogs.deviceLogId));
-      return logs;
+      return withPagination(
+        null,
+        null,
+        JSON.parse(JSON.stringify(logs)),
+        page,
+        pageSize
+      );
     } catch (error) {
       console.error("Error in getDeviceLogsWithEmployee:", error);
       throw error;
@@ -428,7 +499,8 @@ export class DatabaseStorage implements IStorage {
   async getUserProfiles(page?: number | string, pageSize?: number | string): Promise<any> {
     const query = db
       .select({
-        id: userProfiles.id,
+        id: users.id, // Frontend ko main ID hamesha users table ki UUID milegi
+        profileId: userProfiles.id, // Safe index lookup data tracking ke liye alag rakha hai
         employeeCode: userProfiles.employeeCode,
         roleId: userProfiles.roleId,
         isActive: userProfiles.isActive,
@@ -443,7 +515,6 @@ export class DatabaseStorage implements IStorage {
       .leftJoin(users, eq(userProfiles.userId, users.id))
       .leftJoin(roles, eq(userProfiles.roleId, roles.id))
       .orderBy(asc(userProfiles.id));
-
     return await withPagination(db, userProfiles, query, page, pageSize);
   }
   async getUserProfileByUserId(
@@ -470,16 +541,20 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return updated;
   }
-  async deleteUser(id: number): Promise<void> {
+  async deleteUser(userId: string): Promise<void> {
+    if (!userId || userId.trim() === "") {
+      throw new Error("User ID is required for deletion.");
+    }
     await db.transaction(async (tx) => {
-      const [profile] = await tx
-        .select()
-        .from(userProfiles)
-        .where(eq(userProfiles.id, id))
-        .limit(1);
-      if (profile) {
-        await tx.delete(userProfiles).where(eq(userProfiles.id, id));
-        await tx.delete(users).where(eq(users.id, profile.userId));
+      await tx
+        .delete(userProfiles)
+        .where(eq(userProfiles.userId, userId));
+      const [deletedUser] = await tx
+        .delete(users)
+        .where(eq(users.id, userId))
+        .returning();
+      if (!deletedUser) {
+        throw new Error("User record not found or already deleted.");
       }
     });
   }
@@ -845,7 +920,6 @@ export class DatabaseStorage implements IStorage {
         db.select().from(doorDevices),
         db.select().from(devices)
       ]);
-
       const resolvedDoors = allDoors.map((door) => {
         const mapping = allDoorDevices.find((md) => md.doorId === door.id);
         const resolveDevices = (ids: any[] | null) => {
@@ -865,14 +939,11 @@ export class DatabaseStorage implements IStorage {
           outCount: outDevices.length
         };
       });
-
       // --- Pagination Layer ---
-
       // Rule: Agar pageSize nahi mila, toh jaise abhi simple array response aa raha hai, waisa hi return karo
       if (!pageSize) {
         return resolvedDoors;
       }
-
       // Rule: Agar pageSize -1 hai, toh object format mein all data do
       if (pageSize === -1 || pageSize === "-1") {
         return {
@@ -883,14 +954,11 @@ export class DatabaseStorage implements IStorage {
           pageSize: resolvedDoors.length
         };
       }
-
       const p = page && Number(page) > 0 ? Number(page) : 1;
       const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-
       const start = (p - 1) * size;
       const end = start + size;
       const paginatedData = resolvedDoors.slice(start, end);
-
       return {
         data: paginatedData,
         totalCount: resolvedDoors.length,
@@ -898,7 +966,6 @@ export class DatabaseStorage implements IStorage {
         currentPage: p,
         pageSize: size
       };
-
     } catch (error) {
       console.error("getDoors MS_ID Sync Error:", error);
       // Fallback response handling based on pageSize presence
@@ -1000,20 +1067,16 @@ export class DatabaseStorage implements IStorage {
         .select()
         .from({ dbName: "Devices" })
         .execute();
-
       if (!msDataRaw || msDataRaw.length === 0) {
         return pageSize
           ? { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 }
           : [];
       }
-
       const currentTime = new Date();
       const THRESHOLD_MINUTES = 1;
-
       // Counts track karne ke liye counters
       let onlineCount = 0;
       let offlineCount = 0;
-
       const formattedDevices = msDataRaw.map((d: any) => {
         let lPing: Date | null = null;
         let calculatedStatus = "offline";
@@ -1029,14 +1092,12 @@ export class DatabaseStorage implements IStorage {
             calculatedStatus = "online";
           }
         }
-
         // Loop chalte waise hi status count kar rahe hain (Alag se loop chalane ki zarurat nahi, performance bachegi)
         if (calculatedStatus === "online") {
           onlineCount++;
         } else {
           offlineCount++;
         }
-
         return {
           msId: d.DeviceId || d.DeviceID,
           name: d.DeviceName || "Unnamed Device",
@@ -1055,7 +1116,6 @@ export class DatabaseStorage implements IStorage {
           isActive: true,
         };
       });
-
       // Sync to Local Postgres
       for (const dev of formattedDevices) {
         await db.insert(devices).values(dev).onConflictDoUpdate({
@@ -1063,19 +1123,15 @@ export class DatabaseStorage implements IStorage {
           set: { ...dev },
         });
       }
-
       const currentMsIds = formattedDevices.map((d) => d.msId as number);
       if (currentMsIds.length > 0) {
         await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
       }
-
       // --- Pagination Logic ---
-
       // Rule: Agar pageSize nahi mila, toh normal array format
       if (!pageSize) {
         return formattedDevices;
       }
-
       // Rule: Agar pageSize -1 hai, toh object format mein all data + counts
       if (pageSize === -1 || pageSize === "-1") {
         return {
@@ -1088,14 +1144,11 @@ export class DatabaseStorage implements IStorage {
           offlineCount   // <-- Added here
         };
       }
-
       const p = page && Number(page) > 0 ? Number(page) : 1;
       const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-
       const start = (p - 1) * size;
       const end = start + size;
       const paginatedData = formattedDevices.slice(start, end);
-
       return {
         data: paginatedData,
         totalCount: formattedDevices.length,
@@ -1105,7 +1158,6 @@ export class DatabaseStorage implements IStorage {
         onlineCount,     // <-- Added here
         offlineCount     // <-- Added here
       };
-
     } catch (error) {
       console.error("Device Sync Error:", error);
       return pageSize
@@ -1268,12 +1320,10 @@ export class DatabaseStorage implements IStorage {
         .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
       dbMsSql.select().from({ dbName: "Employees" }).execute(),
     ]);
-
     const msIds = new Set();
     const ruleIdToName = Object.fromEntries(
       Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
     );
-
     const currentPgData = pgDataRaw.map((row) => ({
       ...row.person,
       departmentName: row.departmentName || "N/A",
@@ -1283,7 +1333,6 @@ export class DatabaseStorage implements IStorage {
           ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
           : "NO_RULE",
     }));
-
     for (const msRow of msDataRaw || []) {
       const mapped = PersonAdapter.toPostgres(msRow);
       if (!mapped.msId) continue;
@@ -1358,7 +1407,6 @@ export class DatabaseStorage implements IStorage {
         }
       }
     }
-
     for (const pgRow of currentPgData) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
@@ -1366,7 +1414,6 @@ export class DatabaseStorage implements IStorage {
         } catch (e) { }
       }
     }
-
     let results = currentPgData;
     if (search) {
       const term = search.toLowerCase();
@@ -1378,22 +1425,17 @@ export class DatabaseStorage implements IStorage {
           (p.ruleName && p.ruleName.toLowerCase().includes(term)),
       );
     }
-
     results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
-
     const uniquePeople = Array.from(
       new Map(
         results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
       ).values(),
     );
-
     // --- PAGINATION LAYER (Bilkul Safe Check) ---
-
     // Condition 1: Frontend se agar page/pageSize nahi bheja, toh 100% purana format array hi return hoga
     if (!pageSize) {
       return uniquePeople as Person[];
     }
-
     // Condition 2: Dropdown se "All" (-1) select karne par metadata object format milega
     if (pageSize === -1 || pageSize === "-1") {
       return {
@@ -1404,14 +1446,11 @@ export class DatabaseStorage implements IStorage {
         pageSize: uniquePeople.length,
       };
     }
-
     const p = page && Number(page) > 0 ? Number(page) : 1;
     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-
     const start = (p - 1) * size;
     const end = start + size;
     const paginatedData = uniquePeople.slice(start, end);
-
     return {
       data: paginatedData,
       totalCount: uniquePeople.length,
@@ -1750,7 +1789,6 @@ export class DatabaseStorage implements IStorage {
       db.select().from(holidays).orderBy(asc(holidays.id)),
       dbMsSql.select().from({ dbName: "Holidays" }).execute(),
     ]);
-
     for (const msRow of msDataRaw || []) {
       const msId = msRow.Id || msRow.id;
       if (!pgData.find((p) => p.msId === msId)) {
@@ -1768,20 +1806,16 @@ export class DatabaseStorage implements IStorage {
         if (newRec) pgData.push(newRec);
       }
     }
-
     // Aapka original deduplication logic (bilkul same hai)
     const uniqueHolidays = Array.from(
       new Map(pgData.map((h) => [`${h.name}-${h.date}`, h])).values(),
     );
-
     // Sirf return format change hoga agar pageSize milega toh
     if (!pageSize) {
       return uniqueHolidays;
     }
-
     const p = page && Number(page) > 0 ? Number(page) : 1;
     const size = Number(pageSize);
-
     if (size === -1) {
       return {
         data: uniqueHolidays,
@@ -1791,11 +1825,9 @@ export class DatabaseStorage implements IStorage {
         pageSize: uniqueHolidays.length
       };
     }
-
     const start = (p - 1) * size;
     const end = start + size;
     const paginatedData = uniqueHolidays.slice(start, end);
-
     return {
       data: paginatedData,
       totalCount: uniqueHolidays.length,
@@ -2245,7 +2277,6 @@ export class DatabaseStorage implements IStorage {
   //     })
   //     .sort((a, b) => b.date.localeCompare(a.date));
   // }
-
   async getAttendanceReport(
     filters: {
       dateFrom?: string;
@@ -2256,12 +2287,10 @@ export class DatabaseStorage implements IStorage {
     page?: number | string,
     pageSize?: number | string
   ): Promise<any> {
-
     // 1. Agar frontend se date nahi aayi toh Aaj ki date default set hogi
     const todayStr = new Date().toISOString().split("T")[0];
     const fromDate = filters.dateFrom || todayStr;
     const toDate = filters.dateTo || todayStr;
-
     // 2. Fetch All Active Employees
     const allEmployees = await db
       .select({
@@ -2269,7 +2298,6 @@ export class DatabaseStorage implements IStorage {
         employeeName: people.employeeName,
       })
       .from(people);
-
     // 3. Fetch Present Data from Daily Summary Table
     const presentRecords = await db
       .select({
@@ -2286,31 +2314,25 @@ export class DatabaseStorage implements IStorage {
           lte(dailyAttendanceSummary.workDate, toDate)
         )
       );
-
     const presentMap = new Map<string, any>();
     presentRecords.forEach((rec) => {
       const key = `${rec.employeeCode}_${rec.date}`;
       presentMap.set(key, rec);
     });
-
     // 4. Generate Date Array Safely (Timezone issues avoid karne ke liye string calculation)
     const reportDates: string[] = [];
     let dStart = new Date(fromDate);
     const dEnd = new Date(toDate);
-
     while (dStart <= dEnd) {
       reportDates.push(dStart.toISOString().split("T")[0]);
       dStart.setDate(dStart.getDate() + 1);
     }
-
     // 5. Merge Data: loop dates aur employees ke base par chalega taaki absent entries create ho sakein
     const finalReport: any[] = [];
-
     allEmployees.forEach((emp) => {
       reportDates.forEach((dateStr) => {
         const key = `${emp.employeeCode}_${dateStr}`;
         const presentRow = presentMap.get(key);
-
         if (presentRow) {
           finalReport.push({
             id: `${emp.employeeCode}-${dateStr}`,
@@ -2333,26 +2355,21 @@ export class DatabaseStorage implements IStorage {
         }
       });
     });
-
     // 6. Global Filters Application (Dono types ke rows par filter execute hoga)
     const processedData = finalReport
       .filter((row) => {
         const matchesEmployee = !filters.employeeCode || filters.employeeCode === "all"
           ? true
           : String(row.employeeCode) === String(filters.employeeCode);
-
         const matchesStatus = !filters.status || filters.status === "all"
           ? true
           : String(row.status).toLowerCase() === String(filters.status).toLowerCase();
-
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-
     // 7. Dynamic Util Pagination (Case A Trigger)
     return withPagination(null, null, processedData, page, pageSize);
   }
-
   // async getAccessLogReport(filters: any): Promise<any[]> {
   //   const conditions = [
   //     filters.dateFrom &&
@@ -2380,33 +2397,25 @@ export class DatabaseStorage implements IStorage {
   //     ? await query.where(and(...conditions))
   //     : await query.limit(500);
   // }
-
   async getAccessLogReport(
     filters: any,
     page?: number | string,
     pageSize?: number | string
   ): Promise<any> {
-
     const conditions = [
       filters.dateFrom &&
       sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
-
       filters.dateTo &&
       sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
-
       filters.eventType &&
       eq(accessLogs.eventType, filters.eventType),
-
       filters.personId &&
       eq(accessLogs.personId, filters.personId),
-
       filters.locationId &&
       eq(accessLogs.locationId, filters.locationId),
-
       filters.doorId &&
       eq(accessLogs.doorId, filters.doorId),
     ].filter(Boolean);
-
     const query = db
       .select({
         id: accessLogs.id,
@@ -2420,15 +2429,12 @@ export class DatabaseStorage implements IStorage {
       .from(accessLogs)
       .leftJoin(people, eq(accessLogs.personId, people.id))
       .orderBy(desc(accessLogs.timestamp));
-
     const data = conditions.length
       ? await query.where(and(...conditions))
       : await query.limit(500);
-
     // Pagination Apply
     return withPagination(null, null, data, page, pageSize);
   }
-
   async getVisitorReport(filters: {
     dateFrom?: string;
     dateTo?: string;
@@ -2465,7 +2471,6 @@ export class DatabaseStorage implements IStorage {
     }
     return await query.orderBy(desc(visits.createdAt)).limit(500);
   }
-
   async getEmployeeSummaryReport(filters: {
     departmentId?: number;
     status?: string;
@@ -3261,28 +3266,106 @@ export class DatabaseStorage implements IStorage {
       return [];
     }
   }
-  async getCabinLockoutReport(filters: {
-    dateFrom?: string;
-    dateTo?: string;
-    employeeCode?: string;
-    doorId?: string;
-    status?: string;
-  }) {
+  // async getCabinLockoutReport(filters: {
+  //   dateFrom?: string;
+  //   dateTo?: string;
+  //   employeeCode?: string;
+  //   doorId?: string;
+  //   status?: string;
+  // }) {
+  //   try {
+  //     const conditions = [];
+  //     if (filters.doorId && filters.doorId !== "all") {
+  //       conditions.push(
+  //         eq(schema.cabinLockouts.doorId, Number(filters.doorId)),
+  //       );
+  //     }
+  //     if (filters.status && filters.status !== "all") {
+  //       conditions.push(eq(schema.cabinLockouts.status, filters.status));
+  //     }
+  //     if (filters.employeeCode && filters.employeeCode !== "all") {
+  //       conditions.push(
+  //         eq(schema.cabinLockouts.employeeCode, filters.employeeCode),
+  //       );
+  //     }
+  //     if (filters.dateFrom) {
+  //       if (!filters.dateTo || filters.dateFrom === filters.dateTo) {
+  //         conditions.push(
+  //           sql`CAST(${schema.cabinLockouts.createdAt} AS DATE) = ${filters.dateFrom}`,
+  //         );
+  //       } else {
+  //         const start = new Date(filters.dateFrom);
+  //         start.setHours(0, 0, 0, 0);
+  //         const end = new Date(filters.dateTo);
+  //         end.setHours(23, 59, 59, 999);
+  //         conditions.push(gte(schema.cabinLockouts.createdAt, start));
+  //         conditions.push(lte(schema.cabinLockouts.createdAt, end));
+  //       }
+  //     }
+  //     const results = await db
+  //       .select({
+  //         id: schema.cabinLockouts.id,
+  //         employeeCode: schema.cabinLockouts.employeeCode,
+  //         employeeName: schema.people.employeeName,
+  //         doorName: schema.doors.name,
+  //         doorId: schema.cabinLockouts.doorId,
+  //         inPunchTime: schema.cabinLockouts.inPunchTime,
+  //         outPunchTime: schema.cabinLockouts.outPunchTime,
+  //         lockoutExpiry: schema.cabinLockouts.lockoutExpiry,
+  //         status: schema.cabinLockouts.status,
+  //         createdAt: schema.cabinLockouts.createdAt,
+  //       })
+  //       .from(schema.cabinLockouts)
+  //       .leftJoin(
+  //         schema.people,
+  //         eq(schema.cabinLockouts.employeeCode, schema.people.employeeCode),
+  //       )
+  //       .leftJoin(
+  //         schema.doors,
+  //         eq(schema.cabinLockouts.doorId, schema.doors.id),
+  //       )
+  //       .where(conditions.length > 0 ? and(...conditions) : undefined)
+  //       .orderBy(desc(schema.cabinLockouts.createdAt))
+  //       .execute();
+  //     return results;
+  //   } catch (error) {
+  //     console.error("Lockout Join Report Error:", error);
+  //     throw error;
+  //   }
+  // }
+  async getCabinLockoutReport(
+    filters: {
+      dateFrom?: string;
+      dateTo?: string;
+      employeeCode?: string;
+      doorId?: string;
+      status?: string;
+    },
+    page?: number | string,
+    pageSize?: number | string
+  ) {
     try {
+
       const conditions = [];
+
       if (filters.doorId && filters.doorId !== "all") {
         conditions.push(
           eq(schema.cabinLockouts.doorId, Number(filters.doorId)),
         );
       }
+
       if (filters.status && filters.status !== "all") {
-        conditions.push(eq(schema.cabinLockouts.status, filters.status));
+        conditions.push(
+          eq(schema.cabinLockouts.status, filters.status),
+        );
       }
+
       if (filters.employeeCode && filters.employeeCode !== "all") {
         conditions.push(
           eq(schema.cabinLockouts.employeeCode, filters.employeeCode),
         );
       }
+
       if (filters.dateFrom) {
         if (!filters.dateTo || filters.dateFrom === filters.dateTo) {
           conditions.push(
@@ -3291,12 +3374,20 @@ export class DatabaseStorage implements IStorage {
         } else {
           const start = new Date(filters.dateFrom);
           start.setHours(0, 0, 0, 0);
+
           const end = new Date(filters.dateTo);
           end.setHours(23, 59, 59, 999);
-          conditions.push(gte(schema.cabinLockouts.createdAt, start));
-          conditions.push(lte(schema.cabinLockouts.createdAt, end));
+
+          conditions.push(
+            gte(schema.cabinLockouts.createdAt, start),
+          );
+
+          conditions.push(
+            lte(schema.cabinLockouts.createdAt, end),
+          );
         }
       }
+
       const results = await db
         .select({
           id: schema.cabinLockouts.id,
@@ -3319,10 +3410,20 @@ export class DatabaseStorage implements IStorage {
           schema.doors,
           eq(schema.cabinLockouts.doorId, schema.doors.id),
         )
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(
+          conditions.length > 0 ? and(...conditions) : undefined,
+        )
         .orderBy(desc(schema.cabinLockouts.createdAt))
         .execute();
-      return results;
+
+      return withPagination(
+        null,
+        null,
+        JSON.parse(JSON.stringify(results)),
+        page,
+        pageSize
+      );
+
     } catch (error) {
       console.error("Lockout Join Report Error:", error);
       throw error;
@@ -3457,19 +3558,41 @@ export class DatabaseStorage implements IStorage {
       .where(eq(schema.employeeDoorAssignments.id, id));
   }
   // 1 & 5: Daily Performance aur Daily Efficiency ke liye
-  async getDailyReport(date: string) {
-    return await db
+  // async getDailyReport(date: string) {
+  //   return await db
+  //     .select()
+  //     .from(dailyAttendanceSummary)
+  //     .where(eq(dailyAttendanceSummary.workDate, date));
+  // }
+  async getDailyReport(
+    date: string,
+    page?: number | string,
+    pageSize?: number | string
+  ) {
+    const data = await db
       .select()
       .from(dailyAttendanceSummary)
       .where(eq(dailyAttendanceSummary.workDate, date));
+    return withPagination(
+      null,
+      null,
+      JSON.parse(JSON.stringify(data)),
+      page,
+      pageSize
+    );
   }
   // 2 & 3: Muster Roll aur Overtime Matrix (Date Range)
-  async getRangeReport(startDate: string, endDate: string) {
-    return await db
-      .select()
-      .from(dailyAttendanceSummary)
-      .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
+  // async getRangeReport(startDate: string, endDate: string) {
+  //   return await db
+  //     .select()
+  //     .from(dailyAttendanceSummary)
+  //     .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
+  //     .orderBy(asc(dailyAttendanceSummary.workDate));
+  // }
+  async getRangeReport(startDate: string, endDate: string, page?: number | string, pageSize?: number | string) {
+    const data = await db.select().from(dailyAttendanceSummary).where(between(dailyAttendanceSummary.workDate, startDate, endDate))
       .orderBy(asc(dailyAttendanceSummary.workDate));
+    return withPagination(null, null, JSON.parse(JSON.stringify(data)), page, pageSize);
   }
   // async getRangeReport(startDate: string, endDate: string) {
   //   return await db
@@ -3713,10 +3836,257 @@ export class DatabaseStorage implements IStorage {
       await tx.delete(roles).where(eq(roles.id, id));
     });
   }
-  async getEmployeeProductiveReport(filters?: {
-    date?: string;
-    employeeCode?: string;
-  }) {
+  // async getEmployeeProductiveReport(filters?: {
+  //   date?: string;
+  //   employeeCode?: string;
+  // }) {
+  //   try {
+  //     const conditions = [];
+  //     // =========================
+  //     // Selected Date
+  //     // =========================
+  //     const selectedDate = filters?.date
+  //       ? filters.date
+  //       : new Date().toISOString().split("T")[0];
+  //     // Next day (night shift punches ke liye)
+  //     // Previous Date
+  //     const previousDateObj = new Date(selectedDate);
+  //     previousDateObj.setDate(previousDateObj.getDate() - 1);
+  //     const previousDateStr = previousDateObj.toISOString().split("T")[0];
+  //     // Next Date
+  //     const nextDateObj = new Date(selectedDate);
+  //     nextDateObj.setDate(nextDateObj.getDate() + 1);
+  //     const nextDateStr = nextDateObj.toISOString().split("T")[0];
+  //     // Fetch previous + selected + next
+  //     conditions.push(
+  //       gte(schema.employeeActivityLogs.onlyDate, previousDateStr),
+  //     );
+  //     conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
+  //     conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
+  //     if (filters?.employeeCode) {
+  //       conditions.push(
+  //         eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+  //       );
+  //     }
+  //     const logs = await db
+  //       .select({
+  //         employeeCode: schema.employeeActivityLogs.employeeCode,
+  //         employeeName: schema.employeeActivityLogs.employeeName,
+  //         gender: schema.people.gender,
+  //         shiftName: schema.employeeActivityLogs.shiftName,
+  //         shiftTime: schema.employeeActivityLogs.shiftTime,
+  //         workingHours: schema.shifts.workingHours,
+  //         logDate: schema.employeeActivityLogs.logDate,
+  //         onlyDate: schema.employeeActivityLogs.onlyDate,
+  //         direction: schema.employeeActivityLogs.direction,
+  //         doorId: schema.employeeActivityLogs.doorId,
+  //         doorName: schema.employeeActivityLogs.doorName,
+  //         deviceId: schema.employeeActivityLogs.deviceId,
+  //         doorType: schema.doors.doorType,
+  //       })
+  //       .from(schema.employeeActivityLogs)
+  //       .leftJoin(
+  //         schema.doors,
+  //         eq(schema.employeeActivityLogs.doorId, schema.doors.id),
+  //       )
+  //       .leftJoin(
+  //         schema.people,
+  //         eq(
+  //           schema.employeeActivityLogs.employeeCode,
+  //           schema.people.employeeCode,
+  //         ),
+  //       )
+  //       .leftJoin(
+  //         schema.shifts,
+  //         eq(schema.employeeActivityLogs.shiftName, schema.shifts.name),
+  //       )
+  //       .where(conditions.length ? and(...conditions) : undefined)
+  //       .orderBy(
+  //         asc(schema.employeeActivityLogs.employeeCode),
+  //         asc(schema.employeeActivityLogs.logDate),
+  //       );
+  //     // =========================
+  //     // GROUP BY EMPLOYEE
+  //     // =========================
+  //     const grouped: Record<string, any[]> = {};
+  //     for (const log of logs) {
+  //       const key = log.employeeCode;
+  //       if (!grouped[key]) {
+  //         grouped[key] = [];
+  //       }
+  //       grouped[key].push(log);
+  //     }
+  //     const result = [];
+  //     // =========================
+  //     // PROCESS EACH EMPLOYEE
+  //     // =========================
+  //     for (const key of Object.keys(grouped)) {
+  //       const allLogs = grouped[key];
+  //       // =========================
+  //       // Selected date ka FIRST IN
+  //       // =========================
+  //       const todayFirstIn = allLogs.find(
+  //         (l) => l.onlyDate === selectedDate && l.direction === "IN",
+  //       );
+  //       // Agar selected date pe IN hi nahi mila
+  //       if (!todayFirstIn) {
+  //         continue;
+  //       }
+  //       const todayFirstInTime = new Date(todayFirstIn.logDate).getTime();
+  //       // =========================
+  //       // Previous date ka FIRST IN
+  //       // =========================
+  //       // Previous day ke saare IN punches
+  //       const previousDayIns = allLogs.filter(
+  //         (l) => l.onlyDate < selectedDate && l.direction === "IN",
+  //       );
+  //       // Check karo kya current first IN
+  //       // kisi previous session ke andar aa raha hai
+  //       // Previous date ke gate logs
+  //       const previousGateLogs = allLogs.filter(
+  //         (l) => l.onlyDate < selectedDate && l.doorType === "gate",
+  //       );
+  //       // Previous session ka last gate log
+  //       const lastPreviousGateLog = previousGateLogs.at(-1);
+  //       // Agar previous session gate OUT pe end hua hai
+  //       // to next day ka IN new session hoga
+  //       const previousSessionClosed = lastPreviousGateLog?.direction === "OUT";
+  //       // Agar previous session closed nahi hua
+  //       // aur current IN subah ka continuation hai
+  //       if (!previousSessionClosed) {
+  //         const previousLogTime = new Date(
+  //           lastPreviousGateLog?.logDate,
+  //         ).getTime();
+  //         const diffHours =
+  //           (todayFirstInTime - previousLogTime) / (1000 * 60 * 60);
+  //         // 12 hr ke andar firse IN
+  //         // matlab continuation
+  //         if (diffHours <= 12) {
+  //           continue;
+  //         }
+  //       }
+  //       // =========================
+  //       // FINAL SESSION START
+  //       // =========================
+  //       const shiftStartLog = todayFirstIn;
+  //       // =========================
+  //       // Session cutoff
+  //       // =========================
+  //       const startTime = new Date(shiftStartLog.logDate).getTime();
+  //       const cutoffTime = startTime + 16 * 60 * 60 * 1000;
+  //       // =========================
+  //       // Session logs
+  //       // =========================
+  //       const employeeLogs = allLogs.filter((l) => {
+  //         const logTime = new Date(l.logDate).getTime();
+  //         return logTime >= startTime && logTime <= cutoffTime;
+  //       });
+  //       // =========================
+  //       // Calculations
+  //       // =========================
+  //       let productiveMinutes = 0;
+  //       const movementDetails: any[] = [];
+  //       let stack: Record<string, any> = {};
+  //       let firstTime: number | null = null;
+  //       let lastTime: number | null = null;
+  //       for (const log of employeeLogs) {
+  //         const time = new Date(log.logDate).getTime();
+  //         if (firstTime === null) {
+  //           firstTime = time;
+  //         }
+  //         lastTime = time;
+  //         const isGate = log.doorType === "gate";
+  //         const doorKey = log.doorId;
+  //         // =========================
+  //         // IN
+  //         // =========================
+  //         if (log.direction === "IN") {
+  //           stack[doorKey] = log;
+  //         }
+  //         // =========================
+  //         // OUT
+  //         // =========================
+  //         else if (log.direction === "OUT") {
+  //           const inLog = stack[doorKey];
+  //           if (!inLog) {
+  //             continue;
+  //           }
+  //           const duration =
+  //             (new Date(log.logDate).getTime() -
+  //               new Date(inLog.logDate).getTime()) /
+  //             60000;
+  //           const safeDuration = Math.max(0, duration);
+  //           // Gate duration productive me add nahi hoga
+  //           if (!isGate) {
+  //             productiveMinutes += safeDuration;
+  //           }
+  //           movementDetails.push({
+  //             doorName: log.doorName,
+  //             doorType: log.doorType,
+  //             inDeviceId: inLog.deviceId,
+  //             inTime: inLog.logDate,
+  //             outDeviceId: log.deviceId,
+  //             outTime: log.logDate,
+  //             durationMinutes: Math.floor(safeDuration),
+  //             isGateEntry: isGate,
+  //           });
+  //           delete stack[doorKey];
+  //         }
+  //       }
+  //       // =========================
+  //       // Presence
+  //       // =========================
+  //       const totalPresenceMinutes =
+  //         firstTime && lastTime ? (lastTime - firstTime) / 60000 : 0;
+  //       const productiveHours = productiveMinutes / 60;
+  //       const shiftHours = Number(employeeLogs[0]?.workingHours || 8);
+  //       // =========================
+  //       // OT
+  //       // =========================
+  //       let otHours = 0;
+  //       if (productiveHours >= shiftHours + 2) {
+  //         otHours = Math.floor(productiveHours - shiftHours);
+  //       }
+  //       // =========================
+  //       // FINAL RESULT
+  //       // =========================
+  //       result.push({
+  //         employeeCode: employeeLogs[0]?.employeeCode,
+  //         employeeName: employeeLogs[0]?.employeeName,
+  //         gender: employeeLogs[0]?.gender || "-",
+  //         shift: employeeLogs[0]?.shiftName || "-",
+  //         shiftTime: employeeLogs[0]?.shiftTime || "-",
+  //         workingHours: employeeLogs[0]?.workingHours || "-",
+  //         latestPunchDoor: employeeLogs.at(-1)?.doorName || "-",
+  //         inPunch: employeeLogs[0]?.logDate || null,
+  //         outPunch: employeeLogs.at(-1)?.logDate || null,
+  //         productiveMinutes: Math.floor(productiveMinutes),
+  //         productiveHours: productiveHours.toFixed(2),
+  //         totalPresenceMinutes: Math.floor(totalPresenceMinutes),
+  //         totalPresenceHours: (totalPresenceMinutes / 60).toFixed(2),
+  //         hoursWorked: productiveHours.toFixed(2),
+  //         otHours,
+  //         dutyStatus: "Present",
+  //         // Business date
+  //         date: selectedDate,
+  //         totalSessions: movementDetails.length,
+  //         movementDetails,
+  //       });
+  //     }
+  //     return result;
+  //   } catch (err) {
+  //     console.error(err);
+  //     throw err;
+  //   }
+  // }
+  async getEmployeeProductiveReport(
+    filters?: {
+      date?: string;
+      employeeCode?: string;
+    },
+    page?: number | string,
+    pageSize?: number | string
+  ) {
     try {
       const conditions = [];
       // =========================
@@ -3725,24 +4095,47 @@ export class DatabaseStorage implements IStorage {
       const selectedDate = filters?.date
         ? filters.date
         : new Date().toISOString().split("T")[0];
-      // Next day (night shift punches ke liye)
       // Previous Date
       const previousDateObj = new Date(selectedDate);
-      previousDateObj.setDate(previousDateObj.getDate() - 1);
-      const previousDateStr = previousDateObj.toISOString().split("T")[0];
+      previousDateObj.setDate(
+        previousDateObj.getDate() - 1
+      );
+      const previousDateStr = previousDateObj
+        .toISOString()
+        .split("T")[0];
       // Next Date
       const nextDateObj = new Date(selectedDate);
-      nextDateObj.setDate(nextDateObj.getDate() + 1);
-      const nextDateStr = nextDateObj.toISOString().split("T")[0];
+      nextDateObj.setDate(
+        nextDateObj.getDate() + 1
+      );
+      const nextDateStr = nextDateObj
+        .toISOString()
+        .split("T")[0];
       // Fetch previous + selected + next
       conditions.push(
-        gte(schema.employeeActivityLogs.onlyDate, previousDateStr),
+        gte(
+          schema.employeeActivityLogs.onlyDate,
+          previousDateStr
+        ),
       );
-      conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
-      conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
+      conditions.push(
+        lte(
+          schema.employeeActivityLogs.onlyDate,
+          nextDateStr
+        )
+      );
+      conditions.push(
+        lte(
+          schema.employeeActivityLogs.onlyDate,
+          nextDateStr
+        )
+      );
       if (filters?.employeeCode) {
         conditions.push(
-          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+          eq(
+            schema.employeeActivityLogs.employeeCode,
+            filters.employeeCode
+          ),
         );
       }
       const logs = await db
@@ -3764,7 +4157,10 @@ export class DatabaseStorage implements IStorage {
         .from(schema.employeeActivityLogs)
         .leftJoin(
           schema.doors,
-          eq(schema.employeeActivityLogs.doorId, schema.doors.id),
+          eq(
+            schema.employeeActivityLogs.doorId,
+            schema.doors.id
+          ),
         )
         .leftJoin(
           schema.people,
@@ -3775,9 +4171,16 @@ export class DatabaseStorage implements IStorage {
         )
         .leftJoin(
           schema.shifts,
-          eq(schema.employeeActivityLogs.shiftName, schema.shifts.name),
+          eq(
+            schema.employeeActivityLogs.shiftName,
+            schema.shifts.name
+          ),
         )
-        .where(conditions.length ? and(...conditions) : undefined)
+        .where(
+          conditions.length
+            ? and(...conditions)
+            : undefined
+        )
         .orderBy(
           asc(schema.employeeActivityLogs.employeeCode),
           asc(schema.employeeActivityLogs.logDate),
@@ -3803,46 +4206,37 @@ export class DatabaseStorage implements IStorage {
         // Selected date ka FIRST IN
         // =========================
         const todayFirstIn = allLogs.find(
-          (l) => l.onlyDate === selectedDate && l.direction === "IN",
+          (l) =>
+            l.onlyDate === selectedDate &&
+            l.direction === "IN",
         );
         // Agar selected date pe IN hi nahi mila
         if (!todayFirstIn) {
           continue;
         }
-        const todayFirstInTime = new Date(todayFirstIn.logDate).getTime();
-        // =========================
-        // Previous date ka FIRST IN
-        // =========================
-        // Previous day ke saare IN punches
-        const previousDayIns = allLogs.filter(
-          (l) => l.onlyDate < selectedDate && l.direction === "IN",
-        );
-        // Check karo kya current first IN
-        // kisi previous session ke andar aa raha hai
+        const todayFirstInTime = new Date(
+          todayFirstIn.logDate
+        ).getTime();
         // Previous date ke gate logs
         const previousGateLogs = allLogs.filter(
-          (l) => l.onlyDate < selectedDate && l.doorType === "gate",
+          (l) =>
+            l.onlyDate < selectedDate &&
+            l.doorType === "gate",
         );
-
         // Previous session ka last gate log
-        const lastPreviousGateLog = previousGateLogs.at(-1);
-
+        const lastPreviousGateLog =
+          previousGateLogs.at(-1);
         // Agar previous session gate OUT pe end hua hai
-        // to next day ka IN new session hoga
-        const previousSessionClosed = lastPreviousGateLog?.direction === "OUT";
-
-        // Agar previous session closed nahi hua
-        // aur current IN subah ka continuation hai
+        const previousSessionClosed =
+          lastPreviousGateLog?.direction === "OUT";
+        // Continuation logic
         if (!previousSessionClosed) {
           const previousLogTime = new Date(
             lastPreviousGateLog?.logDate,
           ).getTime();
-
           const diffHours =
-            (todayFirstInTime - previousLogTime) / (1000 * 60 * 60);
-
-          // 12 hr ke andar firse IN
-          // matlab continuation
+            (todayFirstInTime - previousLogTime) /
+            (1000 * 60 * 60);
           if (diffHours <= 12) {
             continue;
           }
@@ -3851,17 +4245,21 @@ export class DatabaseStorage implements IStorage {
         // FINAL SESSION START
         // =========================
         const shiftStartLog = todayFirstIn;
-        // =========================
         // Session cutoff
-        // =========================
-        const startTime = new Date(shiftStartLog.logDate).getTime();
-        const cutoffTime = startTime + 16 * 60 * 60 * 1000;
-        // =========================
+        const startTime = new Date(
+          shiftStartLog.logDate
+        ).getTime();
+        const cutoffTime =
+          startTime + 16 * 60 * 60 * 1000;
         // Session logs
-        // =========================
         const employeeLogs = allLogs.filter((l) => {
-          const logTime = new Date(l.logDate).getTime();
-          return logTime >= startTime && logTime <= cutoffTime;
+          const logTime = new Date(
+            l.logDate
+          ).getTime();
+          return (
+            logTime >= startTime &&
+            logTime <= cutoffTime
+          );
         });
         // =========================
         // Calculations
@@ -3872,32 +4270,33 @@ export class DatabaseStorage implements IStorage {
         let firstTime: number | null = null;
         let lastTime: number | null = null;
         for (const log of employeeLogs) {
-          const time = new Date(log.logDate).getTime();
+          const time = new Date(
+            log.logDate
+          ).getTime();
           if (firstTime === null) {
             firstTime = time;
           }
           lastTime = time;
-          const isGate = log.doorType === "gate";
+          const isGate =
+            log.doorType === "gate";
           const doorKey = log.doorId;
-          // =========================
           // IN
-          // =========================
           if (log.direction === "IN") {
             stack[doorKey] = log;
           }
-          // =========================
           // OUT
-          // =========================
           else if (log.direction === "OUT") {
             const inLog = stack[doorKey];
             if (!inLog) {
               continue;
             }
             const duration =
-              (new Date(log.logDate).getTime() -
-                new Date(inLog.logDate).getTime()) /
-              60000;
-            const safeDuration = Math.max(0, duration);
+              (
+                new Date(log.logDate).getTime() -
+                new Date(inLog.logDate).getTime()
+              ) / 60000;
+            const safeDuration =
+              Math.max(0, duration);
             // Gate duration productive me add nahi hoga
             if (!isGate) {
               productiveMinutes += safeDuration;
@@ -3915,108 +4314,253 @@ export class DatabaseStorage implements IStorage {
             delete stack[doorKey];
           }
         }
-        // =========================
         // Presence
-        // =========================
         const totalPresenceMinutes =
-          firstTime && lastTime ? (lastTime - firstTime) / 60000 : 0;
-        const productiveHours = productiveMinutes / 60;
-        const shiftHours = Number(employeeLogs[0]?.workingHours || 8);
-        // =========================
+          firstTime && lastTime
+            ? (lastTime - firstTime) / 60000
+            : 0;
+        const productiveHours =
+          productiveMinutes / 60;
+        const shiftHours = Number(
+          employeeLogs[0]?.workingHours || 8
+        );
         // OT
-        // =========================
         let otHours = 0;
         if (productiveHours >= shiftHours + 2) {
-          otHours = Math.floor(productiveHours - shiftHours);
+          otHours = Math.floor(
+            productiveHours - shiftHours
+          );
         }
-        // =========================
         // FINAL RESULT
-        // =========================
         result.push({
           employeeCode: employeeLogs[0]?.employeeCode,
           employeeName: employeeLogs[0]?.employeeName,
           gender: employeeLogs[0]?.gender || "-",
           shift: employeeLogs[0]?.shiftName || "-",
           shiftTime: employeeLogs[0]?.shiftTime || "-",
-          workingHours: employeeLogs[0]?.workingHours || "-",
-          latestPunchDoor: employeeLogs.at(-1)?.doorName || "-",
-          inPunch: employeeLogs[0]?.logDate || null,
-          outPunch: employeeLogs.at(-1)?.logDate || null,
-          productiveMinutes: Math.floor(productiveMinutes),
-          productiveHours: productiveHours.toFixed(2),
-          totalPresenceMinutes: Math.floor(totalPresenceMinutes),
-          totalPresenceHours: (totalPresenceMinutes / 60).toFixed(2),
-          hoursWorked: productiveHours.toFixed(2),
+          workingHours:
+            employeeLogs[0]?.workingHours || "-",
+          latestPunchDoor:
+            employeeLogs.at(-1)?.doorName || "-",
+          inPunch:
+            employeeLogs[0]?.logDate || null,
+          outPunch:
+            employeeLogs.at(-1)?.logDate || null,
+          productiveMinutes:
+            Math.floor(productiveMinutes),
+          productiveHours:
+            productiveHours.toFixed(2),
+          totalPresenceMinutes:
+            Math.floor(totalPresenceMinutes),
+          totalPresenceHours:
+            (totalPresenceMinutes / 60).toFixed(2),
+          hoursWorked:
+            productiveHours.toFixed(2),
           otHours,
           dutyStatus: "Present",
-          // Business date
           date: selectedDate,
           totalSessions: movementDetails.length,
           movementDetails,
         });
       }
-      return result;
+      return withPagination(
+        null,
+        null,
+        JSON.parse(JSON.stringify(result)),
+        page,
+        pageSize
+      );
     } catch (err) {
       console.error(err);
       throw err;
     }
   }
-  async getEmplyeeEefficiency(fromDate: string, toDate: string, employeeCode?: string) {
-    // 1. Base Query taiyar karo
+  // async getEmplyeeEefficiency(fromDate: string, toDate: string, employeeCode?: string) {
+  //   // 1. Base Query taiyar karo
+  //   let conditions = [
+  //     gte(dailyAttendanceSummary.workDate, fromDate),
+  //     lte(dailyAttendanceSummary.workDate, toDate)
+  //   ];
+  //   // 2. Agar user ne specific Employee select kiya hai (aur "all" nahi hai)
+  //   if (employeeCode && employeeCode !== "all" && employeeCode !== "") {
+  //     conditions.push(eq(dailyAttendanceSummary.employeeCode, employeeCode));
+  //   }
+  //   const reportData = await db
+  //     .select({
+  //       employeeCode: dailyAttendanceSummary.employeeCode,
+  //       employeeName: dailyAttendanceSummary.employeeName,
+  //       // Date range ko string ki tarah format karke bhej rahe hain
+  //       dateRange: sql<string>`${fromDate} || ' to ' || ${toDate}`,
+  //       totalDays: sql<number>`COUNT(DISTINCT ${dailyAttendanceSummary.workDate})`,
+  //       totalHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))`,
+  //       productiveHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))`,
+  //       avgEfficiency: sql<string>`ROUND(AVG(CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)), 2)`,
+  //     })
+  //     .from(dailyAttendanceSummary)
+  //     .where(and(...conditions))
+  //     .groupBy(dailyAttendanceSummary.employeeCode, dailyAttendanceSummary.employeeName);
+  //   return reportData;
+  // }
+  async getEmplyeeEefficiency(
+    fromDate: string,
+    toDate: string,
+    employeeCode?: string,
+    page?: number | string,
+    pageSize?: number | string
+  ) {
+    // Base Conditions
     let conditions = [
       gte(dailyAttendanceSummary.workDate, fromDate),
       lte(dailyAttendanceSummary.workDate, toDate)
     ];
-    // 2. Agar user ne specific Employee select kiya hai (aur "all" nahi hai)
-    if (employeeCode && employeeCode !== "all" && employeeCode !== "") {
-      conditions.push(eq(dailyAttendanceSummary.employeeCode, employeeCode));
+    // Employee Filter
+    if (
+      employeeCode &&
+      employeeCode !== "all" &&
+      employeeCode !== ""
+    ) {
+      conditions.push(
+        eq(dailyAttendanceSummary.employeeCode, employeeCode)
+      );
     }
     const reportData = await db
       .select({
         employeeCode: dailyAttendanceSummary.employeeCode,
         employeeName: dailyAttendanceSummary.employeeName,
-        // Date range ko string ki tarah format karke bhej rahe hain
-        dateRange: sql<string>`${fromDate} || ' to ' || ${toDate}`,
-        totalDays: sql<number>`COUNT(DISTINCT ${dailyAttendanceSummary.workDate})`,
-        totalHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))`,
-        productiveHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))`,
-        avgEfficiency: sql<string>`ROUND(AVG(CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)), 2)`,
+        dateRange: sql<string>`
+        ${fromDate} || ' to ' || ${toDate}
+      `,
+        totalDays: sql<number>`
+        COUNT(DISTINCT ${dailyAttendanceSummary.workDate})
+      `,
+        totalHours: sql<string>`
+        SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))
+      `,
+        productiveHours: sql<string>`
+        SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))
+      `,
+        avgEfficiency: sql<string>`
+        ROUND(
+          AVG(
+            CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)
+          ),
+          2
+        )
+      `,
       })
       .from(dailyAttendanceSummary)
       .where(and(...conditions))
-      .groupBy(dailyAttendanceSummary.employeeCode, dailyAttendanceSummary.employeeName);
-    return reportData;
+      .groupBy(
+        dailyAttendanceSummary.employeeCode,
+        dailyAttendanceSummary.employeeName
+      );
+    return withPagination(
+      null,
+      null,
+      JSON.parse(JSON.stringify(reportData)),
+      page,
+      pageSize
+    );
   }
-  async getDepartmentEfficiencyReport(fromDate: string, toDate: string, filterDeptId?: number) {
-    // 1. Base filters (Date Range)
+  // async getDepartmentEfficiencyReport(fromDate: string, toDate: string, filterDeptId?: number) {
+  //   // 1. Base filters (Date Range)
+  //   let conditions = [
+  //     gte(dailyAttendanceSummary.workDate, fromDate),
+  //     lte(dailyAttendanceSummary.workDate, toDate)
+  //   ];
+  //   // 2. Direct ID Filter: Agar dropdown se Department ID aayi hai
+  //   if (filterDeptId && filterDeptId !== 0) {
+  //     conditions.push(eq(dailyAttendanceSummary.departmentId, filterDeptId));
+  //   }
+  //   const reportData = await db
+  //     .select({
+  //       // Display ke liye departmentName use karenge, par filter ID se hoga
+  //       department: dailyAttendanceSummary.departmentName,
+  //       dateRange: sql<string>`${fromDate} || ' to ' || ${toDate}`,
+  //       totalManpower: sql<number>`COUNT(DISTINCT ${dailyAttendanceSummary.employeeCode})`,
+  //       totalManHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))`,
+  //       productiveHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))`,
+  //       avgEfficiency: sql<string>`ROUND(AVG(CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)), 2)`,
+  //     })
+  //     .from(dailyAttendanceSummary)
+  //     .where(and(...conditions))
+  //     .groupBy(dailyAttendanceSummary.departmentName, dailyAttendanceSummary.departmentId);
+  //   return reportData;
+  // }
+  async getDepartmentEfficiencyReport(
+    fromDate: string,
+    toDate: string,
+    filterDeptId?: number,
+    page?: number | string,
+    pageSize?: number | string
+  ) {
+
+    // Base Filters
     let conditions = [
       gte(dailyAttendanceSummary.workDate, fromDate),
       lte(dailyAttendanceSummary.workDate, toDate)
     ];
-    // 2. Direct ID Filter: Agar dropdown se Department ID aayi hai
+
+    // Department Filter
     if (filterDeptId && filterDeptId !== 0) {
-      conditions.push(eq(dailyAttendanceSummary.departmentId, filterDeptId));
+      conditions.push(
+        eq(dailyAttendanceSummary.departmentId, filterDeptId)
+      );
     }
+
     const reportData = await db
       .select({
-        // Display ke liye departmentName use karenge, par filter ID se hoga
+
         department: dailyAttendanceSummary.departmentName,
-        dateRange: sql<string>`${fromDate} || ' to ' || ${toDate}`,
-        totalManpower: sql<number>`COUNT(DISTINCT ${dailyAttendanceSummary.employeeCode})`,
-        totalManHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))`,
-        productiveHours: sql<string>`SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))`,
-        avgEfficiency: sql<string>`ROUND(AVG(CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)), 2)`,
+
+        dateRange: sql<string>`
+${fromDate} || ' to ' || ${toDate}
+`,
+
+        totalManpower: sql<number>`
+ COUNT(DISTINCT ${dailyAttendanceSummary.employeeCode})
+ `,
+
+        totalManHours: sql<string>`
+ SUM(
+ CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC)
+)
+`,
+
+        productiveHours: sql<string>`
+ SUM(
+ CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC)
+ )
+ `,
+
+        avgEfficiency: sql<string>`
+ ROUND(
+ AVG(
+ CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)
+ ),
+ 2
+ )
+ `,
       })
       .from(dailyAttendanceSummary)
       .where(and(...conditions))
-      .groupBy(dailyAttendanceSummary.departmentName, dailyAttendanceSummary.departmentId);
-    return reportData;
+      .groupBy(
+        dailyAttendanceSummary.departmentName,
+        dailyAttendanceSummary.departmentId
+      );
+
+    return withPagination(
+      null,
+      null,
+      JSON.parse(JSON.stringify(reportData)),
+      page,
+      pageSize
+    );
   }
   async logAudit(db: any, logData: InsertAuditLog): Promise<void> {
     try {
       await db.insert(auditLogs).values({
         userId: String(logData.userId),
-        userName: logData.userName,
         tableName: logData.tableName,
         recordId: String(logData.recordId),
         action: logData.action,
@@ -4027,6 +4571,5 @@ export class DatabaseStorage implements IStorage {
       console.error("Audit log background me save nahi ho paya:", error);
     }
   }
-
 }
 export const storage = new DatabaseStorage();

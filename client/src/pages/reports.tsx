@@ -92,215 +92,438 @@ const reportTypes = [
     description: "Real-time employee cabin block and lockout status",
   },
 ];
-function formatHours(h: string | number | undefined) {
-  if (h === null || h === undefined || h === "0.00") return "-";
-  return `${Number(h).toFixed(1)}h`;
-}
-function statusBadge(status: string) {
-  const styles: Record<string, string> = {
-    present:
-      "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
-    late: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
-    absent: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
-  };
-  return (
-    <Badge
-      className={`text-[10px] shadow-none border-none ${styles[status?.toLowerCase()] || "bg-muted text-muted-foreground"}`}
-    >
-      {status?.replace(/_/g, " ")}
-    </Badge>
-  );
-}
-const filterConfig: Record<string, string[]> = {
-  attendance: ["dateFrom", "dateTo", "employeeCode", "status"],
-  "access-logs": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
-  "daily-performance": [
-    "dateFrom",
-    "dateTo",
-    "employeeCode",
-    "deviceId",
-    "status",
-  ],
-  "daily-efficiency": ["date", "employeeCode", "deviceId", "status"],
-  "monthly-efficiency": ["dateFrom", "dateTo", "employeeCode"],
-  department: ["dateFrom", "dateTo"],
-  "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
-};
-function getCurrentMonthDates() {
-  const today = new Date();
-  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-  const format = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-  return {
-    dateFrom: format(firstDay),
-    dateTo: format(today),
-  };
-}
-function getCurrentMonthRange() {
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-  const today = new Date();
-  const format = (d: Date) => {
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
-  return {
-    dateFrom: format(firstDay),
-    dateTo: format(today),
-  };
-}
-export function exportDailyEfficiencyCSV(apiResponse: any, doors: any[]) {
-  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
-    MENU_CONFIG.REPORTS.code,
-  );
-  if (!canView) {
-    return (
-      <div className="p-6 text-center text-muted-foreground">
-        You do not have permission to view this page.
-      </div>
-    );
+
+//Export Functions ********************************************************************************************
+
+export async function exportAttendanceCSV(currentAppliedFilters: any) {
+  try {
+    const params = new URLSearchParams();
+
+    // 🔥 Filters add
+    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
+        params.append(k, String(v));
+      }
+    });
+
+    console.log("ATTENDANCE EXPORT PARAMS =>", params.toString());
+
+    const res = await fetch(`/api/reports/attendance?${params.toString()}`);
+
+    if (!res.ok) {
+      throw new Error("Attendance export fetch failed");
+    }
+
+    const apiResponse = await res.json();
+
+    console.log("ATTENDANCE EXPORT RESPONSE =>", apiResponse);
+
+    const reportData = apiResponse?.data || apiResponse || [];
+
+    if (!Array.isArray(reportData)) return;
+
+    const rows = reportData.map((r: any) => ({
+      Employee: r.firstName || r.employeeName || "-",
+
+      "Employee Code": r.employeeCode || "-",
+
+      Date: r.date || "-",
+
+      "Clock In": r.clockIn ? formatTime(r.clockIn) : "-",
+
+      Status: r.status || "-",
+    }));
+
+    if (!rows.length) return;
+
+    const headers = Object.keys(rows[0]);
+
+    const escapeCSV = (val: any) =>
+      `"${String(val ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+
+      ...rows.map((row: any) =>
+        headers.map((header) => escapeCSV(row[header])).join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download = `Attendance_Report.csv`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error("Attendance Export Error:", err);
   }
-  // Backend response se data nikaalna
-  const reportData = apiResponse?.data || apiResponse || [];
-  if (!Array.isArray(reportData) || !reportData.length) return;
-  const formatTimeCSV = (time: any) => {
-    if (!time || time === "-") return "-";
-    const d = new Date(time);
-    if (isNaN(d.getTime())) return String(time);
-    return d
-      .toLocaleTimeString("en-US", {
+}
+export async function exportAccessLogsCSV(currentAppliedFilters: any) {
+  try {
+    const params = new URLSearchParams();
+
+    // 🔥 filters add
+    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
+        params.append(k, String(v));
+      }
+    });
+
+    console.log("EXPORT PARAMS =>", params.toString());
+
+    const res = await fetch(`/api/reports_access_logs?${params.toString()}`);
+
+    if (!res.ok) {
+      throw new Error("Export fetch failed");
+    }
+
+    const apiResponse = await res.json();
+
+    console.log("EXPORT RESPONSE =>", apiResponse);
+
+    const reportData = apiResponse?.data || apiResponse || [];
+
+    if (!Array.isArray(reportData)) return;
+
+    const rows = reportData.map((r: any) => ({
+      "Device Log ID": r.DeviceLogId || r.devicelogid || "-",
+
+      "Employee Name": r.employee_name || r.employeeName || "-",
+
+      "Employee Code": r.employeecode || r.employeeCode || "-",
+
+      Department: r.department_name || "-",
+
+      Designation: r.designation_name || "-",
+
+      "Device ID": r.deviceid || r.DeviceId || "-",
+
+      "Door Name": r.door_name || r.DoorName || "-",
+
+      Direction: r.direction || "-",
+
+      "Log Date":
+        r.logdate || r.LogDate
+          ? formatDateTime(r.logdate || r.LogDate).toLocaleString()
+          : "-",
+    }));
+
+    if (!rows.length) return;
+
+    const headers = Object.keys(rows[0]);
+
+    const escapeCSV = (val: any) =>
+      `"${String(val ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+
+      ...rows.map((row: any) =>
+        headers.map((header) => escapeCSV(row[header])).join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download = `Access_Logs_Report.csv`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error("Export Error:", err);
+  }
+}
+export async function exportEmpProductiveEfficiencyCSV(
+  currentAppliedFilters: any,
+  doors: any[],
+) {
+  try {
+    const params = new URLSearchParams();
+
+    // 🔥 Filters add
+    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
+        params.append(k, String(v));
+      }
+    });
+
+    console.log("EFFICIENCY EXPORT PARAMS =>", params.toString());
+
+    const res = await fetch(
+      `/api/reports/employee-productive-report?${params.toString()}`,
+    );
+
+    if (!res.ok) {
+      throw new Error("Efficiency export fetch failed");
+    }
+
+    const apiResponse = await res.json();
+
+    console.log("EFFICIENCY EXPORT RESPONSE =>", apiResponse);
+
+    const reportData = apiResponse?.data || apiResponse || [];
+
+    if (!Array.isArray(reportData)) return;
+
+    // 🔥 Time formatter
+    const formatTimeCSV = (time: any) => {
+      if (!time || time === "-") return "-";
+
+      const d = new Date(time);
+
+      if (isNaN(d.getTime())) return String(time);
+
+      // 🔥 UTC time ko same rakhne ke liye
+      return d.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
-      })
-      .toLowerCase();
-  };
-  const rows: any[] = [];
-  reportData.forEach((r) => {
-    // 1. Grouping Logic: Har door ke liye multiple entries collect karna
-    const groupedDoors: Record<string, { in: string[]; out: string[] }> = {};
-    (r.movementDetails || []).forEach((m: any) => {
-      // Backend se doorName "PT" ya "Main Gate" aata hai
-      const key = String(m.doorName || "")
-        .trim()
-        .toLowerCase();
-      if (!groupedDoors[key]) {
-        groupedDoors[key] = { in: [], out: [] };
-      }
-      if (m.inTime) groupedDoors[key].in.push(formatTimeCSV(m.inTime));
-      if (m.outTime) groupedDoors[key].out.push(formatTimeCSV(m.outTime));
+        timeZone: "UTC",
+      });
+    };
+
+    const rows: any[] = [];
+
+    reportData.forEach((r: any) => {
+      // 🔥 Door grouping
+      const groupedDoors: Record<
+        string,
+        {
+          in: string[];
+          out: string[];
+        }
+      > = {};
+
+      (r.movementDetails || []).forEach((m: any) => {
+        const key = String(m.doorName || "")
+          .trim()
+          .toLowerCase();
+
+        if (!groupedDoors[key]) {
+          groupedDoors[key] = {
+            in: [],
+            out: [],
+          };
+        }
+
+        if (m.inTime) {
+          groupedDoors[key].in.push(formatTimeCSV(m.inTime));
+        }
+
+        if (m.outTime) {
+          groupedDoors[key].out.push(formatTimeCSV(m.outTime));
+        }
+      });
+
+      // 🔥 Dynamic door columns
+      const doorValues = doors.flatMap((d) => {
+        const key = String(d.DeviceName || d.name || "")
+          .trim()
+          .toLowerCase();
+
+        const doorData = groupedDoors[key];
+
+        return [
+          doorData?.in?.length ? doorData.in.join("\n") : "-",
+
+          doorData?.out?.length ? doorData.out.join("\n") : "-",
+        ];
+      });
+
+      // 🔥 Efficiency calc
+      const efficiency =
+        Number(r.totalPresenceMinutes || 0) > 0
+          ? `${(
+            (Number(r.productiveMinutes || 0) /
+              Number(r.totalPresenceMinutes || 0)) *
+            100
+          ).toFixed(2)}%`
+          : "-";
+
+      rows.push([
+        r.employeeCode || "-",
+
+        r.employeeName || "-",
+
+        r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-",
+
+        ...doorValues,
+
+        r.totalPresenceHours
+          ? `${Number(r.totalPresenceHours).toFixed(2)}h`
+          : "-",
+
+        r.productiveHours ? `${Number(r.productiveHours).toFixed(2)}h` : "-",
+
+        efficiency,
+      ]);
     });
-    // 2. Door Mapping: Multiple timings ko join karna (New Line ke saath)
-    const doorValues = doors.flatMap((d) => {
-      const key = String(d.DeviceName || d.name || "")
-        .trim()
-        .toLowerCase();
-      const doorData = groupedDoors[key];
-      // Join with "\n" taaki Excel cell me ek ke niche ek dikhe
-      return [
-        doorData?.in?.length ? doorData.in.join("\n") : "-",
-        doorData?.out?.length ? doorData.out.join("\n") : "-",
-      ];
+
+    // 🔥 Headers
+    const headers = [
+      "Employee Code",
+
+      "Employee Name",
+
+      "Log Date",
+
+      ...doors.flatMap((d) => [
+        `${d.DeviceName || d.name} IN`,
+        `${d.DeviceName || d.name} OUT`,
+      ]),
+
+      "Total Time",
+
+      "Productive Time",
+
+      "Efficiency %",
+    ];
+
+    const escapeCSV = (val: any) =>
+      `"${String(val ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+
+      ...rows.map((row) => row.map(escapeCSV).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
     });
-    // 3. Calculation Check
-    const prodHrs = parseFloat(r.productiveHours || "0");
-    const presHrs = parseFloat(r.totalPresenceHours || "0");
-    const efficiency =
-      r.efficiency ||
-      (prodHrs > 0 ? `${Math.round((prodHrs / 9) * 100)}%` : "0%");
-    // 4. Row Push
-    rows.push([
-      r.employeeCode || "-",
-      r.employeeName || "-",
-      r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-",
-      ...doorValues,
-      `${presHrs.toFixed(2)}h`,
-      `${prodHrs.toFixed(2)}h`,
-      efficiency,
-    ]);
-  });
-  const headers = [
-    "Employee Code",
-    "Employee Name",
-    "Log Date",
-    ...doors.flatMap((d) => [
-      `${d.DeviceName || d.name} IN`,
-      `${d.DeviceName || d.name} OUT`,
-    ]),
-    "Total Time",
-    "Productive Time",
-    "Efficiency %",
-  ];
-  // 5. CSV Logic: Double quotes (escapeCSV) bahut zaroori hain multi-line data ke liye
-  const escapeCSV = (val: any) => `"${String(val).replace(/"/g, '""')}"`;
-  const csvContent = [
-    headers.map(escapeCSV).join(","),
-    ...rows.map((row) => row.map(escapeCSV).join(",")),
-  ].join("\n");
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `Daily_Efficiency_Report.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download = "Employee_Productive_Efficiency_Report.csv";
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error("Efficiency Export Error:", err);
+  }
 }
-function exportDailyPerformanceCSV(data: any[]) {
-  if (!Array.isArray(data) || !data.length) return;
-  const headers = [
-    "Employee Name",
-    "Gender",
-    "Log Date",
-    "Latest Punch Door",
-    "Shift",
-    "Shift Time",
-    "In Punch",
-    "Out Punch",
-    "Hours Worked",
-    "Duty Status",
-    "OT Hrs",
-  ];
-  const formatHours = (val: any) => {
-    if (!val && val !== 0) return "0h";
-    const num = Number(val);
-    if (isNaN(num)) return "0h";
-    return `${num.toFixed(2)}h`;
-  };
-  const rows = data.map((r) => [
-    r.employeeName || "-",
-    r.gender || "-",
-    r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-",
-    r.latestPunchDoor || "-",
-    r.shift || "-",
-    r.shiftTime || "-",
-    formatTime(r.inPunch),
-    formatTime(r.outPunch),
-    formatHours(r.hoursWorked),
-    r.dutyStatus || "-",
-    formatHours(r.otHours),
-  ]);
-  const escapeCSV = (val: any) => {
-    if (val === null || val === undefined) return '""';
-    return `"${String(val).replace(/"/g, '""')}"`;
-  };
-  const csv =
-    headers.map(escapeCSV).join(",") +
-    "\n" +
-    rows.map((r) => r.map(escapeCSV).join(",")).join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "daily-performance-details.csv";
-  a.click();
-  URL.revokeObjectURL(url);
+export async function exportDailyPerformanceCSV(currentAppliedFilters: any) {
+  try {
+    const params = new URLSearchParams();
+
+    // 🔥 Filters add
+    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
+        params.append(k, String(v));
+      }
+    });
+
+    console.log("DAILY PERFORMANCE EXPORT PARAMS =>", params.toString());
+
+    const res = await fetch(
+      `/api/reports/daily-efficiency?${params.toString()}`,
+    );
+
+    if (!res.ok) {
+      throw new Error("Daily performance export fetch failed");
+    }
+
+    const apiResponse = await res.json();
+
+    console.log("DAILY PERFORMANCE EXPORT RESPONSE =>", apiResponse);
+
+    const reportData = apiResponse?.data || apiResponse || [];
+
+    if (!Array.isArray(reportData)) return;
+
+    const rows = reportData.map((r: any) => ({
+      "Employee Name": r.employeeName || "-",
+
+      Gender: r.gender || "-",
+
+      "Log Date": r.workDate
+        ? new Date(r.workDate).toLocaleDateString("en-GB")
+        : "-",
+
+      "Latest Punch Door": r.doorName || "-",
+
+      Shift: r.shiftname || "-",
+
+      "Shift Time": r.shifttime || "-",
+
+      "In Punch": r.firstIn ? formatTime(r.firstIn) : "-",
+
+      "Out Punch": r.lastOut ? formatTime(r.lastOut) : "-",
+
+      "Hours Worked": r.productiveHours
+        ? `${Number(r.productiveHours).toFixed(2)}h`
+        : "0h",
+
+      "Duty Status": r.attendanceStatus || "-",
+
+      "OT Hrs": r.otHours ? `${Number(r.otHours).toFixed(2)}h` : "0h",
+    }));
+
+    if (!rows.length) return;
+
+    const headers = Object.keys(rows[0]);
+
+    const escapeCSV = (val: any) =>
+      `"${String(val ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+
+      ...rows.map((row: any) =>
+        headers.map((header) => escapeCSV(row[header])).join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download = `Daily_Performance_Report.csv`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error("Daily Performance Export Error:", err);
+  }
 }
 function exportMonthlyStatusCSV(data: any[], daysInMonth: number) {
   if (!data.length) return;
@@ -412,6 +635,337 @@ function exportOTSummaryCSV(data: any[], daysInMonth: number) {
   a.download = "ot-summary.csv";
   a.click();
 }
+export async function exportLockoutCSV(currentAppliedFilters: any) {
+  try {
+    const params = new URLSearchParams();
+
+    // 🔥 Filters add
+    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
+        params.append(k, String(v));
+      }
+    });
+
+    console.log("LOCKOUT EXPORT PARAMS =>", params.toString());
+
+    const res = await fetch(`/api/reports/cabin-lockout?${params.toString()}`);
+
+    if (!res.ok) {
+      throw new Error("Lockout export fetch failed");
+    }
+
+    const apiResponse = await res.json();
+
+    console.log("LOCKOUT EXPORT RESPONSE =>", apiResponse);
+
+    const reportData = apiResponse?.data || apiResponse || [];
+
+    if (!Array.isArray(reportData)) return;
+
+    const rows = reportData.map((row: any) => ({
+      Employee: row.employeeName || "-",
+
+      "Employee Code": row.employeeCode || "-",
+
+      "Cabin / Door": row.doorName || "-",
+
+      Status: row.status === "active" ? "ACTIVE" : "Inactive",
+
+      "Expiry Time": row.lockoutExpiry
+        ? formatDateTime(row.lockoutExpiry).toLocaleString()
+        : "-",
+    }));
+
+    if (!rows.length) return;
+
+    const headers = Object.keys(rows[0]);
+
+    const escapeCSV = (val: any) =>
+      `"${String(val ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+
+      ...rows.map((row: any) =>
+        headers.map((header) => escapeCSV(row[header])).join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    link.download = "Lockout_Report.csv";
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error("Lockout Export Error:", err);
+  }
+}
+export async function exportEmployeePerformanceCSV(currentAppliedFilters: any) {
+  try {
+    const params = new URLSearchParams();
+
+    // filters add
+    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
+        params.append(k, String(v));
+      }
+    });
+
+    // 🔥 IMPORTANT FIX: force full export (bypass pagination)
+    params.set("page", "1");
+    params.set("pageSize", "100000"); // or backend max limit
+
+    console.log("EMPLOYEE EXPORT PARAMS =>", params.toString());
+
+    const res = await fetch(
+      `/api/reports/employee-efficiency-dateRange?${params.toString()}`,
+    );
+
+    if (!res.ok) {
+      throw new Error("Employee performance export fetch failed");
+    }
+
+    const apiResponse = await res.json();
+
+    console.log("EMPLOYEE EXPORT RESPONSE =>", apiResponse);
+
+    const reportData = apiResponse?.data || [];
+
+    if (!Array.isArray(reportData) || reportData.length === 0) return;
+
+    const rows = reportData.map((r: any) => {
+      const totalHours = Number(r.totalHours || 0);
+      const productiveHours = Number(r.productiveHours || 0);
+
+      const efficiency =
+        totalHours > 0
+          ? ((productiveHours / totalHours) * 100).toFixed(2)
+          : "0.00";
+
+      return {
+        "Employee Code": r.employeeCode || "-",
+        "Employee Name": r.employeeName || "-",
+
+        "Date Range": r.dateRange
+          ? r.dateRange
+            .split(" to ")
+            .map((d: string) => new Date(d).toLocaleDateString("en-GB"))
+            .join(" To ")
+          : "-",
+
+        "Total Days": Number(r.totalDays || 0),
+        "Total Hours": totalHours.toFixed(2),
+        "Productive Hours": productiveHours.toFixed(2),
+
+        "Avg. Efficiency %": `${efficiency}%`,
+      };
+    });
+
+    const headers = Object.keys(rows[0]);
+
+    const escapeCSV = (val: any) =>
+      `"${String(val ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row: any) =>
+        headers.map((header) => escapeCSV(row[header])).join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "Employee_Performance_Report.csv";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error("Employee Performance Export Error:", err);
+  }
+}
+export async function exportDepartmentEfficiencyCSV(
+  currentAppliedFilters: any,
+) {
+  try {
+    const params = new URLSearchParams();
+
+    // filters add
+    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
+        params.append(k, String(v));
+      }
+    });
+
+    // 🔥 IMPORTANT FIX: force full data export
+    params.set("page", "1");
+    params.set("pageSize", "100000"); // backend max limit
+
+    console.log("DEPARTMENT EXPORT PARAMS =>", params.toString());
+
+    const res = await fetch(
+      `/api/reports/department-efficiency?${params.toString()}`,
+    );
+
+    if (!res.ok) {
+      throw new Error("Department efficiency export fetch failed");
+    }
+
+    const apiResponse = await res.json();
+
+    console.log("DEPARTMENT EXPORT RESPONSE =>", apiResponse);
+
+    const reportData = apiResponse?.data || [];
+
+    if (!Array.isArray(reportData) || reportData.length === 0) return;
+
+    const rows = reportData.map((r: any) => {
+      const totalHours = Number(r.totalManHours || 0);
+      const productiveHours = Number(r.productiveHours || 0);
+
+      const efficiency =
+        totalHours > 0
+          ? ((productiveHours / totalHours) * 100).toFixed(2)
+          : "0.00";
+
+      return {
+        Department: r.department || "-",
+
+        "Date Range": r.dateRange
+          ? r.dateRange
+            .split(" to ")
+            .map((d: string) => new Date(d).toLocaleDateString("en-GB"))
+            .join(" To ")
+          : "-",
+
+        "Total Manpower": Number(r.totalManpower || 0),
+
+        "Total Man Hours": totalHours.toFixed(2),
+
+        "Productive Hours": productiveHours.toFixed(2),
+
+        "Avg. Efficiency %": `${efficiency}%`,
+      };
+    });
+
+    const headers = Object.keys(rows[0]);
+
+    const escapeCSV = (val: any) =>
+      `"${String(val ?? "").replace(/"/g, '""')}"`;
+
+    const csvContent = [
+      headers.map(escapeCSV).join(","),
+      ...rows.map((row: any) =>
+        headers.map((header) => escapeCSV(row[header])).join(","),
+      ),
+    ].join("\n");
+
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "Department_Efficiency_Report.csv";
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error("Department Efficiency Export Error:", err);
+  }
+}
+//*************************************************************************************************************/
+
+function getDaysInMonth(dateStr?: string) {
+  const date = dateStr ? new Date(dateStr) : new Date();
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+
+function formatHours(h: string | number | undefined) {
+  if (h === null || h === undefined || h === "0.00") return "-";
+  return `${Number(h).toFixed(1)}h`;
+}
+function statusBadge(status: string) {
+  const styles: Record<string, string> = {
+    present:
+      "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
+    late: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+    absent: "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
+  };
+  return (
+    <Badge
+      className={`text-[10px] shadow-none border-none ${styles[status?.toLowerCase()] || "bg-muted text-muted-foreground"}`}
+    >
+      {status?.replace(/_/g, " ")}
+    </Badge>
+  );
+}
+const filterConfig: Record<string, string[]> = {
+  attendance: ["dateFrom", "dateTo", "employeeCode", "status"],
+  "access-logs": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
+  "daily-performance": [
+    "dateFrom",
+    "dateTo",
+    "employeeCode",
+    "deviceId",
+    "status",
+  ],
+  "daily-efficiency": ["date", "employeeCode", "deviceId", "status"],
+  "monthly-efficiency": ["dateFrom", "dateTo", "employeeCode"],
+  department: ["dateFrom", "dateTo"],
+  "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
+};
+function getCurrentMonthDates() {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const format = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  return {
+    dateFrom: format(firstDay),
+    dateTo: format(today),
+  };
+}
+function getCurrentMonthRange() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const today = new Date();
+  const format = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  return {
+    dateFrom: format(firstDay),
+    dateTo: format(today),
+  };
+}
+
 function ReportFilters({
   filters,
   setFilters,
@@ -597,6 +1151,9 @@ function ReportFilters({
     </Card>
   ); // return close
 }
+
+// TABLE COMPONENTS ***********************************************************************************************
+
 function AttendanceTable({ data }: { data: any[] }) {
   return (
     <div className="overflow-x-auto">
@@ -705,27 +1262,29 @@ function DaliyPerformanceTable({ data }: { data?: any[] }) {
         <tbody>
           {safeData.length > 0 ? (
             safeData.map((r) => (
-              <tr key={`${r.employeeCode}-${r.date}`} className="border-b">
+              <tr key={`${r.employeeCode}-${r.workDate}`} className="border-b">
                 <td className="p-3">{r.employeeName || "-"}</td>
                 <td className="p-3">{r.gender || "-"}</td>
                 <td className="p-3">
-                  {r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-"}
+                  {r.workDate
+                    ? new Date(r.workDate).toLocaleDateString("en-GB")
+                    : "-"}
                 </td>
-                <td className="p-3">{r.latestPunchDoor || "-"}</td>
-                <td className="p-3">{r.shift || "-"}</td>
-                <td className="p-3">{r.shiftTime || "-"}</td>
+                <td className="p-3">{r.doorName || "-"}</td>
+                <td className="p-3">{r.shiftname || "-"}</td>
+                <td className="p-3">{r.shifttime || "-"}</td>
                 <td className="p-3 font-mono text-blue-600 dark:text-blue-400">
-                  {formatTime(r.inPunch)}
+                  {formatTime(r.firstIn)}
                 </td>
                 <td className="p-3 font-mono text-orange-600 dark:text-orange-400">
-                  {formatTime(r.outPunch)}
+                  {formatTime(r.lastOut)}
                 </td>
                 <td className="p-3">
-                  {r.hoursWorked
-                    ? `${Number(r.hoursWorked).toFixed(2)}h`
+                  {r.productiveHours
+                    ? `${Number(r.productiveHours).toFixed(2)}h`
                     : "0h"}
                 </td>
-                <td className="p-3">{r.dutyStatus || "-"}</td>
+                <td className="p-3">{r.attendanceStatus || "-"}</td>
                 <td className="p-3">
                   {r.otHours ? `${Number(r.otHours).toFixed(2)}h` : "0h"}
                 </td>
@@ -746,9 +1305,13 @@ function DaliyPerformanceTable({ data }: { data?: any[] }) {
 function DaliyPerformanceSummaryTable({
   data,
   daysInMonth,
+  page,
+  pageSize,
 }: {
   data: any[];
   daysInMonth: number;
+  page: number;
+  pageSize: number;
 }) {
   const safeData = Array.isArray(data) ? data : [];
   // 🔥 Group by employee
@@ -773,6 +1336,11 @@ function DaliyPerformanceSummaryTable({
     else grouped[key].off++;
   });
   const employees = Object.values(grouped);
+  // 🔥 Pagination
+  const paginatedEmployees = employees.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
   return (
     <div className="overflow-x-auto border rounded-md mt-6">
       <table className="w-full text-xs">
@@ -795,7 +1363,7 @@ function DaliyPerformanceSummaryTable({
         </thead>
         <tbody>
           {employees.length > 0 ? (
-            employees.map((emp: any, idx) => {
+            paginatedEmployees.map((emp: any, idx) => {
               // const totalDays = emp.present + emp.absent + emp.off;
               const today = new Date().getDate();
               const dynamicAbsent = Array.from(
@@ -873,9 +1441,13 @@ function DaliyPerformanceSummaryTable({
 function DaliyPerformanceOvertimeSummaryTable({
   data,
   daysInMonth,
+  page,
+  pageSize,
 }: {
   data: any[];
   daysInMonth: number;
+  page: number;
+  pageSize: number;
 }) {
   const safeData = Array.isArray(data) ? data : [];
   // 🔥 Group by employee
@@ -897,6 +1469,10 @@ function DaliyPerformanceOvertimeSummaryTable({
     grouped[key].totalWorkingHrs += otHours;
   });
   const employees = Object.values(grouped);
+  const paginatedEmployees = employees.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
   return (
     <div className="overflow-x-auto border rounded-md mt-6">
       <table className="w-full text-xs">
@@ -917,7 +1493,7 @@ function DaliyPerformanceOvertimeSummaryTable({
         </thead>
         <tbody>
           {employees.length > 0 ? (
-            employees.map((emp: any, idx) => {
+            paginatedEmployees.map((emp: any, idx) => {
               return (
                 <tr key={idx} className="border-b hover:bg-muted/10">
                   <td className="p-2 font-medium">{emp.employeeName}</td>
@@ -1475,7 +2051,6 @@ function EmployeePerformanceTable({ data }: { data?: any[] }) {
 }
 function DepartmentEfficiencyTable({ data }: { data?: any[] }) {
   const safeData = Array.isArray(data) ? data : [];
-
   return (
     <div className="overflow-x-auto border rounded-md">
       <table className="w-max min-w-full text-xs border-collapse">
@@ -1641,10 +2216,8 @@ function LockoutReportTable({ data }: { data: any[] }) {
   );
 }
 
-function getDaysInMonth(dateStr?: string) {
-  const date = dateStr ? new Date(dateStr) : new Date();
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-}
+//********************************************************************************************************** */4
+
 // 4. Main Page Component
 export default function ReportsPage() {
   const { canExport, canView } = usePermission(MENU_CONFIG.REPORTS.code);
@@ -1660,7 +2233,41 @@ export default function ReportsPage() {
   }
   const [activeReport, setActiveReport] = useState("attendance");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(1);
+
+  const [attendancePage, setAttendancePage] = useState(1);
+  const [attendancePageSize, setAttendancePageSize] = useState(10);
+
+  const [accessLogsPage, setAccessLogsPage] = useState(1);
+  const [accessLogsPageSize, setAccessLogsPageSize] = useState(10);
+
+  // 🔥 Daily Performance Summary Pagination
+  const [summaryPage, setSummaryPage] = useState(1);
+  const [summaryPageSize] = useState(10);
+
+  // 🔥 OT Summary Pagination
+  const [otPage, setOtPage] = useState(1);
+  const [otPageSize] = useState(10);
+
+  // 🔥 Daily Performance Details Pagination
+  const [perfPage, setPerfPage] = useState(1);
+  const [perfPageSize, setPerfPageSize] = useState(5);
+
+  // 🔥 Daily Efficiency Results Pagination
+  const [effPage, setEffPage] = useState(1);
+  const [effPageSize, setEffPageSize] = useState(5);
+
+  // 🔥 Employee Performance Pagination
+  const [empPerfPage, setEmpPerfPage] = useState(1);
+  const [empPerfPageSize] = useState(10);
+
+  // 🔥 Department Efficiency Pagination
+  const [deptEffPage, setDeptEffPage] = useState(1);
+  const [deptEffPageSize] = useState(10);
+
+  const [lockoutPage, setLockoutPage] = useState(10);
+  const [lockoutPageSize] = useState(5);
+
   const [location] = useLocation();
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -1708,11 +2315,12 @@ export default function ReportsPage() {
     Record<string, Record<string, string>>
   >({
     attendance: {},
-    "access-logs": {},
+    "access-logs": getCurrentMonthDates(),
     "daily-performance": getCurrentMonthDates(),
     "daily-efficiency": {
       date: new Date().toISOString().split("T")[0], // ✅ single date default
     },
+    "monthly-efficiency": getCurrentMonthDates(),
     department: {},
     "cabin-lockout": {},
   });
@@ -1720,9 +2328,10 @@ export default function ReportsPage() {
     Record<string, Record<string, string>>
   >({
     attendance: {},
-    "access-logs": {},
-    "daily-performance": {},
+    "access-logs": getCurrentMonthDates(),
+    "daily-performance": getCurrentMonthDates(),
     "daily-efficiency": {},
+    "monthly-efficiency": getCurrentMonthDates(),
     department: {},
     "cabin-lockout": {},
   });
@@ -1779,7 +2388,37 @@ export default function ReportsPage() {
     isLoading,
     isFetching,
   } = useQuery({
-    queryKey: ["reports", activeReport, currentAppliedFilters, page, pageSize],
+    // queryKey: ["reports", activeReport, currentAppliedFilters, page, pageSize],
+    // queryKey: [
+    //   "reports",
+    //   activeReport,
+    //   currentAppliedFilters,
+
+    //   activeReport === "daily-efficiency" ? perfPage : page,
+
+    //   activeReport === "daily-efficiency" ? perfPageSize : pageSize,
+    // ],
+    queryKey: [
+      "reports",
+      activeReport,
+      currentAppliedFilters,
+
+      activeReport === "attendance"
+        ? attendancePage
+        : activeReport === "access-logs"
+          ? accessLogsPage
+          : activeReport === "daily-efficiency"
+            ? perfPage
+            : 1,
+
+      activeReport === "attendance"
+        ? attendancePageSize
+        : activeReport === "access-logs"
+          ? accessLogsPageSize
+          : activeReport === "daily-efficiency"
+            ? perfPageSize
+            : 10,
+    ],
 
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -1791,12 +2430,27 @@ export default function ReportsPage() {
       let url = "";
 
       if (activeReport === "attendance") {
-        params.set("page", String(page));
-        params.set("pageSize", String(pageSize));
+        params.set("page", String(attendancePage));
+        params.set("pageSize", String(attendancePageSize));
 
         url = `/api/reports/attendance?${params.toString()}`;
       } else if (activeReport === "access-logs") {
+        params.set("page", String(accessLogsPage));
+        params.set("pageSize", String(accessLogsPageSize));
+
         url = `/api/reports_access_logs?${params.toString()}`;
+      } else if (activeReport === "daily-efficiency") {
+        params.set(
+          "page",
+          String(activeReport === "daily-efficiency" ? perfPage : page),
+        );
+
+        params.set(
+          "pageSize",
+          String(activeReport === "daily-efficiency" ? perfPageSize : pageSize),
+        );
+
+        url = `/api/reports/daily-efficiency?${params.toString()}`;
       } else {
         url = `/api/reports/${activeReport}?${params.toString()}`;
       }
@@ -1808,25 +2462,98 @@ export default function ReportsPage() {
   });
   const totalPages = reportResponse?.totalPages || 1;
 
-  const { data: performanceData = [] } = useQuery<any[]>({
-    queryKey: ["daily-performance-table", currentAppliedFilters],
+  const {
+    data: efficiencyResponse = {
+      data: [],
+      totalCount: 0,
+      totalPages: 1,
+      currentPage: 1,
+      pageSize: 10,
+    },
+    isLoading: isEffLoading,
+    isFetching: isEffFetching,
+  } = useQuery({
+    queryKey: [
+      "daily-efficiency-table",
+      currentAppliedFilters,
+      effPage,
+      effPageSize,
+    ],
+
+    enabled: activeReport === "daily-efficiency",
+
     queryFn: async () => {
       const params = new URLSearchParams();
+
       Object.entries(currentAppliedFilters).forEach(([k, v]) => {
         if (v && k !== "_refresh") {
           params.set(k, String(v));
         }
       });
-      // 🔥 API CHANGED HERE
+
+      // 🔥 ADD PAGINATION HERE
+      params.set("page", String(effPage));
+      params.set("pageSize", String(effPageSize));
+
       const res = await fetch(
         `/api/reports/employee-productive-report?${params.toString()}`,
       );
+
       if (!res.ok) throw new Error("Fetch failed");
-      const json = await res.json();
-      return json.data || [];
+
+      return res.json();
     },
-    enabled: activeReport === "daily-efficiency",
   });
+  const efficiencyData = efficiencyResponse?.data || [];
+  const effTotalPages = efficiencyResponse?.totalPages || 1;
+  const effTotalCount = efficiencyResponse?.totalCount || 0;
+
+  const {
+    data: lockoutResponse = {
+      data: [],
+      totalCount: 0,
+      totalPages: 1,
+      currentPage: 1,
+      pageSize: 10,
+    },
+    isLoading: isLockoutLoading,
+    isFetching: isLockoutFetching,
+  } = useQuery({
+    queryKey: [
+      "cabin-lockout",
+      currentAppliedFilters,
+      lockoutPage,
+      lockoutPageSize,
+    ],
+
+    enabled: activeReport === "cabin-lockout",
+
+    queryFn: async () => {
+      const params = new URLSearchParams();
+
+      Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+        if (v && k !== "_refresh") {
+          params.set(k, String(v));
+        }
+      });
+
+      params.set("page", String(lockoutPage));
+      params.set("pageSize", String(lockoutPageSize));
+
+      const res = await fetch(
+        `/api/reports/cabin-lockout?${params.toString()}`,
+      );
+
+      if (!res.ok) throw new Error("Fetch failed");
+
+      return res.json();
+    },
+
+    placeholderData: (prev) => prev,
+  });
+  const lockoutData = lockoutResponse?.data || [];
+  const lockoutTotalPages = lockoutResponse?.totalPages || 1;
+  const lockoutTotalCount = lockoutResponse?.totalCount || 0;
 
   const { data: otMatrixData = [], isLoading: isOtLoading } = useQuery<any[]>({
     queryKey: ["ot-matrix", currentAppliedFilters],
@@ -1892,8 +2619,21 @@ export default function ReportsPage() {
     enabled: activeReport === "department",
   });
 
-  const { data: employeePerformanceData = [] } = useQuery<any[]>({
-    queryKey: ["employee-performance", currentAppliedFilters],
+  const {
+    data: employeePerformanceResponse = {
+      data: [],
+      totalCount: 0,
+      totalPages: 1,
+      currentPage: 1,
+      pageSize: 10,
+    },
+  } = useQuery({
+    queryKey: [
+      "employee-performance",
+      currentAppliedFilters,
+      empPerfPage,
+      empPerfPageSize,
+    ],
 
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -1903,6 +2643,10 @@ export default function ReportsPage() {
           params.set(k, String(v));
         }
       });
+
+      // 🔥 PAGINATION
+      params.set("page", String(empPerfPage));
+      params.set("pageSize", String(empPerfPageSize));
 
       const res = await fetch(
         `/api/reports/employee-efficiency-dateRange?${params.toString()}`,
@@ -1910,16 +2654,32 @@ export default function ReportsPage() {
 
       if (!res.ok) throw new Error("Fetch failed");
 
-      const json = await res.json();
-
-      return json.data || [];
+      return res.json();
     },
 
     enabled: activeReport === "monthly-efficiency",
   });
+  const employeePerformanceData = employeePerformanceResponse?.data || [];
 
-  const { data: departmentEfficiencyData = [] } = useQuery<any[]>({
-    queryKey: ["department-efficiency", currentAppliedFilters],
+  const empPerfTotalPages = employeePerformanceResponse?.totalPages || 1;
+
+  const empPerfTotalCount = employeePerformanceResponse?.totalCount || 0;
+
+  const {
+    data: departmentEfficiencyResponse = {
+      data: [],
+      totalCount: 0,
+      totalPages: 1,
+      currentPage: 1,
+      pageSize: 10,
+    },
+  } = useQuery({
+    queryKey: [
+      "department-efficiency",
+      currentAppliedFilters,
+      deptEffPage,
+      deptEffPageSize,
+    ],
 
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -1930,19 +2690,26 @@ export default function ReportsPage() {
         }
       });
 
+      // 🔥 PAGINATION
+      params.set("page", String(deptEffPage));
+      params.set("pageSize", String(deptEffPageSize));
+
       const res = await fetch(
         `/api/reports/department-efficiency?${params.toString()}`,
       );
 
       if (!res.ok) throw new Error("Fetch failed");
 
-      const json = await res.json();
-
-      return json.data || [];
+      return res.json();
     },
 
     enabled: activeReport === "monthly-efficiency",
   });
+  const departmentEfficiencyData = departmentEfficiencyResponse?.data || [];
+
+  const deptEffTotalPages = departmentEfficiencyResponse?.totalPages || 1;
+
+  const deptEffTotalCount = departmentEfficiencyResponse?.totalCount || 0;
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
@@ -1962,14 +2729,25 @@ export default function ReportsPage() {
         {reportTypes.map((rt) => (
           <button
             key={rt.id}
+            // onClick={() => {
+            //   setActiveReport(rt.id);
+            //   setPage(1);
+            // }}
             onClick={() => {
               setActiveReport(rt.id);
+
+              if (rt.id === "attendance") {
+                setAttendancePage(1);
+              }
+
+              if (rt.id === "access-logs") {
+                setAccessLogsPage(1);
+              }
             }}
-            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
-              activeReport === rt.id
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
                 ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
                 : "bg-card hover:bg-muted/50"
-            }`}
+              }`}
           >
             <rt.icon
               className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`}
@@ -2019,14 +2797,12 @@ export default function ReportsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() =>
-                        exportCSV("attendance", reportResponse.data)
-                      }
+                      onClick={() => exportAttendanceCSV(currentAppliedFilters)}
                     >
-                      <Download className="w-4 h-4 mr-2" /> Export
+                      <Download className="w-4 h-4 mr-2" />
+                      Export
                     </Button>
                   )}
-                  
                 </CardHeader>
                 <CardContent className="p-0">
                   <AttendanceTable data={reportResponse.data} />
@@ -2036,12 +2812,12 @@ export default function ReportsPage() {
                     <div className="text-sm text-muted-foreground order-2 md:order-1">
                       Showing{" "}
                       <span className="font-semibold text-foreground">
-                        {(page - 1) * pageSize + 1}
+                        {(attendancePage - 1) * attendancePageSize + 1}
                       </span>{" "}
                       to{" "}
                       <span className="font-semibold text-foreground">
                         {Math.min(
-                          page * pageSize,
+                          attendancePage * attendancePageSize,
                           reportResponse?.totalCount || 0,
                         )}
                       </span>{" "}
@@ -2064,14 +2840,14 @@ export default function ReportsPage() {
                           type="number"
                           min={1}
                           max={totalPages}
-                          defaultValue={page}
+                          defaultValue={attendancePage}
                           className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               const val = Number(e.currentTarget.value);
 
                               if (val >= 1 && val <= totalPages) {
-                                setPage(val);
+                                setAttendancePage(val);
                               }
                             }
                           }}
@@ -2085,8 +2861,8 @@ export default function ReportsPage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => setPage(1)}
-                          disabled={page === 1}
+                          onClick={() => setAttendancePage(1)}
+                          disabled={attendancePage === 1}
                         >
                           <ChevronsLeft className="h-4 w-4" />
                         </Button>
@@ -2096,8 +2872,10 @@ export default function ReportsPage() {
                           variant="outline"
                           size="sm"
                           className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
-                          onClick={() => setPage((p) => Math.max(1, p - 1))}
-                          disabled={page === 1}
+                          onClick={() =>
+                            setAttendancePage((p) => Math.max(1, p - 1))
+                          }
+                          disabled={attendancePage === 1}
                         >
                           <ChevronLeft className="h-4 w-4" />
                           Prev
@@ -2105,7 +2883,7 @@ export default function ReportsPage() {
 
                         {/* Current Page */}
                         <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
-                          {page} / {totalPages}
+                          {attendancePage} / {totalPages}
                         </div>
 
                         {/* Next */}
@@ -2114,9 +2892,11 @@ export default function ReportsPage() {
                           size="sm"
                           className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
                           onClick={() =>
-                            setPage((p) => Math.min(totalPages, p + 1))
+                            setAttendancePage((p) =>
+                              Math.min(totalPages, p + 1),
+                            )
                           }
-                          disabled={page === totalPages}
+                          disabled={attendancePage === totalPages}
                         >
                           Next
                           <ChevronRight className="h-4 w-4" />
@@ -2127,36 +2907,145 @@ export default function ReportsPage() {
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8"
-                          onClick={() => setPage(totalPages)}
-                          disabled={page === totalPages}
+                          onClick={() => setAttendancePage(totalPages)}
+                          disabled={attendancePage === totalPages}
                         >
                           <ChevronsRight className="h-4 w-4" />
                         </Button>
-
                       </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             )}
-{activeReport === "access-logs" && (
+
+            {activeReport === "access-logs" && (
               <Card className="shadow-sm border">
                 <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                   <CardTitle className="text-sm font-semibold">
-                    Access Logs Results ({reportResponse.length})
+                    Access Logs Results ({reportResponse.totalCount})
                   </CardTitle>
                   {canExport && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => exportCSV("access-logs", reportResponse)}
+                      onClick={() => exportAccessLogsCSV(currentAppliedFilters)}
                     >
                       <Download className="w-4 h-4 mr-2" /> Export
                     </Button>
                   )}
                 </CardHeader>
                 <CardContent className="p-0">
-                  <AccessLogs data={reportResponse} />
+                  <AccessLogs data={reportResponse.data} />
+
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+                    {/* Left Side */}
+                    <div className="text-sm text-muted-foreground order-2 md:order-1">
+                      Showing{" "}
+                      <span className="font-semibold text-foreground">
+                        {(accessLogsPage - 1) * accessLogsPageSize + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-semibold text-foreground">
+                        {Math.min(
+                          accessLogsPage * accessLogsPageSize,
+                          reportResponse?.totalCount || 0,
+                        )}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-foreground">
+                        {reportResponse?.totalCount || 0}
+                      </span>{" "}
+                      access logs
+                    </div>
+
+                    {/* Right Side */}
+                    <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+                      {/* Go To Page */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Go to Page
+                        </span>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={totalPages}
+                          defaultValue={accessLogsPage}
+                          className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = Number(e.currentTarget.value);
+
+                              if (val >= 1 && val <= totalPages) {
+                                setAccessLogsPage(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Navigation Buttons */}
+                      <div className="flex items-center space-x-1">
+                        {/* First */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setAccessLogsPage(1)}
+                          disabled={accessLogsPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+
+                        {/* Prev */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setAccessLogsPage((p) => Math.max(1, p - 1))
+                          }
+                          disabled={accessLogsPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Prev
+                        </Button>
+
+                        {/* Current Page */}
+                        <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+                          {accessLogsPage} / {totalPages}
+                        </div>
+
+                        {/* Next */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setAccessLogsPage((p) =>
+                              Math.min(totalPages, p + 1),
+                            )
+                          }
+                          disabled={accessLogsPage === totalPages}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+
+                        {/* Last */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setAccessLogsPage(totalPages)}
+                          disabled={accessLogsPage === totalPages}
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -2182,12 +3071,149 @@ export default function ReportsPage() {
                       </Button>
                     )}
                   </CardHeader>
+
                   <CardContent className="p-0">
                     <DaliyPerformanceSummaryTable
                       data={musterRollData}
                       daysInMonth={daysInMonth}
+                      page={summaryPage}
+                      pageSize={summaryPageSize}
                     />
                   </CardContent>
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+                    {/* Left Side */}
+                    <div className="text-sm text-muted-foreground order-2 md:order-1">
+                      Showing{" "}
+                      <span className="font-semibold text-foreground">
+                        {(summaryPage - 1) * summaryPageSize + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-semibold text-foreground">
+                        {Math.min(
+                          summaryPage * summaryPageSize,
+                          musterRollData.length,
+                        )}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-foreground">
+                        {musterRollData.length}
+                      </span>{" "}
+                      employees
+                    </div>
+
+                    {/* Right Side */}
+                    <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+                      {/* Go To Page */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Go to Page
+                        </span>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={Math.ceil(
+                            musterRollData.length / summaryPageSize,
+                          )}
+                          defaultValue={summaryPage}
+                          className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = Number(e.currentTarget.value);
+
+                              if (
+                                val >= 1 &&
+                                val <=
+                                Math.ceil(
+                                  musterRollData.length / summaryPageSize,
+                                )
+                              ) {
+                                setSummaryPage(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Navigation Buttons */}
+                      <div className="flex items-center space-x-1">
+                        {/* First */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setSummaryPage(1)}
+                          disabled={summaryPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+
+                        {/* Prev */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setSummaryPage((p) => Math.max(1, p - 1))
+                          }
+                          disabled={summaryPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Prev
+                        </Button>
+
+                        {/* Current Page */}
+                        <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+                          {summaryPage} /{" "}
+                          {Math.ceil(musterRollData.length / summaryPageSize)}
+                        </div>
+
+                        {/* Next */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setSummaryPage((p) =>
+                              Math.min(
+                                Math.ceil(
+                                  musterRollData.length / summaryPageSize,
+                                ),
+                                p + 1,
+                              ),
+                            )
+                          }
+                          disabled={
+                            summaryPage ===
+                            Math.ceil(musterRollData.length / summaryPageSize)
+                          }
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+
+                        {/* Last */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() =>
+                            setSummaryPage(
+                              Math.ceil(
+                                musterRollData.length / summaryPageSize,
+                              ),
+                            )
+                          }
+                          disabled={
+                            summaryPage ===
+                            Math.ceil(musterRollData.length / summaryPageSize)
+                          }
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
                 {/* C. Overtime & Total Hrs Summary Table (Sabse Neeche) */}
                 <Card className="shadow-sm border">
@@ -2211,8 +3237,131 @@ export default function ReportsPage() {
                     <DaliyPerformanceOvertimeSummaryTable
                       data={otMatrixData}
                       daysInMonth={daysInMonth}
+                      page={otPage}
+                      pageSize={otPageSize}
                     />
                   </CardContent>
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+                    {/* Left Side */}
+                    <div className="text-sm text-muted-foreground order-2 md:order-1">
+                      Showing{" "}
+                      <span className="font-semibold text-foreground">
+                        {(otPage - 1) * otPageSize + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-semibold text-foreground">
+                        {Math.min(otPage * otPageSize, otMatrixData.length)}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-foreground">
+                        {otMatrixData.length}
+                      </span>{" "}
+                      employees
+                    </div>
+
+                    {/* Right Side */}
+                    <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+                      {/* Go To Page */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Go to Page
+                        </span>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={Math.ceil(otMatrixData.length / otPageSize)}
+                          defaultValue={otPage}
+                          className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = Number(e.currentTarget.value);
+
+                              if (
+                                val >= 1 &&
+                                val <=
+                                Math.ceil(otMatrixData.length / otPageSize)
+                              ) {
+                                setOtPage(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Navigation Buttons */}
+                      <div className="flex items-center space-x-1">
+                        {/* First */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setOtPage(1)}
+                          disabled={otPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+
+                        {/* Prev */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() => setOtPage((p) => Math.max(1, p - 1))}
+                          disabled={otPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Prev
+                        </Button>
+
+                        {/* Current Page */}
+                        <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+                          {otPage} /{" "}
+                          {Math.ceil(otMatrixData.length / otPageSize)}
+                        </div>
+
+                        {/* Next */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setOtPage((p) =>
+                              Math.min(
+                                Math.ceil(otMatrixData.length / otPageSize),
+                                p + 1,
+                              ),
+                            )
+                          }
+                          disabled={
+                            otPage ===
+                            Math.ceil(otMatrixData.length / otPageSize)
+                          }
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+
+                        {/* Last */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() =>
+                            setOtPage(
+                              Math.ceil(otMatrixData.length / otPageSize),
+                            )
+                          }
+                          disabled={
+                            otPage ===
+                            Math.ceil(otMatrixData.length / otPageSize)
+                          }
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               </div>
             )}
@@ -2230,7 +3379,7 @@ export default function ReportsPage() {
                         size="sm"
                         variant="outline"
                         onClick={() =>
-                          exportDailyPerformanceCSV(performanceData)
+                          exportDailyPerformanceCSV(currentAppliedFilters)
                         }
                       >
                         <Download className="w-4 h-4 mr-2" />
@@ -2239,8 +3388,117 @@ export default function ReportsPage() {
                     )}
                   </CardHeader>
                   <CardContent className="p-0">
-                    <DaliyPerformanceTable data={performanceData} />
+                    <DaliyPerformanceTable data={reportResponse.data} />
                   </CardContent>
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+                    {/* Left Side */}
+                    <div className="text-sm text-muted-foreground order-2 md:order-1">
+                      Showing{" "}
+                      <span className="font-semibold text-foreground">
+                        {(perfPage - 1) * perfPageSize + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-semibold text-foreground">
+                        {Math.min(
+                          perfPage * perfPageSize,
+                          reportResponse.totalCount,
+                        )}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-foreground">
+                        {reportResponse.totalCount}
+                      </span>{" "}
+                      records
+                    </div>
+
+                    {/* Right Side */}
+                    <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+                      {/* Go To Page */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Go to Page
+                        </span>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={reportResponse.totalPages}
+                          defaultValue={perfPage}
+                          className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = Number(e.currentTarget.value);
+
+                              if (
+                                val >= 1 &&
+                                val <= reportResponse.totalPages
+                              ) {
+                                setPerfPage(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Navigation Buttons */}
+                      <div className="flex items-center space-x-1">
+                        {/* First */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setPerfPage(1)}
+                          disabled={perfPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+
+                        {/* Prev */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() => setPerfPage((p) => Math.max(1, p - 1))}
+                          disabled={perfPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Prev
+                        </Button>
+
+                        {/* Current Page */}
+                        <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+                          {perfPage} / {reportResponse.totalPages}
+                        </div>
+
+                        {/* Next */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setPerfPage((p) =>
+                              Math.min(reportResponse.totalPages, p + 1),
+                            )
+                          }
+                          disabled={perfPage === reportResponse.totalPages}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+
+                        {/* Last */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setPerfPage(reportResponse.totalPages)}
+                          disabled={perfPage === reportResponse.totalPages}
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
                 {/* EFFICIENCY TABLE */}
                 <Card className="shadow-sm border">
@@ -2252,9 +3510,14 @@ export default function ReportsPage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        disabled={!reportResponse || reportResponse.length === 0} // ✅ Empty data pe disable
+                        disabled={
+                          !reportResponse || reportResponse.length === 0
+                        }
                         onClick={() =>
-                          exportDailyEfficiencyCSV(reportResponse, doorData)
+                          exportEmpProductiveEfficiencyCSV(
+                            currentAppliedFilters,
+                            doorData,
+                          )
                         }
                       >
                         <Download className="w-4 h-4 mr-2" />
@@ -2264,10 +3527,111 @@ export default function ReportsPage() {
                   </CardHeader>
                   <CardContent className="p-0">
                     <DailyEfficiencyTable
-                      data={performanceData}
+                      data={efficiencyData}
                       doors={doorData}
                     />
                   </CardContent>
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+                    {/* Left Side */}
+                    <div className="text-sm text-muted-foreground order-2 md:order-1">
+                      Showing{" "}
+                      <span className="font-semibold text-foreground">
+                        {(effPage - 1) * effPageSize + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-semibold text-foreground">
+                        {Math.min(effPage * effPageSize, effTotalCount)}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-foreground">
+                        {effTotalCount}
+                      </span>{" "}
+                      records
+                    </div>
+
+                    {/* Right Side */}
+                    <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+                      {/* Go To Page */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Go to Page
+                        </span>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={effTotalPages}
+                          defaultValue={effPage}
+                          className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = Number(e.currentTarget.value);
+
+                              if (val >= 1 && val <= effTotalPages) {
+                                setEffPage(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Navigation Buttons */}
+                      <div className="flex items-center space-x-1">
+                        {/* First */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setEffPage(1)}
+                          disabled={effPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+
+                        {/* Prev */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() => setEffPage((p) => Math.max(1, p - 1))}
+                          disabled={effPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Prev
+                        </Button>
+
+                        {/* Current Page */}
+                        <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+                          {effPage} / {effTotalPages}
+                        </div>
+
+                        {/* Next */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setEffPage((p) => Math.min(effTotalPages, p + 1))
+                          }
+                          disabled={effPage === effTotalPages}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+
+                        {/* Last */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setEffPage(effTotalPages)}
+                          disabled={effPage === effTotalPages}
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               </div>
             )}
@@ -2279,6 +3643,16 @@ export default function ReportsPage() {
                   <CardTitle className="text-sm font-semibold">
                     Department Wise Manpower & OT Report
                   </CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      exportDepartmentEfficiencyCSV(currentAppliedFilters)
+                    }
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Export
+                  </Button>
                 </CardHeader>
 
                 <CardContent className="p-0">
@@ -2295,23 +3669,157 @@ export default function ReportsPage() {
               <div className="space-y-6">
                 {/* EMPLOYEE PERFORMANCE TABLE */}
                 <Card className="shadow-sm border">
-                  <CardHeader className="border-b py-3 px-4">
+                  <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                     <CardTitle className="text-sm font-semibold">
                       Employee Performance Report
                     </CardTitle>
+
+                    {canExport && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          exportEmployeePerformanceCSV(currentAppliedFilters)
+                        }
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
+                      </Button>
+                    )}
                   </CardHeader>
 
                   <CardContent className="p-0">
                     <EmployeePerformanceTable data={employeePerformanceData} />
                   </CardContent>
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+                    {/* Left Side */}
+                    <div className="text-sm text-muted-foreground order-2 md:order-1">
+                      Showing{" "}
+                      <span className="font-semibold text-foreground">
+                        {(empPerfPage - 1) * empPerfPageSize + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-semibold text-foreground">
+                        {Math.min(
+                          empPerfPage * empPerfPageSize,
+                          empPerfTotalCount,
+                        )}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-foreground">
+                        {empPerfTotalCount}
+                      </span>{" "}
+                      employee records
+                    </div>
+
+                    {/* Right Side */}
+                    <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+                      {/* Go To Page */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Go to Page
+                        </span>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={empPerfTotalPages}
+                          defaultValue={empPerfPage}
+                          className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = Number(e.currentTarget.value);
+
+                              if (val >= 1 && val <= empPerfTotalPages) {
+                                setEmpPerfPage(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Navigation Buttons */}
+                      <div className="flex items-center space-x-1">
+                        {/* First */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setEmpPerfPage(1)}
+                          disabled={empPerfPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+
+                        {/* Prev */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setEmpPerfPage((p) => Math.max(1, p - 1))
+                          }
+                          disabled={empPerfPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Prev
+                        </Button>
+
+                        {/* Current Page */}
+                        <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+                          {empPerfPage} / {empPerfTotalPages}
+                        </div>
+
+                        {/* Next */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setEmpPerfPage((p) =>
+                              Math.min(empPerfTotalPages, p + 1),
+                            )
+                          }
+                          disabled={empPerfPage === empPerfTotalPages}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+
+                        {/* Last */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setEmpPerfPage(empPerfTotalPages)}
+                          disabled={empPerfPage === empPerfTotalPages}
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
 
                 {/* DEPARTMENT EFFICIENCY TABLE */}
                 <Card className="shadow-sm border">
-                  <CardHeader className="border-b py-3 px-4">
+                  <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                     <CardTitle className="text-sm font-semibold">
                       Department Efficiency Report
                     </CardTitle>
+
+                    {canExport && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          exportDepartmentEfficiencyCSV(currentAppliedFilters)
+                        }
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
+                      </Button>
+                    )}
                   </CardHeader>
 
                   <CardContent className="p-0">
@@ -2319,6 +3827,114 @@ export default function ReportsPage() {
                       data={departmentEfficiencyData}
                     />
                   </CardContent>
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+                    {/* Left Side */}
+                    <div className="text-sm text-muted-foreground order-2 md:order-1">
+                      Showing{" "}
+                      <span className="font-semibold text-foreground">
+                        {(deptEffPage - 1) * deptEffPageSize + 1}
+                      </span>{" "}
+                      to{" "}
+                      <span className="font-semibold text-foreground">
+                        {Math.min(
+                          deptEffPage * deptEffPageSize,
+                          deptEffTotalCount,
+                        )}
+                      </span>{" "}
+                      of{" "}
+                      <span className="font-semibold text-foreground">
+                        {deptEffTotalCount}
+                      </span>{" "}
+                      department records
+                    </div>
+
+                    {/* Right Side */}
+                    <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+                      {/* Go To Page */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                          Go to Page
+                        </span>
+
+                        <input
+                          type="number"
+                          min={1}
+                          max={deptEffTotalPages}
+                          defaultValue={deptEffPage}
+                          className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              const val = Number(e.currentTarget.value);
+
+                              if (val >= 1 && val <= deptEffTotalPages) {
+                                setDeptEffPage(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {/* Navigation Buttons */}
+                      <div className="flex items-center space-x-1">
+                        {/* First */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setDeptEffPage(1)}
+                          disabled={deptEffPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </Button>
+
+                        {/* Prev */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setDeptEffPage((p) => Math.max(1, p - 1))
+                          }
+                          disabled={deptEffPage === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Prev
+                        </Button>
+
+                        {/* Current Page */}
+                        <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+                          {deptEffPage} / {deptEffTotalPages}
+                        </div>
+
+                        {/* Next */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                          onClick={() =>
+                            setDeptEffPage((p) =>
+                              Math.min(deptEffTotalPages, p + 1),
+                            )
+                          }
+                          disabled={deptEffPage === deptEffTotalPages}
+                        >
+                          Next
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+
+                        {/* Last */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setDeptEffPage(deptEffTotalPages)}
+                          disabled={deptEffPage === deptEffTotalPages}
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </Card>
               </div>
             )}
@@ -2334,15 +3950,124 @@ export default function ReportsPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => exportCSV("lockout", reportResponse)}
+                      onClick={() => exportLockoutCSV(currentAppliedFilters)}
                     >
-                      <Download className="w-4 h-4 mr-2" /> Export
+                      <Download className="w-4 h-4 mr-2" />
+                      Export
                     </Button>
                   )}
                 </CardHeader>
                 <CardContent className="p-0">
-                  <LockoutReportTable data={reportResponse} />
+                  <LockoutReportTable data={lockoutResponse.data} />
                 </CardContent>
+                <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+                  {/* Left Side */}
+                  <div className="text-sm text-muted-foreground order-2 md:order-1">
+                    Showing{" "}
+                    <span className="font-semibold text-foreground">
+                      {(lockoutPage - 1) * lockoutPageSize + 1}
+                    </span>{" "}
+                    to{" "}
+                    <span className="font-semibold text-foreground">
+                      {Math.min(
+                        lockoutPage * lockoutPageSize,
+                        lockoutTotalCount,
+                      )}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-semibold text-foreground">
+                      {lockoutTotalCount}
+                    </span>{" "}
+                    records
+                  </div>
+
+                  {/* Right Side */}
+                  <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+                    {/* Go to Page */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Go to Page
+                      </span>
+
+                      <input
+                        type="number"
+                        min={1}
+                        max={lockoutTotalPages}
+                        defaultValue={lockoutPage}
+                        className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            const val = Number(e.currentTarget.value);
+
+                            if (val >= 1 && val <= lockoutTotalPages) {
+                              setLockoutPage(val);
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {/* Navigation Buttons */}
+                    <div className="flex items-center space-x-1">
+                      {/* First */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setLockoutPage(1)}
+                        disabled={lockoutPage === 1}
+                      >
+                        <ChevronsLeft className="h-4 w-4" />
+                      </Button>
+
+                      {/* Prev */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                        onClick={() =>
+                          setLockoutPage((p) => Math.max(1, p - 1))
+                        }
+                        disabled={lockoutPage === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Prev
+                      </Button>
+
+                      {/* Current Page */}
+                      <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+                        {lockoutPage} / {lockoutTotalPages}
+                      </div>
+
+                      {/* Next */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
+                        onClick={() =>
+                          setLockoutPage((p) =>
+                            Math.min(lockoutTotalPages, p + 1),
+                          )
+                        }
+                        disabled={lockoutPage === lockoutTotalPages}
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+
+                      {/* Last */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setLockoutPage(lockoutTotalPages)}
+                        disabled={lockoutPage === lockoutTotalPages}
+                      >
+                        <ChevronsRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </Card>
             )}
           </div>
@@ -2351,6 +4076,7 @@ export default function ReportsPage() {
     </div>
   );
 }
+
 function exportCSV(id: string, data: any[]) {
   if (!data || !data.length) return;
   // 🔥 Headers

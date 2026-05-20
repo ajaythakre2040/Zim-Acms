@@ -1,8 +1,9 @@
 import { users, type User, type UpsertUser } from "@shared/models/auth";
 import { db } from "../../db";
-import { eq, and } from "drizzle-orm";
-import { userProfiles, roles, rolePermissions, menuMaster } from "@shared/schema";
+import { eq, and, ne } from "drizzle-orm";
+import { userProfiles, roles, rolePermissions, menuMaster, people } from "@shared/schema";
 import bcrypt from "bcryptjs";
+import { validatePasswordStrength } from "../../utils/validators";
 // TypeScript Interface for Menu Permissions with Details
 export interface MenuPermissionWithDetails {
   permissionId: number;
@@ -124,59 +125,400 @@ class AuthStorage implements IAuthStorage {
       .orderBy(menuMaster.sortOrder);
   }
 
-  async upsertUser(userData: any): Promise<any> {
-    let passwordToStore = userData.password;
+//  async upsertUser(userData: any): Promise<any> {
+//     if (!userData.username || userData.username.trim() === "") {
+//       throw new Error("Username is required.");
+//     }
+//     if (!userData.roleId) {
+//       throw new Error("Role selection is required.");
+//     }
+//     if (!userData.employeeCode || userData.employeeCode.toString().trim() === "") {
+//       throw new Error("Employee Code is required.");
+//     }
 
+//     let finalUserId = userData.id ? userData.id.toString().trim() : undefined;
+
+//     if (finalUserId && !isNaN(Number(finalUserId))) {
+//       const [profileRow] = await db
+//         .select()
+//         .from(userProfiles)
+//         .where(eq(userProfiles.id, parseInt(finalUserId, 10)))
+//         .limit(1);
+      
+//       if (profileRow && profileRow.userId) {
+//         finalUserId = profileRow.userId;
+//       }
+//     }
+
+//     const currentUsername = userData.username.trim();
+//     const finalEmployeeCode = userData.employeeCode.toString().trim();
+//     const finalRoleId = parseInt(userData.roleId.toString(), 10);
+//     const currentEmail = userData.email ? userData.email.trim() : null;
+
+//     const employeeInMaster = await db
+//       .select()
+//       .from(people)
+//       .where(eq(people.employeeCode, finalEmployeeCode)) 
+//       .limit(1);
+
+//     if (employeeInMaster.length === 0) {
+//       throw new Error(`Employee Code '${finalEmployeeCode}' does not exist in the People master records.`);
+//     }
+
+//     if (finalUserId) {
+//       const existingUser = await db
+//         .select()
+//         .from(users)
+//         .where(and(eq(users.username, currentUsername), ne(users.id, finalUserId)))
+//         .limit(1);
+//       if (existingUser.length > 0) {
+//         throw new Error(`Username '${currentUsername}' is already taken by another user.`);
+//       }
+
+//       if (currentEmail) {
+//         const existingEmail = await db
+//           .select()
+//           .from(users)
+//           .where(and(eq(users.email, currentEmail), ne(users.id, finalUserId)))
+//           .limit(1);
+//         if (existingEmail.length > 0) {
+//           throw new Error(`Email '${currentEmail}' is already registered with another user.`);
+//         }
+//       }
+//     } else {
+//       const existingUser = await db.select().from(users).where(eq(users.username, currentUsername)).limit(1);
+//       if (existingUser.length > 0) {
+//         throw new Error(`Username '${currentUsername}' already exists.`);
+//       }
+
+//       const existingProfile = await db.select().from(userProfiles).where(eq(userProfiles.employeeCode, finalEmployeeCode)).limit(1);
+//       if (existingProfile.length > 0) {
+//         throw new Error(`An account has already been created for Employee Code '${finalEmployeeCode}'.`);
+//       }
+
+//       if (currentEmail) {
+//         const existingEmail = await db.select().from(users).where(eq(users.email, currentEmail)).limit(1);
+//         if (existingEmail.length > 0) {
+//           throw new Error(`Email '${currentEmail}' is already registered.`);
+//         }
+//       }
+//     }
+
+//     let passwordToStore = userData.password;
+//     if (passwordToStore) {
+//       const isHashed = passwordToStore.startsWith('$2a$') || passwordToStore.startsWith('$2b$');
+//       if (!isHashed) {
+//         if (!validatePasswordStrength(passwordToStore)) {
+//           throw new Error("Password must be at least 8 characters long and include numbers and special characters.");
+//         }
+//         passwordToStore = await bcrypt.hash(passwordToStore, 10);
+//       }
+//     }
+
+//     return await db.transaction(async (tx) => {
+//       let user: any;
+//       let targetUserId: string;
+
+//       if (finalUserId) {
+//         const updateData: any = {
+//           username: currentUsername,
+//           email: currentEmail,
+//           fullName: userData.employeeName || userData.fullName,
+//           updatedAt: new Date(),
+//         };
+
+//         if (passwordToStore && passwordToStore.trim() !== "") {
+//           updateData.password = passwordToStore;
+//         }
+
+//         const [userCheck] = await tx.select().from(users).where(eq(users.id, finalUserId)).limit(1);
+//         if (!userCheck) {
+//           throw new Error("User record not found in database.");
+//         }
+
+//         const [updatedUser] = await tx
+//           .update(users)
+//           .set(updateData)
+//           .where(eq(users.id, finalUserId))
+//           .returning();
+          
+//         if (!updatedUser) {
+//           throw new Error("Failed to update users record.");
+//         }
+
+//         user = updatedUser;
+//         targetUserId = finalUserId;
+
+//         const [profileCheck] = await tx.select().from(userProfiles).where(eq(userProfiles.userId, targetUserId)).limit(1);
+        
+//         if (profileCheck) {
+//           await tx
+//             .update(userProfiles)
+//             .set({
+//               roleId: finalRoleId,
+//               employeeCode: finalEmployeeCode,
+//               isActive: userData.isActive ?? true,
+//               updatedAt: new Date(),
+//             })
+//             .where(eq(userProfiles.userId, targetUserId));
+//         } else {
+//           await tx
+//             .insert(userProfiles)
+//             .values({
+//               userId: targetUserId,
+//               roleId: finalRoleId,
+//               employeeCode: finalEmployeeCode,
+//               isActive: userData.isActive ?? true,
+//             });
+//         }
+
+//       } else {
+//         if (!passwordToStore) {
+//           throw new Error("Password is required for a new user registration.");
+//         }
+
+//         const [newUser] = await tx
+//           .insert(users)
+//           .values({
+//             username: currentUsername,
+//             password: passwordToStore,
+//             email: currentEmail,
+//             fullName: userData.employeeName || userData.fullName,
+//           })
+//           .returning();
+          
+//         if (!newUser) {
+//           throw new Error("Failed to create user record.");
+//         }
+        
+//         user = newUser;
+//         targetUserId = user.id;
+
+//         await tx
+//           .insert(userProfiles)
+//           .values({
+//             userId: targetUserId,
+//             roleId: finalRoleId,
+//             employeeCode: finalEmployeeCode,
+//             isActive: userData.isActive ?? true,
+//           });
+//       }
+
+//       return user;
+//     });
+//   }
+
+  async upsertUser(userData: any): Promise<any> {
+    if (!userData.username || userData.username.trim() === "") {
+      throw new Error("Username is required.");
+    }
+    if (!userData.roleId) {
+      throw new Error("Role selection is required.");
+    }
+    if (!userData.employeeCode || userData.employeeCode.toString().trim() === "") {
+      throw new Error("Employee Code is required.");
+    }
+
+    const finalUserId = userData.id ? userData.id.toString().trim() : undefined;
+    const currentUsername = userData.username.trim();
+    const finalEmployeeCode = userData.employeeCode.toString().trim();
+    const finalRoleId = parseInt(userData.roleId.toString(), 10);
+    const currentEmail = userData.email ? userData.email.trim() : null;
+
+    const employeeInMaster = await db
+      .select()
+      .from(people)
+      .where(eq(people.employeeCode, finalEmployeeCode))
+      .limit(1);
+
+    if (employeeInMaster.length === 0) {
+      throw new Error(`Employee Code '${finalEmployeeCode}' does not exist in the People master records.`);
+    }
+
+    if (finalUserId) {
+      const existingUser = await db
+        .select()
+        .from(users)
+        .where(and(eq(users.username, currentUsername), ne(users.id, finalUserId)))
+        .limit(1);
+      if (existingUser.length > 0) {
+        throw new Error(`Username '${currentUsername}' is already taken by another user.`);
+      }
+
+      if (currentEmail) {
+        const existingEmail = await db
+          .select()
+          .from(users)
+          .where(and(eq(users.email, currentEmail), ne(users.id, finalUserId)))
+          .limit(1);
+        if (existingEmail.length > 0) {
+          throw new Error(`Email '${currentEmail}' is already registered with another user.`);
+        }
+      }
+    } else {
+      const existingUser = await db.select().from(users).where(eq(users.username, currentUsername)).limit(1);
+      if (existingUser.length > 0) {
+        throw new Error(`Username '${currentUsername}' already exists.`);
+      }
+
+      const existingProfile = await db.select().from(userProfiles).where(eq(userProfiles.employeeCode, finalEmployeeCode)).limit(1);
+      if (existingProfile.length > 0) {
+        throw new Error(`An account has already been created for Employee Code '${finalEmployeeCode}'.`);
+      }
+
+      if (currentEmail) {
+        const existingEmail = await db.select().from(users).where(eq(users.email, currentEmail)).limit(1);
+        if (existingEmail.length > 0) {
+          throw new Error(`Email '${currentEmail}' is already registered.`);
+        }
+      }
+    }
+
+    let passwordToStore = userData.password;
     if (passwordToStore) {
       const isHashed = passwordToStore.startsWith('$2a$') || passwordToStore.startsWith('$2b$');
       if (!isHashed) {
+        if (!validatePasswordStrength(passwordToStore)) {
+          throw new Error("Password must be at least 8 characters long and include numbers and special characters.");
+        }
         passwordToStore = await bcrypt.hash(passwordToStore, 10);
       }
     }
 
     return await db.transaction(async (tx) => {
-      const [user] = await tx
-        .insert(users)
-        .values({
-          id: userData.id || undefined,
-          username: userData.username,
-          password: passwordToStore,
-          email: userData.email,
-          fullName: userData.employeeName || userData.fullName,
-        })
-        .onConflictDoUpdate({
-          target: users.id,
-          set: {
-            username: userData.username,
-            ...(passwordToStore ? { password: passwordToStore } : {}),
-            email: userData.email,
-            fullName: userData.employeeName || userData.fullName,
-            updatedAt: new Date(),
-          },
-        })
-        .returning();
+      let user: any;
+      let targetUserId: string;
 
-      await tx
-        .insert(userProfiles)
-        .values({
-          userId: user.id,
-          roleId: userData.roleId,
-          employeeCode: userData.employeeCode,
-          isActive: userData.isActive ?? true,
-        })
-        .onConflictDoUpdate({
-          target: userProfiles.userId,
-          set: {
-            roleId: userData.roleId,
-            employeeCode: userData.employeeCode,
-            isActive: userData.isActive,
+      if (finalUserId) {
+        const updateData: any = {
+          username: currentUsername,
+          email: currentEmail,
+          fullName: userData.employeeName || userData.fullName,
+          updatedAt: new Date(),
+        };
+
+        if (passwordToStore && passwordToStore.trim() !== "") {
+          updateData.password = passwordToStore;
+        }
+
+        const [userCheck] = await tx.select().from(users).where(eq(users.id, finalUserId)).limit(1);
+        if (!userCheck) {
+          throw new Error("User record not found in database.");
+        }
+
+        const [updatedUser] = await tx
+          .update(users)
+          .set(updateData)
+          .where(eq(users.id, finalUserId))
+          .returning();
+
+        if (!updatedUser) {
+          throw new Error("Failed to update users record.");
+        }
+
+        user = updatedUser;
+        targetUserId = finalUserId;
+
+        // Dono tables direct main target UUID string se sync ho rahi hain
+        await tx
+          .update(userProfiles)
+          .set({
+            roleId: finalRoleId,
+            employeeCode: finalEmployeeCode,
+            isActive: userData.isActive ?? true,
             updatedAt: new Date(),
-          },
-        });
+          })
+          .where(eq(userProfiles.userId, targetUserId));
+
+      } else {
+        if (!passwordToStore) {
+          throw new Error("Password is required for a new user registration.");
+        }
+
+        const [newUser] = await tx
+          .insert(users)
+          .values({
+            username: currentUsername,
+            password: passwordToStore,
+            email: currentEmail,
+            fullName: userData.employeeName || userData.fullName,
+          })
+          .returning();
+
+        if (!newUser) {
+          throw new Error("Failed to create user record.");
+        }
+
+        user = newUser;
+        targetUserId = user.id;
+
+        await tx
+          .insert(userProfiles)
+          .values({
+            userId: targetUserId,
+            roleId: finalRoleId,
+            employeeCode: finalEmployeeCode,
+            isActive: userData.isActive ?? true,
+          });
+      }
 
       return user;
     });
   }
+
+  // async upsertUser(userData: any): Promise<any> {
+  //   let passwordToStore = userData.password;
+
+  //   if (passwordToStore) {
+  //     const isHashed = passwordToStore.startsWith('$2a$') || passwordToStore.startsWith('$2b$');
+  //     if (!isHashed) {
+  //       passwordToStore = await bcrypt.hash(passwordToStore, 10);
+  //     }
+  //   }
+
+  //   return await db.transaction(async (tx) => {
+  //     const [user] = await tx
+  //       .insert(users)
+  //       .values({
+  //         id: userData.id || undefined,
+  //         username: userData.username,
+  //         password: passwordToStore,
+  //         email: userData.email,
+  //         fullName: userData.employeeName || userData.fullName,
+  //       })
+  //       .onConflictDoUpdate({
+  //         target: users.id,
+  //         set: {
+  //           username: userData.username,
+  //           ...(passwordToStore ? { password: passwordToStore } : {}),
+  //           email: userData.email,
+  //           fullName: userData.employeeName || userData.fullName,
+  //           updatedAt: new Date(),
+  //         },
+  //       })
+  //       .returning();
+
+  //     await tx
+  //       .insert(userProfiles)
+  //       .values({
+  //         userId: user.id,
+  //         roleId: userData.roleId,
+  //         employeeCode: userData.employeeCode,
+  //         isActive: userData.isActive ?? true,
+  //       })
+  //       .onConflictDoUpdate({
+  //         target: userProfiles.userId,
+  //         set: {
+  //           roleId: userData.roleId,
+  //           employeeCode: userData.employeeCode,
+  //           isActive: userData.isActive,
+  //           updatedAt: new Date(),
+  //         },
+  //       });
+
+  //     return user;
+  //   });
+  // }
 }
 
 export const authStorage = new AuthStorage();

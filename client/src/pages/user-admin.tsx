@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, Loader2, ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft, EyeOff, Eye } from "lucide-react";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
 
@@ -112,7 +112,7 @@ export default function UserAdminPage() {
   const totalPages = pagedResponse?.totalPages || 1;
   const totalCount = pagedResponse?.totalCount || 0;
   const [deletingId, setDeletingId] = useState<number | null>(null);
-
+  const [showPassword, setShowPassword] = useState(false);
   useEffect(() => {
     if (editing && dialogOpen) {
       setFormData({
@@ -140,39 +140,68 @@ export default function UserAdminPage() {
   const handleSearch = async () => {
     if (!formData.employeeCode) return;
     setIsSearching(true);
+    setFormData((prev) => ({
+      ...prev,
+      employeeName: "",
+      username: "",
+      password: "",
+      email: "",
+      roleId: "",
+      isActive: true,
+    }));
     try {
-      const res = await apiRequest(
-        "GET",
-        `/api/peoplebycode/${formData.employeeCode}`,
-      );
+      const res = await apiRequest("GET", `/api/peoplebycode/${formData.employeeCode}`);
       const data = await res.json();
-      if (data) {
-        setFormData((prev) => ({
-          ...prev,
-          employeeName: data.fullName || data.employeeName || "",
-          email: data.email || "",
-        }));
-      }
-    } catch (err) {
+
+      if (!res.ok) throw new Error(data.message);
+
+      setFormData((prev) => ({
+        ...prev,
+        employeeName: data.fullName || data.employeeName || "",
+        email: data.email || "",
+      }));
+    } catch (err: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Not found",
+        description: err.message || "Employee not found.",
       });
     } finally {
       setIsSearching(false);
     }
   };
-
   const saveMut = useMutation({
     mutationFn: async (data: any) => {
       const url = editing
         ? `/api/user-profiles/${editing.id}`
         : "/api/user-profiles";
       const method = editing ? "PUT" : "POST";
-      const payload = { ...data, roleId: parseInt(data.roleId) };
-      if (editing) delete payload.password;
-      await apiRequest(method, url, payload);
+
+      // 1. Pehle payload taiyar karo aur roleId ko integer banao
+      const payload: any = {
+        ...data,
+        roleId: parseInt(data.roleId)
+      };
+
+      // 2. CRUCIAL FIX FOR EDIT CRASH: 
+      // Agar edit mode chal raha hai, toh password bhejo hi mat payload mein
+      if (editing) {
+        delete payload.password;
+      } else {
+        // Create karte waqt agar password khali hai toh error handle karo
+        if (!payload.password || payload.password.trim() === "") {
+          throw new Error("Password is required for a new user.");
+        }
+      }
+
+      // 3. API Request execute karo aur response save karo
+      const res = await apiRequest(method, url, payload);
+
+      // 4. FIX FOR GENERIC ERRORS: Agar response fail hua hai, toh server ka error nikaalo
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Failed to process database request.");
+      }
     },
     onSuccess: async () => {
       await fetchUsers();
@@ -188,8 +217,9 @@ export default function UserAdminPage() {
     },
     onError: (error: any) => {
       toast({
-        title: "Error",
-        description: error.message,
+        title: "Update Failed",
+        // Ab aapko raw SQL blackbox error string ke bajay saaf error dikhega
+        description: error.message || "Something went wrong while saving.",
         variant: "destructive",
       });
     },
@@ -444,9 +474,18 @@ export default function UserAdminPage() {
               <div className="flex gap-2">
                 <Input
                   value={formData.employeeCode}
-                  onChange={(e) =>
-                    setFormData({ ...formData, employeeCode: e.target.value })
-                  }
+                  disabled={!!editing}
+                  onChange={(e) => {
+                    setFormData({
+                      employeeCode: e.target.value,
+                      employeeName: "",
+                      username: "",
+                      password: "",
+                      email: "",
+                      roleId: "",
+                      isActive: true,
+                    });
+                  }}
                 />
                 <Button
                   type="button"
@@ -499,13 +538,28 @@ export default function UserAdminPage() {
               {!editing && (
                 <div className="grid gap-2 text-left">
                   <Label>Password *</Label>
-                  <Input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                  />
+                  {/* Crucial Fix: parent container relative hona chahiye */}
+                  <div className="relative w-full">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={formData.password}
+                      className="pr-10" // right side padding taaki text eye icon ke peeche na chupe
+                      onChange={(e) =>
+                        setFormData({ ...formData, password: e.target.value })
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

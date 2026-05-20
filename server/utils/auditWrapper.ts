@@ -1,57 +1,60 @@
+import { TableNames } from "../constant";
 import { db } from "../db";
 import { storage } from "../storage";
+import { sql } from "drizzle-orm";
+
+// 🛠️ Generic function jo direct table string se record nikalega
+const getRecordByField = async (tableName: string, fieldName: string, value: any) => {
+    try {
+        const query = sql`SELECT * FROM ${sql.identifier(tableName)} WHERE ${sql.identifier(fieldName)} = ${value} LIMIT 1`;
+        const result = await db.execute(query);
+        return result.rows && result.rows.length > 0 ? result.rows[0] : null;
+    } catch (err) {
+        console.error(`Generic fetch failed for table ${tableName}:`, err);
+        return null;
+    }
+};
 
 export const withAudit = (
-    tableName: string,
+    tableName: TableNames, // Sirf ek baar table ka naam aayega
     action: "ADD" | "EDIT" | "DELETE" | "ADD/EDIT",
     storageOperation: (req: any) => Promise<any>,
     statusCode = 200
 ) => {
     return async (req: any, res: any) => {
         try {
-            // 1. Session se user ID nikal lo
+            // 1. Session user authentication details
             const userId = req.session?.userId || "system";
             const userName = req.session?.userId ? `User ID: ${req.session.userId}` : "System";
 
-            // URL se record ki id nikalna (EDIT aur DELETE ke cases ke liye)
-            const paramId = req.params.id ? parseInt(req.params.id) : null;
+            const rawId = req.params.id;
             let oldData: any = null;
 
-            // 2. Agar EDIT ya DELETE ho raha hai, toh operation se PEHLE old data fetch karo
-            if ((action === "EDIT" || action === "DELETE") && paramId) {
-                try {
-                    // YAHAN DHYAN DEIN: Aapke storage me jo bhi generic single record fetch karne ka function ho
-                    // Jaise getUser(id) ya getRecord(id), use yahan call karna hoga table ke hisab se.
-                    // Ek safe approach ke liye hum dynamic method check kar rahe hain:
-                    if (tableName === "user_profiles" && typeof (storage as any).getUser === "function") {
-                        oldData = await (storage as any).getUser(paramId);
-                    } else if (tableName === "people" && typeof (storage as any).getEmployee === "function") {
-                        oldData = await (storage as any).getEmployee(paramId);
-                    }
-                    // Agar aapke paas koi dusri table hai, toh yahan ek aur else if jod sakte ho
-                } catch (fetchErr) {
-                    console.error("Old data fetch karne me dikkat aayi:", fetchErr);
-                }
+            // 2. EDIT / DELETE ke liye automatic internal GET call
+            if ((action === "EDIT" || action === "DELETE") && rawId) {
+                const queryParam = isNaN(Number(rawId)) ? rawId : parseInt(rawId);
+
+                // user_profiles me string ID aane par user_id check karega, baki sab me standard id
+                const filterColumn = (tableName === "user_profiles" && isNaN(Number(rawId))) ? "user_id" : "id";
+
+                oldData = await getRecordByField(tableName, filterColumn, queryParam);
             }
 
-            // 3. Actual database/storage operation run karo (Insert/Update/Delete execute hoga)
+            // 3. Actual Storage Query/Operation Run Karo
             const result = await storageOperation(req);
+            const recordId = result?.id || result?.userId || rawId || "N/A";
 
-            // 4. Record ID auto-detect karo
-            const recordId = result?.id || paramId || "N/A";
-
-            // 5. Background Audit Log Fire karo
+            // 4. Background Audit Log Fire
             storage.logAudit(db, {
                 userId: String(userId),
-                userName: userName,
-                tableName,
+                tableName, // 👈 Database wala asli naam hi direct audit table me store ho gaya!
                 recordId: String(recordId),
                 action,
-                oldData: oldData ? oldData : null, // Ab yahan asli purana data jayega
-                newData: action === "DELETE" ? null : result, // Naya data jo save hua
+                oldData,
+                newData: action === "DELETE" ? null : result,
             });
 
-            // 6. Response handle karo
+            // 5. Response handling
             if (statusCode === 204) {
                 return res.sendStatus(204);
             } else {

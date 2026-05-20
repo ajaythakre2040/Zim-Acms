@@ -342,7 +342,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
             </Button>
           </form>
 
-          <div className="text-center">
+          {/* <div className="text-center">
             <button
               type="button"
               onClick={() => setMode(mode === "login" ? "register" : "login")}
@@ -353,6 +353,12 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
                 ? "Don't have an account? Register"
                 : "Already have an account? Sign In"}
             </button>
+          </div> */}
+          <div className="text-center mt-4">
+            <p className="text-xs text-muted-foreground">
+              Don't have an account? Please contact the{" "}
+              <span className="font-semibold text-primary">System Administrator</span> to register your profile.
+            </p>
           </div>
 
           <p className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-1.5">
