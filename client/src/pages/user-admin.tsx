@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +25,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Plus, Pencil, Trash2, Search, Loader2, ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft, EyeOff, Eye, Key } from "lucide-react";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
@@ -41,16 +48,13 @@ const fallbackColors: Record<string, string> = {
 };
 
 export default function UserAdminPage() {
-  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
+  // ✅ Hook ko component ke andar initialize kiya hai
+  const confirm = useConfirm();
+
+  const { canAdd, canEdit, canDelete, canView } = usePermission(
     MENU_CONFIG.USER_ADMIN.code,
   );
-  if (!canView) {
-    return (
-      <div className="p-6 text-center text-muted-foreground">
-        You do not have permission to view this page.
-      </div>
-    );
-  }
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [isSearching, setIsSearching] = useState(false);
@@ -66,25 +70,17 @@ export default function UserAdminPage() {
     roleId: "",
     isActive: true,
   });
+
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordTargetUser, setPasswordTargetUser] = useState<any | null>(null);
   const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState(""); // 👈 Naya Confirm Password State
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showResetPassword, setShowResetPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const { data: roles = [] } = useQuery<any[]>({
     queryKey: ["/api/roles"],
   });
-
-  // const { data: profiles = [], isLoading } = useQuery<any[]>({
-  //   queryKey: ["/api/user-profiles"],
-  // });
-
-  // const { data: profilesResponse, isLoading } = useQuery<
-  //   PaginatedResponse<any>
-  // >({
-  //   queryKey: [`/api/user-profiles?page=${page}&pageSize=${pageSize}`],
-  // });
 
   const [pagedResponse, setPagedResponse] = useState<PaginatedResponse<any>>({
     data: [],
@@ -93,16 +89,14 @@ export default function UserAdminPage() {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-
       const res = await fetch(
         `/api/user-profiles?page=${page}&pageSize=${pageSize}`,
       );
-
       const data = await res.json();
-
       setPagedResponse(data);
     } catch (err) {
       console.error("Failed to fetch users", err);
@@ -110,14 +104,16 @@ export default function UserAdminPage() {
       setIsLoading(false);
     }
   };
+
   useEffect(() => {
     fetchUsers();
   }, [page]);
+
   const profiles = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
-  const totalCount = pagedResponse?.totalCount || 0;
-  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+
   useEffect(() => {
     if (editing && dialogOpen) {
       setFormData({
@@ -175,6 +171,7 @@ export default function UserAdminPage() {
       setIsSearching(false);
     }
   };
+
   const saveMut = useMutation({
     mutationFn: async (data: any) => {
       const url = editing
@@ -182,27 +179,21 @@ export default function UserAdminPage() {
         : "/api/user-profiles";
       const method = editing ? "PUT" : "POST";
 
-      // 1. Pehle payload taiyar karo aur roleId ko integer banao
       const payload: any = {
         ...data,
         roleId: parseInt(data.roleId)
       };
 
-      // 2. CRUCIAL FIX FOR EDIT CRASH: 
-      // Agar edit mode chal raha hai, toh password bhejo hi mat payload mein
       if (editing) {
         delete payload.password;
       } else {
-        // Create karte waqt agar password khali hai toh error handle karo
         if (!payload.password || payload.password.trim() === "") {
           throw new Error("Password is required for a new user.");
         }
       }
 
-      // 3. API Request execute karo aur response save karo
       const res = await apiRequest(method, url, payload);
 
-      // 4. FIX FOR GENERIC ERRORS: Agar response fail hua hai, toh server ka error nikaalo
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.message || "Failed to process database request.");
@@ -210,26 +201,21 @@ export default function UserAdminPage() {
     },
     onSuccess: async () => {
       await fetchUsers();
-
       setDialogOpen(false);
       setEditing(null);
-
       toast({
-        title: editing
-          ? "User updated successfully"
-          : "User created successfully",
+        title: editing ? "User updated successfully" : "User created successfully",
       });
     },
     onError: (error: any) => {
       toast({
         title: "Update Failed",
-        // Ab aapko raw SQL blackbox error string ke bajay saaf error dikhega
         description: error.message || "Something went wrong while saving.",
         variant: "destructive",
       });
     },
   });
-  // 🛠️ Password Change Mutation Logic
+
   const passwordMut = useMutation({
     mutationFn: async ({ userId, pass }: { userId: string; pass: string }) => {
       const res = await apiRequest("PUT", `/api/users/${userId}/change-password`, {
@@ -259,13 +245,13 @@ export default function UserAdminPage() {
       });
     },
   });
+
   const deleteMut = useMutation({
-    mutationFn: async (id: number) => {
+    mutationFn: async (id: string) => {
       await apiRequest("DELETE", `/api/user-profiles/${id}`);
     },
     onSuccess: async () => {
       await fetchUsers();
-
       toast({
         title: "User deleted successfully",
       });
@@ -278,17 +264,36 @@ export default function UserAdminPage() {
       });
     },
   });
-  const handleDelete = async (id: number, name: string) => {
-    if (window.confirm(`Are you sure you want to delete user: ${name}?`)) {
-      setDeletingId(id);
 
+  // ✅ Custom dynamic dialog box system perfectly implemented here
+  const handleDelete = async (id: string, name: string) => {
+    const confirmed = await confirm({
+      title: "Delete User Profile?",
+      description: `Are you sure you want to permanently delete user "${name}"? This action cannot be undone.`,
+      confirmText: "Yes, Delete User",
+      cancelText: "Cancel",
+      variant: "destructive"
+    });
+
+    if (confirmed) {
+      setDeletingId(id);
       try {
         await deleteMut.mutateAsync(id);
+      } catch (error) {
+        console.error(error);
       } finally {
         setDeletingId(null);
       }
     }
   };
+
+  if (!canView) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        You do not have permission to view this page.
+      </div>
+    );
+  }
 
   const columns = [
     {
@@ -332,54 +337,77 @@ export default function UserAdminPage() {
         </Badge>
       ),
     },
-
     {
       key: "actions",
       label: "Actions",
       render: (p: any) => (
-        <div className="flex gap-1">
-          {canEdit && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-muted-foreground hover:text-primary"
-              onClick={() => {
-                setPasswordTargetUser(p);
-                setPasswordDialogOpen(true);
-              }}
-              title="Change Password"
-            >
-              <Key className="w-4 h-4" />
-            </Button>
-          )}
-          {canEdit && (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={() => {
-                setEditing(p);
-                setDialogOpen(true);
-              }}
-            >
-              <Pencil className="w-4 h-4" />
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-destructive"
-              disabled={deletingId === p.id}
-              onClick={() => handleDelete(p.id, p.fullName || p.employeeName)}
-            >
-              {deletingId === p.id ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Trash2 className="w-4 h-4" />
-              )}
-            </Button>
-          )}
-        </div>
+        <TooltipProvider delayDuration={200}>
+          <div className="flex gap-1">
+            {canEdit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-muted-foreground hover:text-primary"
+                    onClick={() => {
+                      setPasswordTargetUser(p);
+                      setPasswordDialogOpen(true);
+                    }}
+                  >
+                    <Key className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Change Password</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {canEdit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => {
+                      setEditing(p);
+                      setDialogOpen(true);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Edit User</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {canDelete && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="text-destructive"
+                    disabled={deletingId === p.id}
+                    onClick={() => handleDelete(p.id, p.fullName || p.employeeName)}
+                  >
+                    {deletingId === p.id ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Delete User</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+        </TooltipProvider>
       ),
     },
   ];
@@ -409,8 +437,8 @@ export default function UserAdminPage() {
         searchable
         searchKeys={["fullName", "employeeCode", "username"]}
       />
+
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
-        {/* Left Side */}
         <div className="text-sm text-muted-foreground order-2 md:order-1">
           Showing{" "}
           <span className="font-semibold text-foreground">
@@ -418,7 +446,7 @@ export default function UserAdminPage() {
           </span>{" "}
           to{" "}
           <span className="font-semibold text-foreground">
-            {Math.min(page * pageSize, pagedResponse?.totalCount || 0)}
+            Make bound safe {Math.min(page * pageSize, pagedResponse?.totalCount || 0)}
           </span>{" "}
           of{" "}
           <span className="font-semibold text-foreground">
@@ -427,14 +455,11 @@ export default function UserAdminPage() {
           designations
         </div>
 
-        {/* Right Side */}
         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
-          {/* Go To Page */}
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Go to Page
             </span>
-
             <input
               type="number"
               min={1}
@@ -444,7 +469,6 @@ export default function UserAdminPage() {
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   const val = Number(e.currentTarget.value);
-
                   if (val >= 1 && val <= totalPages) {
                     setPage(val);
                   }
@@ -453,9 +477,7 @@ export default function UserAdminPage() {
             />
           </div>
 
-          {/* Buttons */}
           <div className="flex items-center space-x-1">
-            {/* First */}
             <Button
               variant="ghost"
               size="icon"
@@ -466,7 +488,6 @@ export default function UserAdminPage() {
               <ChevronsLeft className="h-4 w-4" />
             </Button>
 
-            {/* Prev */}
             <Button
               variant="outline"
               size="sm"
@@ -478,12 +499,10 @@ export default function UserAdminPage() {
               Prev
             </Button>
 
-            {/* Page Count */}
             <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
               {page} / {totalPages}
             </div>
 
-            {/* Next */}
             <Button
               variant="outline"
               size="sm"
@@ -495,7 +514,6 @@ export default function UserAdminPage() {
               <ChevronRight className="h-4 w-4" />
             </Button>
 
-            {/* Last */}
             <Button
               variant="ghost"
               size="icon"
@@ -571,9 +589,7 @@ export default function UserAdminPage() {
               />
             </div>
 
-            <div
-              className={`grid ${editing ? "grid-cols-1" : "grid-cols-2"} gap-4`}
-            >
+            <div className={`grid ${editing ? "grid-cols-1" : "grid-cols-2"} gap-4`}>
               <div className="grid gap-2 text-left">
                 <Label>Username *</Label>
                 <Input
@@ -587,12 +603,11 @@ export default function UserAdminPage() {
               {!editing && (
                 <div className="grid gap-2 text-left">
                   <Label>Password *</Label>
-                  {/* Crucial Fix: parent container relative hona chahiye */}
                   <div className="relative w-full">
                     <Input
                       type={showPassword ? "text" : "password"}
                       value={formData.password}
-                      className="pr-10" // right side padding taaki text eye icon ke peeche na chupe
+                      className="pr-10"
                       onChange={(e) =>
                         setFormData({ ...formData, password: e.target.value })
                       }
@@ -664,7 +679,7 @@ export default function UserAdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      {/* 🚀 DIALOG 2: DEDICATED CHANGE PASSWORD POPUP MODAL WITH CONFIRM FIELD */}
+
       <Dialog open={passwordDialogOpen} onOpenChange={(open) => {
         setPasswordDialogOpen(open);
         if (!open) {
@@ -681,11 +696,8 @@ export default function UserAdminPage() {
           <div className="grid gap-4 py-3 text-left">
             <div className="bg-muted/40 p-3 rounded-md border text-sm">
               <p><strong>Employee:</strong> {passwordTargetUser?.fullName || passwordTargetUser?.employeeName || "N/A"}</p>
-
-              {/* <p className="text-xs text-muted-foreground mt-0.5"><strong>User ID Link:</strong> {passwordTargetUser?.userId || passwordTargetUser?.id || "N/A"}</p> */}
             </div>
 
-            {/* Field 1: New Password */}
             <div className="grid gap-2 relative">
               <Label htmlFor="new-password">New Password *</Label>
               <div className="relative w-full">
@@ -707,7 +719,6 @@ export default function UserAdminPage() {
               </div>
             </div>
 
-            {/* Field 2: Confirm Password */}
             <div className="grid gap-2 relative">
               <Label htmlFor="confirm-password">Confirm Password *</Label>
               <div className="relative w-full">
@@ -728,7 +739,6 @@ export default function UserAdminPage() {
                 </button>
               </div>
 
-              {/* Live Error Warning Message */}
               {confirmPassword && newPassword !== confirmPassword && (
                 <p className="text-xs text-destructive font-medium mt-0.5">
                   Passwords do not match!
@@ -740,7 +750,6 @@ export default function UserAdminPage() {
           <DialogFooter>
             <Button
               className="w-full"
-              // Validation: Dono same hone chahiye aur min length 6 honi chahiye, nahi toh button disabled rahega
               disabled={
                 passwordMut.isPending ||
                 newPassword.trim().length < 8 ||
