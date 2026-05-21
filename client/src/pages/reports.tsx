@@ -1518,7 +1518,7 @@ function AccessLogs({ data }: { data: any[] }) {
             <th className="p-3 text-left">Employee Code</th>
             <th className="p-3 text-left">Department</th>
             <th className="p-3 text-left">Designation</th>
-            <th className="p-3 text-left">Device ID</th>
+            <th className="p-3 text-left">Device Name</th>
             <th className="p-3 text-left">Door Name</th>
             <th className="p-3 text-left">Direction</th>
             <th className="p-3 text-left">Log Date</th>
@@ -1536,7 +1536,7 @@ function AccessLogs({ data }: { data: any[] }) {
               <td className="p-3">{r.employeecode || r.employeeCode || "-"}</td>
               <td className="p-3">{r.department_name || "-"}</td>
               <td className="p-3">{r.designation_name || "-"}</td>
-              <td className="p-3">{r.deviceid || r.DeviceId || "-"}</td>
+              <td className="p-3">{r.device_name || r.Device_Name || "-"}</td>
               <td className="p-3">{r.door_name || r.DoorName || "-"}</td>
               <td className="p-3">{r.direction || "-"}</td>
               <td className="p-3">
