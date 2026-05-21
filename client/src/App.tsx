@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ConfirmProvider } from "@/hooks/use-confirm";
 import {
   Shield,
   Lock,
@@ -439,13 +440,29 @@ function AppContent() {
   return <AuthenticatedApp />;
 }
 
+// export default function App() {
+//   return (
+//     <ThemeProvider>
+//       <QueryClientProvider client={queryClient}>
+//         <TooltipProvider>
+//           <AppContent />
+//           <Toaster />
+//         </TooltipProvider>
+//       </QueryClientProvider>
+//     </ThemeProvider>
+//   );
+// }
 export default function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
-          <AppContent />
-          <Toaster />
+          {/* ↓ Is line ko yahan se shuru karo */}
+          <ConfirmProvider>
+            <AppContent />
+            <Toaster />
+          </ConfirmProvider>
+          {/* ↑ Is line par khatam karo */}
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
