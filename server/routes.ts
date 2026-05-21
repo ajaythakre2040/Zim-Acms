@@ -20,9 +20,15 @@ import {
   insertDoorDeviceSchema,
   insertBlockUnblockLogSchema,
   insertMenuMasterSchema,
+  userProfiles,
 } from "@shared/schema";
 import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC, TableNames, TABLES } from "./constant";
-import { withAudit } from "./utils/auditWrapper";
+import { logProfileAudit, withAudit } from "./utils/auditWrapper";
+import { eq } from "drizzle-orm";
+import { db } from "./db";
+import { validateNoHtml } from "@/lib/validation";
+import { validatePasswordStrength } from "./utils/validators";
+import bcrypt from "bcryptjs";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
   next();
@@ -230,12 +236,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //     res.status(500).json({ message: e.message });
   //   }
   // });
-  app.post("/api/user-profiles", requireAuth, withAudit(TABLES.USERS, "ADD", async (req) => await storage.upsertUser(req.body), 201));
-  app.delete("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "DELETE", async (req) => {
-    const targetUserId = req.params.id;
-    await storage.deleteUser(targetUserId);
-    return { id: targetUserId };
-  }, 200));  // app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
+  // app.post("/api/user-profiles", requireAuth, withAudit(TABLES.USERS, "ADD", async (req) => await storage.upsertUser(req.body), 201));
+  // app.delete("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "DELETE", async (req) => {
+  //   const targetUserId = req.params.id;
+  //   await storage.deleteUser(targetUserId);
+  //   return { id: targetUserId };
+  // }, 200));
+  // 
+    // app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
   //   try {
   //     const input = insertUserProfileSchema.partial().parse(req.body);
   //     const profile = await storage.updateUserProfile(parseInt(req.params.id), input);
@@ -254,13 +262,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //   }
   // });
   // app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "EDIT", async (req) => await storage.upsertUser({ ...req.body, id: req.params.id }), 200));
+  app.post("/api/user-profiles", requireAuth, withAudit(TABLES.USERS, "ADD", async (req) => {
+    const newUser = await storage.upsertUser(req.body);
+    await logProfileAudit(req, "ADD", newUser.id);
+    return newUser;
+  }, 201));
   app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "EDIT", async (req) => {
     const userIdFromParams = req.params.id;
-    return await storage.upsertUser({
-      ...req.body,
-      id: userIdFromParams // Ensure kar rahe hain ki id sahi se string ya type format me backend tak jaye
-    });
+    const [oldProfile] = await db .select() .from(userProfiles) .where(eq(userProfiles.userId, userIdFromParams)) .limit(1);
+    const updatedUser = await storage.upsertUser({ ...req.body, id: userIdFromParams });
+    const [newProfile] = await db .select() .from(userProfiles) .where(eq(userProfiles.userId, userIdFromParams)) .limit(1);
+    await logProfileAudit(req, "EDIT", userIdFromParams, oldProfile, newProfile);
+    return updatedUser;
   }, 200));
+  app.delete("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "DELETE", async (req) => {
+    const targetUserId = req.params.id;
+    await logProfileAudit(req, "DELETE", targetUserId);
+    await storage.deleteUser(targetUserId);
+    return { id: targetUserId };
+  }, 200));
+  // app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "EDIT", async (req) => {
+  //   const userIdFromParams = req.params.id;
+  //   return await storage.upsertUser({
+  //     ...req.body,
+  //     id: userIdFromParams // Ensure kar rahe hain ki id sahi se string ya type format me backend tak jaye
+  //   });
+  // }, 200));
   // app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
   //   try {
   //     const result = await storage.upsertUser({
@@ -1594,6 +1621,84 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         success: false,
         message:
           "An internal server error occurred while generating the efficiency report. Please try again later."
+      });
+    }
+  });
+  app.put("/api/users/:id/change-password", requireAuth, withAudit(TABLES.USERS, "EDIT", async (req: any) => {
+    const targetUserId = req.params.id;
+    const { newPassword, confirmPassword } = req.body;
+
+    const validationErrors = validateNoHtml(req.body);
+    if (Object.keys(validationErrors).length > 0) {
+      throw new Error(Object.values(validationErrors).join(", "));
+    }
+
+    if (!newPassword || !confirmPassword) {
+      throw new Error("Both New Password and Confirm Password are required.");
+    }
+
+    if (newPassword !== confirmPassword) {
+      throw new Error("Validation Failed: New password and Confirm password do not match.");
+    }
+
+    if (!validatePasswordStrength(newPassword)) {
+      throw new Error("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.");
+    }
+
+    const updatedUser = await storage.updateUserPassword(targetUserId, newPassword);
+    if (!updatedUser) {
+      throw new Error("User record not found in the database.");
+    }
+
+    return updatedUser;
+  }, 200));
+  app.get("/api/reports/department-wise-manpower", async (req, res) => {
+    try {
+
+      const {
+        dateFrom,
+        dateTo,
+        employeeCode,
+        page = "1",
+        pageSize = "10",
+      } = req.query;
+
+      // Validation
+      if (!dateFrom || !dateTo) {
+        return res.status(400).json({
+          success: false,
+          message: "dateFrom and dateTo are required",
+        });
+      }
+
+      // Storage Call
+      const data = await storage.getDepartmentWiseManpowerReport(
+        {
+          dateFrom: String(dateFrom),
+          dateTo: String(dateTo),
+          employeeCode: employeeCode
+            ? String(employeeCode)
+            : undefined,
+        },
+        Number(page),
+        Number(pageSize)
+      );
+
+      return res.status(200).json({
+        success: true,
+        ...data,
+      });
+
+    } catch (error: any) {
+
+      console.error(
+        "Department Wise Manpower Report Error =>",
+        error
+      );
+
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Internal Server Error",
       });
     }
   });

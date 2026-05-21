@@ -25,11 +25,14 @@ export const validateNoHtml = (data: any) => {
                 errors[key] = "HTML tags are not allowed";
             }
 
-            // 2. Password Field Validation (Using the standalone helper)
-            if (key === "password" && typeof value === "string" && value) {
-                // Hashed password check to skip validation on database updates
-                const isHashed = value.startsWith('$2a$') || value.startsWith('$2b$');
+            // 2. Password Field Validation (Updated for bcryptjs)
+            // Hum "password", "newPassword", aur "confirmPassword" teeno keys ko validate karenge
+            if ((key === "password" || key === "newPassword" || key === "confirmPassword") && typeof value === "string" && value) {
 
+                // 🚀 CRUCIAL FIX: bcryptjs hamesha '$2a$' se start hota hai ($2b$ standard bcrypt ka hota hai)
+                const isHashed = value.startsWith('$2a$');
+
+                // Agar password hashed nahi hai, tabhi validation chalayein
                 if (!isHashed && !validatePasswordStrength(value)) {
                     errors[key] = "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.";
                 }

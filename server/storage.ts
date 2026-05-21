@@ -151,6 +151,7 @@ import {
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
 import { withPagination } from "./utils/pagination.utils";
+import bcryptjs from "bcryptjs";
 dayjs.extend(isBetween);
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -682,14 +683,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     return currentSites;
@@ -763,7 +764,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) {}
+        } catch (e) { }
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -974,12 +975,12 @@ export class DatabaseStorage implements IStorage {
       // Fallback response handling based on pageSize presence
       return pageSize
         ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-          }
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+        }
         : [];
     }
   }
@@ -1084,14 +1085,14 @@ export class DatabaseStorage implements IStorage {
       if (!msDataRaw || msDataRaw.length === 0) {
         return pageSize
           ? {
-              data: [],
-              totalCount: 0,
-              totalPages: 0,
-              currentPage: 1,
-              pageSize: 0,
-              onlineCount: 0,
-              offlineCount: 0,
-            }
+            data: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: 1,
+            pageSize: 0,
+            onlineCount: 0,
+            offlineCount: 0,
+          }
           : [];
       }
       const currentTime = new Date();
@@ -1187,14 +1188,14 @@ export class DatabaseStorage implements IStorage {
       console.error("Device Sync Error:", error);
       return pageSize
         ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-            onlineCount: 0,
-            offlineCount: 0,
-          }
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+          onlineCount: 0,
+          offlineCount: 0,
+        }
         : [];
     }
   }
@@ -1448,7 +1449,7 @@ export class DatabaseStorage implements IStorage {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(people).where(eq(people.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     let results = currentPgData;
@@ -2090,9 +2091,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-                3600000
-              ).toFixed(2)
+              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+              3600000
+            ).toFixed(2)
             : "0.00",
       };
     });
@@ -2379,7 +2380,7 @@ export class DatabaseStorage implements IStorage {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-              String(presentRow.status).toLowerCase() === "present"
+                String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -2407,7 +2408,7 @@ export class DatabaseStorage implements IStorage {
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-              String(filters.status).toLowerCase();
+            String(filters.status).toLowerCase();
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => b.date.localeCompare(a.date));
@@ -2448,7 +2449,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -4373,52 +4374,52 @@ export class DatabaseStorage implements IStorage {
   //   return reportData;
   // }
   async getEmplyeeEefficiency(
-  fromDate: string,
-  toDate: string,
-  employeeCode?: string,
-  page?: number | string,
-  pageSize?: number | string
-) {
-
-  // Base Conditions
-  let conditions = [
-    gte(dailyAttendanceSummary.workDate, fromDate),
-    lte(dailyAttendanceSummary.workDate, toDate)
-  ];
-
-  // Employee Filter
-  if (
-    employeeCode &&
-    employeeCode !== "all" &&
-    employeeCode !== ""
+    fromDate: string,
+    toDate: string,
+    employeeCode?: string,
+    page?: number | string,
+    pageSize?: number | string
   ) {
-    conditions.push(
-      eq(dailyAttendanceSummary.employeeCode, employeeCode)
-    );
-  }
 
-  const reportData = await db
-    .select({
-      employeeCode: dailyAttendanceSummary.employeeCode,
-      employeeName: dailyAttendanceSummary.employeeName,
+    // Base Conditions
+    let conditions = [
+      gte(dailyAttendanceSummary.workDate, fromDate),
+      lte(dailyAttendanceSummary.workDate, toDate)
+    ];
 
-      dateRange: sql<string>`
+    // Employee Filter
+    if (
+      employeeCode &&
+      employeeCode !== "all" &&
+      employeeCode !== ""
+    ) {
+      conditions.push(
+        eq(dailyAttendanceSummary.employeeCode, employeeCode)
+      );
+    }
+
+    const reportData = await db
+      .select({
+        employeeCode: dailyAttendanceSummary.employeeCode,
+        employeeName: dailyAttendanceSummary.employeeName,
+
+        dateRange: sql<string>`
         ${fromDate} || ' to ' || ${toDate}
       `,
 
-      totalDays: sql<number>`
+        totalDays: sql<number>`
         COUNT(DISTINCT ${dailyAttendanceSummary.workDate})
       `,
 
-      totalHours: sql<string>`
+        totalHours: sql<string>`
         SUM(CAST(${dailyAttendanceSummary.totalPresenceHours} AS NUMERIC))
       `,
 
-      productiveHours: sql<string>`
+        productiveHours: sql<string>`
         SUM(CAST(${dailyAttendanceSummary.productiveHours} AS NUMERIC))
       `,
 
-      avgEfficiency: sql<string>`
+        avgEfficiency: sql<string>`
         ROUND(
           AVG(
             CAST(${dailyAttendanceSummary.efficiencyPercent} AS NUMERIC)
@@ -4426,22 +4427,22 @@ export class DatabaseStorage implements IStorage {
           2
         )
       `,
-    })
-    .from(dailyAttendanceSummary)
-    .where(and(...conditions))
-    .groupBy(
-      dailyAttendanceSummary.employeeCode,
-      dailyAttendanceSummary.employeeName
-    );
+      })
+      .from(dailyAttendanceSummary)
+      .where(and(...conditions))
+      .groupBy(
+        dailyAttendanceSummary.employeeCode,
+        dailyAttendanceSummary.employeeName
+      );
 
-  return withPagination(
-    null,
-    null,
-    JSON.parse(JSON.stringify(reportData)),
-    page,
-    pageSize
-  );
-}
+    return withPagination(
+      null,
+      null,
+      JSON.parse(JSON.stringify(reportData)),
+      page,
+      pageSize
+    );
+  }
   // async getDepartmentEfficiencyReport(fromDate: string, toDate: string, filterDeptId?: number) {
   //   // 1. Base filters (Date Range)
   //   let conditions = [
@@ -4542,9 +4543,369 @@ ${fromDate} || ' to ' || ${toDate}
         action: logData.action,
         oldData: logData.oldData ? logData.oldData : null,
         newData: logData.newData ? logData.newData : null,
+        changedColumns: logData.changedColumns ? logData.changedColumns : null,
       });
     } catch (error) {
       console.error("Audit log background me save nahi ho paya:", error);
+    }
+  }
+  async updateUserPassword(userId: string | number, newPassword: string): Promise<any | null> {
+    try {
+      const safeStringId = String(userId);
+      const hashedPassword = await bcryptjs.hash(newPassword, 10);
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({
+          password: hashedPassword,
+          updatedAt: new Date()
+        })
+        .where(eq(users.id, safeStringId))
+        .returning();
+
+      return updatedUser || null;
+    } catch (error) {
+      throw new Error("Failed to execute password update query on database layer.");
+    }
+  }
+  async getDepartmentWiseManpowerReport(
+    filters: {
+      dateFrom: string;
+      dateTo: string;
+      employeeCode?: string;
+    },
+    page: number = 1,
+    pageSize: number = 10
+  ) {
+    try {
+
+      // =========================
+      // Fetch Attendance Summary
+      // =========================
+
+      const rows = await db
+        .select()
+        .from(dailyAttendanceSummary)
+        .where(
+          and(
+            gte(
+              dailyAttendanceSummary.workDate,
+              filters.dateFrom
+            ),
+
+            lte(
+              dailyAttendanceSummary.workDate,
+              filters.dateTo
+            ),
+
+            filters.employeeCode
+              ? eq(
+                dailyAttendanceSummary.employeeCode,
+                filters.employeeCode
+              )
+              : undefined
+          )
+        );
+
+      // =========================
+      // Employee Map
+      // =========================
+
+      const employeeMap = new Map();
+
+      // =========================
+      // Footer Vertical Totals
+      // =========================
+
+      const footerDepartments: Record<
+        string,
+        {
+          duty: number;
+          otHours: number;
+          dutyAmount: number;
+          otAmount: number;
+        }
+      > = {};
+
+      let grandTotalDuty = 0;
+      let grandTotalOT = 0;
+
+      let grandDutyAmount = 0;
+      let grandOTAmount = 0;
+      let grandTotalWages = 0;
+
+      // =========================
+      // Loop Rows
+      // =========================
+
+      for (const row of rows) {
+
+        const empCode =
+          row.employeeCode;
+
+        // =========================
+        // Create Employee Object
+        // =========================
+
+        if (!employeeMap.has(empCode)) {
+
+          employeeMap.set(empCode, {
+
+            employeeCode:
+              row.employeeCode,
+
+            employeeName:
+              row.employeeName || "",
+
+            contractorName: "-",
+
+            perDayRate: 700,
+
+            departments: {},
+
+            totalWorking: {
+              duty: 0,
+              otHours: 0,
+            },
+
+            amount: {
+              dutyAmount: 0,
+              otAmount: 0,
+              totalWages: 0,
+            },
+          });
+        }
+
+        const emp =
+          employeeMap.get(empCode);
+
+        const dept =
+          row.departmentName?.trim();
+
+        // :fire: Invalid department skip
+        if (
+          !dept ||
+          dept === "N/A" ||
+          dept === "NA" ||
+          dept === "-"
+        ) {
+          continue;
+        }
+        // =========================
+        // Create Department
+        // =========================
+
+        if (!emp.departments[dept]) {
+
+          emp.departments[dept] = {
+            duty: 0,
+            otHours: 0,
+          };
+        }
+
+        // =========================
+        // Duty Count
+        // =========================
+
+        emp.departments[dept].duty += 1;
+
+        emp.totalWorking.duty += 1;
+
+        // =========================
+        // OT Hours
+        // =========================
+
+        const otHours =
+          Number(row.otHours || 0);
+
+        emp.departments[dept].otHours +=
+          otHours;
+
+        emp.totalWorking.otHours +=
+          otHours;
+      }
+
+      // =========================
+      // Employee Amount Calculation
+      // =========================
+
+      for (const emp of employeeMap.values()) {
+
+        const perDayRate =
+          emp.perDayRate;
+
+        // =========================
+        // Employee Amount
+        // =========================
+
+        emp.amount.dutyAmount =
+          Number(
+            (
+              emp.totalWorking.duty *
+              perDayRate
+            ).toFixed(2)
+          );
+
+        emp.amount.otAmount =
+          Number(
+            (
+              (perDayRate / 8) *
+              emp.totalWorking.otHours
+            ).toFixed(2)
+          );
+
+        emp.amount.totalWages =
+          Number(
+            (
+              emp.amount.dutyAmount +
+              emp.amount.otAmount
+            ).toFixed(2)
+          );
+
+        // =========================
+        // Footer Department Totals
+        // =========================
+
+        Object.entries(emp.departments).forEach(
+          ([deptName, deptData]: any) => {
+
+            if (!footerDepartments[deptName]) {
+
+              footerDepartments[deptName] = {
+                duty: 0,
+                otHours: 0,
+                dutyAmount: 0,
+                otAmount: 0,
+              };
+            }
+
+            // Duty & OT
+            footerDepartments[deptName].duty +=
+              Number(deptData.duty || 0);
+
+            footerDepartments[deptName].otHours +=
+              Number(deptData.otHours || 0);
+
+            // Amount
+            footerDepartments[deptName].dutyAmount +=
+              Number(deptData.duty || 0) *
+              perDayRate;
+
+            footerDepartments[deptName].otAmount +=
+              Number(deptData.otHours || 0) *
+              (perDayRate / 8);
+          }
+        );
+
+        // =========================
+        // Grand Totals
+        // =========================
+
+        grandTotalDuty +=
+          Number(emp.totalWorking.duty || 0);
+
+        grandTotalOT +=
+          Number(emp.totalWorking.otHours || 0);
+
+        grandDutyAmount +=
+          Number(emp.amount.dutyAmount || 0);
+
+        grandOTAmount +=
+          Number(emp.amount.otAmount || 0);
+
+        grandTotalWages +=
+          Number(emp.amount.totalWages || 0);
+      }
+
+      // =========================
+      // Final Array
+      // =========================
+
+      const finalData =
+        Array.from(employeeMap.values());
+
+      // =========================
+      // Pagination
+      // =========================
+
+      const startIndex =
+        (page - 1) * pageSize;
+
+      const endIndex =
+        startIndex + pageSize;
+
+      const paginatedData =
+        finalData.slice(
+          startIndex,
+          endIndex
+        );
+
+      // =========================
+      // Response
+      // =========================
+
+      return {
+
+        data: paginatedData,
+
+        // :fire: Footer Vertical Totals
+        footerTotals: {
+
+          departments:
+            footerDepartments,
+
+          totalWorking: {
+            duty:
+              Number(
+                grandTotalDuty.toFixed(2)
+              ),
+
+            otHours:
+              Number(
+                grandTotalOT.toFixed(2)
+              ),
+          },
+
+          amount: {
+
+            dutyAmount:
+              Number(
+                grandDutyAmount.toFixed(2)
+              ),
+
+            otAmount:
+              Number(
+                grandOTAmount.toFixed(2)
+              ),
+
+            totalWages:
+              Number(
+                grandTotalWages.toFixed(2)
+              ),
+          },
+        },
+
+        totalCount:
+          finalData.length,
+
+        totalPages:
+          Math.ceil(
+            finalData.length / pageSize
+          ),
+
+        currentPage: page,
+
+        pageSize,
+      };
+
+    } catch (error) {
+
+      console.log(
+        "Department Wise Manpower Report Error =>",
+        error
+      );
+
+      throw error;
     }
   }
 }

@@ -24,7 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, Loader2, ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft, EyeOff, Eye } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft, EyeOff, Eye, Key } from "lucide-react";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
 
@@ -66,7 +66,12 @@ export default function UserAdminPage() {
     roleId: "",
     isActive: true,
   });
-
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [passwordTargetUser, setPasswordTargetUser] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState(""); // 👈 Naya Confirm Password State
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const { data: roles = [] } = useQuery<any[]>({
     queryKey: ["/api/roles"],
   });
@@ -224,7 +229,36 @@ export default function UserAdminPage() {
       });
     },
   });
-
+  // 🛠️ Password Change Mutation Logic
+  const passwordMut = useMutation({
+    mutationFn: async ({ userId, pass }: { userId: string; pass: string }) => {
+      const res = await apiRequest("PUT", `/api/users/${userId}/change-password`, {
+        newPassword: pass,
+        confirmPassword: confirmPassword
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || "Password reset failed on server.");
+      }
+    },
+    onSuccess: () => {
+      setPasswordDialogOpen(false);
+      setPasswordTargetUser(null);
+      setNewPassword("");
+      setConfirmPassword("");
+      toast({
+        title: "Success",
+        description: "User password has been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Password Reset Failed",
+        description: error.message || "Could not update the password.",
+        variant: "destructive",
+      });
+    },
+  });
   const deleteMut = useMutation({
     mutationFn: async (id: number) => {
       await apiRequest("DELETE", `/api/user-profiles/${id}`);
@@ -298,11 +332,26 @@ export default function UserAdminPage() {
         </Badge>
       ),
     },
+
     {
       key: "actions",
       label: "Actions",
       render: (p: any) => (
         <div className="flex gap-1">
+          {canEdit && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-muted-foreground hover:text-primary"
+              onClick={() => {
+                setPasswordTargetUser(p);
+                setPasswordDialogOpen(true);
+              }}
+              title="Change Password"
+            >
+              <Key className="w-4 h-4" />
+            </Button>
+          )}
           {canEdit && (
             <Button
               size="icon"
@@ -611,6 +660,104 @@ export default function UserAdminPage() {
                 : editing
                   ? "Update User"
                   : "Create User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* 🚀 DIALOG 2: DEDICATED CHANGE PASSWORD POPUP MODAL WITH CONFIRM FIELD */}
+      <Dialog open={passwordDialogOpen} onOpenChange={(open) => {
+        setPasswordDialogOpen(open);
+        if (!open) {
+          setNewPassword("");
+          setConfirmPassword("");
+          setPasswordTargetUser(null);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-3 text-left">
+            <div className="bg-muted/40 p-3 rounded-md border text-sm">
+              <p><strong>Employee:</strong> {passwordTargetUser?.fullName || passwordTargetUser?.employeeName || "N/A"}</p>
+
+              {/* <p className="text-xs text-muted-foreground mt-0.5"><strong>User ID Link:</strong> {passwordTargetUser?.userId || passwordTargetUser?.id || "N/A"}</p> */}
+            </div>
+
+            {/* Field 1: New Password */}
+            <div className="grid gap-2 relative">
+              <Label htmlFor="new-password">New Password *</Label>
+              <div className="relative w-full">
+                <Input
+                  id="new-password"
+                  type={showResetPassword ? "text" : "password"}
+                  value={newPassword}
+                  className="pr-10"
+                  placeholder="Minimum 8 characters"
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowResetPassword(!showResetPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showResetPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Field 2: Confirm Password */}
+            <div className="grid gap-2 relative">
+              <Label htmlFor="confirm-password">Confirm Password *</Label>
+              <div className="relative w-full">
+                <Input
+                  id="confirm-password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  className="pr-10"
+                  placeholder="Re-enter new password"
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+
+              {/* Live Error Warning Message */}
+              {confirmPassword && newPassword !== confirmPassword && (
+                <p className="text-xs text-destructive font-medium mt-0.5">
+                  Passwords do not match!
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              className="w-full"
+              // Validation: Dono same hone chahiye aur min length 6 honi chahiye, nahi toh button disabled rahega
+              disabled={
+                passwordMut.isPending ||
+                newPassword.trim().length < 8 ||
+                newPassword !== confirmPassword
+              }
+              onClick={() => {
+                const targetId = passwordTargetUser?.userId || passwordTargetUser?.id;
+                passwordMut.mutate({ userId: targetId, pass: newPassword });
+              }}
+            >
+              {passwordMut.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Updating...
+                </>
+              ) : (
+                "Update Password"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

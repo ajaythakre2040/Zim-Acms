@@ -4,6 +4,7 @@ import { eq, and, ne } from "drizzle-orm";
 import { userProfiles, roles, rolePermissions, menuMaster, people } from "@shared/schema";
 import bcrypt from "bcryptjs";
 import { validatePasswordStrength } from "../../utils/validators";
+import bcryptjs from "bcryptjs";
 // TypeScript Interface for Menu Permissions with Details
 export interface MenuPermissionWithDetails {
   permissionId: number;
@@ -376,13 +377,10 @@ class AuthStorage implements IAuthStorage {
 
     let passwordToStore = userData.password;
     if (passwordToStore) {
-      const isHashed = passwordToStore.startsWith('$2a$') || passwordToStore.startsWith('$2b$');
-      if (!isHashed) {
+      const isHashed = passwordToStore.startsWith('$2a$');      if (!isHashed) {
         if (!validatePasswordStrength(passwordToStore)) {
-          throw new Error("Password must be at least 8 characters long and include numbers and special characters.");
-        }
-        passwordToStore = await bcrypt.hash(passwordToStore, 10);
-      }
+          throw new Error("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.");        }
+        passwordToStore = await bcryptjs.hash(passwordToStore, 10);      }
     }
 
     return await db.transaction(async (tx) => {
@@ -519,6 +517,7 @@ class AuthStorage implements IAuthStorage {
   //     return user;
   //   });
   // }
+  
 }
 
 export const authStorage = new AuthStorage();

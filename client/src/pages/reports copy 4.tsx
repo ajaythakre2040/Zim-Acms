@@ -76,7 +76,7 @@ const reportTypes = [
     description: "Monthly Efficiency records of Employees",
   },
   {
-    id: "department-wise-manpower",
+    id: "department",
     label: "Department",
     icon: Clock,
     color: "text-blue-500",
@@ -895,319 +895,6 @@ export async function exportDepartmentEfficiencyCSV(
     console.error("Department Efficiency Export Error:", err);
   }
 }
-export async function exportDepartmentWiseManpowerCSV(
-  currentAppliedFilters: any,
-  departmentsData: any[] = [],
-) {
-  try {
-
-    const params = new URLSearchParams();
-
-    // 🔥 Filters
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-
-      if (
-        v !== undefined &&
-        v !== null &&
-        v !== "" &&
-        k !== "_refresh"
-      ) {
-        params.append(k, String(v));
-      }
-    });
-
-    console.log(
-      "MANPOWER EXPORT PARAMS =>",
-      params.toString()
-    );
-
-    const res = await fetch(
-      `/api/reports/department-wise-manpower?${params.toString()}`
-    );
-
-    if (!res.ok) {
-      throw new Error(
-        "Department manpower export fetch failed"
-      );
-    }
-
-    const apiResponse = await res.json();
-
-    console.log(
-      "MANPOWER EXPORT RESPONSE =>",
-      apiResponse
-    );
-
-    const reportData =
-      apiResponse?.data || [];
-
-    const footerTotals =
-      apiResponse?.footerTotals || {};
-
-    if (!Array.isArray(reportData)) return;
-
-    // =========================================
-    // 🔥 AUTO DEPARTMENT LIST CREATE
-    // =========================================
-
-    let finalDepartments = departmentsData;
-
-    // Agar departments prop empty aaye
-    // to data se auto department nikal lo
-    if (!finalDepartments.length) {
-
-      const deptMap = new Map();
-
-      reportData.forEach((r: any) => {
-
-        Object.keys(
-          r.departments || {}
-        ).forEach((deptName) => {
-
-          deptMap.set(
-            deptName,
-            {
-              departmentName: deptName,
-            }
-          );
-        });
-      });
-
-      finalDepartments =
-        Array.from(deptMap.values());
-    }
-
-    console.log(
-      "FINAL DEPARTMENTS =>",
-      finalDepartments
-    );
-
-    // =========================================
-    // 🔥 CREATE MAIN ROWS
-    // =========================================
-
-    const rows = reportData.map((r: any) => {
-
-      const row: any = {
-
-        "Employee Code":
-          r.employeeCode || "-",
-
-        "Employee Name":
-          r.employeeName || "-",
-
-        "Per Day Rate":
-          r.perDayRate || 0,
-
-        "Contractor Name":
-          r.contractorName || "-",
-      };
-
-      // 🔥 Dynamic Department Columns
-      finalDepartments.forEach((dept: any) => {
-
-        const deptName =
-          dept.departmentName ||
-          dept.name ||
-          "Unknown";
-
-        const deptData =
-          r.departments?.[deptName] || {};
-
-        row[`${deptName} Duty`] =
-          deptData?.duty || 0;
-
-        row[`${deptName} OT Hrs`] =
-          deptData?.otHours || 0;
-      });
-
-      // 🔥 Totals
-      row["Total Duty"] =
-        r.totalWorking?.duty || 0;
-
-      row["Total OT Hrs"] =
-        r.totalWorking?.otHours || 0;
-
-      row["Duty Amount"] =
-        r.amount?.dutyAmount || 0;
-
-      row["OT Amount"] =
-        r.amount?.otAmount || 0;
-
-      row["Total Wages"] =
-        r.amount?.totalWages || 0;
-
-      return row;
-    });
-
-    // =========================================
-    // 🔥 FOOTER ROW 1
-    // =========================================
-
-    const footerWorking: any = {
-
-      "Employee Code": "",
-
-      "Employee Name":
-        "Device/Department Wise Working (Duty & OT)",
-
-      "Per Day Rate": "",
-
-      "Contractor Name": "",
-    };
-
-    finalDepartments.forEach((dept: any) => {
-
-      const deptName =
-        dept.departmentName ||
-        dept.name ||
-        "Unknown";
-
-      const deptFooter =
-        footerTotals?.departments?.[
-        deptName
-        ] || {};
-
-      footerWorking[`${deptName} Duty`] =
-        deptFooter?.duty || 0;
-
-      footerWorking[`${deptName} OT Hrs`] =
-        deptFooter?.otHours || 0;
-    });
-
-    footerWorking["Total Duty"] =
-      footerTotals?.totalWorking?.duty || 0;
-
-    footerWorking["Total OT Hrs"] =
-      footerTotals?.totalWorking?.otHours || 0;
-
-    footerWorking["Duty Amount"] =
-      footerTotals?.amount?.dutyAmount || 0;
-
-    footerWorking["OT Amount"] =
-      footerTotals?.amount?.otAmount || 0;
-
-    footerWorking["Total Wages"] =
-      footerTotals?.amount?.totalWages || 0;
-
-    rows.push(footerWorking);
-
-    // =========================================
-    // 🔥 FOOTER ROW 2
-    // =========================================
-
-    const footerAmount: any = {
-
-      "Employee Code": "",
-
-      "Employee Name":
-        "Device/Department Wise Amount (Rs.)",
-
-      "Per Day Rate": "",
-
-      "Contractor Name": "",
-    };
-
-    finalDepartments.forEach((dept: any) => {
-
-      const deptName =
-        dept.departmentName ||
-        dept.name ||
-        "Unknown";
-
-      const deptFooter =
-        footerTotals?.departments?.[
-        deptName
-        ] || {};
-
-      footerAmount[`${deptName} Duty`] =
-        deptFooter?.dutyAmount || 0;
-
-      footerAmount[`${deptName} OT Hrs`] =
-        deptFooter?.otAmount || 0;
-    });
-
-    footerAmount["Total Duty"] =
-      footerTotals?.totalWorking?.duty || 0;
-
-    footerAmount["Total OT Hrs"] =
-      footerTotals?.totalWorking?.otHours || 0;
-
-    footerAmount["Duty Amount"] =
-      footerTotals?.amount?.dutyAmount || 0;
-
-    footerAmount["OT Amount"] =
-      footerTotals?.amount?.otAmount || 0;
-
-    footerAmount["Total Wages"] =
-      footerTotals?.amount?.totalWages || 0;
-
-    rows.push(footerAmount);
-
-    if (!rows.length) return;
-
-    // =========================================
-    // 🔥 CSV CREATE
-    // =========================================
-
-    const headers =
-      Object.keys(rows[0]);
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-
-      headers
-        .map(escapeCSV)
-        .join(","),
-
-      ...rows.map((row: any) =>
-        headers
-          .map((header) =>
-            escapeCSV(row[header])
-          )
-          .join(","),
-      ),
-
-    ].join("\n");
-
-    // =========================================
-    // 🔥 DOWNLOAD
-    // =========================================
-
-    const blob = new Blob(
-      [csvContent],
-      {
-        type: "text/csv;charset=utf-8;",
-      }
-    );
-
-    const url =
-      URL.createObjectURL(blob);
-
-    const link =
-      document.createElement("a");
-
-    link.href = url;
-
-    link.download =
-      "Department_Wise_Manpower_Report.csv";
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-
-  } catch (err) {
-
-    console.error(
-      "Department Wise Manpower Export Error:",
-      err
-    );
-  }
-}
 //*************************************************************************************************************/
 
 function getDaysInMonth(dateStr?: string) {
@@ -1246,7 +933,7 @@ const filterConfig: Record<string, string[]> = {
   ],
   "daily-efficiency": ["date", "employeeCode", "deviceId", "status"],
   "monthly-efficiency": ["dateFrom", "dateTo", "employeeCode"],
-  "department-wise-manpower": ["dateFrom", "dateTo"],
+  department: ["dateFrom", "dateTo"],
   "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
 };
 function getCurrentMonthDates() {
@@ -2035,43 +1722,24 @@ function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
 function DepartmentWiseManpowerTable({
   data,
   departments,
-  footerTotals,
 }: {
   data?: any[];
   departments: any[];
-  footerTotals?: any;
 }) {
-
-  const safeData =
-    Array.isArray(data)
-      ? data
-      : [];
+  const safeData = Array.isArray(data) ? data : [];
 
   return (
     <div className="overflow-x-auto border rounded-md">
-
       <table className="w-max min-w-full text-xs border-collapse">
-
-        {/* ========================= */}
-        {/* HEADER */}
-        {/* ========================= */}
-
+        {/* 🔥 HEADER */}
         <thead>
-
           {/* TOP HEADER */}
           <tr className="border-b bg-muted/30">
-
-            <th
-              rowSpan={2}
-              className="border p-3 text-left whitespace-nowrap"
-            >
+            <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
               Employee Code
             </th>
 
-            <th
-              rowSpan={2}
-              className="border p-3 text-left whitespace-nowrap"
-            >
+            <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
               Employee Name
             </th>
 
@@ -2082,14 +1750,11 @@ function DepartmentWiseManpowerTable({
               Per Day Rate
             </th>
 
-            <th
-              rowSpan={2}
-              className="border p-3 text-left whitespace-nowrap"
-            >
+            <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
               Contractor Name
             </th>
 
-            {/* Dynamic Departments */}
+            {/* 🔥 DYNAMIC DEPARTMENTS */}
             {departments.map((dept, i) => (
               <th
                 key={i}
@@ -2100,7 +1765,6 @@ function DepartmentWiseManpowerTable({
               </th>
             ))}
 
-            {/* Total Working */}
             <th
               colSpan={2}
               className="border p-3 text-center whitespace-nowrap"
@@ -2108,7 +1772,6 @@ function DepartmentWiseManpowerTable({
               Total Working
             </th>
 
-            {/* Amount */}
             <th
               colSpan={2}
               className="border p-3 text-center whitespace-nowrap"
@@ -2116,18 +1779,20 @@ function DepartmentWiseManpowerTable({
               Amount
             </th>
 
-            {/* Total Wages */}
-            <th className="border p-3 text-center whitespace-nowrap">
+            <th
+              rowSpan={1}
+              colSpan={1}
+              className="border p-3 text-center whitespace-nowrap"
+            >
               Total Wages
             </th>
           </tr>
 
           {/* SUB HEADER */}
           <tr className="border-b bg-muted/20">
-
+            {/* 🔥 DYNAMIC SUB COLUMNS */}
             {departments.map((_, i) => (
               <React.Fragment key={i}>
-
                 <th className="border p-2 text-center whitespace-nowrap">
                   No. of Duty
                 </th>
@@ -2135,10 +1800,10 @@ function DepartmentWiseManpowerTable({
                 <th className="border p-2 text-center whitespace-nowrap">
                   OT Hrs.
                 </th>
-
               </React.Fragment>
             ))}
 
+            {/* TOTAL WORKING */}
             <th className="border p-2 text-center whitespace-nowrap">
               No. of Duty
             </th>
@@ -2147,6 +1812,7 @@ function DepartmentWiseManpowerTable({
               OT Hrs.
             </th>
 
+            {/* AMOUNT */}
             <th className="border p-2 text-center whitespace-nowrap">
               Duty Amt.
             </th>
@@ -2155,477 +1821,133 @@ function DepartmentWiseManpowerTable({
               OT Amt.
             </th>
 
+            {/* TOTAL */}
             <th className="border p-2 text-center whitespace-nowrap">
               Duty & OT
             </th>
           </tr>
         </thead>
 
-        {/* ========================= */}
-        {/* BODY */}
-        {/* ========================= */}
-
+        {/* 🔥 BODY */}
         <tbody>
-
           {safeData.length > 0 ? (
-
             safeData.map((r, i) => {
+              // 🔥 GROUP DEPARTMENT DATA
+              const groupedDepartments: Record<
+                string,
+                {
+                  duty: number;
+                  otHours: number;
+                }
+              > = {};
 
-              const departmentData =
-                r.departments || {};
+              (r.departmentDetails || []).forEach((d: any) => {
+                const key = String(
+                  d.departmentName || d.name || "",
+                ).toLowerCase();
+
+                groupedDepartments[key] = {
+                  duty: Number(d.noOfDuty || 0),
+                  otHours: Number(d.otHours || 0),
+                };
+              });
+
+              // 🔥 TOTALS
+              let totalDuty = 0;
+              let totalOT = 0;
+
+              departments.forEach((dept) => {
+                const key = String(
+                  dept.departmentName || dept.name || "",
+                ).toLowerCase();
+
+                totalDuty += groupedDepartments[key]?.duty || 0;
+                totalOT += groupedDepartments[key]?.otHours || 0;
+              });
+
+              const perDayRate = Number(r.perDayRate || 0);
+
+              const dutyAmount = totalDuty * perDayRate;
+              const otAmount = totalOT * (perDayRate / 8);
+              const totalWages = dutyAmount + otAmount;
 
               return (
                 <tr
                   key={`${r.employeeCode}-${i}`}
                   className="border-b hover:bg-muted/20"
                 >
+                  {/* BASIC INFO */}
+                  <td className="border p-3">{r.employeeCode || "-"}</td>
 
-                  <td className="border p-3">
-                    {r.employeeCode || "-"}
-                  </td>
-
-                  <td className="border p-3">
-                    {r.employeeName || "-"}
-                  </td>
+                  <td className="border p-3">{r.employeeName || "-"}</td>
 
                   <td className="border p-3 text-center">
-                    {r.perDayRate || 0}
+                    {perDayRate || "-"}
                   </td>
 
-                  <td className="border p-3">
-                    {r.contractorName || "-"}
-                  </td>
+                  <td className="border p-3">{r.contractorName || "-"}</td>
 
-                  {/* Departments */}
+                  {/* 🔥 DYNAMIC DEPARTMENT DATA */}
                   {departments.map((dept, j) => {
+                    const key = String(
+                      dept.departmentName || dept.name || "",
+                    ).toLowerCase();
 
-                    const deptName =
-                      String(
-                        dept.departmentName ||
-                        dept.name ||
-                        ""
-                      );
-
-                    const deptData =
-                      departmentData[deptName];
+                    const deptData = groupedDepartments[key];
 
                     return (
                       <React.Fragment key={j}>
-
                         <td className="border p-3 text-center">
-                          {deptData?.duty || 0}
+                          {deptData?.duty ?? 0}
                         </td>
 
                         <td className="border p-3 text-center">
-                          {deptData?.otHours || 0}
+                          {deptData?.otHours ?? 0}
                         </td>
-
                       </React.Fragment>
                     );
                   })}
 
-                  {/* Totals */}
+                  {/* TOTAL WORKING */}
                   <td className="border p-3 text-center">
-                    {r.totalWorking?.duty || 0}
+                    {totalDuty.toFixed(2)}
                   </td>
 
                   <td className="border p-3 text-center">
-                    {r.totalWorking?.otHours || 0}
+                    {totalOT.toFixed(2)}
                   </td>
 
-                  {/* Amount */}
+                  {/* AMOUNTS */}
                   <td className="border p-3 text-center">
-                    ₹{Number(
-                      r.amount?.dutyAmount || 0
-                    ).toFixed(2)}
+                    ₹{dutyAmount.toFixed(0)}
                   </td>
 
                   <td className="border p-3 text-center">
-                    ₹{Number(
-                      r.amount?.otAmount || 0
-                    ).toFixed(2)}
+                    ₹{otAmount.toFixed(0)}
                   </td>
 
-                  {/* Total Wages */}
+                  {/* TOTAL WAGES */}
                   <td className="border p-3 text-center font-semibold">
-                    ₹{Number(
-                      r.amount?.totalWages || 0
-                    ).toFixed(2)}
+                    ₹{totalWages.toFixed(0)}
                   </td>
                 </tr>
               );
             })
-
           ) : (
-
             <tr>
               <td
-                colSpan={
-                  departments.length * 2 + 9
-                }
-                className="border text-center py-6 text-muted-foreground"
+                colSpan={departments.length * 2 + 9}
+                className="text-center py-6 text-muted-foreground"
               >
                 No data available
               </td>
             </tr>
           )}
-
-          {/* ========================= */}
-          {/* FOOTER ROW 1 */}
-          {/* ========================= */}
-
-          <tr className="bg-muted/30 font-semibold">
-
-            {/* Label */}
-            <td
-              colSpan={4}
-              className="border p-3 text-left"
-            >
-              Device/Department Wise
-              Working (Duty & OT)
-            </td>
-
-            {/* Department Wise */}
-            {departments.map((dept, i) => {
-
-              const deptName =
-                String(
-                  dept.departmentName ||
-                  dept.name ||
-                  ""
-                );
-
-              const deptFooter =
-                footerTotals?.departments?.[
-                deptName
-                ];
-
-              return (
-                <React.Fragment key={i}>
-
-                  {/* Duty */}
-                  <td className="border p-3 text-center">
-                    {deptFooter?.duty || 0}
-                  </td>
-
-                  {/* OT */}
-                  <td className="border p-3 text-center">
-                    {deptFooter?.otHours || 0}
-                  </td>
-
-                </React.Fragment>
-              );
-            })}
-
-            {/* Total Working */}
-            <td className="border p-3 text-center">
-              {footerTotals?.totalWorking?.duty || 0}
-            </td>
-
-            <td className="border p-3 text-center">
-              {footerTotals?.totalWorking?.otHours || 0}
-            </td>
-
-            {/* 🔥 MERGED AMOUNT CELLS */}
-            <td
-              rowSpan={2}
-              className="border p-3 text-center align-middle"
-            >
-              ₹{Number(
-                footerTotals?.amount?.dutyAmount || 0
-              ).toFixed(2)}
-            </td>
-
-            <td
-              rowSpan={2}
-              className="border p-3 text-center align-middle"
-            >
-              ₹{Number(
-                footerTotals?.amount?.otAmount || 0
-              ).toFixed(2)}
-            </td>
-
-            <td
-              rowSpan={2}
-              className="border p-3 text-center font-bold align-middle"
-            >
-              ₹{Number(
-                footerTotals?.amount?.totalWages || 0
-              ).toFixed(2)}
-            </td>
-          </tr>
-
-          {/* ========================= */}
-          {/* FOOTER ROW 2 */}
-          {/* ========================= */}
-
-          <tr className="bg-muted/20 font-semibold">
-
-            {/* Label */}
-            <td
-              colSpan={4}
-              className="border p-3 text-left"
-            >
-              Device/Department Wise
-              Amount (Rs.)
-            </td>
-
-            {/* Dynamic Departments */}
-            {departments.map((dept, i) => {
-
-              const deptName =
-                String(
-                  dept.departmentName ||
-                  dept.name ||
-                  ""
-                );
-
-              const deptFooter =
-                footerTotals?.departments?.[
-                deptName
-                ];
-
-              return (
-                <React.Fragment key={i}>
-
-                  {/* Duty Amount */}
-                  <td className="border p-3 text-center">
-                    ₹{Number(
-                      deptFooter?.dutyAmount || 0
-                    ).toFixed(2)}
-                  </td>
-
-                  {/* OT Amount */}
-                  <td className="border p-3 text-center">
-                    ₹{Number(
-                      deptFooter?.otAmount || 0
-                    ).toFixed(2)}
-                  </td>
-
-                </React.Fragment>
-              );
-            })}
-
-            {/* Total Working */}
-            <td className="border p-3 text-center">
-              {footerTotals?.totalWorking?.duty || 0}
-            </td>
-
-            <td className="border p-3 text-center">
-              {footerTotals?.totalWorking?.otHours || 0}
-            </td>
-
-          </tr>
-
         </tbody>
       </table>
     </div>
   );
 }
-// function DepartmentWiseManpowerTable({
-//   data,
-//   departments,
-// }: {
-//   data?: any[];
-//   departments: any[];
-// }) {
-//   const safeData = Array.isArray(data) ? data : [];
-
-//   return (
-//     <div className="overflow-x-auto border rounded-md">
-//       <table className="w-max min-w-full text-xs border-collapse">
-//         {/* 🔥 HEADER */}
-//         <thead>
-//           {/* TOP HEADER */}
-//           <tr className="border-b bg-muted/30">
-//             <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
-//               Employee Code
-//             </th>
-
-//             <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
-//               Employee Name
-//             </th>
-
-//             <th
-//               rowSpan={2}
-//               className="border p-3 text-center whitespace-nowrap"
-//             >
-//               Per Day Rate
-//             </th>
-
-//             <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
-//               Contractor Name
-//             </th>
-
-//             {/* 🔥 DYNAMIC DEPARTMENTS */}
-//             {departments.map((dept, i) => (
-//               <th
-//                 key={i}
-//                 colSpan={2}
-//                 className="border p-3 text-center whitespace-nowrap"
-//               >
-//                 {dept.departmentName || dept.name}
-//               </th>
-//             ))}
-
-//             <th
-//               colSpan={2}
-//               className="border p-3 text-center whitespace-nowrap"
-//             >
-//               Total Working
-//             </th>
-
-//             <th
-//               colSpan={2}
-//               className="border p-3 text-center whitespace-nowrap"
-//             >
-//               Amount
-//             </th>
-
-//             <th
-//               rowSpan={1}
-//               colSpan={1}
-//               className="border p-3 text-center whitespace-nowrap"
-//             >
-//               Total Wages
-//             </th>
-//           </tr>
-
-//           {/* SUB HEADER */}
-//           <tr className="border-b bg-muted/20">
-//             {/* 🔥 DYNAMIC SUB COLUMNS */}
-//             {departments.map((_, i) => (
-//               <React.Fragment key={i}>
-//                 <th className="border p-2 text-center whitespace-nowrap">
-//                   No. of Duty
-//                 </th>
-
-//                 <th className="border p-2 text-center whitespace-nowrap">
-//                   OT Hrs.
-//                 </th>
-//               </React.Fragment>
-//             ))}
-
-//             {/* TOTAL WORKING */}
-//             <th className="border p-2 text-center whitespace-nowrap">
-//               No. of Duty
-//             </th>
-
-//             <th className="border p-2 text-center whitespace-nowrap">
-//               OT Hrs.
-//             </th>
-
-//             {/* AMOUNT */}
-//             <th className="border p-2 text-center whitespace-nowrap">
-//               Duty Amt.
-//             </th>
-
-//             <th className="border p-2 text-center whitespace-nowrap">
-//               OT Amt.
-//             </th>
-
-//             {/* TOTAL */}
-//             <th className="border p-2 text-center whitespace-nowrap">
-//               Duty & OT
-//             </th>
-//           </tr>
-//         </thead>
-
-//         {/* 🔥 BODY */}
-//         <tbody>
-//           {safeData.length > 0 ? (
-//             safeData.map((r, i) => {
-//               const departmentData = r.departments || {};
-
-//               const totalDuty = Number(r.totalWorking?.duty || 0);
-
-//               const totalOT = Number(r.totalWorking?.otHours || 0);
-
-//               const dutyAmount = Number(r.amount?.dutyAmount || 0);
-
-//               const otAmount = Number(r.amount?.otAmount || 0);
-
-//               const totalWages = Number(r.amount?.totalWages || 0);
-
-//               return (
-//                 <tr
-//                   key={`${r.employeeCode}-${i}`}
-//                   className="border-b hover:bg-muted/20"
-//                 >
-//                   {/* Employee Code */}
-//                   <td className="border p-3">{r.employeeCode || "-"}</td>
-
-//                   {/* Employee Name */}
-//                   <td className="border p-3">{r.employeeName || "-"}</td>
-
-//                   {/* Per Day Rate */}
-//                   <td className="border p-3 text-center">
-//                     {r.perDayRate || 0}
-//                   </td>
-
-//                   {/* Contractor */}
-//                   <td className="border p-3">{r.contractorName || "-"}</td>
-
-//                   {/* Dynamic Departments */}
-//                   {departments.map((dept, j) => {
-//                     const deptName = String(
-//                       dept.departmentName || dept.name || "",
-//                     );
-
-//                     const deptData = departmentData[deptName];
-
-//                     return (
-//                       <React.Fragment key={j}>
-//                         {/* Duty */}
-//                         <td className="border p-3 text-center">
-//                           {deptData?.duty || 0}
-//                         </td>
-
-//                         {/* OT */}
-//                         <td className="border p-3 text-center">
-//                           {deptData?.otHours || 0}
-//                         </td>
-//                       </React.Fragment>
-//                     );
-//                   })}
-
-//                   {/* Total Working */}
-//                   <td className="border p-3 text-center">{totalDuty}</td>
-
-//                   <td className="border p-3 text-center">{totalOT}</td>
-
-//                   {/* Amounts */}
-//                   <td className="border p-3 text-center">
-//                     ₹{dutyAmount.toFixed(2)}
-//                   </td>
-
-//                   <td className="border p-3 text-center">
-//                     ₹{otAmount.toFixed(2)}
-//                   </td>
-
-//                   {/* Total Wages */}
-//                   <td className="border p-3 text-center font-semibold">
-//                     ₹{totalWages.toFixed(2)}
-//                   </td>
-//                 </tr>
-//               );
-//             })
-//           ) : (
-//             <tr>
-//               <td
-//                 colSpan={departments.length * 2 + 9}
-//                 className="text-center py-6 text-muted-foreground"
-//               >
-//                 No data available
-//               </td>
-//             </tr>
-//           )}
-
-//         </tbody>
-//       </table>
-//     </div>
-//   );
-// }
 function EmployeePerformanceTable({ data }: { data?: any[] }) {
   const safeData = Array.isArray(data) ? data : [];
 
@@ -2946,10 +2268,6 @@ export default function ReportsPage() {
   const [lockoutPage, setLockoutPage] = useState(1);
   const [lockoutPageSize] = useState(5);
 
-  // Department Wise Manpower & OT Report
-  const [manpowerPage, setManpowerPage] = useState(1);
-  const [manpowerPageSize, setManpowerPageSize] = useState(10);
-
   const [location] = useLocation();
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -3003,8 +2321,7 @@ export default function ReportsPage() {
       date: new Date().toISOString().split("T")[0], // ✅ single date default
     },
     "monthly-efficiency": getCurrentMonthDates(),
-
-    "department-wise-manpower": getCurrentMonthDates(),
+    department: {},
     "cabin-lockout": {},
   });
   const [appliedFilters, setAppliedFilters] = useState<
@@ -3015,7 +2332,7 @@ export default function ReportsPage() {
     "daily-performance": getCurrentMonthDates(),
     "daily-efficiency": {},
     "monthly-efficiency": getCurrentMonthDates(),
-    "department-wise-manpower": getCurrentMonthDates(),
+    department: {},
     "cabin-lockout": {},
   });
   // ✅ CURRENT FILTERS
@@ -3299,7 +2616,7 @@ export default function ReportsPage() {
       return json.data || [];
     },
 
-    enabled: activeReport === "department-wise-manpower",
+    enabled: activeReport === "department",
   });
 
   const {
@@ -3393,55 +2710,6 @@ export default function ReportsPage() {
   const deptEffTotalPages = departmentEfficiencyResponse?.totalPages || 1;
 
   const deptEffTotalCount = departmentEfficiencyResponse?.totalCount || 0;
-
-  const {
-    data: manpowerResponse = {
-      data: [],
-      totalCount: 0,
-      totalPages: 1,
-      currentPage: 1,
-      pageSize: 10,
-    },
-
-    isLoading: isManpowerLoading,
-
-    isFetching: isManpowerFetching,
-  } = useQuery({
-    queryKey: [
-      "department-wise-manpower",
-      currentAppliedFilters,
-      manpowerPage,
-      manpowerPageSize,
-    ],
-
-    enabled: activeReport === "department-wise-manpower",
-
-    queryFn: async () => {
-      const params = new URLSearchParams();
-
-      Object.entries(currentAppliedFilters).forEach(([k, v]) => {
-        if (v && k !== "_refresh") {
-          params.set(k, String(v));
-        }
-      });
-
-      // 🔥 PAGINATION
-      params.set("page", String(manpowerPage));
-
-      params.set("pageSize", String(manpowerPageSize));
-
-      const res = await fetch(
-        `/api/reports/department-wise-manpower?${params.toString()}`,
-      );
-
-      if (!res.ok) throw new Error("Fetch failed");
-
-      return res.json();
-    },
-  });
-  const manpowerData = manpowerResponse?.data || [];
-  const manpowerTotalPages = manpowerResponse?.totalPages || 1;
-  const manpowerTotalCount = manpowerResponse?.totalCount || 0;
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-6">
@@ -4369,143 +3637,30 @@ export default function ReportsPage() {
             )}
 
             {/* 5. Department Wise Manpower */}
-            {activeReport === "department-wise-manpower" && (
+            {activeReport === "department" && (
               <Card className="shadow-sm border">
                 <CardHeader className="flex flex-row items-center justify-between border-b py-3 px-4">
                   <CardTitle className="text-sm font-semibold">
                     Department Wise Manpower & OT Report
                   </CardTitle>
-                    {canExport && (
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={() =>
-                      exportDepartmentWiseManpowerCSV(
-                        currentAppliedFilters
-                      )
+                      exportDepartmentEfficiencyCSV(currentAppliedFilters)
                     }
-                    >                   
+                  >
                     <Download className="w-4 h-4 mr-2" />
                     Export
                   </Button>
-                )}
                 </CardHeader>
 
                 <CardContent className="p-0">
                   <DepartmentWiseManpowerTable
-                    data={manpowerData}
-                    departments={departments || []}
-                    footerTotals={manpowerResponse?.footerTotals}
+                    data={departmentManpowerData}
+                    departments={departments}
                   />
                 </CardContent>
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
-                  {/* Left Side */}
-                  <div className="text-sm text-muted-foreground order-2 md:order-1">
-                    Showing{" "}
-                    <span className="font-semibold text-foreground">
-                      {(manpowerPage - 1) * manpowerPageSize + 1}
-                    </span>{" "}
-                    to{" "}
-                    <span className="font-semibold text-foreground">
-                      {Math.min(
-                        manpowerPage * manpowerPageSize,
-                        manpowerTotalCount || 0,
-                      )}
-                    </span>{" "}
-                    of{" "}
-                    <span className="font-semibold text-foreground">
-                      {manpowerTotalCount || 0}
-                    </span>{" "}
-                    records
-                  </div>
-
-                  {/* Right Side */}
-                  <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
-                    {/* Go To Page */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Go to Page
-                      </span>
-
-                      <input
-                        type="number"
-                        min={1}
-                        max={manpowerTotalPages}
-                        defaultValue={manpowerPage}
-                        className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            const val = Number(e.currentTarget.value);
-
-                            if (val >= 1 && val <= manpowerTotalPages) {
-                              setManpowerPage(val);
-                            }
-                          }
-                        }}
-                      />
-                    </div>
-
-                    {/* Navigation Buttons */}
-                    <div className="flex items-center space-x-1">
-                      {/* First */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setManpowerPage(1)}
-                        disabled={manpowerPage === 1}
-                      >
-                        <ChevronsLeft className="h-4 w-4" />
-                      </Button>
-
-                      {/* Prev */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
-                        onClick={() =>
-                          setManpowerPage((p) => Math.max(1, p - 1))
-                        }
-                        disabled={manpowerPage === 1}
-                      >
-                        <ChevronLeft className="h-4 w-4" />
-                        Prev
-                      </Button>
-
-                      {/* Current Page */}
-                      <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
-                        {manpowerPage} / {manpowerTotalPages}
-                      </div>
-
-                      {/* Next */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 px-3 text-xs font-medium gap-1 hover:bg-primary/5 hover:text-primary transition-colors"
-                        onClick={() =>
-                          setManpowerPage((p) =>
-                            Math.min(manpowerTotalPages, p + 1),
-                          )
-                        }
-                        disabled={manpowerPage === manpowerTotalPages}
-                      >
-                        Next
-                        <ChevronRight className="h-4 w-4" />
-                      </Button>
-
-                      {/* Last */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => setManpowerPage(manpowerTotalPages)}
-                        disabled={manpowerPage === manpowerTotalPages}
-                      >
-                        <ChevronsRight className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
               </Card>
             )}
 
