@@ -405,7 +405,7 @@ export class DatabaseStorage implements IStorage {
       dateFrom?: string;
       dateTo?: string;
       employeeCode?: string;
-      deviceId?: string;
+      doorId?: string;
       doorName?: string;
     },
     page?: number | string,
@@ -428,10 +428,11 @@ export class DatabaseStorage implements IStorage {
           eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
         );
       }
-      // Door Filter
-      const doorFilter = filters?.deviceId || filters?.doorName;
+      const doorFilter = filters?.doorId;
       if (doorFilter) {
-        conditions.push(eq(schema.employeeActivityLogs.doorName, doorFilter));
+        conditions.push(
+          eq(schema.employeeActivityLogs.doorId, parseInt(doorFilter, 10))
+        );
       }
       const logs = await db
         .select({
@@ -445,6 +446,7 @@ export class DatabaseStorage implements IStorage {
           department_name: schema.employeeActivityLogs.departmentName,
           designation_name: schema.employeeActivityLogs.designationName,
           door_name: schema.employeeActivityLogs.doorName,
+          door_id: schema.employeeActivityLogs.doorId,
         })
         .from(schema.employeeActivityLogs)
         .where(conditions.length ? and(...conditions) : undefined)

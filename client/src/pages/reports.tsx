@@ -1387,16 +1387,17 @@ function ReportFilters({
                 </Select>
               </div>
             )}
-            {/* DEVICE */}
             {allowed.includes("deviceId") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
-                  DOOR / DEVICE
+                  DOOR
                 </Label>
                 <Select
-                  value={filters.deviceId || "all"}
+                  // 1. Value hamesha filters.doorId ko dekhegi
+                  value={filters.doorId || "all"}
                   onValueChange={(v) =>
-                    setFilters({ ...filters, deviceId: v === "all" ? "" : v })
+                    // 2. ✅ Yahan 'id' ki jagah 'doorId' update hoga taaki state sahi se sync ho ske
+                    setFilters({ ...filters, doorId: v === "all" ? "" : v })
                   }
                 >
                   <SelectTrigger>
@@ -1406,10 +1407,11 @@ function ReportFilters({
                     <SelectItem value="all">All Doors</SelectItem>
                     {devices?.map((d) => (
                       <SelectItem
-                        key={d.id || d.DeviceId}
-                        value={String(d.DeviceId || d.id)}
+                        key={d.id}
+                        // 3. String(d.id) hona chahiye taaki value match ho ske
+                        value={String(d.id)}
                       >
-                        {d.DeviceName || d.name}
+                        {d.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

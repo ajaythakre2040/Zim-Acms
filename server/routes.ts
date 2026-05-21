@@ -1416,7 +1416,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         dateFrom: req.query.dateFrom as string,
         dateTo: req.query.dateTo as string,
         employeeCode: req.query.employeeCode as string,
-        deviceId: req.query.deviceId as string,
+        doorId: req.query.doorId as string,
         doorName: req.query.doorName as string,
       };
       const page = req.query.page ? String(req.query.page) : undefined;
