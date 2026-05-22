@@ -41,16 +41,18 @@ import { Badge } from "@/components/ui/badge";
 import { validateNoHtml } from "@/lib/validation";
 import { MENU_CONFIG } from "../../../server/constant";
 import { usePermission } from "@/hooks/use-permission";
-
+import { useConfirm } from "@/hooks/use-confirm";
 export default function MenuPage() {
-    const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(MENU_CONFIG.MENU_MASTER.code);
-          if (!canView) {
-            return (
-              <div className="p-6 text-center text-muted-foreground">
-                You do not have permission to view this page.
-              </div>
-            );
-          }
+  const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
+    MENU_CONFIG.MENU_MASTER.code,
+  );
+  if (!canView) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        You do not have permission to view this page.
+      </div>
+    );
+  }
   // 1. Hook se setErrors nikalna zaroori hai
   const {
     data = [],
@@ -61,7 +63,7 @@ export default function MenuPage() {
     errors: serverErrors,
     setErrors,
   } = useCrud("/api/menus", "Menu");
-
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<any>(null);
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
@@ -216,36 +218,50 @@ export default function MenuPage() {
       render: (item: any) => (
         <div className="flex gap-1">
           {canEdit && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
-            onClick={() => {
-              setEdit(item);
-              setErrors({}); // Edit khulne par purane errors clear
-              setOpen(true);
-            }}
-          >
-            <Pencil className="w-4 h-4" />
-          </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
+              onClick={() => {
+                setEdit(item);
+                setErrors({}); // Edit khulne par purane errors clear
+                setOpen(true);
+              }}
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
           )}
           {canDelete && (
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-            onClick={() => {
-              if (confirm(`Delete ${item.title}?`)) remove(item.id);
-            }}
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+              onClick={async () => {
+                const confirmed = await confirm({
+                  title: "Delete Menu Item?",
+                  description: `Are you sure you want to delete "${item.title}"? This action cannot be undone.`,
+                  confirmText: "Yes, Delete",
+                  cancelText: "Cancel",
+                  variant: "destructive",
+                });
+
+                if (!confirmed) return;
+
+                try {
+                  await remove(item.id);
+                } catch (err: any) {
+                  console.error(err);
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           )}
         </div>
       ),
     },
-  ].filter(col => {
-    if (col.key === 'actions') {
+  ].filter((col) => {
+    if (col.key === "actions") {
       return canEdit || canDelete;
     }
     return true;
@@ -263,17 +279,17 @@ export default function MenuPage() {
           </p>
         </div>
         {canAdd && (
-        <Button
-          onClick={() => {
-            setEdit(null);
-            setLocalErrors({});
-            setErrors({}); // Naya form khulne par errors clear
-            setOpen(true);
-          }}
-          // className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl font-bold transition-all shadow-lg shadow-slate-200"
-        >
-          <Plus className="w-4 h-4 stroke-[3]" /> Add Menu Item
-        </Button>
+          <Button
+            onClick={() => {
+              setEdit(null);
+              setLocalErrors({});
+              setErrors({}); // Naya form khulne par errors clear
+              setOpen(true);
+            }}
+            // className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl font-bold transition-all shadow-lg shadow-slate-200"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" /> Add Menu Item
+          </Button>
         )}
       </div>
 

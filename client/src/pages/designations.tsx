@@ -4,6 +4,7 @@ import { DataTable } from "@/components/data-table";
 import { CrudDialog } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   Plus,
   Pencil,
@@ -29,6 +30,7 @@ export default function DesignationPage() {
       </div>
     );
   }
+  const confirm = useConfirm();
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
@@ -147,30 +149,31 @@ export default function DesignationPage() {
               onClick={async (e) => {
                 e.stopPropagation();
 
-                // ✅ Add Confirmation Logic
-                const confirmed = window.confirm(
-                  `Are you sure you want to delete the designation "${item.name}"?`,
-                );
+                const confirmed = await confirm({
+                  title: "Delete Designation?",
+                  description: `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
+                  confirmText: "Yes, Delete",
+                  cancelText: "Cancel",
+                  variant: "destructive",
+                });
 
-                if (confirmed) {
-                  try {
-                    await remove(item.id);
+                if (!confirmed) return;
 
-                    setTimeout(async () => {
-                      await fetchDesignations();
-                    }, 300);
+                try {
+                  await remove(item.id);
 
-                    toast({
-                      title: "Deleted",
-                      description: "Designation deleted successfully",
-                    });
-                  } catch (error) {
-                    toast({
-                      variant: "destructive",
-                      title: "Error",
-                      description: "Could not delete designation",
-                    });
-                  }
+                  await fetchDesignations();
+
+                  toast({
+                    title: "Deleted",
+                    description: "Designation deleted successfully",
+                  });
+                } catch (error) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: "Could not delete designation",
+                  });
                 }
               }}
             >

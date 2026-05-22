@@ -419,10 +419,13 @@ export class DatabaseStorage implements IStorage {
         );
       }
       if (filters?.dateTo) {
-        conditions.push(
-          lte(schema.employeeActivityLogs.logDate, new Date(filters.dateTo)),
-        );
-      }
+  const endDate = new Date(filters.dateTo);
+  endDate.setHours(23, 59, 59, 999);
+
+  conditions.push(
+    lte(schema.employeeActivityLogs.logDate, endDate),
+  );
+}
       if (filters?.employeeCode) {
         conditions.push(
           eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
@@ -4289,8 +4292,11 @@ export class DatabaseStorage implements IStorage {
           const doorKey = log.doorId;
           // IN
           if (log.direction === "IN") {
-            stack[doorKey] = log;
-          }
+  // Agar already open session hai toh duplicate IN ignore karo
+  if (!stack[doorKey]) {
+    stack[doorKey] = log;
+  }
+}
           // OUT
           else if (log.direction === "OUT") {
             const inLog = stack[doorKey];

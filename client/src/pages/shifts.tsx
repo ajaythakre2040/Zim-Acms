@@ -6,6 +6,7 @@ import { DataTable } from "@/components/data-table";
 import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   Plus,
   Pencil,
@@ -29,6 +30,7 @@ export default function ShiftsPage() {
       </div>
     );
   }
+  const confirm = useConfirm();
   const [page, setPage] = useState(1);
   const pageSize = 5;
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -53,18 +55,16 @@ export default function ShiftsPage() {
   const [pagedResponse, setPagedResponse] = useState<any>(null);
 
   const fetchShifts = async () => {
-  const res = await fetch(
-    `/api/shifts?page=${page}&pageSize=${pageSize}`
-  );
+    const res = await fetch(`/api/shifts?page=${page}&pageSize=${pageSize}`);
 
-  const data = await res.json();
+    const data = await res.json();
 
-  setPagedResponse(data);
-};
+    setPagedResponse(data);
+  };
 
   useEffect(() => {
-  fetchShifts();
-}, [page]);
+    fetchShifts();
+  }, [page]);
 
   const shiftsData = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -179,32 +179,34 @@ export default function ShiftsPage() {
             </Button>
           )}
           {canDelete && (
-           <Button
-  size="icon"
-  variant="ghost"
-  className="text-destructive"
-  onClick={async (e) => {
-    e.stopPropagation();
+            <Button
+              size="icon"
+              variant="ghost"
+              className="text-destructive"
+              onClick={async (e) => {
+                e.stopPropagation();
 
-    const confirmed = window.confirm("Delete shift?");
+                const confirmed = await confirm({
+                  title: "Delete Shift?",
+                  description: `Are you sure you want to delete shift "${s.name}"? This action cannot be undone.`,
+                  confirmText: "Yes, Delete",
+                  cancelText: "Cancel",
+                  variant: "destructive",
+                });
 
-    if (!confirmed) return;
+                if (!confirmed) return;
 
-    try {
-      await remove(s.id);
+                try {
+                  await remove(s.id);
 
-      // thoda wait taki backend commit ho jaye
-      setTimeout(async () => {
-        await fetchShifts();
-      }, 300);
-
-    } catch (err) {
-      console.error("Delete failed", err);
-    }
-  }}
->
-  <Trash2 className="w-4 h-4" />
-</Button>
+                  await fetchShifts();
+                } catch (err) {
+                  console.error("Delete failed", err);
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           )}
         </div>
       ),
@@ -382,12 +384,12 @@ export default function ShiftsPage() {
                 return;
               }
               if (editing) {
-  await update({ id: editing.id, data: updatedData });
-} else {
-  await create(updatedData);
-}
+                await update({ id: editing.id, data: updatedData });
+              } else {
+                await create(updatedData);
+              }
 
-await fetchShifts();
+              await fetchShifts();
               setDialogOpen(false);
               setEditing(null);
             } catch (err: any) {

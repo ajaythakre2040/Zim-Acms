@@ -1,9 +1,11 @@
-import { useState, useEffect  } from "react";
+import { useState, useEffect } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/hooks/use-confirm";
+
 import {
   Plus,
   Pencil,
@@ -29,6 +31,7 @@ export default function DepartmentsPage() {
       </div>
     );
   }
+  const confirm = useConfirm();
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
@@ -46,37 +49,34 @@ export default function DepartmentsPage() {
   //   "Department",
   // ) as any;
 
- const [pagedResponse, setPagedResponse] = useState<any>(null);
+  const [pagedResponse, setPagedResponse] = useState<any>(null);
 
-const {
-  create,
-  update,
-  remove,
-  isCreating,
-  isUpdating,
-} = useCrud<any>("/api/departments", "Department") ;
-
-const {
-  isLoading,
-  
-} = useCrud<any>("/api/departments?page=${page}&pageSize=${pageSize}", "Department");
-
-const fetchDepartments = async () => {
-  const res = await fetch(
-    `/api/departments?page=${page}&pageSize=${pageSize}`
+  const { create, update, remove, isCreating, isUpdating } = useCrud<any>(
+    "/api/departments",
+    "Department",
   );
 
-  const data = await res.json();
+  const { isLoading } = useCrud<any>(
+    "/api/departments?page=${page}&pageSize=${pageSize}",
+    "Department",
+  );
 
-  setPagedResponse(data);
-};
+  const fetchDepartments = async () => {
+    const res = await fetch(
+      `/api/departments?page=${page}&pageSize=${pageSize}`,
+    );
 
-useEffect(() => {
-  fetchDepartments();
-}, [page]);
+    const data = await res.json();
 
-const data = pagedResponse?.data || [];
-const totalPages = pagedResponse?.totalPages || 1;
+    setPagedResponse(data);
+  };
+
+  useEffect(() => {
+    fetchDepartments();
+  }, [page]);
+
+  const data = pagedResponse?.data || [];
+  const totalPages = pagedResponse?.totalPages || 1;
 
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<any>(null);
@@ -138,28 +138,32 @@ const totalPages = pagedResponse?.totalPages || 1;
               className="hover:text-destructive hover:bg-destructive/10 transition-colors"
               onClick={async (e) => {
                 e.stopPropagation();
-                const confirmed = window.confirm(
-                  `Are you sure you want to delete the department "${item.name}"?`,
-                );
 
-                if (confirmed) {
-                  try {
-                    await remove(item.id);
+                const confirmed = await confirm({
+                  title: "Delete Department?",
+                  description: `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
+                  confirmText: "Yes, Delete",
+                  cancelText: "Cancel",
+                  variant: "destructive",
+                });
 
-setTimeout(async () => {
-  await fetchDepartments();
-}, 300);
-                    toast({
-                      title: "Deleted",
-                      description: "Department deleted successfully",
-                    });
-                  } catch (err: any) {
-                    toast({
-                      variant: "destructive",
-                      title: "Error",
-                      description: err.message || "Failed to delete department",
-                    });
-                  }
+                if (!confirmed) return;
+
+                try {
+                  await remove(item.id);
+
+                  await fetchDepartments();
+
+                  toast({
+                    title: "Success",
+                    description: "Department deleted successfully",
+                  });
+                } catch (err: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: err.message || "Delete failed",
+                  });
                 }
               }}
             >
@@ -190,14 +194,14 @@ setTimeout(async () => {
 
       // 🚀 API Call Logic
       if (edit) {
-  if (!canEdit) return;
-  await update({ id: edit.id, data: formData });
-} else {
-  if (!canAdd) return;
-  await create(formData);
-}
+        if (!canEdit) return;
+        await update({ id: edit.id, data: formData });
+      } else {
+        if (!canAdd) return;
+        await create(formData);
+      }
 
-await fetchDepartments();
+      await fetchDepartments();
 
       toast({
         title: "Success",

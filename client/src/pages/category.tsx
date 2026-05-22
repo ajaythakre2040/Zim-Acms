@@ -1,9 +1,10 @@
-import { useState, useEffect  } from "react";
+import { useState, useEffect } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   Plus,
   Pencil,
@@ -29,6 +30,7 @@ export default function CategoriesPage() {
       </div>
     );
   }
+  const confirm = useConfirm();
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
@@ -47,30 +49,24 @@ export default function CategoriesPage() {
   //   "Category",
   // ) as any;
 
-  const {
-  isLoading,
-  create,
-  update,
-  remove,
-  isCreating,
-  isUpdating,
-} = useCrud<any>("/api/categories", "Category") as any;
+  const { isLoading, create, update, remove, isCreating, isUpdating } =
+    useCrud<any>("/api/categories", "Category") as any;
 
-const fetchCategories = async () => {
-  const res = await fetch(
-    `/api/categories?page=${page}&pageSize=${pageSize}`
-  );
+  const fetchCategories = async () => {
+    const res = await fetch(
+      `/api/categories?page=${page}&pageSize=${pageSize}`,
+    );
 
-  const data = await res.json();
+    const data = await res.json();
 
-  setPagedResponse(data);
-};
-useEffect(() => {
-  fetchCategories();
-}, [page]);
+    setPagedResponse(data);
+  };
+  useEffect(() => {
+    fetchCategories();
+  }, [page]);
 
   const data = pagedResponse?.data || [];
-const totalPages = pagedResponse?.totalPages || 1;
+  const totalPages = pagedResponse?.totalPages || 1;
 
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<any>(null);
@@ -126,30 +122,42 @@ const totalPages = pagedResponse?.totalPages || 1;
               onClick={async (e) => {
                 e.stopPropagation();
 
-                const confirmed = window.confirm(
-                  `Are you sure you want to delete the category "${item.name}"?`,
-                );
+                const confirmed = await confirm({
+                  title: "Delete Category?",
+                  description: `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
+                  confirmText: "Yes, Delete",
+                  cancelText: "Cancel",
+                  variant: "destructive",
+                });
 
-                if (confirmed) {
-  try {
-    await remove(item.id);
+                if (!confirmed) return;
 
-    setTimeout(async () => {
-      await fetchCategories();
-    }, 300);
+                try {
+                  // 1️⃣ delete first
+                  await remove(item.id);
 
-    toast({
-      title: "Deleted",
-      description: "Category deleted successfully",
-    });
-  } catch (err: any) {
-    toast({
-      variant: "destructive",
-      title: "Error",
-      description: err.message || "Failed to delete category",
-    });
-  }
-}
+                  // 2️⃣ force backend settle time
+                  await new Promise((r) => setTimeout(r, 200));
+
+                  // 3️⃣ refetch fresh data (IMPORTANT: no cache reuse)
+                  const res = await fetch(
+                    `/api/categories?page=${page}&pageSize=${pageSize}&_t=${Date.now()}`,
+                  );
+
+                  const data = await res.json();
+                  setPagedResponse(data);
+
+                  toast({
+                    title: "Deleted",
+                    description: "Category deleted successfully",
+                  });
+                } catch (err: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: err.message || "Failed to delete category",
+                  });
+                }
               }}
             >
               <Trash2 className="w-4 h-4" />

@@ -1,9 +1,10 @@
-import { useState, useEffect  } from "react";
+import { useState, useEffect } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   Plus,
   Pencil,
@@ -29,6 +30,7 @@ export default function CompaniesPage() {
       </div>
     );
   }
+  const confirm = useConfirm();
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
@@ -46,33 +48,25 @@ export default function CompaniesPage() {
   //   `/api/companies?page=${page}&pageSize=${pageSize}`,
   //   "Company",
   // ) as any;
-const [pagedResponse, setPagedResponse] = useState<any>(null);
+  const [pagedResponse, setPagedResponse] = useState<any>(null);
 
-const {
-  isLoading,
-  create,
-  update,
-  remove,
-  isCreating,
-  isUpdating,
-} = useCrud<any>("/api/companies", "Company") as any;
+  const { isLoading, create, update, remove, isCreating, isUpdating } =
+    useCrud<any>("/api/companies", "Company") as any;
 
-const fetchCompanies = async () => {
-  const res = await fetch(
-    `/api/companies?page=${page}&pageSize=${pageSize}`
-  );
+  const fetchCompanies = async () => {
+    const res = await fetch(`/api/companies?page=${page}&pageSize=${pageSize}`);
 
-  const data = await res.json();
+    const data = await res.json();
 
-  setPagedResponse(data);
-};
+    setPagedResponse(data);
+  };
 
-useEffect(() => {
-  fetchCompanies();
-}, [page]);
+  useEffect(() => {
+    fetchCompanies();
+  }, [page]);
 
-const data = pagedResponse?.data || [];
-const totalPages = pagedResponse?.totalPages || 1;
+  const data = pagedResponse?.data || [];
+  const totalPages = pagedResponse?.totalPages || 1;
 
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState<any>(null);
@@ -142,28 +136,40 @@ const totalPages = pagedResponse?.totalPages || 1;
               onClick={async (e) => {
                 e.stopPropagation();
 
-                const confirmed = window.confirm(
-                  `Are you sure you want to delete the company "${item.name}"?`,
-                );
+                const confirmed = await confirm({
+                  title: "Delete Company?",
+                  description: `Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
+                  confirmText: "Yes, Delete",
+                  cancelText: "Cancel",
+                  variant: "destructive",
+                });
 
-                if (confirmed) {
-                  try {
-                    await remove(item.id);
+                if (!confirmed) return;
 
-setTimeout(async () => {
-  await fetchCompanies();
-}, 300);
-                    toast({
-                      title: "Deleted",
-                      description: "Company deleted successfully",
-                    });
-                  } catch (err: any) {
-                    toast({
-                      variant: "destructive",
-                      title: "Error",
-                      description: err.message || "Failed to delete company",
-                    });
-                  }
+                try {
+                  await remove(item.id);
+
+                  // 🔥 INSTANT UI UPDATE (NO REFRESH NEEDED)
+                  setPagedResponse((prev: any) => {
+                    if (!prev) return prev;
+
+                    return {
+                      ...prev,
+                      data: prev.data.filter((c: any) => c.id !== item.id),
+                      totalCount: Math.max((prev.totalCount || 1) - 1, 0),
+                    };
+                  });
+
+                  toast({
+                    title: "Deleted",
+                    description: "Company deleted successfully",
+                  });
+                } catch (err: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: err.message || "Failed to delete company",
+                  });
                 }
               }}
             >
@@ -194,12 +200,12 @@ setTimeout(async () => {
 
       // 🚀 API Call
       if (edit) {
-  await update({ id: edit.id, data: formData });
-} else {
-  await create(formData);
-}
+        await update({ id: edit.id, data: formData });
+      } else {
+        await create(formData);
+      }
 
-await fetchCompanies();
+      await fetchCompanies();
 
       toast({
         title: "Success",

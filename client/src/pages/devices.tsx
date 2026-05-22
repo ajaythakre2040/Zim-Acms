@@ -1,4 +1,4 @@
-import { useState, useEffect  } from "react";
+import { useState, useEffect } from "react";
 import { useCrud } from "@/hooks/use-crud";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { validateNoHtml } from "@/lib/validation";
 import { useToast } from "@/hooks/use-toast";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   Plus,
   Loader2,
@@ -51,6 +52,7 @@ export default function DevicesPage() {
       </div>
     );
   }
+  const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 5;
@@ -59,12 +61,12 @@ export default function DevicesPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // Aapka original CRUD hook
   type PaginatedDeviceResponse = {
-  data: Device[];
-  totalPages: number;
-  totalCount: number;
-  onlineCount: number;
-  offlineCount: number;
-};
+    data: Device[];
+    totalPages: number;
+    totalCount: number;
+    onlineCount: number;
+    offlineCount: number;
+  };
 
   // const {
   //   data: response = {
@@ -89,8 +91,7 @@ export default function DevicesPage() {
   // const totalPages = paginatedResponse?.totalPages || 1;
   // const totalCount = paginatedResponse?.totalCount || 0;
 
-  const [pagedResponse, setPagedResponse] =
-  useState<PaginatedDeviceResponse>({
+  const [pagedResponse, setPagedResponse] = useState<PaginatedDeviceResponse>({
     data: [],
     totalPages: 1,
     totalCount: 0,
@@ -98,32 +99,24 @@ export default function DevicesPage() {
     offlineCount: 0,
   });
 
-const {
-  isLoading,
-  create,
-  update,
-  remove,
-  isCreating,
-  isUpdating,
-} = useCrud<any>("/api/devices", "Device");
+  const { isLoading, create, update, remove, isCreating, isUpdating } =
+    useCrud<any>("/api/devices", "Device");
 
-const fetchDevices = async () => {
-  const res = await fetch(
-    `/api/devices?page=${page}&pageSize=${pageSize}`
-  );
+  const fetchDevices = async () => {
+    const res = await fetch(`/api/devices?page=${page}&pageSize=${pageSize}`);
 
-  const data = await res.json();
+    const data = await res.json();
 
-  setPagedResponse(data);
-};
+    setPagedResponse(data);
+  };
 
-useEffect(() => {
-  fetchDevices();
-}, [page]);
+  useEffect(() => {
+    fetchDevices();
+  }, [page]);
 
-const data: Device[] = pagedResponse?.data || [];
-const totalPages = pagedResponse?.totalPages || 1;
-const totalCount = pagedResponse?.totalCount || 0;
+  const data: Device[] = pagedResponse?.data || [];
+  const totalPages = pagedResponse?.totalPages || 1;
+  const totalCount = pagedResponse?.totalCount || 0;
 
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: zones = [] } = useQuery<Zone[]>({ queryKey: ["/api/zones"] });
@@ -135,7 +128,7 @@ const totalCount = pagedResponse?.totalCount || 0;
     );
   }
   const online = pagedResponse?.onlineCount || 0;
-const offline = pagedResponse?.offlineCount || 0;
+  const offline = pagedResponse?.offlineCount || 0;
 
   const fields: FieldConfig[] = [
     { key: "name", label: "Device Name", required: true },
@@ -293,30 +286,46 @@ const offline = pagedResponse?.offlineCount || 0;
           )}
           {canDelete && (
             <Button
-  size="icon"
-  variant="ghost"
-  title="Delete"
-  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-  onClick={async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+              size="icon"
+              variant="ghost"
+              title="Delete"
+              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              onClick={async (e) => {
+                e.preventDefault();
+                e.stopPropagation();
 
-    const idToDelete = d.id || (d as any).msId;
+                const idToDelete = d.id || (d as any).msId;
 
-    if (
-      idToDelete &&
-      window.confirm("Are you sure you want to delete this device?")
-    ) {
-      await remove(idToDelete);
+                const confirmed = await confirm({
+                  title: "Delete Device?",
+                  description: `Are you sure you want to delete device "${d.name}"? This action cannot be undone.`,
+                  confirmText: "Yes, Delete",
+                  cancelText: "Cancel",
+                  variant: "destructive",
+                });
 
-      setTimeout(async () => {
-        await fetchDevices();
-      }, 300);
-    }
-  }}
->
-  <Trash2 className="w-4 h-4" />
-</Button>
+                if (!confirmed) return;
+
+                try {
+                  await remove(idToDelete);
+
+                  await fetchDevices();
+
+                  toast({
+                    title: "Deleted",
+                    description: "Device deleted successfully",
+                  });
+                } catch (err: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: err.message || "Failed to delete device",
+                  });
+                }
+              }}
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           )}
         </div>
       ),
@@ -338,9 +347,9 @@ const offline = pagedResponse?.offlineCount || 0;
           canAdd && (
             <Button
               onClick={async () => {
-  setEditing(null);
-  await fetchDevices();
-}}
+                setEditing(null);
+                await fetchDevices();
+              }}
               className="gap-2"
               disabled={isLoading} // Optional: Fetching ke waqt double click rokne ke liye
             >
@@ -524,12 +533,12 @@ const offline = pagedResponse?.offlineCount || 0;
                 const updateId = editing.id || (editing as any).msId;
                 await update({ id: updateId, data: formData });
 
-await fetchDevices();
+                await fetchDevices();
 
-toast({
-  title: "Success",
-  description: "Device updated successfully",
-});
+                toast({
+                  title: "Success",
+                  description: "Device updated successfully",
+                });
               }
 
               setDialogOpen(false);

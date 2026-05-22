@@ -8,6 +8,7 @@ import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { useConfirm } from "@/hooks/use-confirm";
 import {
   ShieldCheck,
   RefreshCw,
@@ -69,6 +70,7 @@ export default function PeoplePage() {
       </div>
     );
   }
+  const confirm = useConfirm();
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [roledialogOpen, setRoleDialogOpen] = useState(false);
@@ -647,13 +649,20 @@ export default function PeoplePage() {
                     variant="ghost"
                     className="hover:text-destructive"
                     disabled={deleteMut.isPending}
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.stopPropagation();
-                      if (
-                        window.confirm("Delete this person from all systems?")
-                      ) {
-                        deleteMut.mutate(p.id);
-                      }
+
+                      const confirmed = await confirm({
+                        title: "Delete Person?",
+                        description: `Are you sure you want to delete "${p.employeeName}" from all systems? This action cannot be undone.`,
+                        confirmText: "Yes, Delete",
+                        cancelText: "Cancel",
+                        variant: "destructive",
+                      });
+
+                      if (!confirmed) return;
+
+                      deleteMut.mutate(p.id);
                     }}
                   >
                     <Trash2 className="w-4 h-4" />

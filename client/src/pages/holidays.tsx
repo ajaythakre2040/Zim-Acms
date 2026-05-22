@@ -6,12 +6,21 @@ import { DataTable } from "@/components/data-table";
 import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Trash2, ChevronsLeft, ChevronRight, ChevronLeft, ChevronsRight } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  ChevronsLeft,
+  ChevronRight,
+  ChevronLeft,
+  ChevronsRight,
+} from "lucide-react";
 import type { Holiday, Site } from "@shared/schema";
 import { validateNoHtml } from "@/lib/validation";
 import { useToast } from "@/hooks/use-toast";
 import { MENU_CONFIG } from "../../../server/constant";
 import { usePermission } from "@/hooks/use-permission";
+import { useConfirm } from "@/hooks/use-confirm";
 
 const typeColors: Record<string, string> = {
   national: "default",
@@ -36,6 +45,7 @@ export default function HolidaysPage() {
       </div>
     );
   }
+  const confirm = useConfirm();
   const [page, setPage] = useState(1);
   const pageSize = 5;
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -164,16 +174,34 @@ export default function HolidaysPage() {
 
                 const deleteId = h.id || (h as any).msId;
 
-                if (
-                  window.confirm(
-                    "Are you sure you want to delete this holiday?",
-                  )
-                ) {
+                const confirmed = await confirm({
+                  title: "Delete Holiday?",
+                  description: `Are you sure you want to delete holiday "${h.name}"? This action cannot be undone.`,
+                  confirmText: "Yes, Delete",
+                  cancelText: "Cancel",
+                  variant: "destructive",
+                });
+
+                if (!confirmed) return;
+
+                try {
                   await remove(deleteId);
 
+                  // 🔥 small delay to ensure DB update complete
                   setTimeout(async () => {
                     await fetchHolidays();
-                  }, 300);
+                  }, 150);
+
+                  toast({
+                    title: "Deleted",
+                    description: "Holiday deleted successfully",
+                  });
+                } catch (err: any) {
+                  toast({
+                    variant: "destructive",
+                    title: "Error",
+                    description: err.message || "Failed to delete holiday",
+                  });
                 }
               }}
             >
