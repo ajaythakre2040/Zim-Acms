@@ -29,7 +29,7 @@ export async function seedAdminUser() {
         console.log("✅ Person record verified.");
 
         // 3. Password hashing using BCrypt (Same as auth.ts)
-        const hashedPassword = await bcrypt.hash("admin@123", 10);
+        const hashedPassword = await bcrypt.hash("Admin@123", 10);
 
         // 4. Admin User create/update
         let [adminUser] = await db
