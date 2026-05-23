@@ -4168,11 +4168,24 @@ export class DatabaseStorage implements IStorage {
       nextDateObj.setDate(nextDateObj.getDate() + 1);
       const nextDateStr = nextDateObj.toISOString().split("T")[0];
       // Fetch previous + selected + next
+      // conditions.push(
+      //   gte(schema.employeeActivityLogs.onlyDate, previousDateStr),
+      // );
+      // conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
+      // conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
       conditions.push(
-        gte(schema.employeeActivityLogs.onlyDate, previousDateStr),
-      );
-      conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
-      conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
+  gte(
+    sql`DATE(${schema.employeeActivityLogs.logDate})`,
+    previousDateStr,
+  ),
+);
+
+conditions.push(
+  lte(
+    sql`DATE(${schema.employeeActivityLogs.logDate})`,
+    nextDateStr,
+  ),
+);
       if (filters?.employeeCode) {
         conditions.push(
           eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
@@ -4187,7 +4200,10 @@ export class DatabaseStorage implements IStorage {
           shiftTime: schema.employeeActivityLogs.shiftTime,
           workingHours: schema.shifts.workingHours,
           logDate: schema.employeeActivityLogs.logDate,
-          onlyDate: schema.employeeActivityLogs.onlyDate,
+          // onlyDate: schema.employeeActivityLogs.onlyDate,
+          onlyDate: sql<string>`
+  DATE(${schema.employeeActivityLogs.logDate})
+`,
           direction: schema.employeeActivityLogs.direction,
           doorId: schema.employeeActivityLogs.doorId,
           doorName: schema.employeeActivityLogs.doorName,
