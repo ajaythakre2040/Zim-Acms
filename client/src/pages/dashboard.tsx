@@ -59,6 +59,19 @@ export default function Dashboard() {
 
   const extraCards = [
     { title: "Main Gate IN", value: doorData?.mainGateIn || 0, bg: "bg-gradient-to-r from-blue-500 to-indigo-600" },
+    // {
+    //   title: "Main Gate IN",
+    //   // Chote font size aur spans ka use karke inline style maintain rakhna
+    //   value: (
+    //     <span className="whitespace-nowrap text-2xl md:text-3xl">
+    //       {doorData?.mainGateIn || 0}
+    //       <span className="text-sm font-normal ml-1 opacity-90 bg-black/20 px-1.5 py-0.5 rounded">
+    //         ({doorData?.yesterdayInBalance || 0} Night)
+    //       </span>
+    //     </span>
+    //   ),
+    //   bg: "bg-gradient-to-r from-blue-500 to-indigo-600"
+    // },
     { title: "Main Gate OUT", value: doorData?.mainGateOut || 0, bg: "bg-gradient-to-r from-orange-500 to-red-500" },
     { title: "Balance", value: doorData?.mainGateBal || 0, bg: "bg-gradient-to-r from-slate-500 to-gray-700" },
     { title: "Absent", value: doorData?.totalAbsent || 0, bg: "bg-gradient-to-r from-red-500 to-pink-600" },

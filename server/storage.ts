@@ -2586,6 +2586,90 @@ export class DatabaseStorage implements IStorage {
       offlineDevices: Math.max(0, devicesCount.count - onlineCount.count),
     };
   }
+  // async getDoorWiseStats(date: string) {
+  //   const [totalPeopleResult] = await db
+  //     .select({
+  //       count: sql<number>`count(*)`,
+  //     })
+  //     .from(people);
+  //   const totalManpower = Number(totalPeopleResult.count) || 0;
+  //   const mappings = await db
+  //     .select({
+  //       doorId: doors.id,
+  //       doorName: doors.name,
+  //       doorCode: doors.code,
+  //       inIds: doorDevices.inDeviceIds,
+  //       outIds: doorDevices.outDeviceIds,
+  //       isMainGate: doorDevices.isMainGate,
+  //     })
+  //     .from(doors)
+  //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+  //   const allDeviceIds = mappings.flatMap((m) => [
+  //     ...(m.inIds || []),
+  //     ...(m.outIds || []),
+  //   ]);
+  //   if (allDeviceIds.length === 0) {
+  //     return {
+  //       doorStats: [],
+  //       mainGateIn: 0,
+  //       mainGateOut: 0,
+  //       mainGateBal: 0,
+  //       totalPresent: 0,
+  //       totalAbsent: totalManpower,
+  //       totalManpower,
+  //     };
+  //   }
+  //   const msSqlData = await mssqlPool.request().input("filterDate", date)
+  //     .query(`
+  //     SELECT 
+  //       DeviceId, 
+  //       Direction,
+  //       EmployeeCode,
+  //       COUNT(*) as totalPunches -- Har punch ko count karne ke liye
+  //     FROM DeviceLogs 
+  //     WHERE CAST(LogDate AS DATE) = @filterDate
+  //     AND DeviceId IN (${allDeviceIds.join(",")})
+  //     GROUP BY DeviceId, Direction, EmployeeCode
+  //   `);
+  //   const logMap = msSqlData.recordset;
+  //   let mainGateInPunches = 0;
+  //   let mainGateOutPunches = 0;
+  //   const uniquePresentEmployees = new Set();
+  //   const doorStats = mappings.map((m) => {
+  //     const inLogs = logMap.filter(
+  //       (l) => (m.inIds || []).includes(l.DeviceId) && l.Direction === "IN",
+  //     );
+  //     const outLogs = logMap.filter(
+  //       (l) => (m.outIds || []).includes(l.DeviceId) && l.Direction === "OUT",
+  //     );
+  //     const inCount = inLogs.reduce((acc, curr) => acc + curr.totalPunches, 0);
+  //     const outCount = outLogs.reduce(
+  //       (acc, curr) => acc + curr.totalPunches,
+  //       0,
+  //     );
+  //     if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
+  //       mainGateInPunches = inCount;
+  //       mainGateOutPunches = outCount;
+  //       inLogs.forEach((l) => uniquePresentEmployees.add(l.EmployeeCode));
+  //     }
+  //     return {
+  //       doorName: m.doorName,
+  //       inCount,
+  //       outCount,
+  //       balance: Math.max(0, inCount - outCount),
+  //     };
+  //   });
+  //   const totalPresent = uniquePresentEmployees.size;
+  //   return {
+  //     doorStats,
+  //     mainGateIn: mainGateInPunches,
+  //     mainGateOut: mainGateOutPunches,
+  //     mainGateBal: Math.max(0, mainGateInPunches - mainGateOutPunches),
+  //     totalPresent: totalPresent,
+  //     totalAbsent: Math.max(0, totalManpower - totalPresent),
+  //     totalManpower,
+  //   };
+  // }
   async getDoorWiseStats(date: string) {
     const [totalPeopleResult] = await db
       .select({
@@ -2593,6 +2677,7 @@ export class DatabaseStorage implements IStorage {
       })
       .from(people);
     const totalManpower = Number(totalPeopleResult.count) || 0;
+
     const mappings = await db
       .select({
         doorId: doors.id,
@@ -2604,54 +2689,84 @@ export class DatabaseStorage implements IStorage {
       })
       .from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
     const allDeviceIds = mappings.flatMap((m) => [
       ...(m.inIds || []),
       ...(m.outIds || []),
     ]);
+
     if (allDeviceIds.length === 0) {
       return {
         doorStats: [],
         mainGateIn: 0,
         mainGateOut: 0,
         mainGateBal: 0,
+        yesterdayInBalance: 0, // Fallback for empty state
         totalPresent: 0,
         totalAbsent: totalManpower,
         totalManpower,
       };
     }
+
+    const targetDateStr = new Date(date).toISOString().split('T')[0];
+
+    // SQL Query: Pichle din se lekar aaj tak ke saare logs sequence me
     const msSqlData = await mssqlPool.request().input("filterDate", date)
       .query(`
       SELECT 
         DeviceId, 
         Direction,
         EmployeeCode,
-        COUNT(*) as totalPunches -- Har punch ko count karne ke liye
+        LogDate
       FROM DeviceLogs 
-      WHERE CAST(LogDate AS DATE) = @filterDate
+      WHERE LogDate >= CAST(DATEADD(day, -1, @filterDate) AS DATETIME)
+      AND LogDate < CAST(DATEADD(day, 1, @filterDate) AS DATETIME)
       AND DeviceId IN (${allDeviceIds.join(",")})
-      GROUP BY DeviceId, Direction, EmployeeCode
+      ORDER BY LogDate ASC
     `);
-    const logMap = msSqlData.recordset;
+
+    const rawLogs = msSqlData.recordset;
+
     let mainGateInPunches = 0;
     let mainGateOutPunches = 0;
     const uniquePresentEmployees = new Set();
+
+    const employeeLastState = new Map<string, "IN" | "OUT">();
+    // 🔥 Kal ke balance ko map karne ke liye tracker array/state
+    const yesterdayLastState = new Map<string, "IN" | "OUT">();
+
+    // 1. DOOR WISE STATS (Inner doors logic remains clean)
     const doorStats = mappings.map((m) => {
-      const inLogs = logMap.filter(
-        (l) => (m.inIds || []).includes(l.DeviceId) && l.Direction === "IN",
-      );
-      const outLogs = logMap.filter(
-        (l) => (m.outIds || []).includes(l.DeviceId) && l.Direction === "OUT",
-      );
-      const inCount = inLogs.reduce((acc, curr) => acc + curr.totalPunches, 0);
-      const outCount = outLogs.reduce(
-        (acc, curr) => acc + curr.totalPunches,
-        0,
-      );
-      if (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true) {
-        mainGateInPunches = inCount;
-        mainGateOutPunches = outCount;
-        inLogs.forEach((l) => uniquePresentEmployees.add(l.EmployeeCode));
-      }
+      let inCount = 0;
+      let outCount = 0;
+      const doorEmployeeState = new Map<string, "IN" | "OUT">();
+
+      rawLogs.forEach((log) => {
+        const logDateOnly = new Date(log.LogDate).toISOString().split('T')[0];
+        const isIdIn = (m.inIds || []).includes(log.DeviceId);
+        const isIdOut = (m.outIds || []).includes(log.DeviceId);
+
+        const lastState = doorEmployeeState.get(log.EmployeeCode);
+
+        if (isIdIn && log.Direction === "IN") {
+          if (lastState !== "IN") {
+            doorEmployeeState.set(log.EmployeeCode, "IN");
+            if (logDateOnly === targetDateStr) {
+              inCount++;
+            }
+          }
+        }
+
+        if (isIdOut && log.Direction === "OUT") {
+          if (lastState === "IN") {
+            doorEmployeeState.set(log.EmployeeCode, "OUT");
+            if (logDateOnly === targetDateStr) {
+              outCount++;
+            }
+          }
+        }
+      });
+
       return {
         doorName: m.doorName,
         inCount,
@@ -2659,17 +2774,210 @@ export class DatabaseStorage implements IStorage {
         balance: Math.max(0, inCount - outCount),
       };
     });
+
+    // 2. MAIN GATE GLOBAL COUNTERS + YESTERDAY BALANCE CALCULATION
+    const mainGateMapping = mappings.find(m => m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true);
+
+    if (mainGateMapping) {
+      rawLogs.forEach((log) => {
+        const logDateOnly = new Date(log.LogDate).toISOString().split('T')[0];
+        const isMainIn = (mainGateMapping.inIds || []).includes(log.DeviceId) && log.Direction === "IN";
+        const isMainOut = (mainGateMapping.outIds || []).includes(log.DeviceId) && log.Direction === "OUT";
+        const globalLastState = employeeLastState.get(log.EmployeeCode);
+
+        // --- Global State Management ---
+        if (isMainIn && globalLastState !== "IN") {
+          employeeLastState.set(log.EmployeeCode, "IN");
+
+          // PICHLE DIN KA LOGIC: Agar punch target date se pehle (yesterday) ka hai
+          if (logDateOnly !== targetDateStr) {
+            yesterdayLastState.set(log.EmployeeCode, "IN");
+          }
+
+          // AAJ KA IN COUNTER
+          if (logDateOnly === targetDateStr) {
+            mainGateInPunches++;
+            uniquePresentEmployees.add(log.EmployeeCode);
+          }
+        }
+        else if (isMainOut && globalLastState === "IN") {
+          employeeLastState.set(log.EmployeeCode, "OUT");
+
+          // PICHLE DIN KA LOGIC: Agar kal hi IN hoke kal hi OUT ho gaya
+          if (logDateOnly !== targetDateStr) {
+            yesterdayLastState.set(log.EmployeeCode, "OUT");
+          }
+
+          // AAJ KA OUT COUNTER
+          if (logDateOnly === targetDateStr) {
+            mainGateOutPunches++;
+          }
+        }
+      });
+    }
+
+    // 🔥 Loop ke baad ginn lo ki kal raat ko kitne bande 'IN' status par hi chhut gaye the
+    let yesterdayInBalance = 0;
+    yesterdayLastState.forEach((status) => {
+      if (status === "IN") {
+        yesterdayInBalance++;
+      }
+    });
+
     const totalPresent = uniquePresentEmployees.size;
+
     return {
       doorStats,
       mainGateIn: mainGateInPunches,
       mainGateOut: mainGateOutPunches,
       mainGateBal: Math.max(0, mainGateInPunches - mainGateOutPunches),
+      yesterdayInBalance, // 👈 Ye mil gaya aapko kal ka strictly leftover night shift balance data!
       totalPresent: totalPresent,
       totalAbsent: Math.max(0, totalManpower - totalPresent),
       totalManpower,
     };
-  }
+  }  // async getDoorWiseStats(date: string) {
+  //   const [totalPeopleResult] = await db
+  //     .select({
+  //       count: sql<number>`count(*)`,
+  //     })
+  //     .from(people);
+  //   const totalManpower = Number(totalPeopleResult.count) || 0;
+
+  //   const mappings = await db
+  //     .select({
+  //       doorId: doors.id,
+  //       doorName: doors.name,
+  //       doorCode: doors.code,
+  //       inIds: doorDevices.inDeviceIds,
+  //       outIds: doorDevices.outDeviceIds,
+  //       isMainGate: doorDevices.isMainGate,
+  //     })
+  //     .from(doors)
+  //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
+  //   const allDeviceIds = mappings.flatMap((m) => [
+  //     ...(m.inIds || []),
+  //     ...(m.outIds || []),
+  //   ]);
+
+  //   if (allDeviceIds.length === 0) {
+  //     return {
+  //       doorStats: [],
+  //       mainGateIn: 0,
+  //       mainGateOut: 0,
+  //       mainGateBal: 0,
+  //       totalPresent: 0,
+  //       totalAbsent: totalManpower,
+  //       totalManpower,
+  //     };
+  //   }
+
+  //   const targetDateStr = new Date(date).toISOString().split('T')[0];
+
+  //   // SQL Query: Pichle din se lekar aaj tak ke saare logs sequence me
+  //   const msSqlData = await mssqlPool.request().input("filterDate", date)
+  //     .query(`
+  //     SELECT 
+  //       DeviceId, 
+  //       Direction,
+  //       EmployeeCode,
+  //       LogDate
+  //     FROM DeviceLogs 
+  //     WHERE LogDate >= CAST(DATEADD(day, -1, @filterDate) AS DATETIME)
+  //     AND LogDate < CAST(DATEADD(day, 1, @filterDate) AS DATETIME)
+  //     AND DeviceId IN (${allDeviceIds.join(",")})
+  //     ORDER BY LogDate ASC
+  //   `);
+
+  //   const rawLogs = msSqlData.recordset;
+
+  //   let mainGateInPunches = 0;
+  //   let mainGateOutPunches = 0;
+  //   const uniquePresentEmployees = new Set(); // Isme sirf AAJ IN karne wale aayenge
+
+  //   const employeeLastState = new Map<string, "IN" | "OUT">();
+
+  //   const doorStats = mappings.map((m) => {
+  //     let inCount = 0;
+  //     let outCount = 0;
+  //     const doorEmployeeState = new Map<string, "IN" | "OUT">();
+  //     const isMainGateDoor = (m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true);
+
+  //     rawLogs.forEach((log) => {
+  //       const logDateOnly = new Date(log.LogDate).toISOString().split('T')[0];
+  //       const isIdIn = (m.inIds || []).includes(log.DeviceId);
+  //       const isIdOut = (m.outIds || []).includes(log.DeviceId);
+
+  //       const lastState = doorEmployeeState.get(log.EmployeeCode);
+
+  //       // --- DOOR WISE IN TRACKING ---
+  //       if (isIdIn && log.Direction === "IN") {
+  //         if (lastState !== "IN") {
+  //           doorEmployeeState.set(log.EmployeeCode, "IN");
+  //           if (logDateOnly === targetDateStr) {
+  //             inCount++;
+  //           }
+  //         }
+  //       }
+
+  //       // --- DOOR WISE OUT TRACKING ---
+  //       if (isIdOut && log.Direction === "OUT") {
+  //         if (lastState === "IN") {
+  //           doorEmployeeState.set(log.EmployeeCode, "OUT");
+  //           if (logDateOnly === targetDateStr) {
+  //             outCount++;
+  //           }
+  //         }
+  //       }
+  //     });
+
+  //     // --- MAIN GATE GLOBAL COUNTERS & PRESENT/ABSENT FIX ---
+  //     if (isMainGateDoor) {
+  //       rawLogs.forEach((log) => {
+  //         const logDateOnly = new Date(log.LogDate).toISOString().split('T')[0];
+  //         const isMainIn = (m.inIds || []).includes(log.DeviceId) && log.Direction === "IN";
+  //         const isMainOut = (m.outIds || []).includes(log.DeviceId) && log.Direction === "OUT";
+  //         const globalLastState = employeeLastState.get(log.EmployeeCode);
+
+  //         if (isMainIn && globalLastState !== "IN") {
+  //           employeeLastState.set(log.EmployeeCode, "IN");
+  //           if (logDateOnly === targetDateStr) {
+  //             mainGateInPunches++;
+  //             // 🔥 FIXED: Presenti sirf tabhi lagegi jab banda AAJ (Target Date) me IN hua ho
+  //             uniquePresentEmployees.add(log.EmployeeCode);
+  //           }
+  //         }
+  //         else if (isMainOut && globalLastState === "IN") {
+  //           employeeLastState.set(log.EmployeeCode, "OUT");
+  //           if (logDateOnly === targetDateStr) {
+  //             mainGateOutPunches++;
+  //             // ❌ FIXED: Night shift out wale bande ko uniquePresentEmployees me add NAHI kar rahe hain
+  //           }
+  //         }
+  //       });
+  //     }
+
+  //     return {
+  //       doorName: m.doorName,
+  //       inCount,
+  //       outCount,
+  //       balance: Math.max(0, inCount - outCount),
+  //     };
+  //   });
+
+  //   const totalPresent = uniquePresentEmployees.size;
+
+  //   return {
+  //     doorStats,
+  //     mainGateIn: mainGateInPunches,
+  //     mainGateOut: mainGateOutPunches,
+  //     mainGateBal: Math.max(0, mainGateInPunches - mainGateOutPunches),
+  //     totalPresent: totalPresent, // Yeh bilkul accurate aaj ki daily attendance dikhayega
+  //     totalAbsent: Math.max(0, totalManpower - totalPresent),
+  //     totalManpower,
+  //   };
+  // }
   async getShiftWiseStats(date: string): Promise<any[]> {
     try {
       const [allShifts, allDoors] = await Promise.all([
@@ -4169,23 +4477,17 @@ export class DatabaseStorage implements IStorage {
       const nextDateStr = nextDateObj.toISOString().split("T")[0];
       // Fetch previous + selected + next
       // conditions.push(
-      //   gte(schema.employeeActivityLogs.onlyDate, previousDateStr),
+      //   gte(schema.employeeActivityLogs.onlyDate, previousDateStr),
       // );
       // conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
       // conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
       conditions.push(
-  gte(
-    sql`DATE(${schema.employeeActivityLogs.logDate})`,
-    previousDateStr,
-  ),
-);
+        gte(sql`DATE(${schema.employeeActivityLogs.logDate})`, previousDateStr),
+      );
 
-conditions.push(
-  lte(
-    sql`DATE(${schema.employeeActivityLogs.logDate})`,
-    nextDateStr,
-  ),
-);
+      conditions.push(
+        lte(sql`DATE(${schema.employeeActivityLogs.logDate})`, nextDateStr),
+      );
       if (filters?.employeeCode) {
         conditions.push(
           eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
@@ -4202,7 +4504,7 @@ conditions.push(
           logDate: schema.employeeActivityLogs.logDate,
           // onlyDate: schema.employeeActivityLogs.onlyDate,
           onlyDate: sql<string>`
-  DATE(${schema.employeeActivityLogs.logDate})
+  DATE(${schema.employeeActivityLogs.logDate})
 `,
           direction: schema.employeeActivityLogs.direction,
           doorId: schema.employeeActivityLogs.doorId,
@@ -4308,11 +4610,11 @@ conditions.push(
           const doorKey = log.doorId;
           // IN
           if (log.direction === "IN") {
-  // Agar already open session hai toh duplicate IN ignore karo
-  if (!stack[doorKey]) {
-    stack[doorKey] = log;
-  }
-}
+            // Agar already open session hai toh duplicate IN ignore karo
+            if (!stack[doorKey]) {
+              stack[doorKey] = log;
+            }
+          }
           // OUT
           else if (log.direction === "OUT") {
             const inLog = stack[doorKey];
