@@ -419,13 +419,13 @@ export class DatabaseStorage implements IStorage {
         );
       }
       if (filters?.dateTo) {
-  const endDate = new Date(filters.dateTo);
-  endDate.setHours(23, 59, 59, 999);
+        const endDate = new Date(filters.dateTo);
+        endDate.setHours(23, 59, 59, 999);
 
-  conditions.push(
-    lte(schema.employeeActivityLogs.logDate, endDate),
-  );
-}
+        conditions.push(
+          lte(schema.employeeActivityLogs.logDate, endDate),
+        );
+      }
       if (filters?.employeeCode) {
         conditions.push(
           eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
@@ -689,14 +689,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     return currentSites;
@@ -770,7 +770,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) {}
+        } catch (e) { }
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -981,12 +981,12 @@ export class DatabaseStorage implements IStorage {
       // Fallback response handling based on pageSize presence
       return pageSize
         ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-          }
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+        }
         : [];
     }
   }
@@ -1091,14 +1091,14 @@ export class DatabaseStorage implements IStorage {
       if (!msDataRaw || msDataRaw.length === 0) {
         return pageSize
           ? {
-              data: [],
-              totalCount: 0,
-              totalPages: 0,
-              currentPage: 1,
-              pageSize: 0,
-              onlineCount: 0,
-              offlineCount: 0,
-            }
+            data: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: 1,
+            pageSize: 0,
+            onlineCount: 0,
+            offlineCount: 0,
+          }
           : [];
       }
       const currentTime = new Date();
@@ -1194,14 +1194,14 @@ export class DatabaseStorage implements IStorage {
       console.error("Device Sync Error:", error);
       return pageSize
         ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-            onlineCount: 0,
-            offlineCount: 0,
-          }
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+          onlineCount: 0,
+          offlineCount: 0,
+        }
         : [];
     }
   }
@@ -1455,7 +1455,7 @@ export class DatabaseStorage implements IStorage {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(people).where(eq(people.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     let results = currentPgData;
@@ -2097,9 +2097,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-                3600000
-              ).toFixed(2)
+              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+              3600000
+            ).toFixed(2)
             : "0.00",
       };
     });
@@ -2386,7 +2386,7 @@ export class DatabaseStorage implements IStorage {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-              String(presentRow.status).toLowerCase() === "present"
+                String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -2414,7 +2414,7 @@ export class DatabaseStorage implements IStorage {
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-              String(filters.status).toLowerCase();
+            String(filters.status).toLowerCase();
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => {
@@ -2469,7 +2469,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -4504,8 +4504,7 @@ export class DatabaseStorage implements IStorage {
           logDate: schema.employeeActivityLogs.logDate,
           // onlyDate: schema.employeeActivityLogs.onlyDate,
           onlyDate: sql<string>`
-  DATE(${schema.employeeActivityLogs.logDate})
-`,
+          DATE(${schema.employeeActivityLogs.logDate}) `,
           direction: schema.employeeActivityLogs.direction,
           doorId: schema.employeeActivityLogs.doorId,
           doorName: schema.employeeActivityLogs.doorName,
