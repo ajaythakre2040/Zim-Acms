@@ -1244,7 +1244,7 @@ const filterConfig: Record<string, string[]> = {
     // "deviceId",
     // "status",
   ],
-  "daily-efficiency": ["date", "employeeCode", "deviceId", "status"],
+  "daily-efficiency": ["date", "employeeCode", "deviceId"],
   "monthly-efficiency": ["dateFrom", "dateTo", "employeeCode"],
   "department-wise-manpower": ["dateFrom", "dateTo"],
   "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
@@ -1562,9 +1562,10 @@ function DaliyPerformanceTable({ data }: { data?: any[] }) {
         <thead>
           <tr className="border-b bg-muted/30">
             <th className="text-left p-3 font-medium">Employee Name</th>
+            <th className="text-left p-3 font-medium">Employee Code</th>
             <th className="text-left p-3 font-medium">Gender</th>
             <th className="text-left p-3 font-medium">Log Date</th>
-            <th className="text-left p-3 font-medium">Latest Punch Door</th>
+            {/* <th className="text-left p-3 font-medium">Latest Punch Door</th> */}
             <th className="text-left p-3 font-medium">Shift</th>
             <th className="text-left p-3 font-medium">Shift Time</th>
             <th className="text-left p-3 font-medium">In Punch</th>
@@ -1579,13 +1580,14 @@ function DaliyPerformanceTable({ data }: { data?: any[] }) {
             safeData.map((r) => (
               <tr key={`${r.employeeCode}-${r.workDate}`} className="border-b">
                 <td className="p-3">{r.employeeName || "-"}</td>
+                <td className="p-3">{r.employeeCode || "-"}</td>
                 <td className="p-3">{r.gender || "-"}</td>
                 <td className="p-3">
                   {r.workDate
                     ? new Date(r.workDate).toLocaleDateString("en-GB")
                     : "-"}
                 </td>
-                <td className="p-3">{r.doorName || "-"}</td>
+                {/* <td className="p-3">{r.doorName || "-"}</td> */}
                 <td className="p-3">{r.shiftname || "-"}</td>
                 <td className="p-3">{r.shifttime || "-"}</td>
                 <td className="p-3 font-mono text-blue-600 dark:text-blue-400">
@@ -1753,6 +1755,8 @@ function DaliyPerformanceSummaryTable({
     </div>
   );
 }
+
+
 function DaliyPerformanceOvertimeSummaryTable({
   data,
   daysInMonth,
@@ -2923,7 +2927,7 @@ export default function ReportsPage() {
 
   // 🔥 Daily Performance Summary Pagination
   const [summaryPage, setSummaryPage] = useState(1);
-  const [summaryPageSize] = useState(10);
+  const [summaryPageSize] = useState(1);
 
   // 🔥 OT Summary Pagination
   const [otPage, setOtPage] = useState(1);
@@ -3807,12 +3811,18 @@ export default function ReportsPage() {
                   </CardHeader>
 
                   <CardContent className="p-0">
-                    <DaliyPerformanceSummaryTable
+                    {/* <DaliyPerformanceSummaryTable
                       data={musterRollData}
                       daysInMonth={daysInMonth}
                       page={summaryPage}
                       pageSize={summaryPageSize}
-                    />
+                    /> */}
+                    <DaliyPerformanceSummaryTable
+                    data={musterRollData}
+                    daysInMonth={daysInMonth}
+                    page={summaryPage}
+                    pageSize={summaryPageSize}
+                  />
                   </CardContent>
                   <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
                     {/* Left Side */}

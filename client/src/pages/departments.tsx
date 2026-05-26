@@ -5,6 +5,7 @@ import { CrudDialog } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useConfirm } from "@/hooks/use-confirm";
+import { Input } from "@/components/ui/input"; // Agar nahi hai toh
 
 import {
   Plus,
@@ -14,6 +15,7 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronsLeft,
+  Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { validateNoHtml } from "@/lib/validation";
@@ -35,7 +37,8 @@ export default function DepartmentsPage() {
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const pageSize = 1;
+  const [searchTerm, setSearchTerm] = useState(""); // Add this
   // const {
   //   data: response,
   //   isLoading,
@@ -62,18 +65,22 @@ export default function DepartmentsPage() {
   );
 
   const fetchDepartments = async () => {
-    const res = await fetch(
-      `/api/departments?page=${page}&pageSize=${pageSize}`,
-    );
+  // URL mein search query add ki
+  const res = await fetch(
+    `/api/departments?page=${page}&pageSize=${pageSize}&search=${searchTerm}`,
+  );
+  const data = await res.json();
+  setPagedResponse(data);
+};
 
-    const data = await res.json();
-
-    setPagedResponse(data);
-  };
-
-  useEffect(() => {
+// useEffect ko update karo taaki search badalne par fetch trigger ho
+useEffect(() => {
+  const delayDebounceFn = setTimeout(() => {
     fetchDepartments();
-  }, [page]);
+  }, 500); // 500ms debounce taaki har keypress par API hit na ho
+
+  return () => clearTimeout(delayDebounceFn);
+}, [page, searchTerm]);
 
   const data = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -150,9 +157,16 @@ export default function DepartmentsPage() {
                 if (!confirmed) return;
 
                 try {
+                  // await remove(item.id);
+
+                  // await fetchDepartments();
                   await remove(item.id);
 
-                  await fetchDepartments();
+                  setPagedResponse((prev: any) => ({
+                    ...prev,
+                    data: prev.data.filter((d: any) => d.id !== item.id),
+                    totalCount: prev.totalCount - 1,
+                  }));
 
                   toast({
                     title: "Success",
@@ -257,15 +271,27 @@ export default function DepartmentsPage() {
         )}
       </div>
 
-      {/* TABLE */}
-      <DataTable
-        columns={columns}
-        data={data}
-        isLoading={isLoading}
-        searchable
-        searchKeys={["name", "code", "description"]}
-        emptyMessage="No departments found"
-      />
+      <div className="relative max-w-sm mb-4">
+  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+  <Input
+    placeholder="Search by name or code..."
+    value={searchTerm}
+    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+      setSearchTerm(e.target.value);
+      setPage(1); // Search karne par hamesha page 1 par le jao
+    }}
+    className="pl-9"
+  />
+</div>
+
+{/* TABLE - searchable={false} rakhein kyunki hum custom search use kar rahe hain */}
+<DataTable
+  columns={columns}
+  data={data}
+  isLoading={isLoading}
+  searchable={false} 
+  emptyMessage="No departments found"
+/>
 
       {/* Pagination Controls */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">

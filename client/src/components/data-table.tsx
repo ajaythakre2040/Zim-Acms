@@ -1,8 +1,9 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Search } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Button } from "@/components/ui/button"; // Pagination buttons ke liye
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
 
 interface Column<T> {
   key: string;
@@ -20,6 +21,7 @@ interface DataTableProps<T> {
   searchKeys?: string[];
   onRowClick?: (item: T) => void;
   emptyMessage?: string;
+  pageSize?: number; // Ek page par kitne items dikhane hain
 }
 
 export function DataTable<T extends Record<string, any>>({
@@ -30,16 +32,33 @@ export function DataTable<T extends Record<string, any>>({
   searchKeys = [],
   onRowClick,
   emptyMessage = "No data found",
+  pageSize = 10, // Default 10 records per page
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const filtered = useMemo(() => {
+  // Jab bhi user search kare, page 1 par wapas le jao
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
+  // 1. Pehle pure data me se search filter karein
+  const filteredRecords = useMemo(() => {
     if (!search || !searchKeys.length) return data;
     const q = search.toLowerCase();
     return data.filter((item) =>
       searchKeys.some((k) => String(item[k] || "").toLowerCase().includes(q))
     );
   }, [data, search, searchKeys]);
+
+  // 2. Ab filtered records par pagination apply karein
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    return filteredRecords.slice(start, end);
+  }, [filteredRecords, currentPage, pageSize]);
+
+  const totalPages = Math.ceil(filteredRecords.length / pageSize);
 
   if (isLoading) {
     return (
@@ -57,7 +76,7 @@ export function DataTable<T extends Record<string, any>>({
         <div className="relative max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
-            placeholder="Search..."
+            placeholder="Search across all pages..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-9"
@@ -65,6 +84,7 @@ export function DataTable<T extends Record<string, any>>({
           />
         </div>
       )}
+
       <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
@@ -80,19 +100,18 @@ export function DataTable<T extends Record<string, any>>({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filtered.length === 0 ? (
+            {paginatedData.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="text-center py-8 text-muted-foreground">
                   {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((item, idx) => (
+              paginatedData.map((item, idx) => (
                 <TableRow
                   key={item.id || idx}
-                  className={onRowClick ? "cursor-pointer hover-elevate" : ""}
+                  className={onRowClick ? "cursor-pointer hover:bg-muted/50 transition-colors" : ""}
                   onClick={() => onRowClick?.(item)}
-                  data-testid={`row-item-${item.id || idx}`}
                 >
                   {columns.map((col) => (
                     <TableCell
@@ -108,9 +127,37 @@ export function DataTable<T extends Record<string, any>>({
           </TableBody>
         </Table>
       </div>
-      {filtered.length > 0 && (
-        <p className="text-xs text-muted-foreground">{filtered.length} record{filtered.length !== 1 ? "s" : ""}</p>
-      )}
+
+      {/* Footer: Stats & Pagination Controls */}
+      <div className="flex items-center justify-between px-2">
+        <p className="text-xs text-muted-foreground">
+          Showing {paginatedData.length} of {filteredRecords.length} record{filteredRecords.length !== 1 ? "s" : ""}
+        </p>
+        
+        {totalPages > 1 && (
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-xs font-medium">
+              Page {currentPage} of {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
