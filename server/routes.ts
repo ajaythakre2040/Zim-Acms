@@ -310,17 +310,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.COMPANIES
   );
+  // crudRoutes(
+  //   app,
+  //   "/api/departments",
+  //   insertDepartmentSchema,
+  //   (query: any) => storage.getDepartments(query.page, query.pageSize),
+  //   (d) => storage.createDepartment(d),
+  //   (id, d) => storage.updateDepartment(id, d),
+  //   (id) => storage.deleteDepartment(id),
+  //   undefined,
+  //   TABLES.DEPARTMENTS
+  // );
+  
   crudRoutes(
-    app,
-    "/api/departments",
-    insertDepartmentSchema,
-    (query: any) => storage.getDepartments(query.page, query.pageSize),
-    (d) => storage.createDepartment(d),
-    (id, d) => storage.updateDepartment(id, d),
-    (id) => storage.deleteDepartment(id),
-    undefined,
-    TABLES.DEPARTMENTS
-  );
+  app,
+  "/api/departments",
+  insertDepartmentSchema,
+  // 👇 Yahan query.search add karna zaroori hai
+  (query: any) => storage.getDepartments(query.page, query.pageSize, query.search), 
+  (d) => storage.createDepartment(d),
+  (id, d) => storage.updateDepartment(id, d),
+  (id) => storage.deleteDepartment(id),
+  undefined,
+  TABLES.DEPARTMENTS
+);
   crudRoutes(
     app,
     "/api/designations",
@@ -1474,38 +1487,85 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
+
+  // app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
+  //   try {
+  //     // Frontend query params: ?dateFrom=...&dateTo=...&employeeCode=...
+  //     const { dateFrom, dateTo, employeeCode } = req.query;
+  //     // ✅ Proper Validation: Check if dates are present
+  //     if (!dateFrom || !dateTo) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: "Date range is required. Please select both Start Date and End Date to proceed."
+  //       });
+  //     }
+  //     // Call storage with validated dates
+  //     const data = await storage.getEmplyeeEefficiency(
+  //       String(dateFrom),
+  //       String(dateTo),
+  //       employeeCode ? String(employeeCode) : undefined
+  //     );
+  //     // ✅ Professional Success Response
+  //     res.json({
+  //       success: true,
+  //       count: data.length,
+  //       data: data
+  //     });
+  //   } catch (error: any) {
+  //     console.error("Efficiency Report Error:", error);
+  //     // ✅ Professional Error Message
+  //     res.status(500).json({
+  //       success: false,
+  //       message: "An internal server error occurred while generating the efficiency report. Please try again later."
+  //     });
+  //   }
+  // });
+
+    app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
     try {
-      // Frontend query params: ?dateFrom=...&dateTo=...&employeeCode=...
-      const { dateFrom, dateTo, employeeCode } = req.query;
-      // ✅ Proper Validation: Check if dates are present
+      const {
+        dateFrom,
+        dateTo,
+        employeeCode,
+        page,
+        pageSize
+      } = req.query;
+      // Validation
       if (!dateFrom || !dateTo) {
         return res.status(400).json({
           success: false,
-          message: "Date range is required. Please select both Start Date and End Date to proceed."
+          message:
+            "Date range is required. Please select both Start Date and End Date to proceed."
         });
       }
-      // Call storage with validated dates
-      const data = await storage.getEmplyeeEefficiency(
+      const result = await storage.getEmplyeeEefficiency(
         String(dateFrom),
         String(dateTo),
-        employeeCode ? String(employeeCode) : undefined
+        employeeCode
+          ? String(employeeCode)
+          : undefined,
+        page
+          ? String(page)
+          : undefined,
+        pageSize
+          ? String(pageSize)
+          : undefined
       );
-      // ✅ Professional Success Response
       res.json({
         success: true,
-        count: data.length,
-        data: data
+        count: result.totalCount,
+        ...result
       });
     } catch (error: any) {
       console.error("Efficiency Report Error:", error);
-      // ✅ Professional Error Message
       res.status(500).json({
         success: false,
-        message: "An internal server error occurred while generating the efficiency report. Please try again later."
+        message:
+          "An internal server error occurred while generating the efficiency report. Please try again later."
       });
     }
   });
+
   // app.get("/api/reports/department-efficiency", async (req, res) => {
   //   try {
   //     const { dateFrom, dateTo, deptId } = req.query;
@@ -1533,6 +1593,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //     });
   //   }
   // });
+  
+  
   app.get("/api/reports/department-efficiency", async (req, res) => {
     try {
       const {
@@ -1580,50 +1642,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
-    try {
-      const {
-        dateFrom,
-        dateTo,
-        employeeCode,
-        page,
-        pageSize
-      } = req.query;
-      // Validation
-      if (!dateFrom || !dateTo) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Date range is required. Please select both Start Date and End Date to proceed."
-        });
-      }
-      const result = await storage.getEmplyeeEefficiency(
-        String(dateFrom),
-        String(dateTo),
-        employeeCode
-          ? String(employeeCode)
-          : undefined,
-        page
-          ? String(page)
-          : undefined,
-        pageSize
-          ? String(pageSize)
-          : undefined
-      );
-      res.json({
-        success: true,
-        count: result.totalCount,
-        ...result
-      });
-    } catch (error: any) {
-      console.error("Efficiency Report Error:", error);
-      res.status(500).json({
-        success: false,
-        message:
-          "An internal server error occurred while generating the efficiency report. Please try again later."
-      });
-    }
-  });
+
   app.put("/api/users/:id/change-password", requireAuth, withAudit(TABLES.USERS, "EDIT", async (req: any) => {
     const targetUserId = req.params.id;
     const { newPassword, confirmPassword } = req.body;

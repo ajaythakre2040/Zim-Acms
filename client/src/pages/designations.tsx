@@ -160,9 +160,16 @@ export default function DesignationPage() {
                 if (!confirmed) return;
 
                 try {
+                  // await remove(item.id);
+
+                  // await fetchDesignations();
                   await remove(item.id);
 
-                  await fetchDesignations();
+                  setPagedResponse((prev: any) => ({
+                    ...prev,
+                    data: prev.data.filter((d: any) => d.id !== item.id),
+                    totalCount: Math.max(0, (prev.totalCount || 1) - 1),
+                  }));
 
                   toast({
                     title: "Deleted",

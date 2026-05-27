@@ -577,10 +577,30 @@ export class DatabaseStorage implements IStorage {
   async deleteCompany(id: number): Promise<void> {
     await db.delete(companies).where(eq(companies.id, id));
   }
-  async getDepartments(page?: number, pageSize?: number): Promise<any> {
-    const query = db.select().from(departments).orderBy(asc(departments.name));
-    return await withPagination(db, departments, query, page, pageSize);
+  // async getDepartments(page?: number, pageSize?: number): Promise<any> {
+  //   const query = db.select().from(departments).orderBy(asc(departments.name));
+  //   return await withPagination(db, departments, query, page, pageSize);
+  // }
+  async getDepartments(page?: number, pageSize?: number, search?: string): Promise<any> {
+  // 1. Base query banao
+  let query = db.select().from(departments);
+
+  // 2. Agar search term hai, toh filters add karo
+  if (search) {
+    query = query.where(
+      or(
+        ilike(departments.name, `%${search}%`),
+        ilike(departments.code, `%${search}%`)
+      )
+    ) as any;
   }
+
+  // 3. Order set karo
+  query.orderBy(asc(departments.name));
+
+  // 4. Pagination ke saath return karo
+  return await withPagination(db, departments, query, page, pageSize);
+}
   async createDepartment(data: InsertDepartment): Promise<Department> {
     const [created] = await db.insert(departments).values(data).returning();
     return created;
