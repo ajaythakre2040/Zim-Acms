@@ -18,7 +18,7 @@ import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
 
 dayjs.extend(isBetween);
-dayjs.extend(utc);
+dayjs.extend(utc); 
 dayjs.extend(timezone);
 
 const TZ = "Asia/Kolkata";
