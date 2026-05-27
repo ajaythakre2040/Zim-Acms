@@ -105,7 +105,6 @@ export default function PeoplePage() {
 
   const [page, setPage] = useState(1);
   const pageSize = 5;
-  const [search, setSearch] = useState("");
 
   const {
     data: peopleResponse,
@@ -113,12 +112,12 @@ export default function PeoplePage() {
     refetch,
     isFetching,
   } = useQuery<PaginatedResponse<Person>, Error>({
-    queryKey: ["/api/people", page, pageSize, search],
+    queryKey: ["/api/people", page, pageSize],
 
     queryFn: async (): Promise<PaginatedResponse<Person>> => {
       const res = await apiRequest(
         "GET",
-        `/api/people?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
+        `/api/people?page=${page}&pageSize=${pageSize}`,
       );
 
       return await res.json();
@@ -174,9 +173,6 @@ export default function PeoplePage() {
       return r.json();
     },
   });
-  useEffect(() => {
-    setPage(1);
-  }, [search]);
   useEffect(() => {
     if (deviceStatusOpen) {
       refetchLogs();
@@ -778,33 +774,14 @@ export default function PeoplePage() {
           </div>
         }
       />
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search employee..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          className="w-full md:w-72 h-10 px-3 border rounded-md outline-none focus:ring-2 focus:ring-primary"
-        />
-      </div>
       <DataTable
-        columns={columns}
-        data={people}
-        isLoading={isLoading}
-        searchable={false}
-        emptyMessage="No people registered yet"
-      />
-      {/* <DataTable
         columns={columns}
         data={people}
         isLoading={isLoading}
         searchable
         searchKeys={["employeeName", "employeeCode", "email"]}
         emptyMessage="No people registered yet"
-      /> */}
+      />
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
         {/* Left Side: Stats */}
         <div className="text-sm text-muted-foreground order-2 md:order-1">

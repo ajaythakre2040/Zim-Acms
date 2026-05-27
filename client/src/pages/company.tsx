@@ -35,6 +35,7 @@ export default function CompaniesPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const pageSize = 5;
+  const [search, setSearch] = useState("");
 
   // const {
   //   data: response,
@@ -54,16 +55,21 @@ export default function CompaniesPage() {
     useCrud<any>("/api/companies", "Company") as any;
 
   const fetchCompanies = async () => {
-    const res = await fetch(`/api/companies?page=${page}&pageSize=${pageSize}`);
+    const res = await fetch(
+      `/api/companies?page=${page}&pageSize=${pageSize}&search=${search}`,
+    );
 
     const data = await res.json();
-
     setPagedResponse(data);
   };
 
   useEffect(() => {
-    fetchCompanies();
-  }, [page]);
+    const timer = setTimeout(() => {
+      fetchCompanies();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [page, search]);
 
   const data = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -262,14 +268,27 @@ export default function CompaniesPage() {
       </div>
 
       {/* TABLE */}
-      <DataTable
+      {/* <DataTable
         columns={columns}
         data={data}
         isLoading={isLoading}
         searchable
         searchKeys={["name", "shortName", "email"]}
         emptyMessage="No companies found"
-      />
+      /> */}
+
+      <div className="relative max-w-sm mb-4">
+        <input
+          placeholder="Search companies..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1); // IMPORTANT reset page
+          }}
+          className="pl-3 w-full h-9 border rounded-md"
+        />
+      </div>
+      <DataTable columns={columns} data={data} isLoading={isLoading} />
 
       {/* Pagination Controls */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">

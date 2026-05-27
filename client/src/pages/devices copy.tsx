@@ -56,7 +56,6 @@ export default function DevicesPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
   const pageSize = 5;
-  const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Device | null>(null);
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -104,21 +103,16 @@ export default function DevicesPage() {
     useCrud<any>("/api/devices", "Device");
 
   const fetchDevices = async () => {
-  const res = await fetch(
-    `/api/devices?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`
-  );
+    const res = await fetch(`/api/devices?page=${page}&pageSize=${pageSize}`);
 
-  const data = await res.json();
-  setPagedResponse(data);
-};
+    const data = await res.json();
+
+    setPagedResponse(data);
+  };
 
   useEffect(() => {
-  const timer = setTimeout(() => {
     fetchDevices();
-  }, 300);
-
-  return () => clearTimeout(timer);
-}, [page, search]);
+  }, [page]);
 
   const data: Device[] = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -391,30 +385,14 @@ export default function DevicesPage() {
         </Card>
       </div>
 
-      {/* <DataTable
+      <DataTable
         columns={columns}
         data={data}
         isLoading={isLoading}
         searchable
         searchKeys={["name", "ipAddress", "serialNumber"]}
         emptyMessage="No devices registered"
-      /> */}
-<div className="relative max-w-sm mb-4">
-  <input
-    placeholder="Search devices..."
-    value={search}
-    onChange={(e) => {
-      setSearch(e.target.value);
-      setPage(1); // IMPORTANT
-    }}
-    className="w-full h-9 border rounded-md pl-3"
-  />
-</div>
-      <DataTable
-  columns={columns}
-  data={data}
-  isLoading={isLoading}
-/>
+      />
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
         {/* Left Side: Stats */}
         <div className="text-sm text-muted-foreground order-2 md:order-1">

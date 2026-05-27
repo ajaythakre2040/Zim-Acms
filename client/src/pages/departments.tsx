@@ -37,7 +37,7 @@ export default function DepartmentsPage() {
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const pageSize = 1;
+  const pageSize = 5;
   const [searchTerm, setSearchTerm] = useState(""); // Add this
   // const {
   //   data: response,
@@ -65,22 +65,22 @@ export default function DepartmentsPage() {
   );
 
   const fetchDepartments = async () => {
-  // URL mein search query add ki
-  const res = await fetch(
-    `/api/departments?page=${page}&pageSize=${pageSize}&search=${searchTerm}`,
-  );
-  const data = await res.json();
-  setPagedResponse(data);
-};
+    // URL mein search query add ki
+    const res = await fetch(
+      `/api/departments?page=${page}&pageSize=${pageSize}&search=${searchTerm}`,
+    );
+    const data = await res.json();
+    setPagedResponse(data);
+  };
 
-// useEffect ko update karo taaki search badalne par fetch trigger ho
-useEffect(() => {
-  const delayDebounceFn = setTimeout(() => {
-    fetchDepartments();
-  }, 500); // 500ms debounce taaki har keypress par API hit na ho
+  // useEffect ko update karo taaki search badalne par fetch trigger ho
+  useEffect(() => {
+    const delayDebounceFn = setTimeout(() => {
+      fetchDepartments();
+    }, 500); // 500ms debounce taaki har keypress par API hit na ho
 
-  return () => clearTimeout(delayDebounceFn);
-}, [page, searchTerm]);
+    return () => clearTimeout(delayDebounceFn);
+  }, [page, searchTerm]);
 
   const data = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -230,10 +230,7 @@ useEffect(() => {
       const msg = err?.response?.data?.message || err?.message || "";
 
       // 🔑 Unique Code Error (Database check)
-      if (
-        msg.toLowerCase().includes("database") ||
-        msg.toLowerCase().includes("unique")
-      ) {
+      if (msg.toLowerCase().includes("code")) {
         setFieldErrors({
           code: "Department code already exists",
         });
@@ -272,26 +269,26 @@ useEffect(() => {
       </div>
 
       <div className="relative max-w-sm mb-4">
-  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-  <Input
-    placeholder="Search by name or code..."
-    value={searchTerm}
-    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-      setSearchTerm(e.target.value);
-      setPage(1); // Search karne par hamesha page 1 par le jao
-    }}
-    className="pl-9"
-  />
-</div>
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          placeholder="Search by name or code..."
+          value={searchTerm}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            setSearchTerm(e.target.value);
+            setPage(1); // Search karne par hamesha page 1 par le jao
+          }}
+          className="pl-9"
+        />
+      </div>
 
-{/* TABLE - searchable={false} rakhein kyunki hum custom search use kar rahe hain */}
-<DataTable
-  columns={columns}
-  data={data}
-  isLoading={isLoading}
-  searchable={false} 
-  emptyMessage="No departments found"
-/>
+      {/* TABLE - searchable={false} rakhein kyunki hum custom search use kar rahe hain */}
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        searchable={false}
+        emptyMessage="No departments found"
+      />
 
       {/* Pagination Controls */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">

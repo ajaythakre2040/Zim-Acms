@@ -48,6 +48,8 @@ export default function HolidaysPage() {
   const confirm = useConfirm();
   const [page, setPage] = useState(1);
   const pageSize = 5;
+  // 🔥 ADD THESE STATES
+  const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Holiday | null>(null);
   // const {
@@ -72,7 +74,9 @@ export default function HolidaysPage() {
     useCrud<any>("/api/holidays", "Holiday");
 
   const fetchHolidays = async () => {
-    const res = await fetch(`/api/holidays?page=${page}&pageSize=${pageSize}`);
+    const res = await fetch(
+      `/api/holidays?page=${page}&pageSize=${pageSize}&search=${search}`,
+    );
 
     const data = await res.json();
 
@@ -81,7 +85,7 @@ export default function HolidaysPage() {
 
   useEffect(() => {
     fetchHolidays();
-  }, [page]);
+  }, [page, search]);
 
   const data = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -237,12 +241,22 @@ export default function HolidaysPage() {
           )
         }
       />
-
+      <div className="relative max-w-sm mb-4">
+        <input
+          placeholder="Search holidays..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1); // important
+          }}
+          className="w-full h-9 border rounded-md pl-3 pr-3"
+        />
+      </div>
       <DataTable
         columns={columns}
         data={data}
         isLoading={isLoading}
-        searchable
+        searchable={false}
         searchKeys={["name"]}
         emptyMessage="No holidays configured"
       />

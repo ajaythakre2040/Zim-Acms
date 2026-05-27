@@ -85,6 +85,7 @@ export default function ZonesDoorsPage() {
   // ==========================
   const [doorPage, setDoorPage] = useState(1);
   const pageSize = 5;
+  const [search, setSearch] = useState("");
 
   // ==========================
   // CRUD
@@ -102,7 +103,9 @@ export default function ZonesDoorsPage() {
   // FETCH DOORS
   // ==========================
   const fetchDoors = async () => {
-    const res = await fetch(`/api/doors?page=${doorPage}&pageSize=${pageSize}`);
+    const res = await fetch(
+      `/api/doors?page=${doorPage}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
+    );
 
     const data = await res.json();
 
@@ -113,9 +116,12 @@ export default function ZonesDoorsPage() {
   // INITIAL + PAGE CHANGE FETCH
   // ==========================
   useEffect(() => {
-    fetchDoors();
-  }, [doorPage]);
+    const timer = setTimeout(() => {
+      fetchDoors();
+    }, 300);
 
+    return () => clearTimeout(timer);
+  }, [doorPage, search]);
   // ==========================
   // PAGINATION DATA
   // ==========================
@@ -602,13 +608,30 @@ export default function ZonesDoorsPage() {
               </Button>
             )}
           </div>
+
+          <div className="relative max-w-sm mb-4">
+            <input
+              placeholder="Search doors..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setDoorPage(1); // reset page
+              }}
+              className="w-full h-9 border rounded-md pl-3"
+            />
+          </div>
           <DataTable
+            columns={doorColumns}
+            data={doors}
+            isLoading={doorCrud.isLoading}
+          />
+          {/* <DataTable
             columns={doorColumns}
             data={doors}
             isLoading={doorCrud.isLoading}
             searchable
             searchKeys={["name", "code"]}
-          />
+          /> */}
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
             {/* Left Side: Stats */}
             <div className="text-sm text-muted-foreground order-2 md:order-1">

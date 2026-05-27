@@ -555,10 +555,34 @@ export class DatabaseStorage implements IStorage {
       }
     });
   }
-  async getCompanies(page?: number, pageSize?: number): Promise<any> {
-    const query = db.select().from(companies).orderBy(asc(companies.id));
-    return await withPagination(db, companies, query, page, pageSize);
+  // async getCompanies(page?: number, pageSize?: number): Promise<any> {
+  //   const query = db.select().from(companies).orderBy(asc(companies.id));
+  //   return await withPagination(db, companies, query, page, pageSize);
+  // }
+
+  async getCompanies(page?: number, pageSize?: number, search?: string): Promise<any> {
+  const conditions = [];
+
+  // 🔥 SEARCH FILTER
+  if (search && search.trim() !== "") {
+    conditions.push(
+      or(
+        ilike(companies.name, `%${search}%`),
+        ilike(companies.shortName, `%${search}%`),
+        ilike(companies.email, `%${search}%`)
+      )
+    );
   }
+
+  // 🔥 FINAL QUERY
+  const baseQuery = db
+    .select()
+    .from(companies)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(asc(companies.id));
+
+  return await withPagination(db, companies, baseQuery, page, pageSize);
+}
   async createCompany(data: InsertCompany): Promise<Company> {
     const [created] = await db.insert(companies).values(data).returning();
     return created;
@@ -577,6 +601,7 @@ export class DatabaseStorage implements IStorage {
   async deleteCompany(id: number): Promise<void> {
     await db.delete(companies).where(eq(companies.id, id));
   }
+
   // async getDepartments(page?: number, pageSize?: number): Promise<any> {
   //   const query = db.select().from(departments).orderBy(asc(departments.name));
   //   return await withPagination(db, departments, query, page, pageSize);
@@ -601,10 +626,31 @@ export class DatabaseStorage implements IStorage {
   // 4. Pagination ke saath return karo
   return await withPagination(db, departments, query, page, pageSize);
 }
+  // async createDepartment(data: InsertDepartment): Promise<Department> {
+  //   const [created] = await db.insert(departments).values(data).returning();
+  //   return created;
+  // }
   async createDepartment(data: InsertDepartment): Promise<Department> {
-    const [created] = await db.insert(departments).values(data).returning();
-    return created;
+  if (!data.code) {
+    throw new Error("Department code is required.");
   }
+
+  const [existing] = await db
+    .select()
+    .from(departments)
+    .where(eq(departments.code, data.code));
+
+  if (existing) {
+    throw new Error(`Department code '${data.code}' already exists.`);
+  }
+
+  const [created] = await db
+    .insert(departments)
+    .values(data)
+    .returning();
+
+  return created;
+}
   async updateDepartment(
     id: number,
     data: Partial<InsertDepartment>,
@@ -619,17 +665,63 @@ export class DatabaseStorage implements IStorage {
   async deleteDepartment(id: number): Promise<void> {
     await db.delete(departments).where(eq(departments.id, id));
   }
-  async getDesignations(page?: number, pageSize?: number): Promise<any> {
-    const query = db
-      .select()
-      .from(designations)
-      .orderBy(asc(designations.name));
-    return await withPagination(db, designations, query, page, pageSize);
-  }
+  // async getDesignations(page?: number, pageSize?: number): Promise<any> {
+  //   const query = db
+  //     .select()
+  //     .from(designations)
+  //     .orderBy(asc(designations.name));
+  //   return await withPagination(db, designations, query, page, pageSize);
+  // }
+  async getDesignations(
+  page?: number,
+  pageSize?: number,
+  search?: string
+): Promise<any> {
+
+  const baseQuery = db
+    .select()
+    .from(designations);
+
+  const query = search
+    ? baseQuery.where(
+        ilike(designations.name, `%${search}%`)
+      )
+    : baseQuery;
+
+  return await withPagination(
+    db,
+    designations,
+    query.orderBy(asc(designations.name)),
+    page,
+    pageSize
+  );
+}
+  // async createDesignation(data: InsertDesignation): Promise<Designation> {
+  //   const [created] = await db.insert(designations).values(data).returning();
+  //   return created;
+  // }
   async createDesignation(data: InsertDesignation): Promise<Designation> {
-    const [created] = await db.insert(designations).values(data).returning();
-    return created;
+
+  if (!data.code) {
+    throw new Error("Designation code is required.");
   }
+
+  const [existing] = await db
+    .select()
+    .from(designations)
+    .where(eq(designations.code, data.code));
+
+  if (existing) {
+    throw new Error(`Designation code '${data.code}' already exists.`);
+  }
+
+  const [created] = await db
+    .insert(designations)
+    .values(data)
+    .returning();
+
+  return created;
+}
   async updateDesignation(
     id: number,
     data: Partial<InsertDesignation>,
@@ -644,10 +736,34 @@ export class DatabaseStorage implements IStorage {
   async deleteDesignation(id: number): Promise<void> {
     await db.delete(designations).where(eq(designations.id, id));
   }
-  async getCategories(page?: number, pageSize?: number): Promise<any> {
-    const query = db.select().from(categories).orderBy(asc(categories.id));
-    return await withPagination(db, categories, query, page, pageSize);
-  }
+  // async getCategories(page?: number, pageSize?: number): Promise<any> {
+  //   const query = db.select().from(categories).orderBy(asc(categories.id));
+  //   return await withPagination(db, categories, query, page, pageSize);
+  // }
+  async getCategories(
+  page?: number,
+  pageSize?: number,
+  search?: string
+): Promise<any> {
+
+  const baseQuery = db
+    .select()
+    .from(categories);
+
+  const query = search
+    ? baseQuery.where(
+        ilike(categories.name, `%${search}%`)
+      )
+    : baseQuery;
+
+  return await withPagination(
+    db,
+    categories,
+    query.orderBy(asc(categories.id)),
+    page,
+    pageSize
+  );
+}
   async createCategory(data: InsertCategory): Promise<Category> {
     const [created] = await db.insert(categories).values(data).returning();
     return created;
@@ -932,84 +1048,86 @@ export class DatabaseStorage implements IStorage {
   async deleteZone(id: number): Promise<void> {
     await db.delete(zones).where(eq(zones.id, id));
   }
-  async getDoors(
-    page?: number | string,
-    pageSize?: number | string,
-  ): Promise<any> {
-    try {
-      // Data fetch karte waqt hi order laga diya taaki sorting bani rahe
-      const [allDoors, allDoorDevices, allDevices] = await Promise.all([
-        db.select().from(doors).orderBy(asc(doors.id)),
-        db.select().from(doorDevices),
-        db.select().from(devices),
-      ]);
-      const resolvedDoors = allDoors.map((door) => {
-        const mapping = allDoorDevices.find((md) => md.doorId === door.id);
-        const resolveDevices = (ids: any[] | null) => {
-          if (!ids || !Array.isArray(ids)) return [];
-          return ids
-            .map((id) => {
-              const dev = allDevices.find((d) => Number(d.msId) === Number(id));
-              return dev
-                ? { id: dev.id, msId: dev.msId, name: dev.name }
-                : null;
-            })
-            .filter(
-              (d): d is { id: number; msId: number; name: string } =>
-                d !== null,
-            );
-        };
-        const inDevices = resolveDevices(mapping?.inDeviceIds || []);
-        const outDevices = resolveDevices(mapping?.outDeviceIds || []);
-        return {
-          ...door,
-          inDevices,
-          outDevices,
-          inCount: inDevices.length,
-          outCount: outDevices.length,
-        };
-      });
-      // --- Pagination Layer ---
-      // Rule: Agar pageSize nahi mila, toh jaise abhi simple array response aa raha hai, waisa hi return karo
-      if (!pageSize) {
-        return resolvedDoors;
-      }
-      // Rule: Agar pageSize -1 hai, toh object format mein all data do
-      if (pageSize === -1 || pageSize === "-1") {
-        return {
-          data: resolvedDoors,
-          totalCount: resolvedDoors.length,
-          totalPages: 1,
-          currentPage: 1,
-          pageSize: resolvedDoors.length,
-        };
-      }
-      const p = page && Number(page) > 0 ? Number(page) : 1;
-      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-      const start = (p - 1) * size;
-      const end = start + size;
-      const paginatedData = resolvedDoors.slice(start, end);
-      return {
-        data: paginatedData,
-        totalCount: resolvedDoors.length,
-        totalPages: Math.ceil(resolvedDoors.length / size),
-        currentPage: p,
-        pageSize: size,
-      };
-    } catch (error) {
-      console.error("getDoors MS_ID Sync Error:", error);
-      // Fallback response handling based on pageSize presence
-      return pageSize
-        ? {
-          data: [],
-          totalCount: 0,
-          totalPages: 0,
-          currentPage: 1,
-          pageSize: 0,
-        }
-        : [];
-    }
-  }
+  // async getDoors(
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  // ): Promise<any> {
+  //   try {
+  //     // Data fetch karte waqt hi order laga diya taaki sorting bani rahe
+  //     const [allDoors, allDoorDevices, allDevices] = await Promise.all([
+  //       db.select().from(doors).orderBy(asc(doors.id)),
+  //       db.select().from(doorDevices),
+  //       db.select().from(devices),
+  //     ]);
+  //     const resolvedDoors = allDoors.map((door) => {
+  //       const mapping = allDoorDevices.find((md) => md.doorId === door.id);
+  //       const resolveDevices = (ids: any[] | null) => {
+  //         if (!ids || !Array.isArray(ids)) return [];
+  //         return ids
+  //           .map((id) => {
+  //             const dev = allDevices.find((d) => Number(d.msId) === Number(id));
+  //             return dev
+  //               ? { id: dev.id, msId: dev.msId, name: dev.name }
+  //               : null;
+  //           })
+  //           .filter(
+  //             (d): d is { id: number; msId: number; name: string } =>
+  //               d !== null,
+  //           );
+  //       };
+  //       const inDevices = resolveDevices(mapping?.inDeviceIds || []);
+  //       const outDevices = resolveDevices(mapping?.outDeviceIds || []);
+  //       return {
+  //         ...door,
+  //         inDevices,
+  //         outDevices,
+  //         inCount: inDevices.length,
+  //         outCount: outDevices.length,
+  //       };
+  //     });
+  //     // --- Pagination Layer ---
+  //     // Rule: Agar pageSize nahi mila, toh jaise abhi simple array response aa raha hai, waisa hi return karo
+  //     if (!pageSize) {
+  //       return resolvedDoors;
+  //     }
+  //     // Rule: Agar pageSize -1 hai, toh object format mein all data do
+  //     if (pageSize === -1 || pageSize === "-1") {
+  //       return {
+  //         data: resolvedDoors,
+  //         totalCount: resolvedDoors.length,
+  //         totalPages: 1,
+  //         currentPage: 1,
+  //         pageSize: resolvedDoors.length,
+  //       };
+  //     }
+  //     const p = page && Number(page) > 0 ? Number(page) : 1;
+  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+  //     const start = (p - 1) * size;
+  //     const end = start + size;
+  //     const paginatedData = resolvedDoors.slice(start, end);
+  //     return {
+  //       data: paginatedData,
+  //       totalCount: resolvedDoors.length,
+  //       totalPages: Math.ceil(resolvedDoors.length / size),
+  //       currentPage: p,
+  //       pageSize: size,
+  //     };
+  //   } catch (error) {
+  //     console.error("getDoors MS_ID Sync Error:", error);
+  //     // Fallback response handling based on pageSize presence
+  //     return pageSize
+  //       ? {
+  //         data: [],
+  //         totalCount: 0,
+  //         totalPages: 0,
+  //         currentPage: 1,
+  //         pageSize: 0,
+  //       }
+  //       : [];
+  //   }
+  // }
+
+
   // async getDoors(): Promise<any[]> {
   //   try {
   //     const [allDoors, allDoorDevices, allDevices] = await Promise.all([
@@ -1041,6 +1159,122 @@ export class DatabaseStorage implements IStorage {
   //     return [];
   //   }
   // }
+
+  async getDoors(
+  page?: number | string,
+  pageSize?: number | string,
+  search?: string
+): Promise<any> {
+  try {
+    const [allDoors, allDoorDevices, allDevices] = await Promise.all([
+      db.select().from(doors).orderBy(asc(doors.id)),
+      db.select().from(doorDevices),
+      db.select().from(devices),
+    ]);
+
+    // -------------------------
+    // DEVICE MAPPING
+    // -------------------------
+    const resolvedDoors = allDoors.map((door) => {
+      const mapping = allDoorDevices.find(
+        (md) => md.doorId === door.id
+      );
+
+      const resolveDevices = (ids: any[] | null) => {
+        if (!ids || !Array.isArray(ids)) return [];
+
+        return ids
+          .map((id) => {
+            const dev = allDevices.find(
+              (d) => Number(d.msId) === Number(id)
+            );
+
+            return dev
+              ? { id: dev.id, msId: dev.msId, name: dev.name }
+              : null;
+          })
+          .filter(Boolean) as { id: number; msId: number; name: string }[];
+      };
+
+      const inDevices = resolveDevices(mapping?.inDeviceIds || []);
+      const outDevices = resolveDevices(mapping?.outDeviceIds || []);
+
+      return {
+        ...door,
+        inDevices,
+        outDevices,
+        inCount: inDevices.length,
+        outCount: outDevices.length,
+      };
+    });
+
+    // -------------------------
+    // SEARCH LOGIC
+    // -------------------------
+    const searchText = search?.toLowerCase().trim();
+
+    const filteredDoors = searchText
+      ? resolvedDoors.filter((door) => {
+          return (
+            door.name?.toLowerCase().includes(searchText) ||
+            door.code?.toLowerCase().includes(searchText) ||
+            door.doorType?.toLowerCase().includes(searchText)
+          );
+        })
+      : resolvedDoors;
+
+    // -------------------------
+    // NO PAGINATION CASE
+    // -------------------------
+    if (!pageSize) {
+      return filteredDoors;
+    }
+
+    // -------------------------
+    // ALL DATA CASE
+    // -------------------------
+    if (pageSize === -1 || pageSize === "-1") {
+      return {
+        data: filteredDoors,
+        totalCount: filteredDoors.length,
+        totalPages: 1,
+        currentPage: 1,
+        pageSize: filteredDoors.length,
+      };
+    }
+
+    // -------------------------
+    // PAGINATION
+    // -------------------------
+    const p = page && Number(page) > 0 ? Number(page) : 1;
+    const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+
+    const start = (p - 1) * size;
+    const end = start + size;
+
+    const paginatedData = filteredDoors.slice(start, end);
+
+    return {
+      data: paginatedData,
+      totalCount: filteredDoors.length,
+      totalPages: Math.ceil(filteredDoors.length / size),
+      currentPage: p,
+      pageSize: size,
+    };
+  } catch (error) {
+    console.error("getDoors Error:", error);
+
+    return pageSize
+      ? {
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+        }
+      : [];
+  }
+}
   async createDoor(data: InsertDoor): Promise<Door> {
     if (data.name) {
       const [existingName] = await db
@@ -1099,132 +1333,279 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
+  
+  // async getDevices(
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  // ): Promise<any> {
+  //   try {
+  //     const msDataRaw = await dbMsSql
+  //       .select()
+  //       .from({ dbName: "Devices" })
+  //       .execute();
+  //     if (!msDataRaw || msDataRaw.length === 0) {
+  //       return pageSize
+  //         ? {
+  //           data: [],
+  //           totalCount: 0,
+  //           totalPages: 0,
+  //           currentPage: 1,
+  //           pageSize: 0,
+  //           onlineCount: 0,
+  //           offlineCount: 0,
+  //         }
+  //         : [];
+  //     }
+  //     const currentTime = new Date();
+  //     const THRESHOLD_MINUTES = 1;
+  //     // Counts track karne ke liye counters
+  //     let onlineCount = 0;
+  //     let offlineCount = 0;
+  //     const formattedDevices = msDataRaw.map((d: any) => {
+  //       let lPing: Date | null = null;
+  //       let calculatedStatus = "offline";
+  //       if (d.LastPing) {
+  //         lPing = new Date(d.LastPing);
+  //         let diffInMs = currentTime.getTime() - lPing.getTime();
+  //         let diffInMinutes = diffInMs / 60000;
+  //         const absDiff = Math.abs(diffInMinutes);
+  //         if (
+  //           absDiff <= THRESHOLD_MINUTES ||
+  //           Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
+  //         ) {
+  //           calculatedStatus = "online";
+  //         }
+  //       }
+  //       // Loop chalte waise hi status count kar rahe hain (Alag se loop chalane ki zarurat nahi, performance bachegi)
+  //       if (calculatedStatus === "online") {
+  //         onlineCount++;
+  //       } else {
+  //         offlineCount++;
+  //       }
+  //       return {
+  //         msId: d.DeviceId || d.DeviceID,
+  //         name: d.DeviceName || "Unnamed Device",
+  //         deviceDirection: d.DeviceDirection || null,
+  //         serialNumber: d.SerialNumber || d.serialno,
+  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
+  //         lastPing: lPing,
+  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
+  //         activationCode: d.ActivationCode || "",
+  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
+  //         locationId: d.LocationId || null,
+  //         ipAddress: d.IpAddress || "",
+  //         lastHeartbeat: lPing,
+  //         status: calculatedStatus,
+  //         isActive: true,
+  //       };
+  //     });
+  //     // Sync to Local Postgres
+  //     for (const dev of formattedDevices) {
+  //       await db
+  //         .insert(devices)
+  //         .values(dev)
+  //         .onConflictDoUpdate({
+  //           target: devices.msId,
+  //           set: { ...dev },
+  //         });
+  //     }
+  //     const currentMsIds = formattedDevices.map((d) => d.msId as number);
+  //     if (currentMsIds.length > 0) {
+  //       await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
+  //     }
+  //     // --- Pagination Logic ---
+  //     // Rule: Agar pageSize nahi mila, toh normal array format
+  //     if (!pageSize) {
+  //       return formattedDevices;
+  //     }
+  //     // Rule: Agar pageSize -1 hai, toh object format mein all data + counts
+  //     if (pageSize === -1 || pageSize === "-1") {
+  //       return {
+  //         data: formattedDevices,
+  //         totalCount: formattedDevices.length,
+  //         totalPages: 1,
+  //         currentPage: 1,
+  //         pageSize: formattedDevices.length,
+  //         onlineCount, // <-- Added here
+  //         offlineCount, // <-- Added here
+  //       };
+  //     }
+  //     const p = page && Number(page) > 0 ? Number(page) : 1;
+  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+  //     const start = (p - 1) * size;
+  //     const end = start + size;
+  //     const paginatedData = formattedDevices.slice(start, end);
+  //     return {
+  //       data: paginatedData,
+  //       totalCount: formattedDevices.length,
+  //       totalPages: Math.ceil(formattedDevices.length / size),
+  //       currentPage: p,
+  //       pageSize: size,
+  //       onlineCount, // <-- Added here
+  //       offlineCount, // <-- Added here
+  //     };
+  //   } catch (error) {
+  //     console.error("Device Sync Error:", error);
+  //     return pageSize
+  //       ? {
+  //         data: [],
+  //         totalCount: 0,
+  //         totalPages: 0,
+  //         currentPage: 1,
+  //         pageSize: 0,
+  //         onlineCount: 0,
+  //         offlineCount: 0,
+  //       }
+  //       : [];
+  //   }
+  // }
+
   async getDevices(
-    page?: number | string,
-    pageSize?: number | string,
-  ): Promise<any> {
-    try {
-      const msDataRaw = await dbMsSql
-        .select()
-        .from({ dbName: "Devices" })
-        .execute();
-      if (!msDataRaw || msDataRaw.length === 0) {
-        return pageSize
-          ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-            onlineCount: 0,
-            offlineCount: 0,
-          }
-          : [];
-      }
-      const currentTime = new Date();
-      const THRESHOLD_MINUTES = 1;
-      // Counts track karne ke liye counters
-      let onlineCount = 0;
-      let offlineCount = 0;
-      const formattedDevices = msDataRaw.map((d: any) => {
-        let lPing: Date | null = null;
-        let calculatedStatus = "offline";
-        if (d.LastPing) {
-          lPing = new Date(d.LastPing);
-          let diffInMs = currentTime.getTime() - lPing.getTime();
-          let diffInMinutes = diffInMs / 60000;
-          const absDiff = Math.abs(diffInMinutes);
-          if (
-            absDiff <= THRESHOLD_MINUTES ||
-            Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
-          ) {
-            calculatedStatus = "online";
-          }
-        }
-        // Loop chalte waise hi status count kar rahe hain (Alag se loop chalane ki zarurat nahi, performance bachegi)
-        if (calculatedStatus === "online") {
-          onlineCount++;
-        } else {
-          offlineCount++;
-        }
-        return {
-          msId: d.DeviceId || d.DeviceID,
-          name: d.DeviceName || "Unnamed Device",
-          deviceDirection: d.DeviceDirection || null,
-          serialNumber: d.SerialNumber || d.serialno,
-          opstamp: d.OpStamp ? String(d.OpStamp) : null,
-          lastPing: lPing,
-          lastreset: d.LastReset ? new Date(d.LastReset) : null,
-          activationCode: d.ActivationCode || "",
-          isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-          deviceType: String(d.DeviceType || "-").toLowerCase(),
-          locationId: d.LocationId || null,
-          ipAddress: d.IpAddress || "",
-          lastHeartbeat: lPing,
-          status: calculatedStatus,
-          isActive: true,
-        };
-      });
-      // Sync to Local Postgres
-      for (const dev of formattedDevices) {
-        await db
-          .insert(devices)
-          .values(dev)
-          .onConflictDoUpdate({
-            target: devices.msId,
-            set: { ...dev },
-          });
-      }
-      const currentMsIds = formattedDevices.map((d) => d.msId as number);
-      if (currentMsIds.length > 0) {
-        await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
-      }
-      // --- Pagination Logic ---
-      // Rule: Agar pageSize nahi mila, toh normal array format
-      if (!pageSize) {
-        return formattedDevices;
-      }
-      // Rule: Agar pageSize -1 hai, toh object format mein all data + counts
-      if (pageSize === -1 || pageSize === "-1") {
-        return {
-          data: formattedDevices,
-          totalCount: formattedDevices.length,
-          totalPages: 1,
-          currentPage: 1,
-          pageSize: formattedDevices.length,
-          onlineCount, // <-- Added here
-          offlineCount, // <-- Added here
-        };
-      }
-      const p = page && Number(page) > 0 ? Number(page) : 1;
-      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-      const start = (p - 1) * size;
-      const end = start + size;
-      const paginatedData = formattedDevices.slice(start, end);
+  page?: number | string,
+  pageSize?: number | string,
+  search?: string
+): Promise<any> {
+  try {
+    const msDataRaw = await dbMsSql
+      .select()
+      .from({ dbName: "Devices" })
+      .execute();
+
+    if (!msDataRaw || msDataRaw.length === 0) {
       return {
-        data: paginatedData,
-        totalCount: formattedDevices.length,
-        totalPages: Math.ceil(formattedDevices.length / size),
-        currentPage: p,
-        pageSize: size,
-        onlineCount, // <-- Added here
-        offlineCount, // <-- Added here
+        data: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 0,
+        onlineCount: 0,
+        offlineCount: 0,
       };
-    } catch (error) {
-      console.error("Device Sync Error:", error);
-      return pageSize
-        ? {
-          data: [],
-          totalCount: 0,
-          totalPages: 0,
-          currentPage: 1,
-          pageSize: 0,
-          onlineCount: 0,
-          offlineCount: 0,
-        }
-        : [];
     }
+
+    const currentTime = new Date();
+    const THRESHOLD_MINUTES = 1;
+
+    let onlineCount = 0;
+    let offlineCount = 0;
+
+    // 🔥 STEP 1: FORMAT DATA
+    let formattedDevices = msDataRaw.map((d: any) => {
+      let lPing: Date | null = null;
+      let calculatedStatus = "offline";
+
+      if (d.LastPing) {
+        lPing = new Date(d.LastPing);
+        let diffInMs = currentTime.getTime() - lPing.getTime();
+        let diffInMinutes = diffInMs / 60000;
+
+        const absDiff = Math.abs(diffInMinutes);
+
+        if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
+          calculatedStatus = "online";
+        }
+      }
+
+      if (calculatedStatus === "online") onlineCount++;
+      else offlineCount++;
+
+      return {
+        msId: d.DeviceId || d.DeviceID,
+        name: d.DeviceName || "Unnamed Device",
+        deviceDirection: d.DeviceDirection || null,
+        serialNumber: d.SerialNumber || d.serialno,
+        opstamp: d.OpStamp ? String(d.OpStamp) : null,
+        lastPing: lPing,
+        lastreset: d.LastReset ? new Date(d.LastReset) : null,
+        activationCode: d.ActivationCode || "",
+        isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+        deviceType: String(d.DeviceType || "-").toLowerCase(),
+        locationId: d.LocationId || null,
+        ipAddress: d.IpAddress || "",
+        lastHeartbeat: lPing,
+        status: calculatedStatus,
+        isActive: true,
+      };
+    });
+
+    // 🔥 STEP 2: SEARCH FILTER (IMPORTANT)
+    if (search && search.trim()) {
+      const s = search.toLowerCase();
+
+      formattedDevices = formattedDevices.filter((d) =>
+        d.name?.toLowerCase().includes(s) ||
+        d.ipAddress?.toLowerCase().includes(s) ||
+        d.serialNumber?.toLowerCase().includes(s) ||
+        d.deviceType?.toLowerCase().includes(s)
+      );
+    }
+
+    // 🔥 STEP 3: SYNC DB
+    for (const dev of formattedDevices) {
+      await db
+        .insert(devices)
+        .values(dev)
+        .onConflictDoUpdate({
+          target: devices.msId,
+          set: { ...dev },
+        });
+    }
+
+    const currentMsIds = formattedDevices.map((d) => d.msId as number);
+
+    if (currentMsIds.length > 0) {
+      await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
+    }
+
+    // 🔥 STEP 4: PAGINATION
+    if (!pageSize) return formattedDevices;
+
+    if (pageSize === -1 || pageSize === "-1") {
+      return {
+        data: formattedDevices,
+        totalCount: formattedDevices.length,
+        totalPages: 1,
+        currentPage: 1,
+        pageSize: formattedDevices.length,
+        onlineCount,
+        offlineCount,
+      };
+    }
+
+    const p = page && Number(page) > 0 ? Number(page) : 1;
+    const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+
+    const start = (p - 1) * size;
+    const end = start + size;
+
+    const paginatedData = formattedDevices.slice(start, end);
+
+    return {
+      data: paginatedData,
+      totalCount: formattedDevices.length,
+      totalPages: Math.ceil(formattedDevices.length / size),
+      currentPage: p,
+      pageSize: size,
+      onlineCount,
+      offlineCount,
+    };
+  } catch (error) {
+    console.error("Device Sync Error:", error);
+
+    return {
+      data: [],
+      totalCount: 0,
+      totalPages: 0,
+      currentPage: 1,
+      pageSize: 0,
+      onlineCount: 0,
+      offlineCount: 0,
+    };
   }
+}
+
+
   // async getDevices(): Promise<any[]> {
   //   try {
   //     const msDataRaw = await dbMsSql
@@ -1364,165 +1745,269 @@ export class DatabaseStorage implements IStorage {
       await db.delete(devices).where(eq(devices.msId, msId));
     }
   }
-  async getPeople(
-    search?: string,
-    page?: number | string,
-    pageSize?: number | string,
-  ): Promise<any> {
-    const [pgDataRaw, msDataRaw] = await Promise.all([
-      db
-        .select({
-          person: {
-            ...people,
-            lastSeenTime: sql<string>`TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')`,
-          },
-          departmentName: departments.name,
-          lastPunchDoorName: doors.name,
-        })
-        .from(people)
-        .leftJoin(departments, eq(people.departmentId, departments.id))
-        .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
-      dbMsSql.select().from({ dbName: "Employees" }).execute(),
-    ]);
-    const msIds = new Set();
-    const ruleIdToName = Object.fromEntries(
-      Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
+  
+  // ==========================
+// STORAGE
+// ==========================
+
+async getPeople(
+  search?: string,
+  page?: number | string,
+  pageSize?: number | string,
+): Promise<any> {
+
+  const [pgDataRaw, msDataRaw] = await Promise.all([
+    db
+      .select({
+        person: {
+          ...people,
+          lastSeenTime: sql<string>`
+            TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')
+          `,
+        },
+        departmentName: departments.name,
+        lastPunchDoorName: doors.name,
+      })
+      .from(people)
+      .leftJoin(departments, eq(people.departmentId, departments.id))
+      .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
+
+    dbMsSql.select().from({ dbName: "Employees" }).execute(),
+  ]);
+
+  const msIds = new Set();
+
+  const ruleIdToName = Object.fromEntries(
+    Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
+  );
+
+  const currentPgData = pgDataRaw.map((row) => ({
+    ...row.person,
+    departmentName: row.departmentName || "N/A",
+    lastPunchDoorName: row.lastPunchDoorName || "No Door",
+    ruleName:
+      row.person.ruleid !== null
+        ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
+        : "NO_RULE",
+  }));
+
+  // ==========================
+  // MSSQL SYNC
+  // ==========================
+
+  for (const msRow of msDataRaw || []) {
+
+    const mapped = PersonAdapter.toPostgres(msRow);
+
+    if (!mapped.msId) continue;
+
+    msIds.add(mapped.msId);
+
+    const existingIndex = currentPgData.findIndex(
+      (p) => p.msId === mapped.msId,
     );
-    const currentPgData = pgDataRaw.map((row) => ({
-      ...row.person,
-      departmentName: row.departmentName || "N/A",
-      lastPunchDoorName: row.lastPunchDoorName || "No Door",
-      ruleName:
-        row.person.ruleid !== null
-          ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
-          : "NO_RULE",
-    }));
-    for (const msRow of msDataRaw || []) {
-      const mapped = PersonAdapter.toPostgres(msRow);
-      if (!mapped.msId) continue;
-      msIds.add(mapped.msId);
-      const existingIndex = currentPgData.findIndex(
-        (p) => p.msId === mapped.msId,
-      );
-      if (existingIndex === -1) {
+
+    // ==========================
+    // INSERT
+    // ==========================
+
+    if (existingIndex === -1) {
+
+      try {
+
+        const [newRec] = await db
+          .insert(people)
+          .values({
+            msId: mapped.msId,
+            employeeCode: mapped.employeeCode,
+            employeeName: mapped.employeeName ?? "Unknown",
+            address: mapped.address ?? null,
+            ruleid: mapped.ruleid ?? null,
+            locationId: mapped.locationId ?? null,
+            externalId: mapped.externalId ?? null,
+            overtimeEligible: mapped.overtimeEligible ?? false,
+            personType: "employee",
+            status: "active",
+            sourceSystem: "mssql_bio",
+            updatedAt: new Date(),
+            createdAt: new Date(),
+          })
+          .returning();
+
+        if (newRec?.employeeCode) {
+          await this.executeHardwareSync(
+            newRec.employeeCode,
+            null,
+            true,
+          );
+        }
+
+        currentPgData.push({
+          ...newRec,
+          departmentName: "N/A",
+          lastPunchDoorName: "No Door",
+          ruleName:
+            newRec.ruleid !== null
+              ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
+              : "NO_ROLE",
+        });
+
+      } catch (e) {
+        console.error("New employee sync error:", e);
+      }
+    }
+
+    // ==========================
+    // UPDATE
+    // ==========================
+
+    else {
+
+      const existing = currentPgData[existingIndex];
+
+      const hasChanged =
+        existing.employeeName !== mapped.employeeName ||
+        existing.employeeCode !== mapped.employeeCode ||
+        existing.ruleid !== mapped.ruleid;
+
+      if (hasChanged) {
+
         try {
-          const [newRec] = await db
-            .insert(people)
-            .values({
-              msId: mapped.msId,
-              employeeCode: mapped.employeeCode,
+
+          const [updatedRec] = await db
+            .update(people)
+            .set({
               employeeName: mapped.employeeName ?? "Unknown",
+              employeeCode: mapped.employeeCode,
               address: mapped.address ?? null,
-              ruleid: mapped.ruleid ?? null,
-              locationId: mapped.locationId ?? null,
-              externalId: mapped.externalId ?? null,
-              overtimeEligible: mapped.overtimeEligible ?? false,
-              personType: "employee",
-              status: "active",
-              sourceSystem: "mssql_bio",
               updatedAt: new Date(),
-              createdAt: new Date(),
             })
+            .where(eq(people.msId, mapped.msId))
             .returning();
-          if (newRec?.employeeCode) {
-            await this.executeHardwareSync(newRec.employeeCode, null, true);
-          }
-          currentPgData.push({
-            ...newRec,
-            departmentName: "N/A",
-            lastPunchDoorName: "No Door",
+
+          currentPgData[existingIndex] = {
+            ...existing,
+            ...updatedRec,
             ruleName:
-              newRec.ruleid !== null
-                ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
+              updatedRec.ruleid !== null
+                ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
                 : "NO_ROLE",
-          });
+          };
+
         } catch (e) {
-          console.error("New employee sync error:", e);
-        }
-      } else {
-        const existing = currentPgData[existingIndex];
-        const hasChanged =
-          existing.employeeName !== mapped.employeeName ||
-          existing.employeeCode !== mapped.employeeCode ||
-          existing.ruleid !== mapped.ruleid;
-        if (hasChanged) {
-          try {
-            const [updatedRec] = await db
-              .update(people)
-              .set({
-                employeeName: mapped.employeeName ?? "Unknown",
-                employeeCode: mapped.employeeCode,
-                address: mapped.address ?? null,
-                updatedAt: new Date(),
-              })
-              .where(eq(people.msId, mapped.msId))
-              .returning();
-            currentPgData[existingIndex] = {
-              ...existing,
-              ...updatedRec,
-              ruleName:
-                updatedRec.ruleid !== null
-                  ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
-                  : "NO_ROLE",
-            };
-          } catch (e) {
-            console.error("Employee update sync error:", e);
-          }
+          console.error("Employee update sync error:", e);
         }
       }
     }
-    for (const pgRow of currentPgData) {
-      if (pgRow.msId && !msIds.has(pgRow.msId)) {
-        try {
-          await db.delete(people).where(eq(people.msId, pgRow.msId));
-        } catch (e) { }
-      }
+  }
+
+  // ==========================
+  // DELETE REMOVED MSSQL USERS
+  // ==========================
+
+  for (const pgRow of currentPgData) {
+
+    if (pgRow.msId && !msIds.has(pgRow.msId)) {
+
+      try {
+        await db
+          .delete(people)
+          .where(eq(people.msId, pgRow.msId));
+      } catch (e) {}
     }
-    let results = currentPgData;
-    if (search) {
-      const term = search.toLowerCase();
-      results = results.filter(
-        (p) =>
-          p.employeeName.toLowerCase().includes(term) ||
-          (p.employeeCode && p.employeeCode.toLowerCase().includes(term)) ||
-          (p.departmentName && p.departmentName.toLowerCase().includes(term)) ||
-          (p.ruleName && p.ruleName.toLowerCase().includes(term)),
-      );
-    }
-    results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
-    const uniquePeople = Array.from(
-      new Map(
-        results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
-      ).values(),
+  }
+
+  // ==========================
+  // SEARCH
+  // ==========================
+
+  let results = currentPgData;
+
+  if (search?.trim()) {
+
+    const term = search.toLowerCase();
+
+    results = results.filter((p) =>
+      p.employeeName?.toLowerCase().includes(term) ||
+      p.employeeCode?.toLowerCase().includes(term) ||
+      p.departmentName?.toLowerCase().includes(term) ||
+      p.ruleName?.toLowerCase().includes(term)
     );
-    // --- PAGINATION LAYER (Bilkul Safe Check) ---
-    // Condition 1: Frontend se agar page/pageSize nahi bheja, toh 100% purana format array hi return hoga
-    if (!pageSize) {
-      return uniquePeople as Person[];
-    }
-    // Condition 2: Dropdown se "All" (-1) select karne par metadata object format milega
-    if (pageSize === -1 || pageSize === "-1") {
-      return {
-        data: uniquePeople,
-        totalCount: uniquePeople.length,
-        totalPages: 1,
-        currentPage: 1,
-        pageSize: uniquePeople.length,
-      };
-    }
-    const p = page && Number(page) > 0 ? Number(page) : 1;
-    const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-    const start = (p - 1) * size;
-    const end = start + size;
-    const paginatedData = uniquePeople.slice(start, end);
+  }
+
+  // ==========================
+  // SORT
+  // ==========================
+
+  results.sort(
+    (a, b) => (Number(b.id) || 0) - (Number(a.id) || 0),
+  );
+
+  // ==========================
+  // UNIQUE
+  // ==========================
+
+  const uniquePeople = Array.from(
+    new Map(
+      results.map((p) => [
+        `${p.msId || p.employeeCode || p.id}`,
+        p,
+      ]),
+    ).values(),
+  );
+
+  // ==========================
+  // OLD FORMAT
+  // ==========================
+
+  if (!pageSize) {
+    return uniquePeople as Person[];
+  }
+
+  // ==========================
+  // ALL RECORDS
+  // ==========================
+
+  if (pageSize === -1 || pageSize === "-1") {
+
     return {
-      data: paginatedData,
+      data: uniquePeople,
       totalCount: uniquePeople.length,
-      totalPages: Math.ceil(uniquePeople.length / size),
-      currentPage: p,
-      pageSize: size,
+      totalPages: 1,
+      currentPage: 1,
+      pageSize: uniquePeople.length,
     };
   }
+
+  // ==========================
+  // PAGINATION
+  // ==========================
+
+  const p = page && Number(page) > 0
+    ? Number(page)
+    : 1;
+
+  const size = Number(pageSize) > 0
+    ? Number(pageSize)
+    : 10;
+
+  const start = (p - 1) * size;
+
+  const end = start + size;
+
+  const paginatedData = uniquePeople.slice(start, end);
+
+  return {
+    data: paginatedData,
+    totalCount: uniquePeople.length,
+    totalPages: Math.ceil(uniquePeople.length / size),
+    currentPage: p,
+    pageSize: size,
+  };
+}
+
+  
+
   // async getPeople(search?: string): Promise<Person[]> {
   //   const [pgDataRaw, msDataRaw] = await Promise.all([
   //     db
@@ -1775,10 +2260,62 @@ export class DatabaseStorage implements IStorage {
   // async getShifts(): Promise<Shift[]> {
   //   return await db.select().from(shifts).orderBy(asc(shifts.id));
   // }
-  async getShifts(page?: number, pageSize?: number): Promise<any> {
-    const query = db.select().from(shifts).orderBy(asc(shifts.id));
-    return await withPagination(db, shifts, query, page, pageSize);
+  // async getShifts(page?: number, pageSize?: number): Promise<any> {
+  //   const query = db.select().from(shifts).orderBy(asc(shifts.id));
+  //   return await withPagination(db, shifts, query, page, pageSize);
+  // }
+
+  async getShifts(
+  page?: number,
+  pageSize?: number,
+  search?: string
+): Promise<any> {
+  try {
+    const searchText = search?.toLowerCase().trim();
+
+    // -------------------------
+    // BASE QUERY (WITH FILTER IF NEEDED)
+    // -------------------------
+    const baseQuery = db
+      .select()
+      .from(shifts)
+      .orderBy(asc(shifts.id));
+
+    const finalQuery = searchText
+      ? db
+          .select()
+          .from(shifts)
+          .where(
+            or(
+              ilike(shifts.name, `%${searchText}%`),
+              ilike(shifts.code, `%${searchText}%`)
+            )
+          )
+          .orderBy(asc(shifts.id))
+      : baseQuery;
+
+    // -------------------------
+    // PAGINATION
+    // -------------------------
+    return await withPagination(
+      db,
+      shifts,
+      finalQuery,
+      page,
+      pageSize
+    );
+  } catch (error) {
+    console.error("getShifts error:", error);
+
+    return {
+      data: [],
+      totalCount: 0,
+      totalPages: 0,
+      currentPage: 1,
+      pageSize: 0,
+    };
   }
+}
   async createShift(data: InsertShift): Promise<Shift> {
     if (!data.code) {
       throw new Error("Shift code is required.");
@@ -1848,58 +2385,145 @@ export class DatabaseStorage implements IStorage {
   async deleteShiftAssignment(id: number): Promise<void> {
     await db.delete(shiftAssignments).where(eq(shiftAssignments.id, id));
   }
-  async getHolidays(page?: number, pageSize?: number): Promise<any> {
-    const [pgData, msDataRaw] = await Promise.all([
-      db.select().from(holidays).orderBy(asc(holidays.id)),
-      dbMsSql.select().from({ dbName: "Holidays" }).execute(),
-    ]);
-    for (const msRow of msDataRaw || []) {
-      const msId = msRow.Id || msRow.id;
-      if (!pgData.find((p) => p.msId === msId)) {
-        const [newRec] = await db
-          .insert(holidays)
-          .values({
-            name: msRow.Name || msRow.name,
-            date: msRow.Date
-              ? new Date(msRow.Date).toISOString().split("T")[0]
-              : "",
-            msId: msId,
-            holidayType: "company",
-          })
-          .returning();
-        if (newRec) pgData.push(newRec);
-      }
+  // async getHolidays(page?: number, pageSize?: number): Promise<any> {
+  //   const [pgData, msDataRaw] = await Promise.all([
+  //     db.select().from(holidays).orderBy(asc(holidays.id)),
+  //     dbMsSql.select().from({ dbName: "Holidays" }).execute(),
+  //   ]);
+  //   for (const msRow of msDataRaw || []) {
+  //     const msId = msRow.Id || msRow.id;
+  //     if (!pgData.find((p) => p.msId === msId)) {
+  //       const [newRec] = await db
+  //         .insert(holidays)
+  //         .values({
+  //           name: msRow.Name || msRow.name,
+  //           date: msRow.Date
+  //             ? new Date(msRow.Date).toISOString().split("T")[0]
+  //             : "",
+  //           msId: msId,
+  //           holidayType: "company",
+  //         })
+  //         .returning();
+  //       if (newRec) pgData.push(newRec);
+  //     }
+  //   }
+  //   // Aapka original deduplication logic (bilkul same hai)
+  //   const uniqueHolidays = Array.from(
+  //     new Map(pgData.map((h) => [`${h.name}-${h.date}`, h])).values(),
+  //   );
+  //   // Sirf return format change hoga agar pageSize milega toh
+  //   if (!pageSize) {
+  //     return uniqueHolidays;
+  //   }
+  //   const p = page && Number(page) > 0 ? Number(page) : 1;
+  //   const size = Number(pageSize);
+  //   if (size === -1) {
+  //     return {
+  //       data: uniqueHolidays,
+  //       totalCount: uniqueHolidays.length,
+  //       totalPages: 1,
+  //       currentPage: 1,
+  //       pageSize: uniqueHolidays.length,
+  //     };
+  //   }
+  //   const start = (p - 1) * size;
+  //   const end = start + size;
+  //   const paginatedData = uniqueHolidays.slice(start, end);
+  //   return {
+  //     data: paginatedData,
+  //     totalCount: uniqueHolidays.length,
+  //     totalPages: Math.ceil(uniqueHolidays.length / size),
+  //     currentPage: p,
+  //     pageSize: size,
+  //   };
+  // }
+
+  async getHolidays(
+  page?: number,
+  pageSize?: number,
+  search?: string,
+): Promise<any> {
+  const [pgData, msDataRaw] = await Promise.all([
+    db.select().from(holidays).orderBy(asc(holidays.id)),
+    dbMsSql.select().from({ dbName: "Holidays" }).execute(),
+  ]);
+
+  // MSSQL sync
+  for (const msRow of msDataRaw || []) {
+    const msId = msRow.Id || msRow.id;
+
+    if (!pgData.find((p) => p.msId === msId)) {
+      const [newRec] = await db
+        .insert(holidays)
+        .values({
+          name: msRow.Name || msRow.name,
+          date: msRow.Date
+            ? new Date(msRow.Date).toISOString().split("T")[0]
+            : "",
+          msId: msId,
+          holidayType: "company",
+        })
+        .returning();
+
+      if (newRec) pgData.push(newRec);
     }
-    // Aapka original deduplication logic (bilkul same hai)
-    const uniqueHolidays = Array.from(
-      new Map(pgData.map((h) => [`${h.name}-${h.date}`, h])).values(),
+  }
+
+  // Deduplicate
+  let uniqueHolidays = Array.from(
+    new Map(pgData.map((h) => [`${h.name}-${h.date}`, h])).values(),
+  );
+
+  // ✅ SEARCH FILTER
+  if (search && search.trim() !== "") {
+    const term = search.toLowerCase();
+
+    uniqueHolidays = uniqueHolidays.filter((h) =>
+      [
+        h.name,
+        h.holidayType,
+        h.date,
+      ]
+        .filter(Boolean)
+        .some((field) =>
+          String(field).toLowerCase().includes(term),
+        ),
     );
-    // Sirf return format change hoga agar pageSize milega toh
-    if (!pageSize) {
-      return uniqueHolidays;
-    }
-    const p = page && Number(page) > 0 ? Number(page) : 1;
-    const size = Number(pageSize);
-    if (size === -1) {
-      return {
-        data: uniqueHolidays,
-        totalCount: uniqueHolidays.length,
-        totalPages: 1,
-        currentPage: 1,
-        pageSize: uniqueHolidays.length,
-      };
-    }
-    const start = (p - 1) * size;
-    const end = start + size;
-    const paginatedData = uniqueHolidays.slice(start, end);
+  }
+
+  // No pagination
+  if (!pageSize) {
+    return uniqueHolidays;
+  }
+
+  const p = page && Number(page) > 0 ? Number(page) : 1;
+  const size = Number(pageSize);
+
+  // All data
+  if (size === -1) {
     return {
-      data: paginatedData,
+      data: uniqueHolidays,
       totalCount: uniqueHolidays.length,
-      totalPages: Math.ceil(uniqueHolidays.length / size),
-      currentPage: p,
-      pageSize: size,
+      totalPages: 1,
+      currentPage: 1,
+      pageSize: uniqueHolidays.length,
     };
   }
+
+  // Pagination
+  const start = (p - 1) * size;
+  const end = start + size;
+
+  const paginatedData = uniqueHolidays.slice(start, end);
+
+  return {
+    data: paginatedData,
+    totalCount: uniqueHolidays.length,
+    totalPages: Math.ceil(uniqueHolidays.length / size),
+    currentPage: p,
+    pageSize: size,
+  };
+}
   async createHoliday(data: InsertHoliday): Promise<Holiday> {
     let mssqlId: number | null = null;
     try {
@@ -3967,6 +4591,7 @@ export class DatabaseStorage implements IStorage {
   //     .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
   //     .orderBy(asc(dailyAttendanceSummary.workDate));
   // }
+
   async getRangeReport(
     startDate: string,
     endDate: string,
@@ -3986,6 +4611,73 @@ export class DatabaseStorage implements IStorage {
       pageSize,
     );
   }
+
+//   async getRangeReport(
+//   startDate: string,
+//   endDate: string,
+//   page?: number | string,
+//   pageSize?: number | string,
+// ) {
+//   const currentPage = Number(page || 1);
+//   const limit = Number(pageSize || 10);
+//   const offset = (currentPage - 1) * limit;
+
+//   // ✅ Distinct employees
+//   const employees = await db
+//     .selectDistinct({
+//       employeeCode: dailyAttendanceSummary.employeeCode,
+//       employeeName: dailyAttendanceSummary.employeeName,
+//     })
+//     .from(dailyAttendanceSummary)
+//     .where(
+//       between(dailyAttendanceSummary.workDate, startDate, endDate)
+//     )
+//     .orderBy(asc(dailyAttendanceSummary.employeeName));
+
+//   // ✅ Total employees count
+//   const totalCount = employees.length;
+
+//   // ✅ Pagination on employees
+//   const paginatedEmployees = employees.slice(
+//     offset,
+//     offset + limit
+//   );
+
+//   // ✅ Current page employee codes
+//   const employeeCodes = paginatedEmployees.map(
+//     (e) => e.employeeCode
+//   );
+
+//   // ✅ Attendance records only for paginated employees
+//   const data = await db
+//     .select()
+//     .from(dailyAttendanceSummary)
+//     .where(
+//       and(
+//         between(
+//           dailyAttendanceSummary.workDate,
+//           startDate,
+//           endDate
+//         ),
+//         inArray(
+//           dailyAttendanceSummary.employeeCode,
+//           employeeCodes
+//         )
+//       )
+//     )
+//     .orderBy(
+//       asc(dailyAttendanceSummary.employeeName),
+//       asc(dailyAttendanceSummary.workDate)
+//     );
+
+//   return {
+//     data: JSON.parse(JSON.stringify(data)),
+//     totalCount,
+//     totalPages: Math.ceil(totalCount / limit),
+//     currentPage,
+//     pageSize: limit,
+//   };
+// }
   // async getRangeReport(startDate: string, endDate: string) {
   //   return await db
   //     .select({

@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronsLeft,
+  Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { validateNoHtml } from "@/lib/validation";
@@ -36,6 +37,7 @@ export default function CategoriesPage() {
   const [page, setPage] = useState(1);
   const pageSize = 5;
   const [pagedResponse, setPagedResponse] = useState<any>(null);
+  const [search, setSearch] = useState("");
   // const {
   //   data: response,
   //   isLoading,
@@ -54,16 +56,19 @@ export default function CategoriesPage() {
 
   const fetchCategories = async () => {
     const res = await fetch(
-      `/api/categories?page=${page}&pageSize=${pageSize}`,
+      `/api/categories?page=${page}&pageSize=${pageSize}&search=${search}`,
     );
 
     const data = await res.json();
-
     setPagedResponse(data);
   };
   useEffect(() => {
-    fetchCategories();
-  }, [page]);
+    const timer = setTimeout(() => {
+      fetchCategories();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [page, search]);
 
   const data = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -232,7 +237,6 @@ export default function CategoriesPage() {
         </h1>
         <p className="text-sm text-slate-500 font-medium">Manage Categories</p>
       </div>
-
       <div className="flex justify-end mb-4">
         {canAdd && (
           <Button
@@ -245,17 +249,30 @@ export default function CategoriesPage() {
           </Button>
         )}
       </div>
-
       {/* TABLE */}
-      <DataTable
+      {/* <DataTable
         columns={columns}
         data={data}
         isLoading={isLoading}
         searchable
         searchKeys={["name", "description"]}
         emptyMessage="No categories found"
-      />
+      /> */}
+      <div className="relative max-w-sm mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
 
+        <input
+          placeholder="Search categories..."
+          value={search}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="pl-9 w-full h-9 border rounded-md"
+        />
+      </div>{" "}
+      {/* ✅ THIS WAS MISSING */}
+      <DataTable columns={columns} data={data} isLoading={isLoading} />
       {/* Pagination Controls */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
         {/* Left Side */}
@@ -356,7 +373,6 @@ export default function CategoriesPage() {
           </div>
         </div>
       </div>
-
       {/* DIALOG */}
       <CrudDialog
         open={open}

@@ -5,6 +5,8 @@ import { CrudDialog } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useConfirm } from "@/hooks/use-confirm";
+import { Input } from "@/components/ui/input";
+
 import {
   Plus,
   Pencil,
@@ -13,6 +15,7 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronsLeft,
+  Search,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { validateNoHtml } from "@/lib/validation";
@@ -35,6 +38,7 @@ export default function DesignationPage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const pageSize = 5;
+  const [search, setSearch] = useState("");
 
   // const {
   //   data: response,
@@ -52,6 +56,7 @@ export default function DesignationPage() {
   const [pagedResponse, setPagedResponse] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const crud = useCrud<any>("/api/designations", "Designation") as any;
+  // const crud = useCrud<any>("", "Designation") as any;
 
   const { create, update, remove, isCreating, isUpdating } = crud;
 
@@ -60,7 +65,7 @@ export default function DesignationPage() {
       setLoading(true);
 
       const res = await fetch(
-        `/api/designations?page=${page}&pageSize=${pageSize}`,
+        `/api/designations?page=${page}&pageSize=${pageSize}&search=${search}`,
       );
 
       const data = await res.json();
@@ -76,7 +81,11 @@ export default function DesignationPage() {
   // ✅ YE ADD KARO
   useEffect(() => {
     fetchDesignations();
-  }, [page]);
+  }, [page, search]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
 
   const data = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -232,14 +241,15 @@ export default function DesignationPage() {
     } catch (err: any) {
       const msg = err?.response?.data?.message || err?.message || "";
 
-      // Database Unique Constraint Error handling
       if (
-        msg.toLowerCase().includes("database") ||
+        msg.toLowerCase().includes("code") ||
+        msg.toLowerCase().includes("duplicate") ||
         msg.toLowerCase().includes("unique")
       ) {
         setFieldErrors({
           code: "Designation code already exists",
         });
+
         return;
       }
 
@@ -275,12 +285,28 @@ export default function DesignationPage() {
       </div>
 
       {/* TABLE */}
-      <DataTable
+      {/* <DataTable
         columns={columns}
         data={data}
         isLoading={loading}
         searchable
         searchKeys={["name", "code", "level", "description"]}
+        emptyMessage="No designations found"
+      /> */}
+      <div className="relative max-w-sm mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+
+        <Input
+          placeholder="Search designations..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={loading}
         emptyMessage="No designations found"
       />
       {/* Pagination Controls */}

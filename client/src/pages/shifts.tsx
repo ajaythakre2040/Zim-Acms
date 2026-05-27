@@ -33,6 +33,8 @@ export default function ShiftsPage() {
   const confirm = useConfirm();
   const [page, setPage] = useState(1);
   const pageSize = 5;
+  const [search, setSearch] = useState("");
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Shift | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -55,7 +57,9 @@ export default function ShiftsPage() {
   const [pagedResponse, setPagedResponse] = useState<any>(null);
 
   const fetchShifts = async () => {
-    const res = await fetch(`/api/shifts?page=${page}&pageSize=${pageSize}`);
+    const res = await fetch(
+      `/api/shifts?page=${page}&pageSize=${pageSize}&search=${search}`,
+    );
 
     const data = await res.json();
 
@@ -64,7 +68,7 @@ export default function ShiftsPage() {
 
   useEffect(() => {
     fetchShifts();
-  }, [page]);
+  }, [page, search]);
 
   const shiftsData = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -244,11 +248,22 @@ export default function ShiftsPage() {
         searchKeys={["name", "code"]}
         emptyMessage="No shifts configured"
       /> */}
+      <div className="relative max-w-sm mb-4">
+        <input
+          placeholder="Search shifts..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1); // reset page
+          }}
+          className="w-full h-9 border rounded-md pl-3"
+        />
+      </div>
       <DataTable
         columns={columns}
         data={shiftsData} // Sirf shifts ka array bhejein
         isLoading={isLoading}
-        searchable
+        searchable={false}
         searchKeys={["name", "code"]}
         emptyMessage="No shifts configured"
       />

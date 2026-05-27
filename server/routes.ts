@@ -299,17 +299,37 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //     res.status(500).json({ message: e.message || "Failed to update" });
   //   }
   // });
+
+  // crudRoutes(
+  //   app,
+  //   "/api/companies",
+  //   insertCompanySchema,
+  //   (query: any) => storage.getCompanies(query.page, query.pageSize),
+  //   (d) => storage.createCompany(d),
+  //   (id, d) => storage.updateCompany(id, d),
+  //   (id) => storage.deleteCompany(id),
+  //   undefined,
+  //   TABLES.COMPANIES
+  // );
+
   crudRoutes(
-    app,
-    "/api/companies",
-    insertCompanySchema,
-    (query: any) => storage.getCompanies(query.page, query.pageSize),
-    (d) => storage.createCompany(d),
-    (id, d) => storage.updateCompany(id, d),
-    (id) => storage.deleteCompany(id),
-    undefined,
-    TABLES.COMPANIES
-  );
+  app,
+  "/api/companies",
+  insertCompanySchema,
+  (query: any) =>
+    storage.getCompanies(
+      query.page,
+      query.pageSize,
+      query.search   // 🔥 ADD THIS
+    ),
+  (d) => storage.createCompany(d),
+  (id, d) => storage.updateCompany(id, d),
+  (id) => storage.deleteCompany(id),
+  undefined,
+  TABLES.COMPANIES
+);
+
+
   // crudRoutes(
   //   app,
   //   "/api/departments",
@@ -334,17 +354,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   undefined,
   TABLES.DEPARTMENTS
 );
+
+  // crudRoutes(
+  //   app,
+  //   "/api/designations",
+  //   insertDesignationSchema,
+  //   (query: any) => storage.getDesignations(query.page, query.pageSize),
+  //   (d) => storage.createDesignation(d),
+  //   (id, d) => storage.updateDesignation(id, d),
+  //   (id) => storage.deleteDesignation(id),
+  //   undefined,
+  //   TABLES.DESIGNATIONS
+  // );
+  
   crudRoutes(
-    app,
-    "/api/designations",
-    insertDesignationSchema,
-    (query: any) => storage.getDesignations(query.page, query.pageSize),
-    (d) => storage.createDesignation(d),
-    (id, d) => storage.updateDesignation(id, d),
-    (id) => storage.deleteDesignation(id),
-    undefined,
-    TABLES.DESIGNATIONS
-  );
+  app,
+  "/api/designations",
+  insertDesignationSchema,
+  (query: any) =>
+    storage.getDesignations(
+      Number(query.page),
+      Number(query.pageSize),
+      query.search
+    ),
+  (d) => storage.createDesignation(d),
+  (id, d) => storage.updateDesignation(id, d),
+  (id) => storage.deleteDesignation(id),
+  undefined,
+  TABLES.DESIGNATIONS
+);
+  
   crudRoutes(
     app,
     "/api/categories",
@@ -356,6 +395,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.CATEGORIES
   );
+  
+  crudRoutes(
+  app,
+  "/api/categories",
+  insertCategorySchema,
+  (query: any) =>
+    storage.getCategories(
+      Number(query.page),
+      Number(query.pageSize),
+      query.search
+    ),
+  (d) => storage.createCategory(d),
+  (id, d) => storage.updateCategory(id, d),
+  (id) => storage.deleteCategory(id),
+  undefined,
+  TABLES.CATEGORIES
+);
   crudRoutes(app, "/api/vendors", insertVendorSchema,
     () => storage.getVendors(), (d) => storage.createVendor(d),
     (id, d) => storage.updateVendor(id, d), (id) => storage.deleteVendor(id), undefined, TABLES.VENDORS);
@@ -389,27 +445,82 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/zones", insertZoneSchema,
     () => storage.getZones(), (d) => storage.createZone(d),
     (id, d) => storage.updateZone(id, d), (id) => storage.deleteZone(id), undefined, TABLES.ZONES);
-  crudRoutes(
-    app,
-    "/api/doors",
-    insertDoorSchema,
-    (query: any) => storage.getDoors(query.page, query.pageSize),
-    (d) => storage.createDoor(d),
-    (id, d) => storage.updateDoor(id, d),
-    (id) => storage.deleteDoor(id), undefined, TABLES.DOORS
-  );
+  
+  //   crudRoutes(
+  //   app,
+  //   "/api/doors",
+  //   insertDoorSchema,
+  //   (query: any) => storage.getDoors(query.page, query.pageSize),
+  //   (d) => storage.createDoor(d),
+  //   (id, d) => storage.updateDoor(id, d),
+  //   (id) => storage.deleteDoor(id), undefined, TABLES.DOORS
+  // );
+
+
   // crudRoutes(app, "/api/doors", insertDoorSchema,
   //     () => storage.getDoors(), (d) => storage.createDoor(d),
   //     (id, d) => storage.updateDoor(id, d), (id) => storage.deleteDoor(id));
+
+  // crudRoutes(
+  //   app,
+  //   "/api/devices",
+  //   insertDeviceSchema,
+  //   (query: any) => storage.getDevices(query.page, query.pageSize),
+  //   (d) => storage.createDevice(d),
+  //   (id, d) => storage.updateDevice(id, d),
+  //   (id) => storage.deleteDevice(id), undefined, TABLES.DEVICES
+  // );
+
   crudRoutes(
-    app,
-    "/api/devices",
-    insertDeviceSchema,
-    (query: any) => storage.getDevices(query.page, query.pageSize),
-    (d) => storage.createDevice(d),
-    (id, d) => storage.updateDevice(id, d),
-    (id) => storage.deleteDevice(id), undefined, TABLES.DEVICES
-  );
+  app,
+  "/api/doors",
+  insertDoorSchema,
+
+  // GET (page + pageSize + search support)
+  async (query: any) => {
+    return await storage.getDoors(
+      query.page,
+      query.pageSize,
+      query.search
+    );
+  },
+
+  // CREATE
+  async (data: any) => {
+    return await storage.createDoor(data);
+  },
+
+  // UPDATE
+  async (id, data) => {
+    return await storage.updateDoor(id, data);
+  },
+
+  // DELETE
+  async (id) => {
+    return await storage.deleteDoor(id);
+  },
+
+  undefined,
+  TABLES.DOORS
+);
+
+  crudRoutes(
+  app,
+  "/api/devices",
+  insertDeviceSchema,
+  (query: any) =>
+    storage.getDevices(
+      query.page,
+      query.pageSize,
+      query.search   // 🔥 IMPORTANT ADD
+    ),
+  (d) => storage.createDevice(d),
+  (id, d) => storage.updateDevice(id, d),
+  (id) => storage.deleteDevice(id),
+  undefined,
+  TABLES.DEVICES
+);
+
   // app.get("/api/people", async (req, res) => {
   //   try {
   //     const search = req.query.search as string | undefined;
@@ -426,6 +537,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  
   app.get("/api/people/:id", async (req, res) => {
     try {
       const person = await storage.getPerson(parseInt(req.params.id));
@@ -481,12 +593,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // crudRoutes(app, "/api/shifts", insertShiftSchema,
   //   () => storage.getShifts(), (d) => storage.createShift(d),
   //   (id, d) => storage.updateShift(id, d), (id) => storage.deleteShift(id));
-  crudRoutes(app, "/api/shifts", insertShiftSchema,
-    (query: any) => storage.getShifts(query.page, query.pageSize),
-    (d) => storage.createShift(d),
-    (id, d) => storage.updateShift(id, d),
-    (id) => storage.deleteShift(id), undefined, TABLES.SHIFTS
-  );
+
+  // crudRoutes(app, "/api/shifts", insertShiftSchema,
+  //   (query: any) => storage.getShifts(query.page, query.pageSize),
+  //   (d) => storage.createShift(d),
+  //   (id, d) => storage.updateShift(id, d),
+  //   (id) => storage.deleteShift(id), undefined, TABLES.SHIFTS
+  // );
+
+  crudRoutes(
+  app,
+  "/api/shifts",
+  insertShiftSchema,
+
+  // GET (page + pageSize + search)
+  async (query: any) => {
+    return await storage.getShifts(
+      query.page,
+      query.pageSize,
+      query.search
+    );
+  },
+
+  // CREATE
+  (d) => storage.createShift(d),
+
+  // UPDATE
+  (id, d) => storage.updateShift(id, d),
+
+  // DELETE
+  (id) => storage.deleteShift(id),
+
+  undefined,
+  TABLES.SHIFTS
+);
+
   app.get("/api/shift-assignments", async (req, res) => {
     try {
       const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
@@ -496,15 +637,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/shift-assignments", insertShiftAssignmentSchema,
     () => storage.getShiftAssignments(), (d) => storage.createShiftAssignment(d),
     (id, d) => storage.updateShiftAssignment(id, d), (id) => storage.deleteShiftAssignment(id), undefined, TABLES.SHIFT_ASSIGNMENTS);
-  crudRoutes(
-    app,
-    "/api/holidays",
-    insertHolidaySchema,
-    (query: any) => storage.getHolidays(query.page, query.pageSize),
-    (d) => storage.createHoliday(d),
-    (id, d) => storage.updateHoliday(id, d),
-    (id) => storage.deleteHoliday(id), undefined, TABLES.HOLIDAYS
-  );
+  // crudRoutes(
+  //   app,
+  //   "/api/holidays",
+  //   insertHolidaySchema,
+  //   (query: any) => storage.getHolidays(query.page, query.pageSize),
+  //   (d) => storage.createHoliday(d),
+  //   (id, d) => storage.updateHoliday(id, d),
+  //   (id) => storage.deleteHoliday(id), undefined, TABLES.HOLIDAYS
+  // );
+
+crudRoutes(
+  app,
+  "/api/holidays",
+  insertHolidaySchema,
+  (query: any) =>
+    storage.getHolidays(
+      query.page,
+      query.pageSize,
+      query.search,
+    ),
+  (d) => storage.createHoliday(d),
+  (id, d) => storage.updateHoliday(id, d),
+  (id) => storage.deleteHoliday(id),
+  undefined,
+  TABLES.HOLIDAYS
+);
+
   crudRoutes(app, "/api/access-levels", insertAccessLevelSchema,
     () => storage.getAccessLevels(), (d) => storage.createAccessLevel(d),
     (id, d) => storage.updateAccessLevel(id, d), (id) => storage.deleteAccessLevel(id), undefined, TABLES.ACCESS_LEVELS);
