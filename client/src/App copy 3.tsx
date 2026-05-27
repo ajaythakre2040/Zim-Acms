@@ -12,7 +12,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmProvider } from "@/hooks/use-confirm";
-import { Shield, Lock, Fingerprint, ScanLine, Sparkles, Radio, User, KeyRound, LogIn, UserPlus, LogOut, Users } from "lucide-react";
+import {
+  Shield,
+  Lock,
+  Fingerprint,
+  ScanLine,
+  Sparkles,
+  Radio,
+  User,
+  KeyRound,
+  LogIn,
+  UserPlus,
+} from "lucide-react";
 import { useState } from "react";
 
 import NotFound from "@/pages/not-found";
@@ -47,9 +58,7 @@ import CompaniesPage from "./pages/company";
 import CategoriesPage from "./pages/category";
 import RoleFormPage from "./pages/role_form";
 import RolePermissionViewPage from "./pages/RolePermissionViewPage";
-
-
-function StandardRouter() {
+function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
@@ -84,31 +93,33 @@ function StandardRouter() {
       <Route path="/role" component={RolesPage} />
       <Route path="/master-data/roles/add" component={RoleFormPage} />
       <Route path="/master-data/roles/edit/:id" component={RoleFormPage} />
-      <Route path="/master-data/roles/view/:id" component={RolePermissionViewPage} />{" "}
+      <Route  
+        path="/master-data/roles/view/:id"
+        component={RolePermissionViewPage}
+      />{" "}
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
-  const { login, loginError, isLoggingIn, register, registerError, isRegistering, } = auth;
+  const {
+    login,
+    loginError,
+    isLoggingIn,
+    register,
+    registerError,
+    isRegistering,
+  } = auth;
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("Admin@123");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
-  const [firstName, setFirstName] = useState(""); 
-  const [lastName, setLastName] = useState("");   
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [name, setName] = useState("");
-
-  
-  const [activeTab, setActiveTab] = useState<"biometric" | "access_control">("biometric");
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    
-    localStorage.setItem("selected_dashboard_mode", activeTab);
-
     if (mode === "login") {
       await login({ username, password });
     } else {
@@ -126,7 +137,6 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Dynamic Floating Background Blur Animations (Kept Completely Intact) */}
       <div className="absolute inset-0 gradient-primary opacity-[0.03] dark:opacity-[0.06]" />
       <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-primary/5 dark:bg-primary/10 blur-3xl animate-float" />
       <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-accent/5 dark:bg-accent/10 blur-3xl animate-float animate-float-delay-2" />
@@ -143,7 +153,10 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
               </div>
             </div>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-login-title">
+          <h1
+            className="text-3xl font-bold tracking-tight"
+            data-testid="text-login-title"
+          >
             <span className="gradient-text">ZIM-ACMS</span>
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -152,41 +165,40 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
         </div>
 
         <div className="glass-panel rounded-2xl p-8 space-y-6">
-
-          <div className="grid grid-cols-2 gap-4 mb-2">
-
+          <div className="grid grid-cols-3 gap-3 mb-2">
             <div
-              onClick={() => setActiveTab("biometric")} 
-              className={`flex flex-col items-center gap-2 p-4 rounded-xl cursor-pointer transition-all border ${activeTab === "biometric"
-                  ? "bg-blue-50/90 dark:bg-blue-950/40 border-blue-400 shadow-sm ring-2 ring-blue-400/20 scale-[1.02]"
-                  : "bg-background/40 border-border opacity-60 hover:opacity-90"
-                }`}
-              data-testid="feature-workforce"
+              className="flex flex-col items-center gap-2 p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/30"
+              data-testid="feature-biometric"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-sm">
-                <Users className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-sm animate-float">
+                <Fingerprint className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                Workforce & Attendance
+              <span className="text-[10px] font-medium text-blue-700 dark:text-blue-300">
+                Biometric
               </span>
             </div>
-
             <div
-              onClick={() => setActiveTab("access_control")}
-              className={`flex flex-col items-center gap-2 p-4 rounded-xl cursor-pointer transition-all border ${activeTab === "access_control"
-                  ? "bg-violet-50/90 dark:bg-violet-950/40 border-violet-400 shadow-sm ring-2 ring-violet-400/20 scale-[1.02]"
-                  : "bg-background/40 border-border opacity-60 hover:opacity-90"
-                }`}
+              className="flex flex-col items-center gap-2 p-3 rounded-xl bg-violet-50/70 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900/30"
               data-testid="feature-card-access"
             >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm animate-float animate-float-delay-1">
                 <ScanLine className="w-5 h-5 text-white" />
               </div>
-              <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">
-                Access Control
+              <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300">
+                Card Access
               </span>
             </div>
-
+            <div
+              className="flex flex-col items-center gap-2 p-3 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/30"
+              data-testid="feature-door-control"
+            >
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-sm animate-float animate-float-delay-2">
+                <Lock className="w-5 h-5 text-white" />
+              </div>
+              <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+                Door Control
+              </span>
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -257,6 +269,49 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
                 </div>
               </>
             )}
+            {/* {mode === "register" && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName" className="text-xs font-medium">
+                      First Name
+                    </Label>
+                    <Input
+                      id="firstName"
+                      placeholder="First name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      data-testid="input-firstName"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName" className="text-xs font-medium">
+                      Last Name
+                    </Label>
+                    <Input
+                      id="lastName"
+                      placeholder="Last name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      data-testid="input-lastName"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-xs font-medium">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="Email (optional)"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    data-testid="input-email"
+                  />
+                </div>
+              </>
+            )} */}
 
             {error && (
               <div
@@ -288,6 +343,18 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
             </Button>
           </form>
 
+          {/* <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setMode(mode === "login" ? "register" : "login")}
+              className="text-xs text-primary hover:underline"
+              data-testid="button-toggle-auth-mode"
+            >
+              {mode === "login"
+                ? "Don't have an account? Register"
+                : "Already have an account? Sign In"}
+            </button>
+          </div> */}
           <div className="text-center mt-4">
             <p className="text-xs text-muted-foreground">
               Don't have an account? Please contact the{" "}
@@ -306,38 +373,6 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
 }
 
 function AuthenticatedApp() {
-  const activeDashboardMode = localStorage.getItem("selected_dashboard_mode") || "biometric";
-
-  const handleLogout = () => {
-    localStorage.removeItem("selected_dashboard_mode");
-    fetch("/api/logout", {
-      method: "POST",
-      credentials: "include",
-    }).then(() => window.location.reload());
-  };
-
-  
-  if (activeDashboardMode === "access_control") {
-    return (
-      <div className="min-h-screen w-full bg-background relative flex flex-col">
-        {/* Dedicated Exit Trigger for Access Control interface screen */}
-        <div className="absolute top-4 right-4 z-50 flex items-center gap-2 bg-background/80 backdrop-blur p-2 rounded-xl border border-border shadow-sm">
-          <ThemeToggle />
-          <Button variant="destructive" size="sm" onClick={handleLogout} className="flex items-center gap-1.5 shadow-sm">
-            <LogOut className="w-4 h-4" />
-            Logout
-          </Button>
-        </div>
-
-        {/* Render ONLY LiveLogsDashboard fullscreen style */}
-        <div className="flex-1 w-full overflow-auto">
-          <LiveLogsDashboard />
-        </div>
-      </div>
-    );
-  }
-
-  
   const style = {
     "--sidebar-width": "16rem",
     "--sidebar-width-icon": "3rem",
@@ -355,7 +390,12 @@ function AuthenticatedApp() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleLogout}
+                onClick={() => {
+                  fetch("/api/logout", {
+                    method: "POST",
+                    credentials: "include",
+                  }).then(() => window.location.reload());
+                }}
                 data-testid="button-logout"
               >
                 Logout
@@ -363,7 +403,7 @@ function AuthenticatedApp() {
             </div>
           </header>
           <main className="flex-1 overflow-auto">
-            <StandardRouter />
+            <Router />
           </main>
         </div>
       </div>
@@ -400,15 +440,29 @@ function AppContent() {
   return <AuthenticatedApp />;
 }
 
+// export default function App() {
+//   return (
+//     <ThemeProvider>
+//       <QueryClientProvider client={queryClient}>
+//         <TooltipProvider>
+//           <AppContent />
+//           <Toaster />
+//         </TooltipProvider>
+//       </QueryClientProvider>
+//     </ThemeProvider>
+//   );
+// }
 export default function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
+          {/* ↓ Is line ko yahan se shuru karo */}
           <ConfirmProvider>
             <AppContent />
             <Toaster />
           </ConfirmProvider>
+          {/* ↑ Is line par khatam karo */}
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
