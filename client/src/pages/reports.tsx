@@ -357,10 +357,10 @@ export async function exportEmpProductiveEfficiencyCSV(
       const efficiency =
         Number(r.totalPresenceMinutes || 0) > 0
           ? `${(
-            (Number(r.productiveMinutes || 0) /
-              Number(r.totalPresenceMinutes || 0)) *
-            100
-          ).toFixed(2)}%`
+              (Number(r.productiveMinutes || 0) /
+                Number(r.totalPresenceMinutes || 0)) *
+              100
+            ).toFixed(2)}%`
           : "-";
 
       rows.push([
@@ -463,14 +463,12 @@ export async function exportDailyPerformanceCSV(currentAppliedFilters: any) {
 
     const rows = reportData.map((r: any) => ({
       "Employee Name": r.employeeName || "-",
-
+      "Employee Code": r.employeeCode || "-",
       Gender: r.gender || "-",
 
       "Log Date": r.workDate
         ? new Date(r.workDate).toLocaleDateString("en-GB")
         : "-",
-
-      "Latest Punch Door": r.doorName || "-",
 
       Shift: r.shiftname || "-",
 
@@ -525,29 +523,102 @@ export async function exportDailyPerformanceCSV(currentAppliedFilters: any) {
     console.error("Daily Performance Export Error:", err);
   }
 }
+// function exportMonthlyStatusCSV(data: any[], daysInMonth: number) {
+//   if (!data.length) return;
+//   const grouped: Record<string, any> = {};
+//   data.forEach((r) => {
+//     const key = r.employeeName;
+//     if (!grouped[key]) {
+//       grouped[key] = {
+//         employeeName: r.employeeName,
+//         days: {},
+//         present: 0,
+//         absent: 0,
+//         off: 0,
+//       };
+//     }
+//     const date = new Date(r.workDate).getDate();
+//     const status = (r.attendanceStatus || "").toLowerCase();
+//     grouped[key].days[date] = status;
+//     if (status === "present") grouped[key].present++;
+//     else if (status === "absent") grouped[key].absent++;
+//     else grouped[key].off++;
+//   });
+//   const employees = Object.values(grouped);
+//   // 🔥 HEADER dynamic
+//   const headers = [
+//     "Employee Name",
+//     ...Array.from({ length: daysInMonth }, (_, i) => `Day ${i + 1}`),
+//     "Present",
+//     "Off",
+//     "Absent",
+//     "Total Days",
+//   ];
+//   const rows = employees.map((emp: any) => {
+//     const totalDays = emp.present + emp.absent + emp.off;
+//     const dayValues = Array.from({ length: daysInMonth }, (_, i) => {
+//       const d = i + 1;
+//       const status = emp.days[d];
+//       if (status === "present") return "P";
+//       if (status === "absent") return "A";
+//       if (status === "off") return "O";
+//       return "-";
+//     });
+//     return [
+//       emp.employeeName,
+//       ...dayValues,
+//       emp.present,
+//       emp.off,
+//       emp.absent,
+//       totalDays,
+//     ];
+//   });
+//   const csv =
+//     headers.join(",") +
+//     "\n" +
+//     rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+//   const blob = new Blob([csv], { type: "text/csv" });
+//   const url = URL.createObjectURL(blob);
+//   const a = document.createElement("a");
+//   a.href = url;
+//   a.download = "monthly-status-summary.csv";
+//   a.click();
+// }
 function exportMonthlyStatusCSV(data: any[], daysInMonth: number) {
   if (!data.length) return;
+
   const grouped: Record<string, any> = {};
-  data.forEach((r) => {
-    const key = r.employeeName;
-    if (!grouped[key]) {
-      grouped[key] = {
-        employeeName: r.employeeName,
+
+  const today = new Date().getDate();
+
+  // 🔥 GROUPING (same as table)
+  data.forEach((emp: any) => {
+    if (!grouped[emp.employeeName]) {
+      grouped[emp.employeeName] = {
+        employeeName: emp.employeeName,
+        perDayRate: emp.perDayRate || 0,
         days: {},
         present: 0,
         absent: 0,
         off: 0,
       };
     }
-    const date = new Date(r.workDate).getDate();
-    const status = (r.attendanceStatus || "").toLowerCase();
-    grouped[key].days[date] = status;
-    if (status === "present") grouped[key].present++;
-    else if (status === "absent") grouped[key].absent++;
-    else grouped[key].off++;
+
+    emp.records.forEach((r: any) => {
+      const date = new Date(r.workDate).getDate();
+      const status = (r.attendanceStatus || "").toLowerCase();
+
+      grouped[emp.employeeName].days[date] = status;
+
+      if (status === "present") grouped[emp.employeeName].present++;
+      else if (status === "absent") grouped[emp.employeeName].absent++;
+      else grouped[emp.employeeName].off++;
+    });
   });
+
   const employees = Object.values(grouped);
-  // 🔥 HEADER dynamic
+
+  // 🔥 HEADER
   const headers = [
     "Employee Name",
     ...Array.from({ length: daysInMonth }, (_, i) => `Day ${i + 1}`),
@@ -556,84 +627,120 @@ function exportMonthlyStatusCSV(data: any[], daysInMonth: number) {
     "Absent",
     "Total Days",
   ];
+
   const rows = employees.map((emp: any) => {
-    const totalDays = emp.present + emp.absent + emp.off;
     const dayValues = Array.from({ length: daysInMonth }, (_, i) => {
-      const d = i + 1;
-      const status = emp.days[d];
+      const day = i + 1;
+      const status = emp.days[day];
+
       if (status === "present") return "P";
       if (status === "absent") return "A";
       if (status === "off") return "O";
-      return "-";
+
+      // 🔥 SAME LOGIC AS TABLE
+      if (day < today) return "A"; // past missing = absent
+      return "-"; // future/current missing
     });
+
+    // 🔥 dynamic absent same as UI
+    const dynamicAbsent = Array.from(
+      { length: daysInMonth },
+      (_, i) => i + 1,
+    ).filter((d) => d < today && !emp.days[d]).length;
+
+    const finalAbsent = emp.absent + dynamicAbsent;
+    const totalDays = emp.present + emp.off + finalAbsent;
+
     return [
       emp.employeeName,
       ...dayValues,
       emp.present,
       emp.off,
-      emp.absent,
+      finalAbsent,
       totalDays,
     ];
   });
+
   const csv =
     headers.join(",") +
     "\n" +
     rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
+
   const a = document.createElement("a");
   a.href = url;
   a.download = "monthly-status-summary.csv";
   a.click();
+
+  URL.revokeObjectURL(url);
 }
 function exportOTSummaryCSV(data: any[], daysInMonth: number) {
-  if (!data.length) return;
+  if (!Array.isArray(data) || !data.length) return;
+
   const grouped: Record<string, any> = {};
-  data.forEach((r) => {
-    const key = r.employeeName;
-    if (!grouped[key]) {
-      grouped[key] = {
-        employeeName: r.employeeName,
+
+  // 🔥 SAME GROUPING AS TABLE
+  data.forEach((emp: any) => {
+    if (!grouped[emp.employeeName]) {
+      grouped[emp.employeeName] = {
+        employeeName: emp.employeeName,
         days: {},
-        totalHrs: 0,
+        totalWorkingHrs: 0,
       };
     }
-    const date = new Date(r.workDate).getDate();
-    const otMinutes = Number(r.overtimeMinutes || 0);
-    const otHours = otMinutes / 60;
-    // 🔥 same as table logic
-    grouped[key].days[date] = otHours;
-    grouped[key].totalHrs += otHours;
+
+    emp.records?.forEach((r: any) => {
+      const date = new Date(r.date || r.workDate).getDate();
+
+      // 🔥 SAME FIELD AS TABLE
+      const otHours = Number(r.otHours || 0);
+
+      grouped[emp.employeeName].days[date] = otHours;
+      grouped[emp.employeeName].totalWorkingHrs += otHours;
+    });
   });
+
   const employees = Object.values(grouped);
-  // 🔥 HEADER
+
+  // 🔥 HEADER (same structure as table)
   const headers = [
     "Employee Name",
     ...Array.from({ length: daysInMonth }, (_, i) => `Day ${i + 1}`),
-    "Total Hours",
+    "Total Hrs",
   ];
+
   const rows = employees.map((emp: any) => {
     const dayValues = Array.from({ length: daysInMonth }, (_, i) => {
-      const d = i + 1;
-      const hrs = emp.days[d];
+      const day = i + 1;
+      const hrs = emp.days[day];
+
+      // same UI behavior
       return hrs !== undefined ? Number(hrs).toFixed(0) : "0";
     });
+
     return [
       emp.employeeName,
       ...dayValues,
-      Number(emp.totalHrs || 0).toFixed(0),
+      Number(emp.totalWorkingHrs || 0).toFixed(0),
     ];
   });
+
   const csv =
     headers.join(",") +
     "\n" +
     rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
+
   const blob = new Blob([csv], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
+
   const a = document.createElement("a");
   a.href = url;
   a.download = "ot-summary.csv";
   a.click();
+
+  URL.revokeObjectURL(url);
 }
 export async function exportLockoutCSV(currentAppliedFilters: any) {
   try {
@@ -760,9 +867,9 @@ export async function exportEmployeePerformanceCSV(currentAppliedFilters: any) {
 
         "Date Range": r.dateRange
           ? r.dateRange
-            .split(" to ")
-            .map((d: string) => new Date(d).toLocaleDateString("en-GB"))
-            .join(" To ")
+              .split(" to ")
+              .map((d: string) => new Date(d).toLocaleDateString("en-GB"))
+              .join(" To ")
           : "-",
 
         "Total Days": Number(r.totalDays || 0),
@@ -851,9 +958,9 @@ export async function exportDepartmentEfficiencyCSV(
 
         "Date Range": r.dateRange
           ? r.dateRange
-            .split(" to ")
-            .map((d: string) => new Date(d).toLocaleDateString("en-GB"))
-            .join(" To ")
+              .split(" to ")
+              .map((d: string) => new Date(d).toLocaleDateString("en-GB"))
+              .join(" To ")
           : "-",
 
         "Total Manpower": Number(r.totalManpower || 0),
@@ -900,49 +1007,32 @@ export async function exportDepartmentWiseManpowerCSV(
   departmentsData: any[] = [],
 ) {
   try {
-
     const params = new URLSearchParams();
 
     // 🔥 Filters
     Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-
-      if (
-        v !== undefined &&
-        v !== null &&
-        v !== "" &&
-        k !== "_refresh"
-      ) {
+      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
         params.append(k, String(v));
       }
     });
 
-    console.log(
-      "MANPOWER EXPORT PARAMS =>",
-      params.toString()
-    );
+    console.log("MANPOWER EXPORT PARAMS =>", params.toString());
 
     const res = await fetch(
-      `/api/reports/department-wise-manpower?${params.toString()}`
+      `/api/reports/department-wise-manpower?${params.toString()}`,
     );
 
     if (!res.ok) {
-      throw new Error(
-        "Department manpower export fetch failed"
-      );
+      throw new Error("Department manpower export fetch failed");
     }
 
     const apiResponse = await res.json();
 
-    console.log(
-      "MANPOWER EXPORT RESPONSE =>",
-      apiResponse
-    );
+    console.log("MANPOWER EXPORT RESPONSE =>", apiResponse);
 
-    const reportData =
-      apiResponse?.data || [];
+    const reportData = apiResponse?.data || [];
 
-    const footerTotals =
-      apiResponse?.footerTotals || {};
+    const footerTotals = apiResponse?.footerTotals || {};
 
     if (!Array.isArray(reportData)) return;
 
@@ -955,87 +1045,57 @@ export async function exportDepartmentWiseManpowerCSV(
     // Agar departments prop empty aaye
     // to data se auto department nikal lo
     if (!finalDepartments.length) {
-
       const deptMap = new Map();
 
       reportData.forEach((r: any) => {
-
-        Object.keys(
-          r.departments || {}
-        ).forEach((deptName) => {
-
-          deptMap.set(
-            deptName,
-            {
-              departmentName: deptName,
-            }
-          );
+        Object.keys(r.departments || {}).forEach((deptName) => {
+          deptMap.set(deptName, {
+            departmentName: deptName,
+          });
         });
       });
 
-      finalDepartments =
-        Array.from(deptMap.values());
+      finalDepartments = Array.from(deptMap.values());
     }
 
-    console.log(
-      "FINAL DEPARTMENTS =>",
-      finalDepartments
-    );
+    console.log("FINAL DEPARTMENTS =>", finalDepartments);
 
     // =========================================
     // 🔥 CREATE MAIN ROWS
     // =========================================
 
     const rows = reportData.map((r: any) => {
-
       const row: any = {
+        "Employee Code": r.employeeCode || "-",
 
-        "Employee Code":
-          r.employeeCode || "-",
+        "Employee Name": r.employeeName || "-",
 
-        "Employee Name":
-          r.employeeName || "-",
+        "Per Day Rate": r.perDayRate || 0,
 
-        "Per Day Rate":
-          r.perDayRate || 0,
-
-        "Contractor Name":
-          r.contractorName || "-",
+        "Contractor Name": r.contractorName || "-",
       };
 
       // 🔥 Dynamic Department Columns
       finalDepartments.forEach((dept: any) => {
+        const deptName = dept.departmentName || dept.name || "Unknown";
 
-        const deptName =
-          dept.departmentName ||
-          dept.name ||
-          "Unknown";
+        const deptData = r.departments?.[deptName] || {};
 
-        const deptData =
-          r.departments?.[deptName] || {};
+        row[`${deptName} Duty`] = deptData?.duty || 0;
 
-        row[`${deptName} Duty`] =
-          deptData?.duty || 0;
-
-        row[`${deptName} OT Hrs`] =
-          deptData?.otHours || 0;
+        row[`${deptName} OT Hrs`] = deptData?.otHours || 0;
       });
 
       // 🔥 Totals
-      row["Total Duty"] =
-        r.totalWorking?.duty || 0;
+      row["Total Duty"] = r.totalWorking?.duty || 0;
 
-      row["Total OT Hrs"] =
-        r.totalWorking?.otHours || 0;
+      row["Total OT Hrs"] = r.totalWorking?.otHours || 0;
 
-      row["Duty Amount"] =
-        r.amount?.dutyAmount || 0;
+      row["Duty Amount"] = r.amount?.dutyAmount || 0;
 
-      row["OT Amount"] =
-        r.amount?.otAmount || 0;
+      row["OT Amount"] = r.amount?.otAmount || 0;
 
-      row["Total Wages"] =
-        r.amount?.totalWages || 0;
+      row["Total Wages"] = r.amount?.totalWages || 0;
 
       return row;
     });
@@ -1045,11 +1105,9 @@ export async function exportDepartmentWiseManpowerCSV(
     // =========================================
 
     const footerWorking: any = {
-
       "Employee Code": "",
 
-      "Employee Name":
-        "Device/Department Wise Working (Duty & OT)",
+      "Employee Name": "Device/Department Wise Working (Duty & OT)",
 
       "Per Day Rate": "",
 
@@ -1057,38 +1115,24 @@ export async function exportDepartmentWiseManpowerCSV(
     };
 
     finalDepartments.forEach((dept: any) => {
+      const deptName = dept.departmentName || dept.name || "Unknown";
 
-      const deptName =
-        dept.departmentName ||
-        dept.name ||
-        "Unknown";
+      const deptFooter = footerTotals?.departments?.[deptName] || {};
 
-      const deptFooter =
-        footerTotals?.departments?.[
-        deptName
-        ] || {};
+      footerWorking[`${deptName} Duty`] = deptFooter?.duty || 0;
 
-      footerWorking[`${deptName} Duty`] =
-        deptFooter?.duty || 0;
-
-      footerWorking[`${deptName} OT Hrs`] =
-        deptFooter?.otHours || 0;
+      footerWorking[`${deptName} OT Hrs`] = deptFooter?.otHours || 0;
     });
 
-    footerWorking["Total Duty"] =
-      footerTotals?.totalWorking?.duty || 0;
+    footerWorking["Total Duty"] = footerTotals?.totalWorking?.duty || 0;
 
-    footerWorking["Total OT Hrs"] =
-      footerTotals?.totalWorking?.otHours || 0;
+    footerWorking["Total OT Hrs"] = footerTotals?.totalWorking?.otHours || 0;
 
-    footerWorking["Duty Amount"] =
-      footerTotals?.amount?.dutyAmount || 0;
+    footerWorking["Duty Amount"] = footerTotals?.amount?.dutyAmount || 0;
 
-    footerWorking["OT Amount"] =
-      footerTotals?.amount?.otAmount || 0;
+    footerWorking["OT Amount"] = footerTotals?.amount?.otAmount || 0;
 
-    footerWorking["Total Wages"] =
-      footerTotals?.amount?.totalWages || 0;
+    footerWorking["Total Wages"] = footerTotals?.amount?.totalWages || 0;
 
     rows.push(footerWorking);
 
@@ -1097,11 +1141,9 @@ export async function exportDepartmentWiseManpowerCSV(
     // =========================================
 
     const footerAmount: any = {
-
       "Employee Code": "",
 
-      "Employee Name":
-        "Device/Department Wise Amount (Rs.)",
+      "Employee Name": "Device/Department Wise Amount (Rs.)",
 
       "Per Day Rate": "",
 
@@ -1109,38 +1151,24 @@ export async function exportDepartmentWiseManpowerCSV(
     };
 
     finalDepartments.forEach((dept: any) => {
+      const deptName = dept.departmentName || dept.name || "Unknown";
 
-      const deptName =
-        dept.departmentName ||
-        dept.name ||
-        "Unknown";
+      const deptFooter = footerTotals?.departments?.[deptName] || {};
 
-      const deptFooter =
-        footerTotals?.departments?.[
-        deptName
-        ] || {};
+      footerAmount[`${deptName} Duty`] = deptFooter?.dutyAmount || 0;
 
-      footerAmount[`${deptName} Duty`] =
-        deptFooter?.dutyAmount || 0;
-
-      footerAmount[`${deptName} OT Hrs`] =
-        deptFooter?.otAmount || 0;
+      footerAmount[`${deptName} OT Hrs`] = deptFooter?.otAmount || 0;
     });
 
-    footerAmount["Total Duty"] =
-      footerTotals?.totalWorking?.duty || 0;
+    footerAmount["Total Duty"] = footerTotals?.totalWorking?.duty || 0;
 
-    footerAmount["Total OT Hrs"] =
-      footerTotals?.totalWorking?.otHours || 0;
+    footerAmount["Total OT Hrs"] = footerTotals?.totalWorking?.otHours || 0;
 
-    footerAmount["Duty Amount"] =
-      footerTotals?.amount?.dutyAmount || 0;
+    footerAmount["Duty Amount"] = footerTotals?.amount?.dutyAmount || 0;
 
-    footerAmount["OT Amount"] =
-      footerTotals?.amount?.otAmount || 0;
+    footerAmount["OT Amount"] = footerTotals?.amount?.otAmount || 0;
 
-    footerAmount["Total Wages"] =
-      footerTotals?.amount?.totalWages || 0;
+    footerAmount["Total Wages"] = footerTotals?.amount?.totalWages || 0;
 
     rows.push(footerAmount);
 
@@ -1150,62 +1178,42 @@ export async function exportDepartmentWiseManpowerCSV(
     // 🔥 CSV CREATE
     // =========================================
 
-    const headers =
-      Object.keys(rows[0]);
+    const headers = Object.keys(rows[0]);
 
     const escapeCSV = (val: any) =>
       `"${String(val ?? "").replace(/"/g, '""')}"`;
 
     const csvContent = [
-
-      headers
-        .map(escapeCSV)
-        .join(","),
+      headers.map(escapeCSV).join(","),
 
       ...rows.map((row: any) =>
-        headers
-          .map((header) =>
-            escapeCSV(row[header])
-          )
-          .join(","),
+        headers.map((header) => escapeCSV(row[header])).join(","),
       ),
-
     ].join("\n");
 
     // =========================================
     // 🔥 DOWNLOAD
     // =========================================
 
-    const blob = new Blob(
-      [csvContent],
-      {
-        type: "text/csv;charset=utf-8;",
-      }
-    );
+    const blob = new Blob([csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
 
-    const url =
-      URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
 
-    const link =
-      document.createElement("a");
+    const link = document.createElement("a");
 
     link.href = url;
 
-    link.download =
-      "Department_Wise_Manpower_Report.csv";
+    link.download = "Department_Wise_Manpower_Report.csv";
 
     document.body.appendChild(link);
 
     link.click();
 
     document.body.removeChild(link);
-
   } catch (err) {
-
-    console.error(
-      "Department Wise Manpower Export Error:",
-      err
-    );
+    console.error("Department Wise Manpower Export Error:", err);
   }
 }
 //*************************************************************************************************************/
@@ -1244,10 +1252,10 @@ const filterConfig: Record<string, string[]> = {
     // "deviceId",
     // "status",
   ],
-  "daily-efficiency": ["date", "employeeCode", "deviceId"],
+  "daily-efficiency": ["date", "employeeCode"],
   "monthly-efficiency": ["dateFrom", "dateTo", "employeeCode"],
-  "department-wise-manpower": ["dateFrom", "dateTo"],
-  "cabin-lockout": ["dateFrom", "dateTo", "employeeCode", "deviceId"],
+  "department-wise-manpower": ["dateFrom", "dateTo","employeeCode"],
+  "cabin-lockout": ["dateFrom", "dateTo", "employeeCode"],
 };
 function getCurrentMonthDates() {
   const today = new Date();
@@ -1357,7 +1365,7 @@ function ReportFilters({
                   />
                 </div>
               )}
-            {/* EMPLOYEE */}
+            {/* EMPLOYEE
             {allowed.includes("employeeCode") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
@@ -1386,7 +1394,38 @@ function ReportFilters({
                   </SelectContent>
                 </Select>
               </div>
-            )}
+            )} */}
+             {/* EMPLOYEE */}
+{allowed.includes("employeeCode") && (
+  <div className="space-y-1">
+    <Label className="text-[10px] text-muted-foreground">
+      EMPLOYEE
+    </Label>
+
+    <Input
+      type="text"
+      list="employee-list"
+      placeholder="Search Employee"
+      value={filters.employeeCode || ""}
+      onChange={(e) =>
+        setFilters({
+          ...filters,
+          employeeCode: e.target.value,
+        })
+      }
+      className="text-xs"
+    />
+
+    <datalist id="employee-list">
+      {people.map((p) => (
+        <option
+          key={p.id}
+          value={`${p.employeeName} (${p.employeeCode})`}
+        />
+      ))}
+    </datalist>
+  </div>
+)}
             {allowed.includes("deviceId") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
@@ -1441,6 +1480,7 @@ function ReportFilters({
                 </Select>
               </div>
             )}
+            
           </div>
           {/* BUTTONS */}
           <div className="flex gap-2 shrink-0">
@@ -1619,6 +1659,143 @@ function DaliyPerformanceTable({ data }: { data?: any[] }) {
     </div>
   );
 }
+// function DaliyPerformanceSummaryTable({
+//   data,
+//   daysInMonth,
+//   page,
+//   pageSize,
+// }: {
+//   data: any[];
+//   daysInMonth: number;
+//   page: number;
+//   pageSize: number;
+// }) {
+//   const safeData = Array.isArray(data) ? data : [];
+//   // 🔥 Group by employee
+//   const grouped: Record<string, any> = {};
+//   safeData.forEach((r) => {
+//     const key = r.employeeName;
+//     if (!grouped[key]) {
+//       grouped[key] = {
+//         employeeName: r.employeeName,
+//         perDayRate: r.perDayRate || 0,
+//         days: {},
+//         present: 0,
+//         absent: 0,
+//         off: 0,
+//       };
+//     }
+//     const date = new Date(r.workDate).getDate(); // 🔥 FIX
+//     const status = (r.attendanceStatus || "").toLowerCase(); // 🔥 FIX
+//     grouped[key].days[date] = status;
+//     if (status === "present") grouped[key].present++;
+//     else if (status === "absent") grouped[key].absent++;
+//     else grouped[key].off++;
+//   });
+//   const employees = Object.values(grouped);
+//   // 🔥 Pagination
+//   const paginatedEmployees = employees.slice(
+//     (page - 1) * pageSize,
+//     page * pageSize,
+//   );
+//   return (
+//     <div className="overflow-x-auto border rounded-md mt-6">
+//       <table className="w-full text-xs">
+//         <thead>
+//           <tr className="border-b bg-muted/30">
+//             <th className="p-2">Employee Name</th>
+//             {/* <th className="p-2">Rate</th> */}
+//             {/* 🔥 1–31 columns */}
+//             {Array.from({ length: daysInMonth }, (_, i) => (
+//               <th key={i} className="p-2 text-center">
+//                 {i + 1}
+//               </th>
+//             ))}
+//             <th className="p-2">Present</th>
+//             {/* <th className="p-2">Pay</th> */}
+//             <th className="p-2">Off</th>
+//             <th className="p-2">Absent</th>
+//             <th className="p-2">Days</th>
+//           </tr>
+//         </thead>
+//         <tbody>
+//           {employees.length > 0 ? (
+//             paginatedEmployees.map((emp: any, idx) => {
+//               // const totalDays = emp.present + emp.absent + emp.off;
+//               const today = new Date().getDate();
+//               const dynamicAbsent = Array.from(
+//                 { length: daysInMonth },
+//                 (_, i) => i + 1,
+//               ).filter((d) => d < today && !emp.days[d]).length;
+//               const finalAbsent = emp.absent + dynamicAbsent;
+//               const totalDays = emp.present + emp.off + finalAbsent;
+//               const totalPay = emp.present * emp.perDayRate;
+//               return (
+//                 <tr key={idx} className="border-b">
+//                   <td className="p-2 font-medium">{emp.employeeName}</td>
+//                   {/* <td className="p-2">{emp.perDayRate}</td> */}
+//                   {/* 🔥 Day cells */}
+//                   {Array.from({ length: daysInMonth }, (_, i) => {
+//                     const day = i + 1;
+//                     const status = emp.days[day];
+//                     return (
+//                       <td
+//                         key={i}
+//                         className="text-center p-1 border border-gray-300 text-[10px] w-8 h-8"
+//                       >
+//                         {status === "present" && (
+//                           <span className="text-emerald-600 font-bold">P</span>
+//                         )}
+//                         {status === "absent" && (
+//                           <span className="text-rose-600 font-bold">A</span>
+//                         )}
+//                         {status === "off" && (
+//                           <span className="text-amber-600 font-bold">O</span>
+//                         )}
+//                         {!status &&
+//                           (() => {
+//                             const today = new Date().getDate();
+//                             // past dates => Absent
+//                             if (day < today) {
+//                               return (
+//                                 <span className="text-rose-600 font-bold">
+//                                   A
+//                                 </span>
+//                               );
+//                             }
+//                             // future/current dates => -
+//                             return <span className="text-gray-400">-</span>;
+//                           })()}
+//                       </td>
+//                     );
+//                   })}
+//                   <td className="p-2 text-center">{emp.present}</td>
+//                   {/* <td className="p-2 text-center font-bold text-emerald-600">
+//                     ₹{totalPay}
+//                   </td> */}
+//                   <td className="p-2 text-center">{emp.off}</td>
+//                   {/* <td className="p-2 text-center">{emp.absent}</td> */}
+//                   <td className="p-2 text-center">{finalAbsent}</td>
+//                   <td className="p-2 text-center">{totalDays}</td>
+//                 </tr>
+//               );
+//             })
+//           ) : (
+//             <tr>
+//               <td
+//                 colSpan={40}
+//                 className="text-center py-6 text-muted-foreground"
+//               >
+//                 No summary data
+//               </td>
+//             </tr>
+//           )}
+//         </tbody>
+//       </table>
+//     </div>
+//   );
+// }
+
 function DaliyPerformanceSummaryTable({
   data,
   daysInMonth,
@@ -1633,31 +1810,34 @@ function DaliyPerformanceSummaryTable({
   const safeData = Array.isArray(data) ? data : [];
   // 🔥 Group by employee
   const grouped: Record<string, any> = {};
-  safeData.forEach((r) => {
-    const key = r.employeeName;
-    if (!grouped[key]) {
-      grouped[key] = {
-        employeeName: r.employeeName,
-        perDayRate: r.perDayRate || 0,
-        days: {},
-        present: 0,
-        absent: 0,
-        off: 0,
-      };
-    }
-    const date = new Date(r.workDate).getDate(); // 🔥 FIX
-    const status = (r.attendanceStatus || "").toLowerCase(); // 🔥 FIX
-    grouped[key].days[date] = status;
-    if (status === "present") grouped[key].present++;
-    else if (status === "absent") grouped[key].absent++;
-    else grouped[key].off++;
+
+  safeData.forEach((emp: any) => {
+    grouped[emp.employeeName] = {
+      employeeName: emp.employeeName,
+      perDayRate: emp.perDayRate || 0,
+      days: {},
+      present: 0,
+      absent: 0,
+      off: 0,
+    };
+
+    emp.records.forEach((r: any) => {
+      const date = new Date(r.workDate).getDate();
+      const status = (r.attendanceStatus || "").toLowerCase();
+
+      grouped[emp.employeeName].days[date] = status;
+
+      if (status === "present") {
+        grouped[emp.employeeName].present++;
+      } else if (status === "absent") {
+        grouped[emp.employeeName].absent++;
+      } else {
+        grouped[emp.employeeName].off++;
+      }
+    });
   });
   const employees = Object.values(grouped);
-  // 🔥 Pagination
-  const paginatedEmployees = employees.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  );
+
   return (
     <div className="overflow-x-auto border rounded-md mt-6">
       <table className="w-full text-xs">
@@ -1680,7 +1860,7 @@ function DaliyPerformanceSummaryTable({
         </thead>
         <tbody>
           {employees.length > 0 ? (
-            paginatedEmployees.map((emp: any, idx) => {
+            employees.map((emp: any, idx) => {
               // const totalDays = emp.present + emp.absent + emp.off;
               const today = new Date().getDate();
               const dynamicAbsent = Array.from(
@@ -1756,6 +1936,108 @@ function DaliyPerformanceSummaryTable({
   );
 }
 
+// function DaliyPerformanceOvertimeSummaryTable({
+//   data,
+//   daysInMonth,
+//   page,
+//   pageSize,
+// }: {
+//   data: any[];
+//   daysInMonth: number;
+//   page: number;
+//   pageSize: number;
+// }) {
+//   const safeData = Array.isArray(data) ? data : [];
+//   // 🔥 Group by employee
+//   const grouped: Record<string, any> = {};
+//   safeData.forEach((r) => {
+//     const key = r.employeeName;
+//     if (!grouped[key]) {
+//       grouped[key] = {
+//         employeeName: r.employeeName,
+//         days: {},
+//         totalWorkingHrs: 0,
+//       };
+//     }
+//     // ✅ FIX
+//     const date = new Date(r.date || r.workDate).getDate();
+//     // ✅ employee-productive-report se
+//     const otHours = Number(r.otHours || 0);
+//     grouped[key].days[date] = otHours;
+//     grouped[key].totalWorkingHrs += otHours;
+//   });
+//   const employees = Object.values(grouped);
+//   const paginatedEmployees = employees.slice(
+//     (page - 1) * pageSize,
+//     page * pageSize,
+//   );
+//   return (
+//     <div className="overflow-x-auto border rounded-md mt-6">
+//       <table className="w-full text-xs">
+//         <thead>
+//           <tr className="border-b bg-muted/30">
+//             <th className="p-2 text-left">Employee Name</th>
+//             {/* <th className="p-2 text-center">Per Day Rate</th> */}
+//             {/* 🔥 1–31 columns */}
+//             {Array.from({ length: daysInMonth }, (_, i) => (
+//               <th key={i} className="p-1 text-center border-x w-8">
+//                 {i + 1}
+//               </th>
+//             ))}
+//             <th className="p-2 text-center bg-primary/5 font-bold">
+//               Total Hrs
+//             </th>
+//           </tr>
+//         </thead>
+//         <tbody>
+//           {employees.length > 0 ? (
+//             paginatedEmployees.map((emp: any, idx) => {
+//               return (
+//                 <tr key={idx} className="border-b hover:bg-muted/10">
+//                   <td className="p-2 font-medium">{emp.employeeName}</td>
+//                   {/* <td className="p-2 text-center">₹{emp.perDayRate}</td> */}
+//                   {/* 🔥 Day cells */}
+//                   {Array.from({ length: daysInMonth }, (_, i) => {
+//                     const day = i + 1;
+//                     const hours = emp.days[day]; // 🔥 OT hours
+//                     return (
+//                       <td
+//                         key={i}
+//                         className="text-center p-1 border-x text-[10px]"
+//                       >
+//                         <span
+//                           className={`${Number(hours) > 0
+//                               ? "text-green-600 font-bold"
+//                               : "text-black font-normal"
+//                             }`}
+//                         >
+//                           {hours !== undefined ? Number(hours).toFixed(0) : 0}
+//                         </span>
+//                       </td>
+//                     );
+//                   })}
+//                   {/* 🔥 Total Hours Column */}
+//                   <td className="p-2 text-center font-bold bg-primary/5 text-primary">
+//                     {Number(emp.totalWorkingHrs || 0)}
+//                   </td>
+//                 </tr>
+//               );
+//             })
+//           ) : (
+//             <tr>
+//               <td
+//                 colSpan={34}
+//                 className="text-center py-6 text-muted-foreground"
+//               >
+//                 No summary data available
+//               </td>
+//             </tr>
+//           )}
+//         </tbody>
+//       </table>
+//     </div>
+//   );
+// }
 
 function DaliyPerformanceOvertimeSummaryTable({
   data,
@@ -1771,27 +2053,24 @@ function DaliyPerformanceOvertimeSummaryTable({
   const safeData = Array.isArray(data) ? data : [];
   // 🔥 Group by employee
   const grouped: Record<string, any> = {};
-  safeData.forEach((r) => {
-    const key = r.employeeName;
-    if (!grouped[key]) {
-      grouped[key] = {
-        employeeName: r.employeeName,
-        days: {},
-        totalWorkingHrs: 0,
-      };
-    }
-    // ✅ FIX
-    const date = new Date(r.date || r.workDate).getDate();
-    // ✅ employee-productive-report se
-    const otHours = Number(r.otHours || 0);
-    grouped[key].days[date] = otHours;
-    grouped[key].totalWorkingHrs += otHours;
+
+  safeData.forEach((emp: any) => {
+    grouped[emp.employeeName] = {
+      employeeName: emp.employeeName,
+      days: {},
+      totalWorkingHrs: 0,
+    };
+
+    emp.records.forEach((r: any) => {
+      const date = new Date(r.date || r.workDate).getDate();
+      const otHours = Number(r.otHours || 0);
+
+      grouped[emp.employeeName].days[date] = otHours;
+      grouped[emp.employeeName].totalWorkingHrs += otHours;
+    });
   });
   const employees = Object.values(grouped);
-  const paginatedEmployees = employees.slice(
-    (page - 1) * pageSize,
-    page * pageSize,
-  );
+
   return (
     <div className="overflow-x-auto border rounded-md mt-6">
       <table className="w-full text-xs">
@@ -1812,7 +2091,7 @@ function DaliyPerformanceOvertimeSummaryTable({
         </thead>
         <tbody>
           {employees.length > 0 ? (
-            paginatedEmployees.map((emp: any, idx) => {
+            employees.map((emp: any, idx) => {
               return (
                 <tr key={idx} className="border-b hover:bg-muted/10">
                   <td className="p-2 font-medium">{emp.employeeName}</td>
@@ -1827,10 +2106,11 @@ function DaliyPerformanceOvertimeSummaryTable({
                         className="text-center p-1 border-x text-[10px]"
                       >
                         <span
-                          className={`${Number(hours) > 0
+                          className={`${
+                            Number(hours) > 0
                               ? "text-green-600 font-bold"
                               : "text-black font-normal"
-                            }`}
+                          }`}
                         >
                           {hours !== undefined ? Number(hours).toFixed(0) : 0}
                         </span>
@@ -1872,172 +2152,300 @@ function getShiftHours(shiftTime?: string) {
   };
   return parseTime(end) - parseTime(start);
 }
+// function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
+//   const safeData = Array.isArray(data) ? data : [];
+//   return (
+//     <div className="overflow-x-auto border rounded-md">
+//       <table className="w-max min-w-full text-xs">
+//         {/* 🔥 HEADER */}
+//         <thead>
+//           <tr className="border-b bg-muted/30">
+//             <th className="text-left p-3 font-medium whitespace-nowrap">
+//               Employee Code
+//             </th>
+//             <th className="text-left p-3 font-medium whitespace-nowrap">
+//               Employee Name
+//             </th>
+//             <th className="text-left p-3 font-medium whitespace-nowrap">
+//               Log Date
+//             </th>
+//             {/* 🔥 DYNAMIC DOORS */}
+//             {doors.map((d, i) => (
+//               <React.Fragment key={i}>
+//                 <th className="text-center p-3 font-medium">
+//                   {d.DeviceName || d.name} IN
+//                 </th>
+//                 <th className="text-center p-3 font-medium">
+//                   {d.DeviceName || d.name} OUT
+//                 </th>
+//               </React.Fragment>
+//             ))}
+//             <th className="text-left p-3 font-medium whitespace-nowrap">
+//               Total Time
+//             </th>
+//             <th className="text-left p-3 font-medium whitespace-nowrap">
+//               Productive Time
+//             </th>
+//             <th className="text-left p-3 font-medium whitespace-nowrap">
+//               Efficiency %
+//             </th>
+//           </tr>
+//         </thead>
+//         {/* 🔥 BODY */}
+//         <tbody>
+//           {safeData.length > 0 ? (
+//             safeData.map((r, i) => {
+//               // 🔥 GROUP DOOR ENTRIES
+//               const groupedDoors: Record<
+//                 string,
+//                 {
+//                   in: string[];
+//                   out: string[];
+//                 }
+//               > = {};
+//               (r.movementDetails || []).forEach((m: any) => {
+//                 const key = String(m.doorName || "")
+//                   .trim()
+//                   .toLowerCase();
+//                 if (!groupedDoors[key]) {
+//                   groupedDoors[key] = {
+//                     in: [],
+//                     out: [],
+//                   };
+//                 }
+//                 groupedDoors[key].in.push(
+//                   m.inTime ? formatTime(m.inTime) : "-",
+//                 );
+//                 groupedDoors[key].out.push(
+//                   m.outTime ? formatTime(m.outTime) : "-",
+//                 );
+//               });
+//               const shiftHours = getShiftHours(r.shiftTime);
+//               return (
+//                 <tr
+//                   key={`${r.employeeCode}-${i}`}
+//                   className="border-b hover:bg-muted/20"
+//                 >
+//                   <td className="p-3">{r.employeeCode || "-"}</td>
+//                   <td className="p-3">{r.employeeName || "-"}</td>
+//                   <td className="p-3">
+//                     {r.date
+//                       ? new Date(r.date).toLocaleDateString("en-GB")
+//                       : "-"}
+//                   </td>
+//                   {/* 🔥 DOOR COLUMNS */}
+//                   {doors.map((d, j) => {
+//                     const key = String(d.DeviceName || d.name || "")
+//                       .trim()
+//                       .toLowerCase();
+//                     const doorData = groupedDoors[key];
+//                     return (
+//                       <React.Fragment key={j}>
+//                         {/* IN */}
+//                         <td className="text-center p-3 align-top">
+//                           {doorData?.in?.length ? (
+//                             <div className="flex flex-col gap-1">
+//                               {doorData.in.map((time: string, idx: number) => (
+//                                 <span
+//                                   key={idx}
+//                                   className="text-blue-600 dark:text-blue-400"
+//                                 >
+//                                   {time}
+//                                 </span>
+//                               ))}
+//                             </div>
+//                           ) : (
+//                             "-"
+//                           )}
+//                         </td>
+//                         {/* OUT */}
+//                         <td className="text-center p-3 align-top">
+//                           {doorData?.out?.length ? (
+//                             <div className="flex flex-col gap-1">
+//                               {doorData.out.map((time: string, idx: number) => (
+//                                 <span
+//                                   key={idx}
+//                                   className="text-orange-600 dark:text-orange-400"
+//                                 >
+//                                   {time}
+//                                 </span>
+//                               ))}
+//                             </div>
+//                           ) : (
+//                             "-"
+//                           )}
+//                         </td>
+//                       </React.Fragment>
+//                     );
+//                   })}
+//                   {/* TOTAL TIME */}
+//                   <td className="text-center p-3">
+//                     {r.totalPresenceHours
+//                       ? `${Number(r.totalPresenceHours).toFixed(2)}h`
+//                       : "-"}
+//                   </td>
+//                   {/* PRODUCTIVE TIME */}
+//                   <td className="text-center p-3">
+//                     {r.productiveHours
+//                       ? `${Number(r.productiveHours).toFixed(2)}h`
+//                       : "-"}
+//                   </td>
+//                   {/* EFFICIENCY */}
+//                   <td className="text-center p-3 font-semibold">
+//                     {Number(r.totalPresenceMinutes || 0) > 0
+//                       ? `${(
+//                           (Number(r.productiveMinutes || 0) /
+//                             Number(r.totalPresenceMinutes || 0)) *
+//                           100
+//                         ).toFixed(2)}%`
+//                       : "-"}
+//                   </td>
+//                 </tr>
+//               );
+//             })
+//           ) : (
+//             <tr>
+//               <td
+//                 colSpan={doors.length * 2 + 5}
+//                 className="text-center py-6 text-muted-foreground"
+//               >
+//                 No data available
+//               </td>
+//             </tr>
+//           )}
+//         </tbody>
+//       </table>
+//     </div>
+//   );
+// }
 function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
   const safeData = Array.isArray(data) ? data : [];
+
   return (
-    <div className="overflow-x-auto border rounded-md">
-      <table className="w-max min-w-full text-xs">
-        {/* 🔥 HEADER */}
-        <thead>
-          <tr className="border-b bg-muted/30">
-            <th className="text-left p-3 font-medium whitespace-nowrap">
-              Employee Code
-            </th>
-            <th className="text-left p-3 font-medium whitespace-nowrap">
-              Employee Name
-            </th>
-            <th className="text-left p-3 font-medium whitespace-nowrap">
-              Log Date
-            </th>
-            {/* 🔥 DYNAMIC DOORS */}
-            {doors.map((d, i) => (
-              <React.Fragment key={i}>
-                <th className="text-center p-3 font-medium">
-                  {d.DeviceName || d.name} IN
-                </th>
-                <th className="text-center p-3 font-medium">
-                  {d.DeviceName || d.name} OUT
-                </th>
-              </React.Fragment>
-            ))}
-            <th className="text-left p-3 font-medium whitespace-nowrap">
-              Total Time
-            </th>
-            <th className="text-left p-3 font-medium whitespace-nowrap">
-              Productive Time
-            </th>
-            <th className="text-left p-3 font-medium whitespace-nowrap">
-              Efficiency %
-            </th>
-          </tr>
-        </thead>
-        {/* 🔥 BODY */}
-        <tbody>
-          {safeData.length > 0 ? (
-            safeData.map((r, i) => {
-              // 🔥 GROUP DOOR ENTRIES
-              const groupedDoors: Record<
-                string,
-                {
-                  in: string[];
-                  out: string[];
-                }
-              > = {};
-              (r.movementDetails || []).forEach((m: any) => {
-                const key = String(m.doorName || "")
-                  .trim()
-                  .toLowerCase();
-                if (!groupedDoors[key]) {
-                  groupedDoors[key] = {
-                    in: [],
-                    out: [],
-                  };
-                }
-                groupedDoors[key].in.push(
-                  m.inTime ? formatTime(m.inTime) : "-",
-                );
-                groupedDoors[key].out.push(
-                  m.outTime ? formatTime(m.outTime) : "-",
-                );
-              });
-              const shiftHours = getShiftHours(r.shiftTime);
-              return (
-                <tr
-                  key={`${r.employeeCode}-${i}`}
-                  className="border-b hover:bg-muted/20"
-                >
-                  <td className="p-3">{r.employeeCode || "-"}</td>
-                  <td className="p-3">{r.employeeName || "-"}</td>
-                  <td className="p-3">
-                    {r.date
-                      ? new Date(r.date).toLocaleDateString("en-GB")
-                      : "-"}
-                  </td>
-                  {/* 🔥 DOOR COLUMNS */}
-                  {doors.map((d, j) => {
-                    const key = String(d.DeviceName || d.name || "")
-                      .trim()
-                      .toLowerCase();
-                    const doorData = groupedDoors[key];
-                    return (
-                      <React.Fragment key={j}>
-                        {/* IN */}
-                        <td className="text-center p-3 align-top">
-                          {doorData?.in?.length ? (
-                            <div className="flex flex-col gap-1">
-                              {doorData.in.map((time: string, idx: number) => (
-                                <span
-                                  key={idx}
-                                  className="text-blue-600 dark:text-blue-400"
-                                >
-                                  {time}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                        {/* OUT */}
-                        <td className="text-center p-3 align-top">
-                          {doorData?.out?.length ? (
-                            <div className="flex flex-col gap-1">
-                              {doorData.out.map((time: string, idx: number) => (
-                                <span
-                                  key={idx}
-                                  className="text-orange-600 dark:text-orange-400"
-                                >
-                                  {time}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
-                      </React.Fragment>
-                    );
-                  })}
-                  {/* TOTAL TIME */}
-                  <td className="text-center p-3">
-                    {r.totalPresenceHours
-                      ? `${Number(r.totalPresenceHours).toFixed(2)}h`
-                      : "-"}
-                  </td>
-                  {/* PRODUCTIVE TIME */}
-                  <td className="text-center p-3">
-                    {r.productiveHours
-                      ? `${Number(r.productiveHours).toFixed(2)}h`
-                      : "-"}
-                  </td>
-                  {/* EFFICIENCY */}
-                  <td className="text-center p-3 font-semibold">
-                    {Number(r.totalPresenceMinutes || 0) > 0
-                      ? `${(
+    <div className="space-y-4">
+      {safeData.length > 0 ? (
+        safeData.map((r, i) => {
+          const groupedDoors: Record<string, { in: string[]; out: string[] }> =
+            {};
+
+          (r.movementDetails || []).forEach((m: any) => {
+            const key = String(m.doorName || "").trim();
+
+            if (!groupedDoors[key]) {
+              groupedDoors[key] = { in: [], out: [] };
+            }
+
+            groupedDoors[key].in.push(m.inTime ? formatTime(m.inTime) : "-");
+
+            groupedDoors[key].out.push(m.outTime ? formatTime(m.outTime) : "-");
+          });
+
+          return (
+            <div
+              key={`${r.employeeCode}-${i}`}
+              className="border rounded-md p-3 bg-muted/10"
+            >
+              {/* ================= EMPLOYEE HEADER ================= */}
+              <div className="grid grid-cols-3 gap-4 text-sm font-semibold border-b pb-3 mb-3 text-gray-800">
+                <div className="text-base">
+                  Employee Code: {r.employeeCode || "-"}
+                </div>
+
+                <div className="text-base">
+                  Employee Name: {r.employeeName || "-"}
+                </div>
+
+                <div className="text-base">
+                  Log Date:{" "}
+                  {r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-"}
+                </div>
+              </div>
+
+              {/* ================= TABLE ================= */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border border-gray-200">
+                  <thead className="bg-muted/30">
+                    <tr>
+                      <th className="border p-1.5 text-left font-medium">
+                        Door Name
+                      </th>
+                      <th className="border p-1.5 text-center font-medium">
+                        IN Time
+                      </th>
+                      <th className="border p-1.5 text-center font-medium">
+                        OUT Time
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {doors.map((d, idx) => {
+                      const key = String(d.DeviceName || d.name || "").trim();
+                      const doorData = groupedDoors[key];
+
+                      return (
+                        <tr key={idx} className="border-b hover:bg-muted/10">
+                          <td className="border p-1.5 font-medium">
+                            {d.DeviceName || d.name}
+                          </td>
+
+                          <td className="border p-1.5 text-center text-blue-600">
+                            {doorData?.in?.length
+                              ? doorData.in.join(", ")
+                              : "-"}
+                          </td>
+
+                          <td className="border p-1.5 text-center text-orange-600">
+                            {doorData?.out?.length
+                              ? doorData.out.join(", ")
+                              : "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* ================= SUMMARY ================= */}
+              <div className="mt-3 text-xs font-medium border-t pt-2 space-y-1">
+                <div>
+                  Total Presence Time:{" "}
+                  {r.totalPresenceHours
+                    ? `${Number(r.totalPresenceHours).toFixed(2)}h`
+                    : "-"}
+                </div>
+
+                <div>
+                  Productive Hours:{" "}
+                  {r.productiveHours
+                    ? `${Number(r.productiveHours).toFixed(2)}h`
+                    : "-"}
+                </div>
+
+                <div>
+                  Efficiency:{" "}
+                  {Number(r.totalPresenceMinutes || 0) > 0
+                    ? `${(
                         (Number(r.productiveMinutes || 0) /
                           Number(r.totalPresenceMinutes || 0)) *
                         100
                       ).toFixed(2)}%`
-                      : "-"}
-                  </td>
-                </tr>
-              );
-            })
-          ) : (
-            <tr>
-              <td
-                colSpan={doors.length * 2 + 5}
-                className="text-center py-6 text-muted-foreground"
-              >
-                No data available
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+                    : "-"}
+                </div>
+              </div>
+            </div>
+          );
+        })
+      ) : (
+        <div className="text-center text-xs text-muted-foreground">
+          No data available
+        </div>
+      )}
     </div>
   );
 }
+
 function DepartmentWiseManpowerTable({
   data,
   departments,
@@ -2047,37 +2455,23 @@ function DepartmentWiseManpowerTable({
   departments: any[];
   footerTotals?: any;
 }) {
-
-  const safeData =
-    Array.isArray(data)
-      ? data
-      : [];
+  const safeData = Array.isArray(data) ? data : [];
 
   return (
     <div className="overflow-x-auto border rounded-md">
-
       <table className="w-max min-w-full text-xs border-collapse">
-
         {/* ========================= */}
         {/* HEADER */}
         {/* ========================= */}
 
         <thead>
-
           {/* TOP HEADER */}
           <tr className="border-b bg-muted/30">
-
-            <th
-              rowSpan={2}
-              className="border p-3 text-left whitespace-nowrap"
-            >
+            <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
               Employee Code
             </th>
 
-            <th
-              rowSpan={2}
-              className="border p-3 text-left whitespace-nowrap"
-            >
+            <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
               Employee Name
             </th>
 
@@ -2088,10 +2482,7 @@ function DepartmentWiseManpowerTable({
               Per Day Rate
             </th>
 
-            <th
-              rowSpan={2}
-              className="border p-3 text-left whitespace-nowrap"
-            >
+            <th rowSpan={2} className="border p-3 text-left whitespace-nowrap">
               Contractor Name
             </th>
 
@@ -2130,10 +2521,8 @@ function DepartmentWiseManpowerTable({
 
           {/* SUB HEADER */}
           <tr className="border-b bg-muted/20">
-
             {departments.map((_, i) => (
               <React.Fragment key={i}>
-
                 <th className="border p-2 text-center whitespace-nowrap">
                   No. of Duty
                 </th>
@@ -2141,7 +2530,6 @@ function DepartmentWiseManpowerTable({
                 <th className="border p-2 text-center whitespace-nowrap">
                   OT Hrs.
                 </th>
-
               </React.Fragment>
             ))}
 
@@ -2172,52 +2560,35 @@ function DepartmentWiseManpowerTable({
         {/* ========================= */}
 
         <tbody>
-
           {safeData.length > 0 ? (
-
             safeData.map((r, i) => {
-
-              const departmentData =
-                r.departments || {};
+              const departmentData = r.departments || {};
 
               return (
                 <tr
                   key={`${r.employeeCode}-${i}`}
                   className="border-b hover:bg-muted/20"
                 >
+                  <td className="border p-3">{r.employeeCode || "-"}</td>
 
-                  <td className="border p-3">
-                    {r.employeeCode || "-"}
-                  </td>
-
-                  <td className="border p-3">
-                    {r.employeeName || "-"}
-                  </td>
+                  <td className="border p-3">{r.employeeName || "-"}</td>
 
                   <td className="border p-3 text-center">
                     {r.perDayRate || 0}
                   </td>
 
-                  <td className="border p-3">
-                    {r.contractorName || "-"}
-                  </td>
+                  <td className="border p-3">{r.contractorName || "-"}</td>
 
                   {/* Departments */}
                   {departments.map((dept, j) => {
+                    const deptName = String(
+                      dept.departmentName || dept.name || "",
+                    );
 
-                    const deptName =
-                      String(
-                        dept.departmentName ||
-                        dept.name ||
-                        ""
-                      );
-
-                    const deptData =
-                      departmentData[deptName];
+                    const deptData = departmentData[deptName];
 
                     return (
                       <React.Fragment key={j}>
-
                         <td className="border p-3 text-center">
                           {deptData?.duty || 0}
                         </td>
@@ -2225,7 +2596,6 @@ function DepartmentWiseManpowerTable({
                         <td className="border p-3 text-center">
                           {deptData?.otHours || 0}
                         </td>
-
                       </React.Fragment>
                     );
                   })}
@@ -2241,34 +2611,24 @@ function DepartmentWiseManpowerTable({
 
                   {/* Amount */}
                   <td className="border p-3 text-center">
-                    ₹{Number(
-                      r.amount?.dutyAmount || 0
-                    ).toFixed(2)}
+                    ₹{Number(r.amount?.dutyAmount || 0).toFixed(2)}
                   </td>
 
                   <td className="border p-3 text-center">
-                    ₹{Number(
-                      r.amount?.otAmount || 0
-                    ).toFixed(2)}
+                    ₹{Number(r.amount?.otAmount || 0).toFixed(2)}
                   </td>
 
                   {/* Total Wages */}
                   <td className="border p-3 text-center font-semibold">
-                    ₹{Number(
-                      r.amount?.totalWages || 0
-                    ).toFixed(2)}
+                    ₹{Number(r.amount?.totalWages || 0).toFixed(2)}
                   </td>
                 </tr>
               );
             })
-
           ) : (
-
             <tr>
               <td
-                colSpan={
-                  departments.length * 2 + 9
-                }
+                colSpan={departments.length * 2 + 9}
                 className="border text-center py-6 text-muted-foreground"
               >
                 No data available
@@ -2281,34 +2641,19 @@ function DepartmentWiseManpowerTable({
           {/* ========================= */}
 
           <tr className="bg-muted/30 font-semibold">
-
             {/* Label */}
-            <td
-              colSpan={4}
-              className="border p-3 text-left"
-            >
-              Device/Department Wise
-              Working (Duty & OT)
+            <td colSpan={4} className="border p-3 text-left">
+              Device/Department Wise Working (Duty & OT)
             </td>
 
             {/* Department Wise */}
             {departments.map((dept, i) => {
+              const deptName = String(dept.departmentName || dept.name || "");
 
-              const deptName =
-                String(
-                  dept.departmentName ||
-                  dept.name ||
-                  ""
-                );
-
-              const deptFooter =
-                footerTotals?.departments?.[
-                deptName
-                ];
+              const deptFooter = footerTotals?.departments?.[deptName];
 
               return (
                 <React.Fragment key={i}>
-
                   {/* Duty */}
                   <td className="border p-3 text-center">
                     {deptFooter?.duty || 0}
@@ -2318,7 +2663,6 @@ function DepartmentWiseManpowerTable({
                   <td className="border p-3 text-center">
                     {deptFooter?.otHours || 0}
                   </td>
-
                 </React.Fragment>
               );
             })}
@@ -2333,31 +2677,19 @@ function DepartmentWiseManpowerTable({
             </td>
 
             {/* 🔥 MERGED AMOUNT CELLS */}
-            <td
-              rowSpan={2}
-              className="border p-3 text-center align-middle"
-            >
-              ₹{Number(
-                footerTotals?.amount?.dutyAmount || 0
-              ).toFixed(2)}
+            <td rowSpan={2} className="border p-3 text-center align-middle">
+              ₹{Number(footerTotals?.amount?.dutyAmount || 0).toFixed(2)}
             </td>
 
-            <td
-              rowSpan={2}
-              className="border p-3 text-center align-middle"
-            >
-              ₹{Number(
-                footerTotals?.amount?.otAmount || 0
-              ).toFixed(2)}
+            <td rowSpan={2} className="border p-3 text-center align-middle">
+              ₹{Number(footerTotals?.amount?.otAmount || 0).toFixed(2)}
             </td>
 
             <td
               rowSpan={2}
               className="border p-3 text-center font-bold align-middle"
             >
-              ₹{Number(
-                footerTotals?.amount?.totalWages || 0
-              ).toFixed(2)}
+              ₹{Number(footerTotals?.amount?.totalWages || 0).toFixed(2)}
             </td>
           </tr>
 
@@ -2366,48 +2698,28 @@ function DepartmentWiseManpowerTable({
           {/* ========================= */}
 
           <tr className="bg-muted/20 font-semibold">
-
             {/* Label */}
-            <td
-              colSpan={4}
-              className="border p-3 text-left"
-            >
-              Device/Department Wise
-              Amount (Rs.)
+            <td colSpan={4} className="border p-3 text-left">
+              Device/Department Wise Amount (Rs.)
             </td>
 
             {/* Dynamic Departments */}
             {departments.map((dept, i) => {
+              const deptName = String(dept.departmentName || dept.name || "");
 
-              const deptName =
-                String(
-                  dept.departmentName ||
-                  dept.name ||
-                  ""
-                );
-
-              const deptFooter =
-                footerTotals?.departments?.[
-                deptName
-                ];
+              const deptFooter = footerTotals?.departments?.[deptName];
 
               return (
                 <React.Fragment key={i}>
-
                   {/* Duty Amount */}
                   <td className="border p-3 text-center">
-                    ₹{Number(
-                      deptFooter?.dutyAmount || 0
-                    ).toFixed(2)}
+                    ₹{Number(deptFooter?.dutyAmount || 0).toFixed(2)}
                   </td>
 
                   {/* OT Amount */}
                   <td className="border p-3 text-center">
-                    ₹{Number(
-                      deptFooter?.otAmount || 0
-                    ).toFixed(2)}
+                    ₹{Number(deptFooter?.otAmount || 0).toFixed(2)}
                   </td>
-
                 </React.Fragment>
               );
             })}
@@ -2420,9 +2732,7 @@ function DepartmentWiseManpowerTable({
             <td className="border p-3 text-center">
               {footerTotals?.totalWorking?.otHours || 0}
             </td>
-
           </tr>
-
         </tbody>
       </table>
     </div>
@@ -2694,11 +3004,11 @@ function EmployeePerformanceTable({ data }: { data?: any[] }) {
                   <td className="border p-3 text-center whitespace-nowrap">
                     {r.dateRange
                       ? r.dateRange
-                        .split(" to ")
-                        .map((d: string) =>
-                          new Date(d).toLocaleDateString("en-GB"),
-                        )
-                        .join(" To ")
+                          .split(" to ")
+                          .map((d: string) =>
+                            new Date(d).toLocaleDateString("en-GB"),
+                          )
+                          .join(" To ")
                       : "-"}
                   </td>
 
@@ -2788,11 +3098,11 @@ function DepartmentEfficiencyTable({ data }: { data?: any[] }) {
                   <td className="border p-3 text-center whitespace-nowrap">
                     {r.dateRange
                       ? r.dateRange
-                        .split(" to ")
-                        .map((d: string) =>
-                          new Date(d).toLocaleDateString("en-GB"),
-                        )
-                        .join(" To ")
+                          .split(" to ")
+                          .map((d: string) =>
+                            new Date(d).toLocaleDateString("en-GB"),
+                          )
+                          .join(" To ")
                       : "-"}
                   </td>
 
@@ -2927,11 +3237,11 @@ export default function ReportsPage() {
 
   // 🔥 Daily Performance Summary Pagination
   const [summaryPage, setSummaryPage] = useState(1);
-  const [summaryPageSize] = useState(1);
+  const [summaryPageSize] = useState(5);
 
   // 🔥 OT Summary Pagination
   const [otPage, setOtPage] = useState(1);
-  const [otPageSize] = useState(10);
+  const [otPageSize] = useState(5);
 
   // 🔥 Daily Performance Details Pagination
   const [perfPage, setPerfPage] = useState(1);
@@ -3244,8 +3554,45 @@ export default function ReportsPage() {
   const lockoutTotalPages = lockoutResponse?.totalPages || 1;
   const lockoutTotalCount = lockoutResponse?.totalCount || 0;
 
-  const { data: otMatrixData = [], isLoading: isOtLoading } = useQuery<any[]>({
-    queryKey: ["ot-matrix", currentAppliedFilters],
+  // const { data: otMatrixData = [], isLoading: isOtLoading } = useQuery<any[]>({
+  //   queryKey: ["ot-matrix", currentAppliedFilters],
+  //   queryFn: async () => {
+  //     const params = new URLSearchParams();
+
+  //     Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+  //       if (v && k !== "_refresh") {
+  //         params.set(k, String(v));
+  //       }
+  //     });
+
+  //     const res = await fetch(`/api/reports/ot-matrix?${params.toString()}`);
+
+  //     if (!res.ok) throw new Error("Fetch failed");
+
+  //     return res.json();
+  //   },
+  //   enabled: activeReport === "daily-performance", // 🔥 only for this tab
+  // });
+
+  // const { data: musterRollData = [], isLoading: isMusterLoading } = useQuery< any[] >({
+  //   queryKey: ["muster-roll", currentAppliedFilters],
+  //   queryFn: async () => {
+  //     const params = new URLSearchParams();
+  //     Object.entries(currentAppliedFilters).forEach(([k, v]) => {
+  //       if (v && k !== "_refresh") {
+  //         params.set(k, String(v));
+  //       }
+  //     });
+  //     const res = await fetch(`/api/reports/muster-roll?${params.toString()}`);
+  //     if (!res.ok) throw new Error("Fetch failed");
+  //     return res.json();
+  //   },
+  //   enabled: activeReport === "daily-performance", // 🔥 important
+  // });
+
+  const { data: otMatrixResponse, isLoading: isOtLoading } = useQuery({
+    queryKey: ["ot-matrix", currentAppliedFilters, otPage, otPageSize],
+
     queryFn: async () => {
       const params = new URLSearchParams();
 
@@ -3254,6 +3601,10 @@ export default function ReportsPage() {
           params.set(k, String(v));
         }
       });
+
+      // 🔥 pagination params
+      params.set("page", String(otPage));
+      params.set("pageSize", String(otPageSize));
 
       const res = await fetch(`/api/reports/ot-matrix?${params.toString()}`);
 
@@ -3261,26 +3612,46 @@ export default function ReportsPage() {
 
       return res.json();
     },
-    enabled: activeReport === "daily-performance", // 🔥 only for this tab
+
+    enabled: activeReport === "daily-performance",
   });
 
-  const { data: musterRollData = [], isLoading: isMusterLoading } = useQuery<
-    any[]
-  >({
-    queryKey: ["muster-roll", currentAppliedFilters],
+  const otMatrixData = otMatrixResponse?.data || [];
+  const otTotalPages = otMatrixResponse?.totalPages || 1;
+
+  const { data: musterRollResponse, isLoading: isMusterLoading } = useQuery({
+    queryKey: [
+      "muster-roll",
+      currentAppliedFilters,
+      summaryPage,
+      summaryPageSize,
+    ],
+
     queryFn: async () => {
       const params = new URLSearchParams();
+
       Object.entries(currentAppliedFilters).forEach(([k, v]) => {
         if (v && k !== "_refresh") {
           params.set(k, String(v));
         }
       });
+
+      // 🔥 pagination params
+      params.set("page", String(summaryPage));
+      params.set("pageSize", String(summaryPageSize));
+
       const res = await fetch(`/api/reports/muster-roll?${params.toString()}`);
+
       if (!res.ok) throw new Error("Fetch failed");
+
       return res.json();
     },
-    enabled: activeReport === "daily-performance", // 🔥 important
+
+    enabled: activeReport === "daily-performance",
   });
+
+  const musterRollData = musterRollResponse?.data || [];
+  const musterTotalPages = musterRollResponse?.totalPages || 1;
 
   const { data: departmentManpowerData = [] } = useQuery<any[]>({
     queryKey: ["department-wise-manpower", currentAppliedFilters],
@@ -3482,10 +3853,11 @@ export default function ReportsPage() {
                 setAccessLogsPage(1);
               }
             }}
-            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
+              activeReport === rt.id
                 ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
                 : "bg-card hover:bg-muted/50"
-              }`}
+            }`}
           >
             <rt.icon
               className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`}
@@ -3818,11 +4190,11 @@ export default function ReportsPage() {
                       pageSize={summaryPageSize}
                     /> */}
                     <DaliyPerformanceSummaryTable
-                    data={musterRollData}
-                    daysInMonth={daysInMonth}
-                    page={summaryPage}
-                    pageSize={summaryPageSize}
-                  />
+                      data={musterRollData}
+                      daysInMonth={daysInMonth}
+                      page={summaryPage}
+                      pageSize={summaryPageSize}
+                    />
                   </CardContent>
                   <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
                     {/* Left Side */}
@@ -3835,12 +4207,12 @@ export default function ReportsPage() {
                       <span className="font-semibold text-foreground">
                         {Math.min(
                           summaryPage * summaryPageSize,
-                          musterRollData.length,
+                          musterRollResponse?.totalCount || 0,
                         )}
                       </span>{" "}
                       of{" "}
                       <span className="font-semibold text-foreground">
-                        {musterRollData.length}
+                        {musterRollResponse?.totalCount || 0}
                       </span>{" "}
                       employees
                     </div>
@@ -3856,9 +4228,7 @@ export default function ReportsPage() {
                         <input
                           type="number"
                           min={1}
-                          max={Math.ceil(
-                            musterRollData.length / summaryPageSize,
-                          )}
+                          max={musterRollResponse?.totalPages || 1}
                           defaultValue={summaryPage}
                           className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
                           onKeyDown={(e) => {
@@ -3866,11 +4236,9 @@ export default function ReportsPage() {
                               const val = Number(e.currentTarget.value);
 
                               if (
-                                val >= 1 &&
-                                val <=
-                                Math.ceil(
-                                  musterRollData.length / summaryPageSize,
-                                )
+                                (val >= 1 &&
+                                  val <= musterRollResponse?.totalPages) ||
+                                1
                               ) {
                                 setSummaryPage(val);
                               }
@@ -3908,8 +4276,7 @@ export default function ReportsPage() {
 
                         {/* Current Page */}
                         <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
-                          {summaryPage} /{" "}
-                          {Math.ceil(musterRollData.length / summaryPageSize)}
+                          {summaryPage} / {musterRollResponse?.totalPages || 1}
                         </div>
 
                         {/* Next */}
@@ -3920,16 +4287,14 @@ export default function ReportsPage() {
                           onClick={() =>
                             setSummaryPage((p) =>
                               Math.min(
-                                Math.ceil(
-                                  musterRollData.length / summaryPageSize,
-                                ),
+                                musterRollResponse?.totalPages || 1,
                                 p + 1,
                               ),
                             )
                           }
                           disabled={
                             summaryPage ===
-                            Math.ceil(musterRollData.length / summaryPageSize)
+                            (musterRollResponse?.totalPages || 1)
                           }
                         >
                           Next
@@ -3942,15 +4307,11 @@ export default function ReportsPage() {
                           size="icon"
                           className="h-8 w-8"
                           onClick={() =>
-                            setSummaryPage(
-                              Math.ceil(
-                                musterRollData.length / summaryPageSize,
-                              ),
-                            )
+                            setSummaryPage(musterRollResponse?.totalPages || 1)
                           }
                           disabled={
                             summaryPage ===
-                            Math.ceil(musterRollData.length / summaryPageSize)
+                            (musterRollResponse?.totalPages || 1)
                           }
                         >
                           <ChevronsRight className="h-4 w-4" />
@@ -3994,11 +4355,14 @@ export default function ReportsPage() {
                       </span>{" "}
                       to{" "}
                       <span className="font-semibold text-foreground">
-                        {Math.min(otPage * otPageSize, otMatrixData.length)}
+                        {Math.min(
+                          otPage * otPageSize,
+                          otMatrixResponse?.totalCount || 0,
+                        )}
                       </span>{" "}
                       of{" "}
                       <span className="font-semibold text-foreground">
-                        {otMatrixData.length}
+                        {otMatrixResponse?.totalCount || 0}
                       </span>{" "}
                       employees
                     </div>
@@ -4014,7 +4378,7 @@ export default function ReportsPage() {
                         <input
                           type="number"
                           min={1}
-                          max={Math.ceil(otMatrixData.length / otPageSize)}
+                          max={otMatrixResponse?.totalPages || 1}
                           defaultValue={otPage}
                           className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
                           onKeyDown={(e) => {
@@ -4022,9 +4386,9 @@ export default function ReportsPage() {
                               const val = Number(e.currentTarget.value);
 
                               if (
-                                val >= 1 &&
-                                val <=
-                                Math.ceil(otMatrixData.length / otPageSize)
+                                (val >= 1 &&
+                                  val <= otMatrixResponse?.totalPages) ||
+                                1
                               ) {
                                 setOtPage(val);
                               }
@@ -4060,8 +4424,7 @@ export default function ReportsPage() {
 
                         {/* Current Page */}
                         <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
-                          {otPage} /{" "}
-                          {Math.ceil(otMatrixData.length / otPageSize)}
+                          {otPage} / {otMatrixResponse?.totalPages || 1}
                         </div>
 
                         {/* Next */}
@@ -4072,14 +4435,13 @@ export default function ReportsPage() {
                           onClick={() =>
                             setOtPage((p) =>
                               Math.min(
-                                Math.ceil(otMatrixData.length / otPageSize),
+                                otMatrixResponse?.totalPages || 1,
                                 p + 1,
                               ),
                             )
                           }
                           disabled={
-                            otPage ===
-                            Math.ceil(otMatrixData.length / otPageSize)
+                            otPage === (otMatrixResponse?.totalPages || 1)
                           }
                         >
                           Next
@@ -4092,13 +4454,10 @@ export default function ReportsPage() {
                           size="icon"
                           className="h-8 w-8"
                           onClick={() =>
-                            setOtPage(
-                              Math.ceil(otMatrixData.length / otPageSize),
-                            )
+                            setOtPage(otMatrixResponse?.totalPages || 1)
                           }
                           disabled={
-                            otPage ===
-                            Math.ceil(otMatrixData.length / otPageSize)
+                            otPage === (otMatrixResponse?.totalPages || 1)
                           }
                         >
                           <ChevronsRight className="h-4 w-4" />
@@ -4387,20 +4746,18 @@ export default function ReportsPage() {
                   <CardTitle className="text-sm font-semibold">
                     Department Wise Manpower & OT Report
                   </CardTitle>
-                    {canExport && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      exportDepartmentWiseManpowerCSV(
-                        currentAppliedFilters
-                      )
-                    }
-                    >                   
-                    <Download className="w-4 h-4 mr-2" />
-                    Export
-                  </Button>
-                )}
+                  {canExport && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        exportDepartmentWiseManpowerCSV(currentAppliedFilters)
+                      }
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Export
+                    </Button>
+                  )}
                 </CardHeader>
 
                 <CardContent className="p-0">

@@ -422,19 +422,32 @@ export class DatabaseStorage implements IStorage {
         const endDate = new Date(filters.dateTo);
         endDate.setHours(23, 59, 59, 999);
 
-        conditions.push(
-          lte(schema.employeeActivityLogs.logDate, endDate),
-        );
+        conditions.push(lte(schema.employeeActivityLogs.logDate, endDate));
       }
+      // if (filters?.employeeCode) {
+      //   conditions.push(
+      //     eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+      //   );
+      // }
       if (filters?.employeeCode) {
         conditions.push(
-          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+          or(
+            ilike(
+              schema.employeeActivityLogs.employeeName,
+              `%${filters.employeeCode}%`,
+            ),
+
+            ilike(
+              schema.employeeActivityLogs.employeeCode,
+              `%${filters.employeeCode}%`,
+            ),
+          ),
         );
       }
       const doorFilter = filters?.doorId;
       if (doorFilter) {
         conditions.push(
-          eq(schema.employeeActivityLogs.doorId, parseInt(doorFilter, 10))
+          eq(schema.employeeActivityLogs.doorId, parseInt(doorFilter, 10)),
         );
       }
       const logs = await db
@@ -560,29 +573,33 @@ export class DatabaseStorage implements IStorage {
   //   return await withPagination(db, companies, query, page, pageSize);
   // }
 
-  async getCompanies(page?: number, pageSize?: number, search?: string): Promise<any> {
-  const conditions = [];
+  async getCompanies(
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
+    const conditions = [];
 
-  // 🔥 SEARCH FILTER
-  if (search && search.trim() !== "") {
-    conditions.push(
-      or(
-        ilike(companies.name, `%${search}%`),
-        ilike(companies.shortName, `%${search}%`),
-        ilike(companies.email, `%${search}%`)
-      )
-    );
+    // 🔥 SEARCH FILTER
+    if (search && search.trim() !== "") {
+      conditions.push(
+        or(
+          ilike(companies.name, `%${search}%`),
+          ilike(companies.shortName, `%${search}%`),
+          ilike(companies.email, `%${search}%`),
+        ),
+      );
+    }
+
+    // 🔥 FINAL QUERY
+    const baseQuery = db
+      .select()
+      .from(companies)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(asc(companies.id));
+
+    return await withPagination(db, companies, baseQuery, page, pageSize);
   }
-
-  // 🔥 FINAL QUERY
-  const baseQuery = db
-    .select()
-    .from(companies)
-    .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(asc(companies.id));
-
-  return await withPagination(db, companies, baseQuery, page, pageSize);
-}
   async createCompany(data: InsertCompany): Promise<Company> {
     const [created] = await db.insert(companies).values(data).returning();
     return created;
@@ -606,51 +623,52 @@ export class DatabaseStorage implements IStorage {
   //   const query = db.select().from(departments).orderBy(asc(departments.name));
   //   return await withPagination(db, departments, query, page, pageSize);
   // }
-  async getDepartments(page?: number, pageSize?: number, search?: string): Promise<any> {
-  // 1. Base query banao
-  let query = db.select().from(departments);
+  async getDepartments(
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
+    // 1. Base query banao
+    let query = db.select().from(departments);
 
-  // 2. Agar search term hai, toh filters add karo
-  if (search) {
-    query = query.where(
-      or(
-        ilike(departments.name, `%${search}%`),
-        ilike(departments.code, `%${search}%`)
-      )
-    ) as any;
+    // 2. Agar search term hai, toh filters add karo
+    if (search) {
+      query = query.where(
+        or(
+          ilike(departments.name, `%${search}%`),
+          ilike(departments.code, `%${search}%`),
+        ),
+      ) as any;
+    }
+
+    // 3. Order set karo
+    query.orderBy(asc(departments.name));
+
+    // 4. Pagination ke saath return karo
+    return await withPagination(db, departments, query, page, pageSize);
   }
-
-  // 3. Order set karo
-  query.orderBy(asc(departments.name));
-
-  // 4. Pagination ke saath return karo
-  return await withPagination(db, departments, query, page, pageSize);
-}
   // async createDepartment(data: InsertDepartment): Promise<Department> {
   //   const [created] = await db.insert(departments).values(data).returning();
   //   return created;
   // }
   async createDepartment(data: InsertDepartment): Promise<Department> {
-  if (!data.code) {
-    throw new Error("Department code is required.");
+    if (!data.code) {
+      throw new Error("Department code is required.");
+    }
+
+    const [existing] = await db
+      .select()
+      .from(departments)
+      .where(eq(departments.code, data.code));
+
+    if (existing) {
+      throw new Error(`Department code '${data.code}' already exists.`);
+    }
+
+    const [created] = await db.insert(departments).values(data).returning();
+
+    return created;
   }
-
-  const [existing] = await db
-    .select()
-    .from(departments)
-    .where(eq(departments.code, data.code));
-
-  if (existing) {
-    throw new Error(`Department code '${data.code}' already exists.`);
-  }
-
-  const [created] = await db
-    .insert(departments)
-    .values(data)
-    .returning();
-
-  return created;
-}
   async updateDepartment(
     id: number,
     data: Partial<InsertDepartment>,
@@ -673,55 +691,46 @@ export class DatabaseStorage implements IStorage {
   //   return await withPagination(db, designations, query, page, pageSize);
   // }
   async getDesignations(
-  page?: number,
-  pageSize?: number,
-  search?: string
-): Promise<any> {
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
+    const baseQuery = db.select().from(designations);
 
-  const baseQuery = db
-    .select()
-    .from(designations);
+    const query = search
+      ? baseQuery.where(ilike(designations.name, `%${search}%`))
+      : baseQuery;
 
-  const query = search
-    ? baseQuery.where(
-        ilike(designations.name, `%${search}%`)
-      )
-    : baseQuery;
-
-  return await withPagination(
-    db,
-    designations,
-    query.orderBy(asc(designations.name)),
-    page,
-    pageSize
-  );
-}
+    return await withPagination(
+      db,
+      designations,
+      query.orderBy(asc(designations.name)),
+      page,
+      pageSize,
+    );
+  }
   // async createDesignation(data: InsertDesignation): Promise<Designation> {
   //   const [created] = await db.insert(designations).values(data).returning();
   //   return created;
   // }
   async createDesignation(data: InsertDesignation): Promise<Designation> {
+    if (!data.code) {
+      throw new Error("Designation code is required.");
+    }
 
-  if (!data.code) {
-    throw new Error("Designation code is required.");
+    const [existing] = await db
+      .select()
+      .from(designations)
+      .where(eq(designations.code, data.code));
+
+    if (existing) {
+      throw new Error(`Designation code '${data.code}' already exists.`);
+    }
+
+    const [created] = await db.insert(designations).values(data).returning();
+
+    return created;
   }
-
-  const [existing] = await db
-    .select()
-    .from(designations)
-    .where(eq(designations.code, data.code));
-
-  if (existing) {
-    throw new Error(`Designation code '${data.code}' already exists.`);
-  }
-
-  const [created] = await db
-    .insert(designations)
-    .values(data)
-    .returning();
-
-  return created;
-}
   async updateDesignation(
     id: number,
     data: Partial<InsertDesignation>,
@@ -741,29 +750,24 @@ export class DatabaseStorage implements IStorage {
   //   return await withPagination(db, categories, query, page, pageSize);
   // }
   async getCategories(
-  page?: number,
-  pageSize?: number,
-  search?: string
-): Promise<any> {
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
+    const baseQuery = db.select().from(categories);
 
-  const baseQuery = db
-    .select()
-    .from(categories);
+    const query = search
+      ? baseQuery.where(ilike(categories.name, `%${search}%`))
+      : baseQuery;
 
-  const query = search
-    ? baseQuery.where(
-        ilike(categories.name, `%${search}%`)
-      )
-    : baseQuery;
-
-  return await withPagination(
-    db,
-    categories,
-    query.orderBy(asc(categories.id)),
-    page,
-    pageSize
-  );
-}
+    return await withPagination(
+      db,
+      categories,
+      query.orderBy(asc(categories.id)),
+      page,
+      pageSize,
+    );
+  }
   async createCategory(data: InsertCategory): Promise<Category> {
     const [created] = await db.insert(categories).values(data).returning();
     return created;
@@ -825,14 +829,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     return currentSites;
@@ -906,7 +910,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) { }
+        } catch (e) {}
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -1127,7 +1131,6 @@ export class DatabaseStorage implements IStorage {
   //   }
   // }
 
-
   // async getDoors(): Promise<any[]> {
   //   try {
   //     const [allDoors, allDoorDevices, allDevices] = await Promise.all([
@@ -1161,120 +1164,116 @@ export class DatabaseStorage implements IStorage {
   // }
 
   async getDoors(
-  page?: number | string,
-  pageSize?: number | string,
-  search?: string
-): Promise<any> {
-  try {
-    const [allDoors, allDoorDevices, allDevices] = await Promise.all([
-      db.select().from(doors).orderBy(asc(doors.id)),
-      db.select().from(doorDevices),
-      db.select().from(devices),
-    ]);
+    page?: number | string,
+    pageSize?: number | string,
+    search?: string,
+  ): Promise<any> {
+    try {
+      const [allDoors, allDoorDevices, allDevices] = await Promise.all([
+        db.select().from(doors).orderBy(asc(doors.id)),
+        db.select().from(doorDevices),
+        db.select().from(devices),
+      ]);
 
-    // -------------------------
-    // DEVICE MAPPING
-    // -------------------------
-    const resolvedDoors = allDoors.map((door) => {
-      const mapping = allDoorDevices.find(
-        (md) => md.doorId === door.id
-      );
+      // -------------------------
+      // DEVICE MAPPING
+      // -------------------------
+      const resolvedDoors = allDoors.map((door) => {
+        const mapping = allDoorDevices.find((md) => md.doorId === door.id);
 
-      const resolveDevices = (ids: any[] | null) => {
-        if (!ids || !Array.isArray(ids)) return [];
+        const resolveDevices = (ids: any[] | null) => {
+          if (!ids || !Array.isArray(ids)) return [];
 
-        return ids
-          .map((id) => {
-            const dev = allDevices.find(
-              (d) => Number(d.msId) === Number(id)
+          return ids
+            .map((id) => {
+              const dev = allDevices.find((d) => Number(d.msId) === Number(id));
+
+              return dev
+                ? { id: dev.id, msId: dev.msId, name: dev.name }
+                : null;
+            })
+            .filter(Boolean) as { id: number; msId: number; name: string }[];
+        };
+
+        const inDevices = resolveDevices(mapping?.inDeviceIds || []);
+        const outDevices = resolveDevices(mapping?.outDeviceIds || []);
+
+        return {
+          ...door,
+          inDevices,
+          outDevices,
+          inCount: inDevices.length,
+          outCount: outDevices.length,
+        };
+      });
+
+      // -------------------------
+      // SEARCH LOGIC
+      // -------------------------
+      const searchText = search?.toLowerCase().trim();
+
+      const filteredDoors = searchText
+        ? resolvedDoors.filter((door) => {
+            return (
+              door.name?.toLowerCase().includes(searchText) ||
+              door.code?.toLowerCase().includes(searchText) ||
+              door.doorType?.toLowerCase().includes(searchText)
             );
-
-            return dev
-              ? { id: dev.id, msId: dev.msId, name: dev.name }
-              : null;
           })
-          .filter(Boolean) as { id: number; msId: number; name: string }[];
-      };
+        : resolvedDoors;
 
-      const inDevices = resolveDevices(mapping?.inDeviceIds || []);
-      const outDevices = resolveDevices(mapping?.outDeviceIds || []);
+      // -------------------------
+      // NO PAGINATION CASE
+      // -------------------------
+      if (!pageSize) {
+        return filteredDoors;
+      }
 
-      return {
-        ...door,
-        inDevices,
-        outDevices,
-        inCount: inDevices.length,
-        outCount: outDevices.length,
-      };
-    });
-
-    // -------------------------
-    // SEARCH LOGIC
-    // -------------------------
-    const searchText = search?.toLowerCase().trim();
-
-    const filteredDoors = searchText
-      ? resolvedDoors.filter((door) => {
-          return (
-            door.name?.toLowerCase().includes(searchText) ||
-            door.code?.toLowerCase().includes(searchText) ||
-            door.doorType?.toLowerCase().includes(searchText)
-          );
-        })
-      : resolvedDoors;
-
-    // -------------------------
-    // NO PAGINATION CASE
-    // -------------------------
-    if (!pageSize) {
-      return filteredDoors;
-    }
-
-    // -------------------------
-    // ALL DATA CASE
-    // -------------------------
-    if (pageSize === -1 || pageSize === "-1") {
-      return {
-        data: filteredDoors,
-        totalCount: filteredDoors.length,
-        totalPages: 1,
-        currentPage: 1,
-        pageSize: filteredDoors.length,
-      };
-    }
-
-    // -------------------------
-    // PAGINATION
-    // -------------------------
-    const p = page && Number(page) > 0 ? Number(page) : 1;
-    const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
-
-    const start = (p - 1) * size;
-    const end = start + size;
-
-    const paginatedData = filteredDoors.slice(start, end);
-
-    return {
-      data: paginatedData,
-      totalCount: filteredDoors.length,
-      totalPages: Math.ceil(filteredDoors.length / size),
-      currentPage: p,
-      pageSize: size,
-    };
-  } catch (error) {
-    console.error("getDoors Error:", error);
-
-    return pageSize
-      ? {
-          data: [],
-          totalCount: 0,
-          totalPages: 0,
+      // -------------------------
+      // ALL DATA CASE
+      // -------------------------
+      if (pageSize === -1 || pageSize === "-1") {
+        return {
+          data: filteredDoors,
+          totalCount: filteredDoors.length,
+          totalPages: 1,
           currentPage: 1,
-          pageSize: 0,
-        }
-      : [];
+          pageSize: filteredDoors.length,
+        };
+      }
+
+      // -------------------------
+      // PAGINATION
+      // -------------------------
+      const p = page && Number(page) > 0 ? Number(page) : 1;
+      const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+
+      const start = (p - 1) * size;
+      const end = start + size;
+
+      const paginatedData = filteredDoors.slice(start, end);
+
+      return {
+        data: paginatedData,
+        totalCount: filteredDoors.length,
+        totalPages: Math.ceil(filteredDoors.length / size),
+        currentPage: p,
+        pageSize: size,
+      };
+    } catch (error) {
+      console.error("getDoors Error:", error);
+
+      return pageSize
+        ? {
+            data: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: 1,
+            pageSize: 0,
+          }
+        : [];
+    }
   }
-}
   async createDoor(data: InsertDoor): Promise<Door> {
     if (data.name) {
       const [existingName] = await db
@@ -1333,7 +1332,7 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-  
+
   // async getDevices(
   //   page?: number | string,
   //   pageSize?: number | string,
@@ -1462,17 +1461,141 @@ export class DatabaseStorage implements IStorage {
   // }
 
   async getDevices(
-  page?: number | string,
-  pageSize?: number | string,
-  search?: string
-): Promise<any> {
-  try {
-    const msDataRaw = await dbMsSql
-      .select()
-      .from({ dbName: "Devices" })
-      .execute();
+    page?: number | string,
+    pageSize?: number | string,
+    search?: string,
+  ): Promise<any> {
+    try {
+      const msDataRaw = await dbMsSql
+        .select()
+        .from({ dbName: "Devices" })
+        .execute();
 
-    if (!msDataRaw || msDataRaw.length === 0) {
+      if (!msDataRaw || msDataRaw.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+          onlineCount: 0,
+          offlineCount: 0,
+        };
+      }
+
+      const currentTime = new Date();
+      const THRESHOLD_MINUTES = 1;
+
+      let onlineCount = 0;
+      let offlineCount = 0;
+
+      // 🔥 STEP 1: FORMAT DATA
+      let formattedDevices = msDataRaw.map((d: any) => {
+        let lPing: Date | null = null;
+        let calculatedStatus = "offline";
+
+        if (d.LastPing) {
+          lPing = new Date(d.LastPing);
+          let diffInMs = currentTime.getTime() - lPing.getTime();
+          let diffInMinutes = diffInMs / 60000;
+
+          const absDiff = Math.abs(diffInMinutes);
+
+          if (
+            absDiff <= THRESHOLD_MINUTES ||
+            Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
+          ) {
+            calculatedStatus = "online";
+          }
+        }
+
+        if (calculatedStatus === "online") onlineCount++;
+        else offlineCount++;
+
+        return {
+          msId: d.DeviceId || d.DeviceID,
+          name: d.DeviceName || "Unnamed Device",
+          deviceDirection: d.DeviceDirection || null,
+          serialNumber: d.SerialNumber || d.serialno,
+          opstamp: d.OpStamp ? String(d.OpStamp) : null,
+          lastPing: lPing,
+          lastreset: d.LastReset ? new Date(d.LastReset) : null,
+          activationCode: d.ActivationCode || "",
+          isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+          deviceType: String(d.DeviceType || "-").toLowerCase(),
+          locationId: d.LocationId || null,
+          ipAddress: d.IpAddress || "",
+          lastHeartbeat: lPing,
+          status: calculatedStatus,
+          isActive: true,
+        };
+      });
+
+      // 🔥 STEP 2: SEARCH FILTER (IMPORTANT)
+      if (search && search.trim()) {
+        const s = search.toLowerCase();
+
+        formattedDevices = formattedDevices.filter(
+          (d) =>
+            d.name?.toLowerCase().includes(s) ||
+            d.ipAddress?.toLowerCase().includes(s) ||
+            d.serialNumber?.toLowerCase().includes(s) ||
+            d.deviceType?.toLowerCase().includes(s),
+        );
+      }
+
+      // 🔥 STEP 3: SYNC DB
+      for (const dev of formattedDevices) {
+        await db
+          .insert(devices)
+          .values(dev)
+          .onConflictDoUpdate({
+            target: devices.msId,
+            set: { ...dev },
+          });
+      }
+
+      const currentMsIds = formattedDevices.map((d) => d.msId as number);
+
+      if (currentMsIds.length > 0) {
+        await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
+      }
+
+      // 🔥 STEP 4: PAGINATION
+      if (!pageSize) return formattedDevices;
+
+      if (pageSize === -1 || pageSize === "-1") {
+        return {
+          data: formattedDevices,
+          totalCount: formattedDevices.length,
+          totalPages: 1,
+          currentPage: 1,
+          pageSize: formattedDevices.length,
+          onlineCount,
+          offlineCount,
+        };
+      }
+
+      const p = page && Number(page) > 0 ? Number(page) : 1;
+      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+
+      const start = (p - 1) * size;
+      const end = start + size;
+
+      const paginatedData = formattedDevices.slice(start, end);
+
+      return {
+        data: paginatedData,
+        totalCount: formattedDevices.length,
+        totalPages: Math.ceil(formattedDevices.length / size),
+        currentPage: p,
+        pageSize: size,
+        onlineCount,
+        offlineCount,
+      };
+    } catch (error) {
+      console.error("Device Sync Error:", error);
+
       return {
         data: [],
         totalCount: 0,
@@ -1483,128 +1606,7 @@ export class DatabaseStorage implements IStorage {
         offlineCount: 0,
       };
     }
-
-    const currentTime = new Date();
-    const THRESHOLD_MINUTES = 1;
-
-    let onlineCount = 0;
-    let offlineCount = 0;
-
-    // 🔥 STEP 1: FORMAT DATA
-    let formattedDevices = msDataRaw.map((d: any) => {
-      let lPing: Date | null = null;
-      let calculatedStatus = "offline";
-
-      if (d.LastPing) {
-        lPing = new Date(d.LastPing);
-        let diffInMs = currentTime.getTime() - lPing.getTime();
-        let diffInMinutes = diffInMs / 60000;
-
-        const absDiff = Math.abs(diffInMinutes);
-
-        if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
-          calculatedStatus = "online";
-        }
-      }
-
-      if (calculatedStatus === "online") onlineCount++;
-      else offlineCount++;
-
-      return {
-        msId: d.DeviceId || d.DeviceID,
-        name: d.DeviceName || "Unnamed Device",
-        deviceDirection: d.DeviceDirection || null,
-        serialNumber: d.SerialNumber || d.serialno,
-        opstamp: d.OpStamp ? String(d.OpStamp) : null,
-        lastPing: lPing,
-        lastreset: d.LastReset ? new Date(d.LastReset) : null,
-        activationCode: d.ActivationCode || "",
-        isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-        deviceType: String(d.DeviceType || "-").toLowerCase(),
-        locationId: d.LocationId || null,
-        ipAddress: d.IpAddress || "",
-        lastHeartbeat: lPing,
-        status: calculatedStatus,
-        isActive: true,
-      };
-    });
-
-    // 🔥 STEP 2: SEARCH FILTER (IMPORTANT)
-    if (search && search.trim()) {
-      const s = search.toLowerCase();
-
-      formattedDevices = formattedDevices.filter((d) =>
-        d.name?.toLowerCase().includes(s) ||
-        d.ipAddress?.toLowerCase().includes(s) ||
-        d.serialNumber?.toLowerCase().includes(s) ||
-        d.deviceType?.toLowerCase().includes(s)
-      );
-    }
-
-    // 🔥 STEP 3: SYNC DB
-    for (const dev of formattedDevices) {
-      await db
-        .insert(devices)
-        .values(dev)
-        .onConflictDoUpdate({
-          target: devices.msId,
-          set: { ...dev },
-        });
-    }
-
-    const currentMsIds = formattedDevices.map((d) => d.msId as number);
-
-    if (currentMsIds.length > 0) {
-      await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
-    }
-
-    // 🔥 STEP 4: PAGINATION
-    if (!pageSize) return formattedDevices;
-
-    if (pageSize === -1 || pageSize === "-1") {
-      return {
-        data: formattedDevices,
-        totalCount: formattedDevices.length,
-        totalPages: 1,
-        currentPage: 1,
-        pageSize: formattedDevices.length,
-        onlineCount,
-        offlineCount,
-      };
-    }
-
-    const p = page && Number(page) > 0 ? Number(page) : 1;
-    const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-
-    const start = (p - 1) * size;
-    const end = start + size;
-
-    const paginatedData = formattedDevices.slice(start, end);
-
-    return {
-      data: paginatedData,
-      totalCount: formattedDevices.length,
-      totalPages: Math.ceil(formattedDevices.length / size),
-      currentPage: p,
-      pageSize: size,
-      onlineCount,
-      offlineCount,
-    };
-  } catch (error) {
-    console.error("Device Sync Error:", error);
-
-    return {
-      data: [],
-      totalCount: 0,
-      totalPages: 0,
-      currentPage: 1,
-      pageSize: 0,
-      onlineCount: 0,
-      offlineCount: 0,
-    };
   }
-}
-
 
   // async getDevices(): Promise<any[]> {
   //   try {
@@ -1745,268 +1747,238 @@ export class DatabaseStorage implements IStorage {
       await db.delete(devices).where(eq(devices.msId, msId));
     }
   }
-  
+
   // ==========================
-// STORAGE
-// ==========================
+  // STORAGE
+  // ==========================
 
-async getPeople(
-  search?: string,
-  page?: number | string,
-  pageSize?: number | string,
-): Promise<any> {
-
-  const [pgDataRaw, msDataRaw] = await Promise.all([
-    db
-      .select({
-        person: {
-          ...people,
-          lastSeenTime: sql<string>`
+  async getPeople(
+    search?: string,
+    page?: number | string,
+    pageSize?: number | string,
+  ): Promise<any> {
+    const [pgDataRaw, msDataRaw] = await Promise.all([
+      db
+        .select({
+          person: {
+            ...people,
+            lastSeenTime: sql<string>`
             TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')
           `,
-        },
-        departmentName: departments.name,
-        lastPunchDoorName: doors.name,
-      })
-      .from(people)
-      .leftJoin(departments, eq(people.departmentId, departments.id))
-      .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
+          },
+          departmentName: departments.name,
+          lastPunchDoorName: doors.name,
+        })
+        .from(people)
+        .leftJoin(departments, eq(people.departmentId, departments.id))
+        .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
 
-    dbMsSql.select().from({ dbName: "Employees" }).execute(),
-  ]);
+      dbMsSql.select().from({ dbName: "Employees" }).execute(),
+    ]);
 
-  const msIds = new Set();
+    const msIds = new Set();
 
-  const ruleIdToName = Object.fromEntries(
-    Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
-  );
-
-  const currentPgData = pgDataRaw.map((row) => ({
-    ...row.person,
-    departmentName: row.departmentName || "N/A",
-    lastPunchDoorName: row.lastPunchDoorName || "No Door",
-    ruleName:
-      row.person.ruleid !== null
-        ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
-        : "NO_RULE",
-  }));
-
-  // ==========================
-  // MSSQL SYNC
-  // ==========================
-
-  for (const msRow of msDataRaw || []) {
-
-    const mapped = PersonAdapter.toPostgres(msRow);
-
-    if (!mapped.msId) continue;
-
-    msIds.add(mapped.msId);
-
-    const existingIndex = currentPgData.findIndex(
-      (p) => p.msId === mapped.msId,
+    const ruleIdToName = Object.fromEntries(
+      Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
     );
 
-    // ==========================
-    // INSERT
-    // ==========================
-
-    if (existingIndex === -1) {
-
-      try {
-
-        const [newRec] = await db
-          .insert(people)
-          .values({
-            msId: mapped.msId,
-            employeeCode: mapped.employeeCode,
-            employeeName: mapped.employeeName ?? "Unknown",
-            address: mapped.address ?? null,
-            ruleid: mapped.ruleid ?? null,
-            locationId: mapped.locationId ?? null,
-            externalId: mapped.externalId ?? null,
-            overtimeEligible: mapped.overtimeEligible ?? false,
-            personType: "employee",
-            status: "active",
-            sourceSystem: "mssql_bio",
-            updatedAt: new Date(),
-            createdAt: new Date(),
-          })
-          .returning();
-
-        if (newRec?.employeeCode) {
-          await this.executeHardwareSync(
-            newRec.employeeCode,
-            null,
-            true,
-          );
-        }
-
-        currentPgData.push({
-          ...newRec,
-          departmentName: "N/A",
-          lastPunchDoorName: "No Door",
-          ruleName:
-            newRec.ruleid !== null
-              ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
-              : "NO_ROLE",
-        });
-
-      } catch (e) {
-        console.error("New employee sync error:", e);
-      }
-    }
+    const currentPgData = pgDataRaw.map((row) => ({
+      ...row.person,
+      departmentName: row.departmentName || "N/A",
+      lastPunchDoorName: row.lastPunchDoorName || "No Door",
+      ruleName:
+        row.person.ruleid !== null
+          ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
+          : "NO_RULE",
+    }));
 
     // ==========================
-    // UPDATE
+    // MSSQL SYNC
     // ==========================
 
-    else {
+    for (const msRow of msDataRaw || []) {
+      const mapped = PersonAdapter.toPostgres(msRow);
 
-      const existing = currentPgData[existingIndex];
+      if (!mapped.msId) continue;
 
-      const hasChanged =
-        existing.employeeName !== mapped.employeeName ||
-        existing.employeeCode !== mapped.employeeCode ||
-        existing.ruleid !== mapped.ruleid;
+      msIds.add(mapped.msId);
 
-      if (hasChanged) {
+      const existingIndex = currentPgData.findIndex(
+        (p) => p.msId === mapped.msId,
+      );
 
+      // ==========================
+      // INSERT
+      // ==========================
+
+      if (existingIndex === -1) {
         try {
-
-          const [updatedRec] = await db
-            .update(people)
-            .set({
-              employeeName: mapped.employeeName ?? "Unknown",
+          const [newRec] = await db
+            .insert(people)
+            .values({
+              msId: mapped.msId,
               employeeCode: mapped.employeeCode,
+              employeeName: mapped.employeeName ?? "Unknown",
               address: mapped.address ?? null,
+              ruleid: mapped.ruleid ?? null,
+              locationId: mapped.locationId ?? null,
+              externalId: mapped.externalId ?? null,
+              overtimeEligible: mapped.overtimeEligible ?? false,
+              personType: "employee",
+              status: "active",
+              sourceSystem: "mssql_bio",
               updatedAt: new Date(),
+              createdAt: new Date(),
             })
-            .where(eq(people.msId, mapped.msId))
             .returning();
 
-          currentPgData[existingIndex] = {
-            ...existing,
-            ...updatedRec,
-            ruleName:
-              updatedRec.ruleid !== null
-                ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
-                : "NO_ROLE",
-          };
+          if (newRec?.employeeCode) {
+            await this.executeHardwareSync(newRec.employeeCode, null, true);
+          }
 
+          currentPgData.push({
+            ...newRec,
+            departmentName: "N/A",
+            lastPunchDoorName: "No Door",
+            ruleName:
+              newRec.ruleid !== null
+                ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
+                : "NO_ROLE",
+          });
         } catch (e) {
-          console.error("Employee update sync error:", e);
+          console.error("New employee sync error:", e);
+        }
+      }
+
+      // ==========================
+      // UPDATE
+      // ==========================
+      else {
+        const existing = currentPgData[existingIndex];
+
+        const hasChanged =
+          existing.employeeName !== mapped.employeeName ||
+          existing.employeeCode !== mapped.employeeCode ||
+          existing.ruleid !== mapped.ruleid;
+
+        if (hasChanged) {
+          try {
+            const [updatedRec] = await db
+              .update(people)
+              .set({
+                employeeName: mapped.employeeName ?? "Unknown",
+                employeeCode: mapped.employeeCode,
+                address: mapped.address ?? null,
+                updatedAt: new Date(),
+              })
+              .where(eq(people.msId, mapped.msId))
+              .returning();
+
+            currentPgData[existingIndex] = {
+              ...existing,
+              ...updatedRec,
+              ruleName:
+                updatedRec.ruleid !== null
+                  ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
+                  : "NO_ROLE",
+            };
+          } catch (e) {
+            console.error("Employee update sync error:", e);
+          }
         }
       }
     }
-  }
 
-  // ==========================
-  // DELETE REMOVED MSSQL USERS
-  // ==========================
+    // ==========================
+    // DELETE REMOVED MSSQL USERS
+    // ==========================
 
-  for (const pgRow of currentPgData) {
-
-    if (pgRow.msId && !msIds.has(pgRow.msId)) {
-
-      try {
-        await db
-          .delete(people)
-          .where(eq(people.msId, pgRow.msId));
-      } catch (e) {}
+    for (const pgRow of currentPgData) {
+      if (pgRow.msId && !msIds.has(pgRow.msId)) {
+        try {
+          await db.delete(people).where(eq(people.msId, pgRow.msId));
+        } catch (e) {}
+      }
     }
-  }
 
-  // ==========================
-  // SEARCH
-  // ==========================
+    // ==========================
+    // SEARCH
+    // ==========================
 
-  let results = currentPgData;
+    let results = currentPgData;
 
-  if (search?.trim()) {
+    if (search?.trim()) {
+      const term = search.toLowerCase();
 
-    const term = search.toLowerCase();
+      results = results.filter(
+        (p) =>
+          p.employeeName?.toLowerCase().includes(term) ||
+          p.employeeCode?.toLowerCase().includes(term) ||
+          p.departmentName?.toLowerCase().includes(term) ||
+          p.ruleName?.toLowerCase().includes(term),
+      );
+    }
 
-    results = results.filter((p) =>
-      p.employeeName?.toLowerCase().includes(term) ||
-      p.employeeCode?.toLowerCase().includes(term) ||
-      p.departmentName?.toLowerCase().includes(term) ||
-      p.ruleName?.toLowerCase().includes(term)
+    // ==========================
+    // SORT
+    // ==========================
+
+    results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+
+    // ==========================
+    // UNIQUE
+    // ==========================
+
+    const uniquePeople = Array.from(
+      new Map(
+        results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
+      ).values(),
     );
-  }
 
-  // ==========================
-  // SORT
-  // ==========================
+    // ==========================
+    // OLD FORMAT
+    // ==========================
 
-  results.sort(
-    (a, b) => (Number(b.id) || 0) - (Number(a.id) || 0),
-  );
+    if (!pageSize) {
+      return uniquePeople as Person[];
+    }
 
-  // ==========================
-  // UNIQUE
-  // ==========================
+    // ==========================
+    // ALL RECORDS
+    // ==========================
 
-  const uniquePeople = Array.from(
-    new Map(
-      results.map((p) => [
-        `${p.msId || p.employeeCode || p.id}`,
-        p,
-      ]),
-    ).values(),
-  );
+    if (pageSize === -1 || pageSize === "-1") {
+      return {
+        data: uniquePeople,
+        totalCount: uniquePeople.length,
+        totalPages: 1,
+        currentPage: 1,
+        pageSize: uniquePeople.length,
+      };
+    }
 
-  // ==========================
-  // OLD FORMAT
-  // ==========================
+    // ==========================
+    // PAGINATION
+    // ==========================
 
-  if (!pageSize) {
-    return uniquePeople as Person[];
-  }
+    const p = page && Number(page) > 0 ? Number(page) : 1;
 
-  // ==========================
-  // ALL RECORDS
-  // ==========================
+    const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
 
-  if (pageSize === -1 || pageSize === "-1") {
+    const start = (p - 1) * size;
+
+    const end = start + size;
+
+    const paginatedData = uniquePeople.slice(start, end);
 
     return {
-      data: uniquePeople,
+      data: paginatedData,
       totalCount: uniquePeople.length,
-      totalPages: 1,
-      currentPage: 1,
-      pageSize: uniquePeople.length,
+      totalPages: Math.ceil(uniquePeople.length / size),
+      currentPage: p,
+      pageSize: size,
     };
   }
-
-  // ==========================
-  // PAGINATION
-  // ==========================
-
-  const p = page && Number(page) > 0
-    ? Number(page)
-    : 1;
-
-  const size = Number(pageSize) > 0
-    ? Number(pageSize)
-    : 10;
-
-  const start = (p - 1) * size;
-
-  const end = start + size;
-
-  const paginatedData = uniquePeople.slice(start, end);
-
-  return {
-    data: paginatedData,
-    totalCount: uniquePeople.length,
-    totalPages: Math.ceil(uniquePeople.length / size),
-    currentPage: p,
-    pageSize: size,
-  };
-}
-
-  
 
   // async getPeople(search?: string): Promise<Person[]> {
   //   const [pgDataRaw, msDataRaw] = await Promise.all([
@@ -2266,56 +2238,47 @@ async getPeople(
   // }
 
   async getShifts(
-  page?: number,
-  pageSize?: number,
-  search?: string
-): Promise<any> {
-  try {
-    const searchText = search?.toLowerCase().trim();
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
+    try {
+      const searchText = search?.toLowerCase().trim();
 
-    // -------------------------
-    // BASE QUERY (WITH FILTER IF NEEDED)
-    // -------------------------
-    const baseQuery = db
-      .select()
-      .from(shifts)
-      .orderBy(asc(shifts.id));
+      // -------------------------
+      // BASE QUERY (WITH FILTER IF NEEDED)
+      // -------------------------
+      const baseQuery = db.select().from(shifts).orderBy(asc(shifts.id));
 
-    const finalQuery = searchText
-      ? db
-          .select()
-          .from(shifts)
-          .where(
-            or(
-              ilike(shifts.name, `%${searchText}%`),
-              ilike(shifts.code, `%${searchText}%`)
+      const finalQuery = searchText
+        ? db
+            .select()
+            .from(shifts)
+            .where(
+              or(
+                ilike(shifts.name, `%${searchText}%`),
+                ilike(shifts.code, `%${searchText}%`),
+              ),
             )
-          )
-          .orderBy(asc(shifts.id))
-      : baseQuery;
+            .orderBy(asc(shifts.id))
+        : baseQuery;
 
-    // -------------------------
-    // PAGINATION
-    // -------------------------
-    return await withPagination(
-      db,
-      shifts,
-      finalQuery,
-      page,
-      pageSize
-    );
-  } catch (error) {
-    console.error("getShifts error:", error);
+      // -------------------------
+      // PAGINATION
+      // -------------------------
+      return await withPagination(db, shifts, finalQuery, page, pageSize);
+    } catch (error) {
+      console.error("getShifts error:", error);
 
-    return {
-      data: [],
-      totalCount: 0,
-      totalPages: 0,
-      currentPage: 1,
-      pageSize: 0,
-    };
+      return {
+        data: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 0,
+      };
+    }
   }
-}
   async createShift(data: InsertShift): Promise<Shift> {
     if (!data.code) {
       throw new Error("Shift code is required.");
@@ -2439,91 +2402,85 @@ async getPeople(
   // }
 
   async getHolidays(
-  page?: number,
-  pageSize?: number,
-  search?: string,
-): Promise<any> {
-  const [pgData, msDataRaw] = await Promise.all([
-    db.select().from(holidays).orderBy(asc(holidays.id)),
-    dbMsSql.select().from({ dbName: "Holidays" }).execute(),
-  ]);
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
+    const [pgData, msDataRaw] = await Promise.all([
+      db.select().from(holidays).orderBy(asc(holidays.id)),
+      dbMsSql.select().from({ dbName: "Holidays" }).execute(),
+    ]);
 
-  // MSSQL sync
-  for (const msRow of msDataRaw || []) {
-    const msId = msRow.Id || msRow.id;
+    // MSSQL sync
+    for (const msRow of msDataRaw || []) {
+      const msId = msRow.Id || msRow.id;
 
-    if (!pgData.find((p) => p.msId === msId)) {
-      const [newRec] = await db
-        .insert(holidays)
-        .values({
-          name: msRow.Name || msRow.name,
-          date: msRow.Date
-            ? new Date(msRow.Date).toISOString().split("T")[0]
-            : "",
-          msId: msId,
-          holidayType: "company",
-        })
-        .returning();
+      if (!pgData.find((p) => p.msId === msId)) {
+        const [newRec] = await db
+          .insert(holidays)
+          .values({
+            name: msRow.Name || msRow.name,
+            date: msRow.Date
+              ? new Date(msRow.Date).toISOString().split("T")[0]
+              : "",
+            msId: msId,
+            holidayType: "company",
+          })
+          .returning();
 
-      if (newRec) pgData.push(newRec);
+        if (newRec) pgData.push(newRec);
+      }
     }
-  }
 
-  // Deduplicate
-  let uniqueHolidays = Array.from(
-    new Map(pgData.map((h) => [`${h.name}-${h.date}`, h])).values(),
-  );
-
-  // ✅ SEARCH FILTER
-  if (search && search.trim() !== "") {
-    const term = search.toLowerCase();
-
-    uniqueHolidays = uniqueHolidays.filter((h) =>
-      [
-        h.name,
-        h.holidayType,
-        h.date,
-      ]
-        .filter(Boolean)
-        .some((field) =>
-          String(field).toLowerCase().includes(term),
-        ),
+    // Deduplicate
+    let uniqueHolidays = Array.from(
+      new Map(pgData.map((h) => [`${h.name}-${h.date}`, h])).values(),
     );
-  }
 
-  // No pagination
-  if (!pageSize) {
-    return uniqueHolidays;
-  }
+    // ✅ SEARCH FILTER
+    if (search && search.trim() !== "") {
+      const term = search.toLowerCase();
 
-  const p = page && Number(page) > 0 ? Number(page) : 1;
-  const size = Number(pageSize);
+      uniqueHolidays = uniqueHolidays.filter((h) =>
+        [h.name, h.holidayType, h.date]
+          .filter(Boolean)
+          .some((field) => String(field).toLowerCase().includes(term)),
+      );
+    }
 
-  // All data
-  if (size === -1) {
+    // No pagination
+    if (!pageSize) {
+      return uniqueHolidays;
+    }
+
+    const p = page && Number(page) > 0 ? Number(page) : 1;
+    const size = Number(pageSize);
+
+    // All data
+    if (size === -1) {
+      return {
+        data: uniqueHolidays,
+        totalCount: uniqueHolidays.length,
+        totalPages: 1,
+        currentPage: 1,
+        pageSize: uniqueHolidays.length,
+      };
+    }
+
+    // Pagination
+    const start = (p - 1) * size;
+    const end = start + size;
+
+    const paginatedData = uniqueHolidays.slice(start, end);
+
     return {
-      data: uniqueHolidays,
+      data: paginatedData,
       totalCount: uniqueHolidays.length,
-      totalPages: 1,
-      currentPage: 1,
-      pageSize: uniqueHolidays.length,
+      totalPages: Math.ceil(uniqueHolidays.length / size),
+      currentPage: p,
+      pageSize: size,
     };
   }
-
-  // Pagination
-  const start = (p - 1) * size;
-  const end = start + size;
-
-  const paginatedData = uniqueHolidays.slice(start, end);
-
-  return {
-    data: paginatedData,
-    totalCount: uniqueHolidays.length,
-    totalPages: Math.ceil(uniqueHolidays.length / size),
-    currentPage: p,
-    pageSize: size,
-  };
-}
   async createHoliday(data: InsertHoliday): Promise<Holiday> {
     let mssqlId: number | null = null;
     try {
@@ -2741,9 +2698,9 @@ async getPeople(
         workingHours:
           logs.length > 1
             ? (
-              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-              3600000
-            ).toFixed(2)
+                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+                3600000
+              ).toFixed(2)
             : "0.00",
       };
     });
@@ -3030,7 +2987,7 @@ async getPeople(
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-                String(presentRow.status).toLowerCase() === "present"
+              String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -3050,15 +3007,24 @@ async getPeople(
     // 6. Global Filters Application (Dono types ke rows par filter execute hoga)
     const processedData = finalReport
       .filter((row) => {
+        // const matchesEmployee =
+        //   !filters.employeeCode || filters.employeeCode === "all"
+        //     ? true
+        //     : String(row.employeeCode) === String(filters.employeeCode);
         const matchesEmployee =
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
-            : String(row.employeeCode) === String(filters.employeeCode);
+            : String(row.employeeCode)
+                .toLowerCase()
+                .includes(String(filters.employeeCode).toLowerCase()) ||
+              String(row.firstName)
+                .toLowerCase()
+                .includes(String(filters.employeeCode).toLowerCase());
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-            String(filters.status).toLowerCase();
+              String(filters.status).toLowerCase();
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => {
@@ -3113,7 +3079,7 @@ async getPeople(
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -3265,12 +3231,12 @@ async getPeople(
   //   }
   //   const msSqlData = await mssqlPool.request().input("filterDate", date)
   //     .query(`
-  //     SELECT 
-  //       DeviceId, 
+  //     SELECT
+  //       DeviceId,
   //       Direction,
   //       EmployeeCode,
   //       COUNT(*) as totalPunches -- Har punch ko count karne ke liye
-  //     FROM DeviceLogs 
+  //     FROM DeviceLogs
   //     WHERE CAST(LogDate AS DATE) = @filterDate
   //     AND DeviceId IN (${allDeviceIds.join(",")})
   //     GROUP BY DeviceId, Direction, EmployeeCode
@@ -3352,7 +3318,7 @@ async getPeople(
       };
     }
 
-    const targetDateStr = new Date(date).toISOString().split('T')[0];
+    const targetDateStr = new Date(date).toISOString().split("T")[0];
 
     // SQL Query: Pichle din se lekar aaj tak ke saare logs sequence me
     const msSqlData = await mssqlPool.request().input("filterDate", date)
@@ -3386,7 +3352,7 @@ async getPeople(
       const doorEmployeeState = new Map<string, "IN" | "OUT">();
 
       rawLogs.forEach((log) => {
-        const logDateOnly = new Date(log.LogDate).toISOString().split('T')[0];
+        const logDateOnly = new Date(log.LogDate).toISOString().split("T")[0];
         const isIdIn = (m.inIds || []).includes(log.DeviceId);
         const isIdOut = (m.outIds || []).includes(log.DeviceId);
 
@@ -3420,13 +3386,19 @@ async getPeople(
     });
 
     // 2. MAIN GATE GLOBAL COUNTERS + YESTERDAY BALANCE CALCULATION
-    const mainGateMapping = mappings.find(m => m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true);
+    const mainGateMapping = mappings.find(
+      (m) => m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true,
+    );
 
     if (mainGateMapping) {
       rawLogs.forEach((log) => {
-        const logDateOnly = new Date(log.LogDate).toISOString().split('T')[0];
-        const isMainIn = (mainGateMapping.inIds || []).includes(log.DeviceId) && log.Direction === "IN";
-        const isMainOut = (mainGateMapping.outIds || []).includes(log.DeviceId) && log.Direction === "OUT";
+        const logDateOnly = new Date(log.LogDate).toISOString().split("T")[0];
+        const isMainIn =
+          (mainGateMapping.inIds || []).includes(log.DeviceId) &&
+          log.Direction === "IN";
+        const isMainOut =
+          (mainGateMapping.outIds || []).includes(log.DeviceId) &&
+          log.Direction === "OUT";
         const globalLastState = employeeLastState.get(log.EmployeeCode);
 
         // --- Global State Management ---
@@ -3443,8 +3415,7 @@ async getPeople(
             mainGateInPunches++;
             uniquePresentEmployees.add(log.EmployeeCode);
           }
-        }
-        else if (isMainOut && globalLastState === "IN") {
+        } else if (isMainOut && globalLastState === "IN") {
           employeeLastState.set(log.EmployeeCode, "OUT");
 
           // PICHLE DIN KA LOGIC: Agar kal hi IN hoke kal hi OUT ho gaya
@@ -3480,7 +3451,7 @@ async getPeople(
       totalAbsent: Math.max(0, totalManpower - totalPresent),
       totalManpower,
     };
-  }  // async getDoorWiseStats(date: string) {
+  } // async getDoorWiseStats(date: string) {
   //   const [totalPeopleResult] = await db
   //     .select({
   //       count: sql<number>`count(*)`,
@@ -3522,12 +3493,12 @@ async getPeople(
   //   // SQL Query: Pichle din se lekar aaj tak ke saare logs sequence me
   //   const msSqlData = await mssqlPool.request().input("filterDate", date)
   //     .query(`
-  //     SELECT 
-  //       DeviceId, 
+  //     SELECT
+  //       DeviceId,
   //       Direction,
   //       EmployeeCode,
   //       LogDate
-  //     FROM DeviceLogs 
+  //     FROM DeviceLogs
   //     WHERE LogDate >= CAST(DATEADD(day, -1, @filterDate) AS DATETIME)
   //     AND LogDate < CAST(DATEADD(day, 1, @filterDate) AS DATETIME)
   //     AND DeviceId IN (${allDeviceIds.join(",")})
@@ -4369,9 +4340,19 @@ async getPeople(
         conditions.push(eq(schema.cabinLockouts.status, filters.status));
       }
 
+      // if (filters.employeeCode && filters.employeeCode !== "all") {
+      //   conditions.push(
+      //     eq(schema.cabinLockouts.employeeCode, filters.employeeCode),
+      //   );
+      // }
       if (filters.employeeCode && filters.employeeCode !== "all") {
         conditions.push(
-          eq(schema.cabinLockouts.employeeCode, filters.employeeCode),
+          or(
+            ilike(schema.people.employeeName, `%${filters.employeeCode}%`),
+
+            sql`CAST(${schema.cabinLockouts.employeeCode} AS TEXT)
+          ILIKE ${`%${filters.employeeCode}%`}`,
+          ),
         );
       }
 
@@ -4566,15 +4547,51 @@ async getPeople(
   //     .from(dailyAttendanceSummary)
   //     .where(eq(dailyAttendanceSummary.workDate, date));
   // }
+
+  // async getDailyReport(
+  //   date: string,
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  // ) {
+  //   const data = await db
+  //     .select()
+  //     .from(dailyAttendanceSummary)
+  //     .where(eq(dailyAttendanceSummary.workDate, date));
+  //   return withPagination(
+  //     null,
+  //     null,
+  //     JSON.parse(JSON.stringify(data)),
+  //     page,
+  //     pageSize,
+  //   );
+  // }
+
   async getDailyReport(
     date: string,
+    employeeCode?: string,
     page?: number | string,
     pageSize?: number | string,
   ) {
     const data = await db
       .select()
       .from(dailyAttendanceSummary)
-      .where(eq(dailyAttendanceSummary.workDate, date));
+      .where(
+        and(
+          eq(dailyAttendanceSummary.workDate, date),
+          // employeeCode
+          //   ? eq(dailyAttendanceSummary.employeeCode, employeeCode)
+          //   : undefined
+          employeeCode
+            ? or(
+                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+
+                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+          ILIKE ${`%${employeeCode}%`}`,
+              )
+            : undefined,
+        ),
+      );
+
     return withPagination(
       null,
       null,
@@ -4583,6 +4600,7 @@ async getPeople(
       pageSize,
     );
   }
+
   // 2 & 3: Muster Roll aur Overtime Matrix (Date Range)
   // async getRangeReport(startDate: string, endDate: string) {
   //   return await db
@@ -4592,92 +4610,145 @@ async getPeople(
   //     .orderBy(asc(dailyAttendanceSummary.workDate));
   // }
 
+  // async getRangeReport(
+  //   startDate: string,
+  //   endDate: string,
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  // ) {
+  //   const data = await db
+  //     .select()
+  //     .from(dailyAttendanceSummary)
+  //     .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
+  //     .orderBy(asc(dailyAttendanceSummary.workDate));
+  //   return withPagination(
+  //     null,
+  //     null,
+  //     JSON.parse(JSON.stringify(data)),
+  //     page,
+  //     pageSize,
+  //   );
+  // }
+
   async getRangeReport(
     startDate: string,
     endDate: string,
+    employeeCode?: string,
     page?: number | string,
     pageSize?: number | string,
   ) {
-    const data = await db
+    let query = db
       .select()
       .from(dailyAttendanceSummary)
-      .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
+      .where(
+        and(
+          between(dailyAttendanceSummary.workDate, startDate, endDate),
+          // employeeCode
+          //   ? eq(dailyAttendanceSummary.employeeCode, employeeCode)
+          //   : undefined
+          employeeCode
+            ? or(
+                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+
+                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+          ILIKE ${`%${employeeCode}%`}`,
+              )
+            : undefined,
+        ),
+      )
       .orderBy(asc(dailyAttendanceSummary.workDate));
-    return withPagination(
-      null,
-      null,
-      JSON.parse(JSON.stringify(data)),
-      page,
-      pageSize,
-    );
+
+    const data = await query;
+
+    // 🔥 Group by employee
+    const grouped: Record<string, any> = {};
+
+    data.forEach((r: any) => {
+      const key = r.employeeName;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          employeeName: r.employeeName,
+          employeeCode: r.employeeCode,
+          perDayRate: r.perDayRate || 0,
+          records: [],
+        };
+      }
+
+      grouped[key].records.push(r);
+    });
+
+    const employees = Object.values(grouped);
+
+    return withPagination(null, null, employees, page, pageSize);
   }
 
-//   async getRangeReport(
-//   startDate: string,
-//   endDate: string,
-//   page?: number | string,
-//   pageSize?: number | string,
-// ) {
-//   const currentPage = Number(page || 1);
-//   const limit = Number(pageSize || 10);
-//   const offset = (currentPage - 1) * limit;
+  //   async getRangeReport(
+  //   startDate: string,
+  //   endDate: string,
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  // ) {
+  //   const currentPage = Number(page || 1);
+  //   const limit = Number(pageSize || 10);
+  //   const offset = (currentPage - 1) * limit;
 
-//   // ✅ Distinct employees
-//   const employees = await db
-//     .selectDistinct({
-//       employeeCode: dailyAttendanceSummary.employeeCode,
-//       employeeName: dailyAttendanceSummary.employeeName,
-//     })
-//     .from(dailyAttendanceSummary)
-//     .where(
-//       between(dailyAttendanceSummary.workDate, startDate, endDate)
-//     )
-//     .orderBy(asc(dailyAttendanceSummary.employeeName));
+  //   // ✅ Distinct employees
+  //   const employees = await db
+  //     .selectDistinct({
+  //       employeeCode: dailyAttendanceSummary.employeeCode,
+  //       employeeName: dailyAttendanceSummary.employeeName,
+  //     })
+  //     .from(dailyAttendanceSummary)
+  //     .where(
+  //       between(dailyAttendanceSummary.workDate, startDate, endDate)
+  //     )
+  //     .orderBy(asc(dailyAttendanceSummary.employeeName));
 
-//   // ✅ Total employees count
-//   const totalCount = employees.length;
+  //   // ✅ Total employees count
+  //   const totalCount = employees.length;
 
-//   // ✅ Pagination on employees
-//   const paginatedEmployees = employees.slice(
-//     offset,
-//     offset + limit
-//   );
+  //   // ✅ Pagination on employees
+  //   const paginatedEmployees = employees.slice(
+  //     offset,
+  //     offset + limit
+  //   );
 
-//   // ✅ Current page employee codes
-//   const employeeCodes = paginatedEmployees.map(
-//     (e) => e.employeeCode
-//   );
+  //   // ✅ Current page employee codes
+  //   const employeeCodes = paginatedEmployees.map(
+  //     (e) => e.employeeCode
+  //   );
 
-//   // ✅ Attendance records only for paginated employees
-//   const data = await db
-//     .select()
-//     .from(dailyAttendanceSummary)
-//     .where(
-//       and(
-//         between(
-//           dailyAttendanceSummary.workDate,
-//           startDate,
-//           endDate
-//         ),
-//         inArray(
-//           dailyAttendanceSummary.employeeCode,
-//           employeeCodes
-//         )
-//       )
-//     )
-//     .orderBy(
-//       asc(dailyAttendanceSummary.employeeName),
-//       asc(dailyAttendanceSummary.workDate)
-//     );
+  //   // ✅ Attendance records only for paginated employees
+  //   const data = await db
+  //     .select()
+  //     .from(dailyAttendanceSummary)
+  //     .where(
+  //       and(
+  //         between(
+  //           dailyAttendanceSummary.workDate,
+  //           startDate,
+  //           endDate
+  //         ),
+  //         inArray(
+  //           dailyAttendanceSummary.employeeCode,
+  //           employeeCodes
+  //         )
+  //       )
+  //     )
+  //     .orderBy(
+  //       asc(dailyAttendanceSummary.employeeName),
+  //       asc(dailyAttendanceSummary.workDate)
+  //     );
 
-//   return {
-//     data: JSON.parse(JSON.stringify(data)),
-//     totalCount,
-//     totalPages: Math.ceil(totalCount / limit),
-//     currentPage,
-//     pageSize: limit,
-//   };
-// }
+  //   return {
+  //     data: JSON.parse(JSON.stringify(data)),
+  //     totalCount,
+  //     totalPages: Math.ceil(totalCount / limit),
+  //     currentPage,
+  //     pageSize: limit,
+  //   };
+  // }
   // async getRangeReport(startDate: string, endDate: string) {
   //   return await db
   //     .select({
@@ -5200,9 +5271,22 @@ async getPeople(
       conditions.push(
         lte(sql`DATE(${schema.employeeActivityLogs.logDate})`, nextDateStr),
       );
+      // if (filters?.employeeCode) {
+      //   conditions.push(
+      //     eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+      //   );
+      // }
       if (filters?.employeeCode) {
         conditions.push(
-          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+          or(
+            ilike(
+              schema.employeeActivityLogs.employeeName,
+              `%${filters.employeeCode}%`,
+            ),
+
+            sql`CAST(${schema.employeeActivityLogs.employeeCode} AS TEXT)
+          ILIKE ${`%${filters.employeeCode}%`}`,
+          ),
         );
       }
       const logs = await db
@@ -5439,8 +5523,18 @@ async getPeople(
     ];
 
     // Employee Filter
+    // if (employeeCode && employeeCode !== "all" && employeeCode !== "") {
+    //   conditions.push(eq(dailyAttendanceSummary.employeeCode, employeeCode));
+    // }
     if (employeeCode && employeeCode !== "all" && employeeCode !== "") {
-      conditions.push(eq(dailyAttendanceSummary.employeeCode, employeeCode));
+      conditions.push(
+        or(
+          ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+
+          sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+          ILIKE ${`%${employeeCode}%`}`,
+        )!,
+      );
     }
 
     const reportData = await db
@@ -5641,8 +5735,19 @@ ${fromDate} || ' to ' || ${toDate}
 
             lte(dailyAttendanceSummary.workDate, filters.dateTo),
 
+            // filters.employeeCode
+            //   ? eq(dailyAttendanceSummary.employeeCode, filters.employeeCode)
+            //   : undefined,
             filters.employeeCode
-              ? eq(dailyAttendanceSummary.employeeCode, filters.employeeCode)
+              ? or(
+                  ilike(
+                    dailyAttendanceSummary.employeeName,
+                    `%${filters.employeeCode}%`,
+                  ),
+
+                  sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+          ILIKE ${`%${filters.employeeCode}%`}`,
+                )
               : undefined,
           ),
         );
