@@ -11,6 +11,7 @@ import { MAIN_GATE_SYNC } from "./constant";
 import { cronMaster } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { startAttendanceCron } from "./cron/attendance-scheduler";
+import { initAutoSuspendScheduler } from "./cron/autoSuspendScheduler";
 const app = express();
 const httpServer = createServer(app);
 
@@ -102,6 +103,7 @@ app.use((req, res, next) => {
       log("Cron reset failed: " + e, "error");
     }
     startAttendanceCron();
+    initAutoSuspendScheduler();
     // 2. Register API Routes
     await registerRoutes(httpServer, app);
 

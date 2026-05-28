@@ -12,6 +12,16 @@ export const ATTENDANCE_STATUS = {
   // ON_LEAVE: "on_leave",
   // SINGLE_PUNCH: "single_punch" // Optional: Agar user ne out nahi kiya
 };
+export const EMPLOYEE_STATUS = {
+  ACTIVE: "active",         // Working: Allowed access
+  SUSPENDED: "suspended",   // Blocked: Blocked access
+  TERMINATED: "terminated", // Left Company: Removed access
+  ON_LEAVE: "on_leave",     // Long Leave: Temporary pause
+  INACTIVE: "inactive"      // Standard inactive fallback
+} as const;
+export const AUTOSUSPEND_CONFIG = {
+  MAX_INACTIVE_DAYS: 1,
+} as const;
 
 export const MAIN_GATE_SYNC = {
   CODE: "MG_SYNC_01",

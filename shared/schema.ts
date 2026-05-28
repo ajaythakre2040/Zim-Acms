@@ -210,7 +210,7 @@ export const people = pgTable("people", {
   photoUrl: text("photo_url"),
   personType: text("person_type", { enum: ["employee", "contractor", "visitor", "intern", "consultant"] }).default("employee"),
   riskTier: integer("risk_tier").default(1),
-  status: text("status", { enum: ["active", "inactive", "suspended"] }).default("active"),
+  status: text("status", { enum: ["active", "inactive", "suspended", "terminated", "on_leave"] }).default("active"),
   gender: text("gender"),
   dateOfBirth: text("date_of_birth"),
   dateOfJoining: text("date_of_joining"),
