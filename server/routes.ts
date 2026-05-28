@@ -1325,49 +1325,49 @@ crudRoutes(
     }
   });
   app.get("/api/reports/muster-roll", async (req: Request, res: Response) => {
-    try {
-      const q = req.query as any;
-      const page = q.page
-        ? String(q.page)
-        : undefined;
-      const pageSize = q.pageSize
-        ? String(q.pageSize)
-        : undefined;
-      const data = await storage.getRangeReport(
-        q.dateFrom,
-        q.dateTo,
-        page,
-        pageSize
-      );
-      res.json(data);
-    } catch (e: any) {
-      res.status(500).json({
-        message: e.message
-      });
-    }
-  });
-  app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
-    try {
-      const q = req.query as any;
-      const page = q.page
-        ? String(q.page)
-        : undefined;
-      const pageSize = q.pageSize
-        ? String(q.pageSize)
-        : undefined;
-      const data = await storage.getRangeReport(
-        q.dateFrom,
-        q.dateTo,
-        page,
-        pageSize
-      );
-      res.json(data);
-    } catch (e: any) {
-      res.status(500).json({
-        message: e.message
-      });
-    }
-  });
+  try {
+    const q = req.query as any;
+
+    const page = q.page ? String(q.page) : undefined;
+    const pageSize = q.pageSize ? String(q.pageSize) : undefined;
+    const employeeCode = q.employeeCode ? String(q.employeeCode) : undefined;
+
+    const data = await storage.getRangeReport(
+      q.dateFrom,
+      q.dateTo,
+      employeeCode,
+      page,
+      pageSize
+    );
+
+    res.json(data);
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
+  }
+});
+app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
+  try {
+    const q = req.query as any;
+
+    const page = q.page ? String(q.page) : undefined;
+    const pageSize = q.pageSize ? String(q.pageSize) : undefined;
+    const employeeCode = q.employeeCode ? String(q.employeeCode) : undefined;
+
+    const data = await storage.getRangeReport(
+      q.dateFrom,
+      q.dateTo,
+      employeeCode,
+      page,
+      pageSize
+    );
+
+    res.json(data);
+  } catch (e: any) {
+    res.status(500).json({
+      message: e.message,
+    });
+  }
+});
   // // 2. Monthly Muster Roll
   // app.get("/api/reports/muster-roll", async (req: Request, res: Response) => {
   //   try {
@@ -1399,30 +1399,56 @@ crudRoutes(
       res.status(500).json({ message: e.message });
     }
   });
+
   // 5. Daily Efficiency
+  // app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
+  //   try {
+  //     const q = req.query as any;
+  //     const date =
+  //       q.date || new Date().toISOString().split("T")[0];
+  //     const page = q.page
+  //       ? String(q.page)
+  //       : undefined;
+  //     const pageSize = q.pageSize
+  //       ? String(q.pageSize)
+  //       : undefined;
+  //     const data = await storage.getDailyReport(
+  //       date,
+  //       page,
+  //       pageSize
+  //     );
+  //     res.json(data);
+  //   } catch (e: any) {
+  //     res.status(500).json({
+  //       message: e.message
+  //     });
+  //   }
+  // });
+
   app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
-    try {
-      const q = req.query as any;
-      const date =
-        q.date || new Date().toISOString().split("T")[0];
-      const page = q.page
-        ? String(q.page)
-        : undefined;
-      const pageSize = q.pageSize
-        ? String(q.pageSize)
-        : undefined;
-      const data = await storage.getDailyReport(
-        date,
-        page,
-        pageSize
-      );
-      res.json(data);
-    } catch (e: any) {
-      res.status(500).json({
-        message: e.message
-      });
-    }
-  });
+  try {
+    const q = req.query as any;
+
+    const date = q.date || new Date().toISOString().split("T")[0];
+    const employeeCode = q.employeeCode || undefined;
+
+    const page = q.page ? String(q.page) : undefined;
+    const pageSize = q.pageSize ? String(q.pageSize) : undefined;
+
+    const data = await storage.getDailyReport(
+      date,
+      employeeCode,
+      page,
+      pageSize
+    );
+
+    res.json(data);
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+
   // app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
   //   try {
   //     const q = req.query as any;

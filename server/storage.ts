@@ -423,19 +423,32 @@ export class DatabaseStorage implements IStorage {
         const endDate = new Date(filters.dateTo);
         endDate.setHours(23, 59, 59, 999);
 
-        conditions.push(
-          lte(schema.employeeActivityLogs.logDate, endDate),
-        );
+        conditions.push(lte(schema.employeeActivityLogs.logDate, endDate));
       }
+      // if (filters?.employeeCode) {
+      //   conditions.push(
+      //     eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+      //   );
+      // }
       if (filters?.employeeCode) {
         conditions.push(
-          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+          or(
+            ilike(
+              schema.employeeActivityLogs.employeeName,
+              `%${filters.employeeCode}%`,
+            ),
+
+            ilike(
+              schema.employeeActivityLogs.employeeCode,
+              `%${filters.employeeCode}%`,
+            ),
+          ),
         );
       }
       const doorFilter = filters?.doorId;
       if (doorFilter) {
         conditions.push(
-          eq(schema.employeeActivityLogs.doorId, parseInt(doorFilter, 10))
+          eq(schema.employeeActivityLogs.doorId, parseInt(doorFilter, 10)),
         );
       }
       const logs = await db
@@ -561,7 +574,11 @@ export class DatabaseStorage implements IStorage {
   //   return await withPagination(db, companies, query, page, pageSize);
   // }
 
-  async getCompanies(page?: number, pageSize?: number, search?: string): Promise<any> {
+  async getCompanies(
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
     const conditions = [];
 
     // 🔥 SEARCH FILTER
@@ -570,8 +587,8 @@ export class DatabaseStorage implements IStorage {
         or(
           ilike(companies.name, `%${search}%`),
           ilike(companies.shortName, `%${search}%`),
-          ilike(companies.email, `%${search}%`)
-        )
+          ilike(companies.email, `%${search}%`),
+        ),
       );
     }
 
@@ -607,7 +624,11 @@ export class DatabaseStorage implements IStorage {
   //   const query = db.select().from(departments).orderBy(asc(departments.name));
   //   return await withPagination(db, departments, query, page, pageSize);
   // }
-  async getDepartments(page?: number, pageSize?: number, search?: string): Promise<any> {
+  async getDepartments(
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
     // 1. Base query banao
     let query = db.select().from(departments);
 
@@ -616,8 +637,8 @@ export class DatabaseStorage implements IStorage {
       query = query.where(
         or(
           ilike(departments.name, `%${search}%`),
-          ilike(departments.code, `%${search}%`)
-        )
+          ilike(departments.code, `%${search}%`),
+        ),
       ) as any;
     }
 
@@ -645,10 +666,7 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Department code '${data.code}' already exists.`);
     }
 
-    const [created] = await db
-      .insert(departments)
-      .values(data)
-      .returning();
+    const [created] = await db.insert(departments).values(data).returning();
 
     return created;
   }
@@ -676,17 +694,12 @@ export class DatabaseStorage implements IStorage {
   async getDesignations(
     page?: number,
     pageSize?: number,
-    search?: string
+    search?: string,
   ): Promise<any> {
-
-    const baseQuery = db
-      .select()
-      .from(designations);
+    const baseQuery = db.select().from(designations);
 
     const query = search
-      ? baseQuery.where(
-        ilike(designations.name, `%${search}%`)
-      )
+      ? baseQuery.where(ilike(designations.name, `%${search}%`))
       : baseQuery;
 
     return await withPagination(
@@ -694,7 +707,7 @@ export class DatabaseStorage implements IStorage {
       designations,
       query.orderBy(asc(designations.name)),
       page,
-      pageSize
+      pageSize,
     );
   }
   // async createDesignation(data: InsertDesignation): Promise<Designation> {
@@ -702,7 +715,6 @@ export class DatabaseStorage implements IStorage {
   //   return created;
   // }
   async createDesignation(data: InsertDesignation): Promise<Designation> {
-
     if (!data.code) {
       throw new Error("Designation code is required.");
     }
@@ -716,10 +728,7 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`Designation code '${data.code}' already exists.`);
     }
 
-    const [created] = await db
-      .insert(designations)
-      .values(data)
-      .returning();
+    const [created] = await db.insert(designations).values(data).returning();
 
     return created;
   }
@@ -744,17 +753,12 @@ export class DatabaseStorage implements IStorage {
   async getCategories(
     page?: number,
     pageSize?: number,
-    search?: string
+    search?: string,
   ): Promise<any> {
-
-    const baseQuery = db
-      .select()
-      .from(categories);
+    const baseQuery = db.select().from(categories);
 
     const query = search
-      ? baseQuery.where(
-        ilike(categories.name, `%${search}%`)
-      )
+      ? baseQuery.where(ilike(categories.name, `%${search}%`))
       : baseQuery;
 
     return await withPagination(
@@ -762,7 +766,7 @@ export class DatabaseStorage implements IStorage {
       categories,
       query.orderBy(asc(categories.id)),
       page,
-      pageSize
+      pageSize,
     );
   }
   async createCategory(data: InsertCategory): Promise<Category> {
@@ -826,14 +830,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     return currentSites;
@@ -907,7 +911,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) { }
+        } catch (e) {}
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -1128,7 +1132,6 @@ export class DatabaseStorage implements IStorage {
   //   }
   // }
 
-
   // async getDoors(): Promise<any[]> {
   //   try {
   //     const [allDoors, allDoorDevices, allDevices] = await Promise.all([
@@ -1164,7 +1167,7 @@ export class DatabaseStorage implements IStorage {
   async getDoors(
     page?: number | string,
     pageSize?: number | string,
-    search?: string
+    search?: string,
   ): Promise<any> {
     try {
       const [allDoors, allDoorDevices, allDevices] = await Promise.all([
@@ -1177,18 +1180,14 @@ export class DatabaseStorage implements IStorage {
       // DEVICE MAPPING
       // -------------------------
       const resolvedDoors = allDoors.map((door) => {
-        const mapping = allDoorDevices.find(
-          (md) => md.doorId === door.id
-        );
+        const mapping = allDoorDevices.find((md) => md.doorId === door.id);
 
         const resolveDevices = (ids: any[] | null) => {
           if (!ids || !Array.isArray(ids)) return [];
 
           return ids
             .map((id) => {
-              const dev = allDevices.find(
-                (d) => Number(d.msId) === Number(id)
-              );
+              const dev = allDevices.find((d) => Number(d.msId) === Number(id));
 
               return dev
                 ? { id: dev.id, msId: dev.msId, name: dev.name }
@@ -1216,12 +1215,12 @@ export class DatabaseStorage implements IStorage {
 
       const filteredDoors = searchText
         ? resolvedDoors.filter((door) => {
-          return (
-            door.name?.toLowerCase().includes(searchText) ||
-            door.code?.toLowerCase().includes(searchText) ||
-            door.doorType?.toLowerCase().includes(searchText)
-          );
-        })
+            return (
+              door.name?.toLowerCase().includes(searchText) ||
+              door.code?.toLowerCase().includes(searchText) ||
+              door.doorType?.toLowerCase().includes(searchText)
+            );
+          })
         : resolvedDoors;
 
       // -------------------------
@@ -1267,12 +1266,12 @@ export class DatabaseStorage implements IStorage {
 
       return pageSize
         ? {
-          data: [],
-          totalCount: 0,
-          totalPages: 0,
-          currentPage: 1,
-          pageSize: 0,
-        }
+            data: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: 1,
+            pageSize: 0,
+          }
         : [];
     }
   }
@@ -1465,7 +1464,7 @@ export class DatabaseStorage implements IStorage {
   async getDevices(
     page?: number | string,
     pageSize?: number | string,
-    search?: string
+    search?: string,
   ): Promise<any> {
     try {
       const msDataRaw = await dbMsSql
@@ -1503,7 +1502,10 @@ export class DatabaseStorage implements IStorage {
 
           const absDiff = Math.abs(diffInMinutes);
 
-          if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
+          if (
+            absDiff <= THRESHOLD_MINUTES ||
+            Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
+          ) {
             calculatedStatus = "online";
           }
         }
@@ -1534,11 +1536,12 @@ export class DatabaseStorage implements IStorage {
       if (search && search.trim()) {
         const s = search.toLowerCase();
 
-        formattedDevices = formattedDevices.filter((d) =>
-          d.name?.toLowerCase().includes(s) ||
-          d.ipAddress?.toLowerCase().includes(s) ||
-          d.serialNumber?.toLowerCase().includes(s) ||
-          d.deviceType?.toLowerCase().includes(s)
+        formattedDevices = formattedDevices.filter(
+          (d) =>
+            d.name?.toLowerCase().includes(s) ||
+            d.ipAddress?.toLowerCase().includes(s) ||
+            d.serialNumber?.toLowerCase().includes(s) ||
+            d.deviceType?.toLowerCase().includes(s),
         );
       }
 
@@ -1605,7 +1608,6 @@ export class DatabaseStorage implements IStorage {
       };
     }
   }
-
 
   // async getDevices(): Promise<any[]> {
   //   try {
@@ -1756,7 +1758,6 @@ export class DatabaseStorage implements IStorage {
     page?: number | string,
     pageSize?: number | string,
   ): Promise<any> {
-
     const [pgDataRaw, msDataRaw] = await Promise.all([
       db
         .select({
@@ -1797,7 +1798,6 @@ export class DatabaseStorage implements IStorage {
     // ==========================
 
     for (const msRow of msDataRaw || []) {
-
       const mapped = PersonAdapter.toPostgres(msRow);
 
       if (!mapped.msId) continue;
@@ -1813,9 +1813,7 @@ export class DatabaseStorage implements IStorage {
       // ==========================
 
       if (existingIndex === -1) {
-
         try {
-
           const [newRec] = await db
             .insert(people)
             .values({
@@ -1828,7 +1826,7 @@ export class DatabaseStorage implements IStorage {
               externalId: mapped.externalId ?? null,
               overtimeEligible: mapped.overtimeEligible ?? false,
               personType: "employee",
-              status: EMPLOYEE_STATUS.ACTIVE,
+              status: "active",
               sourceSystem: "mssql_bio",
               updatedAt: new Date(),
               createdAt: new Date(),
@@ -1836,11 +1834,7 @@ export class DatabaseStorage implements IStorage {
             .returning();
 
           if (newRec?.employeeCode) {
-            await this.executeHardwareSync(
-              newRec.employeeCode,
-              null,
-              true,
-            );
+            await this.executeHardwareSync(newRec.employeeCode, null, true);
           }
 
           currentPgData.push({
@@ -1852,7 +1846,6 @@ export class DatabaseStorage implements IStorage {
                 ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
                 : "NO_ROLE",
           });
-
         } catch (e) {
           console.error("New employee sync error:", e);
         }
@@ -1861,9 +1854,7 @@ export class DatabaseStorage implements IStorage {
       // ==========================
       // UPDATE
       // ==========================
-
       else {
-
         const existing = currentPgData[existingIndex];
 
         const hasChanged =
@@ -1872,9 +1863,7 @@ export class DatabaseStorage implements IStorage {
           existing.ruleid !== mapped.ruleid;
 
         if (hasChanged) {
-
           try {
-
             const [updatedRec] = await db
               .update(people)
               .set({
@@ -1894,7 +1883,6 @@ export class DatabaseStorage implements IStorage {
                   ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
                   : "NO_ROLE",
             };
-
           } catch (e) {
             console.error("Employee update sync error:", e);
           }
@@ -1907,14 +1895,10 @@ export class DatabaseStorage implements IStorage {
     // ==========================
 
     for (const pgRow of currentPgData) {
-
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
-
         try {
-          await db
-            .delete(people)
-            .where(eq(people.msId, pgRow.msId));
-        } catch (e) { }
+          await db.delete(people).where(eq(people.msId, pgRow.msId));
+        } catch (e) {}
       }
     }
 
@@ -1925,14 +1909,14 @@ export class DatabaseStorage implements IStorage {
     let results = currentPgData;
 
     if (search?.trim()) {
-
       const term = search.toLowerCase();
 
-      results = results.filter((p) =>
-        p.employeeName?.toLowerCase().includes(term) ||
-        p.employeeCode?.toLowerCase().includes(term) ||
-        p.departmentName?.toLowerCase().includes(term) ||
-        p.ruleName?.toLowerCase().includes(term)
+      results = results.filter(
+        (p) =>
+          p.employeeName?.toLowerCase().includes(term) ||
+          p.employeeCode?.toLowerCase().includes(term) ||
+          p.departmentName?.toLowerCase().includes(term) ||
+          p.ruleName?.toLowerCase().includes(term),
       );
     }
 
@@ -1940,9 +1924,7 @@ export class DatabaseStorage implements IStorage {
     // SORT
     // ==========================
 
-    results.sort(
-      (a, b) => (Number(b.id) || 0) - (Number(a.id) || 0),
-    );
+    results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
 
     // ==========================
     // UNIQUE
@@ -1950,10 +1932,7 @@ export class DatabaseStorage implements IStorage {
 
     const uniquePeople = Array.from(
       new Map(
-        results.map((p) => [
-          `${p.msId || p.employeeCode || p.id}`,
-          p,
-        ]),
+        results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
       ).values(),
     );
 
@@ -1970,7 +1949,6 @@ export class DatabaseStorage implements IStorage {
     // ==========================
 
     if (pageSize === -1 || pageSize === "-1") {
-
       return {
         data: uniquePeople,
         totalCount: uniquePeople.length,
@@ -1984,13 +1962,9 @@ export class DatabaseStorage implements IStorage {
     // PAGINATION
     // ==========================
 
-    const p = page && Number(page) > 0
-      ? Number(page)
-      : 1;
+    const p = page && Number(page) > 0 ? Number(page) : 1;
 
-    const size = Number(pageSize) > 0
-      ? Number(pageSize)
-      : 10;
+    const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
 
     const start = (p - 1) * size;
 
@@ -2006,8 +1980,6 @@ export class DatabaseStorage implements IStorage {
       pageSize: size,
     };
   }
-
-
 
   // async getPeople(search?: string): Promise<Person[]> {
   //   const [pgDataRaw, msDataRaw] = await Promise.all([
@@ -2269,7 +2241,7 @@ export class DatabaseStorage implements IStorage {
   async getShifts(
     page?: number,
     pageSize?: number,
-    search?: string
+    search?: string,
   ): Promise<any> {
     try {
       const searchText = search?.toLowerCase().trim();
@@ -2277,34 +2249,25 @@ export class DatabaseStorage implements IStorage {
       // -------------------------
       // BASE QUERY (WITH FILTER IF NEEDED)
       // -------------------------
-      const baseQuery = db
-        .select()
-        .from(shifts)
-        .orderBy(asc(shifts.id));
+      const baseQuery = db.select().from(shifts).orderBy(asc(shifts.id));
 
       const finalQuery = searchText
         ? db
-          .select()
-          .from(shifts)
-          .where(
-            or(
-              ilike(shifts.name, `%${searchText}%`),
-              ilike(shifts.code, `%${searchText}%`)
+            .select()
+            .from(shifts)
+            .where(
+              or(
+                ilike(shifts.name, `%${searchText}%`),
+                ilike(shifts.code, `%${searchText}%`),
+              ),
             )
-          )
-          .orderBy(asc(shifts.id))
+            .orderBy(asc(shifts.id))
         : baseQuery;
 
       // -------------------------
       // PAGINATION
       // -------------------------
-      return await withPagination(
-        db,
-        shifts,
-        finalQuery,
-        page,
-        pageSize
-      );
+      return await withPagination(db, shifts, finalQuery, page, pageSize);
     } catch (error) {
       console.error("getShifts error:", error);
 
@@ -2480,15 +2443,9 @@ export class DatabaseStorage implements IStorage {
       const term = search.toLowerCase();
 
       uniqueHolidays = uniqueHolidays.filter((h) =>
-        [
-          h.name,
-          h.holidayType,
-          h.date,
-        ]
+        [h.name, h.holidayType, h.date]
           .filter(Boolean)
-          .some((field) =>
-            String(field).toLowerCase().includes(term),
-          ),
+          .some((field) => String(field).toLowerCase().includes(term)),
       );
     }
 
@@ -2742,9 +2699,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-              3600000
-            ).toFixed(2)
+                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+                3600000
+              ).toFixed(2)
             : "0.00",
       };
     });
@@ -3031,7 +2988,7 @@ export class DatabaseStorage implements IStorage {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-                String(presentRow.status).toLowerCase() === "present"
+              String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -3051,15 +3008,24 @@ export class DatabaseStorage implements IStorage {
     // 6. Global Filters Application (Dono types ke rows par filter execute hoga)
     const processedData = finalReport
       .filter((row) => {
+        // const matchesEmployee =
+        //   !filters.employeeCode || filters.employeeCode === "all"
+        //     ? true
+        //     : String(row.employeeCode) === String(filters.employeeCode);
         const matchesEmployee =
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
-            : String(row.employeeCode) === String(filters.employeeCode);
+            : String(row.employeeCode)
+                .toLowerCase()
+                .includes(String(filters.employeeCode).toLowerCase()) ||
+              String(row.firstName)
+                .toLowerCase()
+                .includes(String(filters.employeeCode).toLowerCase());
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-            String(filters.status).toLowerCase();
+              String(filters.status).toLowerCase();
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => {
@@ -3114,7 +3080,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -3266,12 +3232,12 @@ export class DatabaseStorage implements IStorage {
   //   }
   //   const msSqlData = await mssqlPool.request().input("filterDate", date)
   //     .query(`
-  //     SELECT 
-  //       DeviceId, 
+  //     SELECT
+  //       DeviceId,
   //       Direction,
   //       EmployeeCode,
   //       COUNT(*) as totalPunches -- Har punch ko count karne ke liye
-  //     FROM DeviceLogs 
+  //     FROM DeviceLogs
   //     WHERE CAST(LogDate AS DATE) = @filterDate
   //     AND DeviceId IN (${allDeviceIds.join(",")})
   //     GROUP BY DeviceId, Direction, EmployeeCode
@@ -3353,7 +3319,7 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    const targetDateStr = new Date(date).toISOString().split('T')[0];
+    const targetDateStr = new Date(date).toISOString().split("T")[0];
 
     // SQL Query: Pichle din se lekar aaj tak ke saare logs sequence me
     const msSqlData = await mssqlPool.request().input("filterDate", date)
@@ -3387,7 +3353,7 @@ export class DatabaseStorage implements IStorage {
       const doorEmployeeState = new Map<string, "IN" | "OUT">();
 
       rawLogs.forEach((log) => {
-        const logDateOnly = new Date(log.LogDate).toISOString().split('T')[0];
+        const logDateOnly = new Date(log.LogDate).toISOString().split("T")[0];
         const isIdIn = (m.inIds || []).includes(log.DeviceId);
         const isIdOut = (m.outIds || []).includes(log.DeviceId);
 
@@ -3421,13 +3387,19 @@ export class DatabaseStorage implements IStorage {
     });
 
     // 2. MAIN GATE GLOBAL COUNTERS + YESTERDAY BALANCE CALCULATION
-    const mainGateMapping = mappings.find(m => m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true);
+    const mainGateMapping = mappings.find(
+      (m) => m.doorCode === MAIN_GATE_SYNC.CODE || m.isMainGate === true,
+    );
 
     if (mainGateMapping) {
       rawLogs.forEach((log) => {
-        const logDateOnly = new Date(log.LogDate).toISOString().split('T')[0];
-        const isMainIn = (mainGateMapping.inIds || []).includes(log.DeviceId) && log.Direction === "IN";
-        const isMainOut = (mainGateMapping.outIds || []).includes(log.DeviceId) && log.Direction === "OUT";
+        const logDateOnly = new Date(log.LogDate).toISOString().split("T")[0];
+        const isMainIn =
+          (mainGateMapping.inIds || []).includes(log.DeviceId) &&
+          log.Direction === "IN";
+        const isMainOut =
+          (mainGateMapping.outIds || []).includes(log.DeviceId) &&
+          log.Direction === "OUT";
         const globalLastState = employeeLastState.get(log.EmployeeCode);
 
         // --- Global State Management ---
@@ -3444,8 +3416,7 @@ export class DatabaseStorage implements IStorage {
             mainGateInPunches++;
             uniquePresentEmployees.add(log.EmployeeCode);
           }
-        }
-        else if (isMainOut && globalLastState === "IN") {
+        } else if (isMainOut && globalLastState === "IN") {
           employeeLastState.set(log.EmployeeCode, "OUT");
 
           // PICHLE DIN KA LOGIC: Agar kal hi IN hoke kal hi OUT ho gaya
@@ -3481,7 +3452,7 @@ export class DatabaseStorage implements IStorage {
       totalAbsent: Math.max(0, totalManpower - totalPresent),
       totalManpower,
     };
-  }  // async getDoorWiseStats(date: string) {
+  } // async getDoorWiseStats(date: string) {
   //   const [totalPeopleResult] = await db
   //     .select({
   //       count: sql<number>`count(*)`,
@@ -3523,12 +3494,12 @@ export class DatabaseStorage implements IStorage {
   //   // SQL Query: Pichle din se lekar aaj tak ke saare logs sequence me
   //   const msSqlData = await mssqlPool.request().input("filterDate", date)
   //     .query(`
-  //     SELECT 
-  //       DeviceId, 
+  //     SELECT
+  //       DeviceId,
   //       Direction,
   //       EmployeeCode,
   //       LogDate
-  //     FROM DeviceLogs 
+  //     FROM DeviceLogs
   //     WHERE LogDate >= CAST(DATEADD(day, -1, @filterDate) AS DATETIME)
   //     AND LogDate < CAST(DATEADD(day, 1, @filterDate) AS DATETIME)
   //     AND DeviceId IN (${allDeviceIds.join(",")})
@@ -4372,9 +4343,19 @@ export class DatabaseStorage implements IStorage {
         conditions.push(eq(schema.cabinLockouts.status, filters.status));
       }
 
+      // if (filters.employeeCode && filters.employeeCode !== "all") {
+      //   conditions.push(
+      //     eq(schema.cabinLockouts.employeeCode, filters.employeeCode),
+      //   );
+      // }
       if (filters.employeeCode && filters.employeeCode !== "all") {
         conditions.push(
-          eq(schema.cabinLockouts.employeeCode, filters.employeeCode),
+          or(
+            ilike(schema.people.employeeName, `%${filters.employeeCode}%`),
+
+            sql`CAST(${schema.cabinLockouts.employeeCode} AS TEXT)
+          ILIKE ${`%${filters.employeeCode}%`}`,
+          ),
         );
       }
 
@@ -4569,15 +4550,51 @@ export class DatabaseStorage implements IStorage {
   //     .from(dailyAttendanceSummary)
   //     .where(eq(dailyAttendanceSummary.workDate, date));
   // }
+
+  // async getDailyReport(
+  //   date: string,
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  // ) {
+  //   const data = await db
+  //     .select()
+  //     .from(dailyAttendanceSummary)
+  //     .where(eq(dailyAttendanceSummary.workDate, date));
+  //   return withPagination(
+  //     null,
+  //     null,
+  //     JSON.parse(JSON.stringify(data)),
+  //     page,
+  //     pageSize,
+  //   );
+  // }
+
   async getDailyReport(
     date: string,
+    employeeCode?: string,
     page?: number | string,
     pageSize?: number | string,
   ) {
     const data = await db
       .select()
       .from(dailyAttendanceSummary)
-      .where(eq(dailyAttendanceSummary.workDate, date));
+      .where(
+        and(
+          eq(dailyAttendanceSummary.workDate, date),
+          // employeeCode
+          //   ? eq(dailyAttendanceSummary.employeeCode, employeeCode)
+          //   : undefined
+          employeeCode
+            ? or(
+                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+
+                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+          ILIKE ${`%${employeeCode}%`}`,
+              )
+            : undefined,
+        ),
+      );
+
     return withPagination(
       null,
       null,
@@ -4586,6 +4603,7 @@ export class DatabaseStorage implements IStorage {
       pageSize,
     );
   }
+
   // 2 & 3: Muster Roll aur Overtime Matrix (Date Range)
   // async getRangeReport(startDate: string, endDate: string) {
   //   return await db
@@ -4595,24 +4613,77 @@ export class DatabaseStorage implements IStorage {
   //     .orderBy(asc(dailyAttendanceSummary.workDate));
   // }
 
+  // async getRangeReport(
+  //   startDate: string,
+  //   endDate: string,
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  // ) {
+  //   const data = await db
+  //     .select()
+  //     .from(dailyAttendanceSummary)
+  //     .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
+  //     .orderBy(asc(dailyAttendanceSummary.workDate));
+  //   return withPagination(
+  //     null,
+  //     null,
+  //     JSON.parse(JSON.stringify(data)),
+  //     page,
+  //     pageSize,
+  //   );
+  // }
+
   async getRangeReport(
     startDate: string,
     endDate: string,
+    employeeCode?: string,
     page?: number | string,
     pageSize?: number | string,
   ) {
-    const data = await db
+    let query = db
       .select()
       .from(dailyAttendanceSummary)
-      .where(between(dailyAttendanceSummary.workDate, startDate, endDate))
+      .where(
+        and(
+          between(dailyAttendanceSummary.workDate, startDate, endDate),
+          // employeeCode
+          //   ? eq(dailyAttendanceSummary.employeeCode, employeeCode)
+          //   : undefined
+          employeeCode
+            ? or(
+                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+
+                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+          ILIKE ${`%${employeeCode}%`}`,
+              )
+            : undefined,
+        ),
+      )
       .orderBy(asc(dailyAttendanceSummary.workDate));
-    return withPagination(
-      null,
-      null,
-      JSON.parse(JSON.stringify(data)),
-      page,
-      pageSize,
-    );
+
+    const data = await query;
+
+    // 🔥 Group by employee
+    const grouped: Record<string, any> = {};
+
+    data.forEach((r: any) => {
+      const key = r.employeeName;
+
+      if (!grouped[key]) {
+        grouped[key] = {
+          employeeName: r.employeeName,
+          employeeCode: r.employeeCode,
+          perDayRate: r.perDayRate || 0,
+          records: [],
+        };
+      }
+
+      grouped[key].records.push(r);
+    });
+
+    const employees = Object.values(grouped);
+
+    return withPagination(null, null, employees, page, pageSize);
   }
 
   //   async getRangeReport(
@@ -5203,9 +5274,22 @@ export class DatabaseStorage implements IStorage {
       conditions.push(
         lte(sql`DATE(${schema.employeeActivityLogs.logDate})`, nextDateStr),
       );
+      // if (filters?.employeeCode) {
+      //   conditions.push(
+      //     eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+      //   );
+      // }
       if (filters?.employeeCode) {
         conditions.push(
-          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+          or(
+            ilike(
+              schema.employeeActivityLogs.employeeName,
+              `%${filters.employeeCode}%`,
+            ),
+
+            sql`CAST(${schema.employeeActivityLogs.employeeCode} AS TEXT)
+          ILIKE ${`%${filters.employeeCode}%`}`,
+          ),
         );
       }
       const logs = await db
@@ -5442,8 +5526,18 @@ export class DatabaseStorage implements IStorage {
     ];
 
     // Employee Filter
+    // if (employeeCode && employeeCode !== "all" && employeeCode !== "") {
+    //   conditions.push(eq(dailyAttendanceSummary.employeeCode, employeeCode));
+    // }
     if (employeeCode && employeeCode !== "all" && employeeCode !== "") {
-      conditions.push(eq(dailyAttendanceSummary.employeeCode, employeeCode));
+      conditions.push(
+        or(
+          ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+
+          sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+          ILIKE ${`%${employeeCode}%`}`,
+        )!,
+      );
     }
 
     const reportData = await db
@@ -5644,8 +5738,19 @@ ${fromDate} || ' to ' || ${toDate}
 
             lte(dailyAttendanceSummary.workDate, filters.dateTo),
 
+            // filters.employeeCode
+            //   ? eq(dailyAttendanceSummary.employeeCode, filters.employeeCode)
+            //   : undefined,
             filters.employeeCode
-              ? eq(dailyAttendanceSummary.employeeCode, filters.employeeCode)
+              ? or(
+                  ilike(
+                    dailyAttendanceSummary.employeeName,
+                    `%${filters.employeeCode}%`,
+                  ),
+
+                  sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+          ILIKE ${`%${filters.employeeCode}%`}`,
+                )
               : undefined,
           ),
         );

@@ -48,8 +48,8 @@ export default function LiveLogsDashboard() {
             "Device Name",
             "Direction",
             "Log Date",
-            "Status",
-            "Remarks",
+            // "Status",
+            // "Remarks",
         ];
         const rows = data.map((log: any) => {
             const dateObj = new Date(log.logDate);
@@ -61,8 +61,8 @@ export default function LiveLogsDashboard() {
                 log.deviceName,
                 log.direction,
                 cleanDate,
-                log.status,
-                log.remarks || "",
+                // log.status,
+                // log.remarks || "",
             ];
         });
         let csvContent =
