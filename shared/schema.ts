@@ -210,7 +210,7 @@ export const people = pgTable("people", {
   photoUrl: text("photo_url"),
   personType: text("person_type", { enum: ["employee", "contractor", "visitor", "intern", "consultant"] }).default("employee"),
   riskTier: integer("risk_tier").default(1),
-  status: text("status", { enum: ["active", "inactive", "suspended"] }).default("active"),
+  status: text("status", { enum: ["active", "inactive", "suspended", "terminated", "on_leave"] }).default("active"),
   gender: text("gender"),
   dateOfBirth: text("date_of_birth"),
   dateOfJoining: text("date_of_joining"),
@@ -878,8 +878,10 @@ export const auditLogs = pgTable("audit_logs", {
   action: text("action").notNull(),       // Kya kiya: 'ADD', 'EDIT', 'DELETE'
   oldData: jsonb("old_data"),             // Badalne se pehle kya data tha
   newData: jsonb("new_data"),   
-  changedColumns: text("changed_columns"),          // Badalne ke baad kya data hua
-  createdAt: timestamp("created_at").defaultNow().notNull(), // Kab kiya
+  changedColumns: text("changed_columns"), 
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(), 
 });
 // ==================== INSERT SCHEMAS ====================
 

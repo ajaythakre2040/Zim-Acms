@@ -147,6 +147,7 @@ import {
   ALERT_TEMPLATES,
   ACCESS_RULES,
   ZONES,
+  EMPLOYEE_STATUS,
 } from "./constant";
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
@@ -4017,7 +4018,7 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return updatedDoors;
   }
-  private async executeHardwareSync(
+  async executeHardwareSync(
     employeeCode: string,
     roleId: number | null = null,
     blockAll: boolean = false,
@@ -4071,7 +4072,9 @@ export class DatabaseStorage implements IStorage {
         if (!serialNumber) return;
         const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
         let shouldBlock: boolean;
-        if (isMainGate) {
+        if (blockAll) {
+          shouldBlock = true;
+        } else if (isMainGate) {
           shouldBlock = false;
         } else {
           const doorIdForThisDevice = deviceToDoorMap.get(msDeviceId);
@@ -5683,6 +5686,8 @@ ${fromDate} || ' to ' || ${toDate}
         oldData: logData.oldData ? logData.oldData : null,
         newData: logData.newData ? logData.newData : null,
         changedColumns: logData.changedColumns ? logData.changedColumns : null,
+        ipAddress: logData.ipAddress || null, 
+        userAgent: logData.userAgent || null,
       });
     } catch (error) {
       console.error("Audit log background me save nahi ho paya:", error);

@@ -49,6 +49,7 @@ export async function seedMenus() {
             { cfg: MENU_CONFIG.DOORS, order: 7 },
             { cfg: MENU_CONFIG.DEVICES, order: 8 },
             { cfg: MENU_CONFIG.USER_ADMIN, order: 10 },
+            { cfg: MENU_CONFIG.EMERGENCY_UNBLOCK, order: 11 },
         ];
 
         for (const item of standalone) {

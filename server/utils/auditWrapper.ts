@@ -69,63 +69,116 @@ const getChangedFields = (oldData: any, newData: any): string[] => {
     return changedFields;
 };
 // 🛡️ Main Generic Middleware Wrapper (Your Original Logic + Dynamic Column Audit)
+// export const withAudit = (
+//     tableName: TableNames,
+//     // action: "ADD" | "EDIT" | "DELETE" | "ADD/EDIT" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" |"EMERGENCY_UNBLOCK_ALL",
+//     action: "ADD" | "EDIT" | "DELETE" | "ADD/EDIT" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" | "EMERGENCY_UNBLOCK_ALL" | ((req: any) => string),  storageOperation: (req: any) => Promise<any>,
+//     statusCode = 200
+// ) => {
+//     return async (req: any, res: any) => {
+//         try {
+//             // 1. Session user authentication details
+//             const userId = req.session?.userId || req.user?.id || "system";
+//             const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || null;
+//             const userAgent = req.headers["user-agent"] || null;
+//             const rawId = req.params.id;
+//             let oldData: any = null;
+
+//             // 2. EDIT / DELETE ke liye automatic internal GET call (Original Logic)
+//             if ((action === "EDIT" || action === "DELETE") && rawId) {
+//                 const queryParam = isNaN(Number(rawId)) ? rawId : parseInt(rawId, 10);
+
+//                 // user_profiles me string ID aane par user_id check karega, baki sab me standard id
+//                 const filterColumn = (tableName === "user_profiles" && isNaN(Number(rawId))) ? "user_id" : "id";
+
+//                 oldData = await getRecordByField(tableName, filterColumn, queryParam);
+//             }
+
+//             // 3. Actual Storage Query/Operation Run Karo (Original Logic)
+//             const result = await storageOperation(req);
+//             const recordId = result?.id || result?.userId || rawId || "N/A";
+
+//             const finalNewData = action === "DELETE" ? null : result;
+
+//             // Multiple changed columns detect karne ke liye helper call kiya
+//             const changedColumns = action === "EDIT" ? getChangedFields(oldData, finalNewData) : [];
+
+            
+//             storage.logAudit(db, {
+//                 userId: String(userId),
+//                 tableName,
+//                 recordId: String(recordId),
+//                 action,
+//                 oldData,
+//                 newData: finalNewData,
+//                 changedColumns: changedColumns.length > 0 ? changedColumns.join(", ") : null,
+//                 ipAddress: typeof ipAddress === "string" ? ipAddress.split(",")[0].trim() : String(ipAddress), // Proxy handling
+//                 userAgent: userAgent
+//             });
+
+//             // 5. Response handling (Original Logic)
+//             if (statusCode === 204) {
+//                 return res.sendStatus(204);
+//             } else {
+//                 return res.status(statusCode).json(result);
+//             }
+//         } catch (e: any) {
+//             console.error(`Audit API Error [${action} on ${tableName}]:`, e);
+//             return res.status(500).json({ message: e.message || "Failed to process request" });
+//         }
+//     };
+// };
 export const withAudit = (
     tableName: TableNames,
-    action: "ADD" | "EDIT" | "DELETE" | "ADD/EDIT",
+    action: "ADD" | "EDIT" | "DELETE" | "ADD/EDIT" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" | "EMERGENCY_UNBLOCK_ALL" | ((req: any) => string),
     storageOperation: (req: any) => Promise<any>,
     statusCode = 200
 ) => {
     return async (req: any, res: any) => {
         try {
-            // 1. Session user authentication details
             const userId = req.session?.userId || req.user?.id || "system";
-
+            const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || null;
+            const userAgent = req.headers["user-agent"] || null;
             const rawId = req.params.id;
             let oldData: any = null;
 
-            // 2. EDIT / DELETE ke liye automatic internal GET call (Original Logic)
             if ((action === "EDIT" || action === "DELETE") && rawId) {
                 const queryParam = isNaN(Number(rawId)) ? rawId : parseInt(rawId, 10);
-
-                // user_profiles me string ID aane par user_id check karega, baki sab me standard id
                 const filterColumn = (tableName === "user_profiles" && isNaN(Number(rawId))) ? "user_id" : "id";
-
                 oldData = await getRecordByField(tableName, filterColumn, queryParam);
             }
 
-            // 3. Actual Storage Query/Operation Run Karo (Original Logic)
             const result = await storageOperation(req);
-            const recordId = result?.id || result?.userId || rawId || "N/A";
 
+            const recordId = result?.id || result?.userId || result?.data?.id || result?.data?.employeeCode || rawId || "N/A";
             const finalNewData = action === "DELETE" ? null : result;
-
-            // Multiple changed columns detect karne ke liye helper call kiya
             const changedColumns = action === "EDIT" ? getChangedFields(oldData, finalNewData) : [];
+            const finalAction = typeof action === "function" ? action(req) : action;
 
-            // 4. Background Audit Log Fire (Original Framework + New Column Save)
             storage.logAudit(db, {
                 userId: String(userId),
                 tableName,
                 recordId: String(recordId),
-                action,
+                action: finalAction,
                 oldData,
                 newData: finalNewData,
-                changedColumns: changedColumns.length > 0 ? changedColumns.join(", ") : null
+                changedColumns: changedColumns.length > 0 ? changedColumns.join(", ") : null,
+                ipAddress: typeof ipAddress === "string" ? ipAddress.split(",")[0].trim() : String(ipAddress),
+                userAgent: userAgent
             });
 
-            // 5. Response handling (Original Logic)
             if (statusCode === 204) {
                 return res.sendStatus(204);
             } else {
                 return res.status(statusCode).json(result);
             }
         } catch (e: any) {
-            console.error(`Audit API Error [${action} on ${tableName}]:`, e);
+            const fallbackAction = typeof action === "function" ? "DYNAMIC_ACTION_FAILED" : action;
+            console.error(`Audit API Error [${fallbackAction} on ${tableName}]:`, e);
             return res.status(500).json({ message: e.message || "Failed to process request" });
         }
     };
 };
-
 // 🛠️ Independent Profile Audit Helper (Chupchaap background me call hoga)
 export const logProfileAudit = async (
     req: any,
@@ -136,6 +189,8 @@ export const logProfileAudit = async (
 ) => {
     try {
         const userId = req.session?.userId || req.user?.id || "system";
+        const ipAddress = req.headers["x-forwarded-for"] || req.socket.remoteAddress || null;
+        const userAgent = req.headers["user-agent"] || null;
         let oldProfile = passedOldData;
         let newProfile = passedNewData;
 
@@ -165,7 +220,9 @@ export const logProfileAudit = async (
                 action,
                 oldData: finalOldData,
                 newData: finalNewData,
-                changedColumns: changedColumns.length > 0 ? changedColumns.join(", ") : null
+                changedColumns: changedColumns.length > 0 ? changedColumns.join(", ") : null,
+                ipAddress: typeof ipAddress === "string" ? ipAddress.split(",")[0].trim() : String(ipAddress),
+                userAgent: userAgent
             });
         }
     } catch (err) {

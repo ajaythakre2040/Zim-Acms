@@ -12,6 +12,16 @@ export const ATTENDANCE_STATUS = {
   // ON_LEAVE: "on_leave",
   // SINGLE_PUNCH: "single_punch" // Optional: Agar user ne out nahi kiya
 };
+export const EMPLOYEE_STATUS = {
+  ACTIVE: "active",         // Working: Allowed access
+  SUSPENDED: "suspended",   // Blocked: Blocked access
+  TERMINATED: "terminated", // Left Company: Removed access
+  ON_LEAVE: "on_leave",     // Long Leave: Temporary pause
+  INACTIVE: "inactive"      // Standard inactive fallback
+} as const;
+export const AUTOSUSPEND_CONFIG = {
+  MAX_INACTIVE_DAYS: 60, // 60 din se zyada inactive employees ko suspend kar dega
+} as const;
 
 export const MAIN_GATE_SYNC = {
   CODE: "MG_SYNC_01",
@@ -136,6 +146,7 @@ export const MENU_CONFIG = {
   DOORS: { title: "Doors", code: "door_01", icon: "DoorOpen" },
   DEVICES: { title: "Devices", code: "dev_01", icon: "Cpu" },
   USER_ADMIN: { title: "User Admin", code: "uadmin_01", icon: "UserCog" },
+  EMERGENCY_UNBLOCK: { title: "Emergency Unblock All", code: "act_emg_01", icon: "RefreshCw" },
 } as const;
 
 
