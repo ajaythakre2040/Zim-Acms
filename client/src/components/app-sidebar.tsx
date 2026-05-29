@@ -33,6 +33,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { MENU_CONFIG } from "../../../server/constant";
 
 // --- 1. TypeScript Interfaces ---
 interface MenuPermission {
@@ -123,8 +124,10 @@ export function AppSidebar() {
     if (!user?.menuPermissions) return [];
 
     // FIX: Pehle permissions ko filter karein jahan view: true ho
-    const visiblePermissions = user.menuPermissions.filter(item => item.view === true);
-
+    // const visiblePermissions = user.menuPermissions.filter(item => item.view === true);
+    const visiblePermissions = user.menuPermissions.filter(
+      (item) => item.view === true && item.code !== MENU_CONFIG.EMERGENCY_UNBLOCK.code // 👈 Yeh condition sidebar se emergency menu ko gayab kar degi
+    );
     const map: Record<number, any> = {};
     const roots: any[] = [];
 

@@ -20,7 +20,7 @@ export const EMPLOYEE_STATUS = {
   INACTIVE: "inactive"      // Standard inactive fallback
 } as const;
 export const AUTOSUSPEND_CONFIG = {
-  MAX_INACTIVE_DAYS: 1,
+  MAX_INACTIVE_DAYS: 60, // 60 din se zyada inactive employees ko suspend kar dega
 } as const;
 
 export const MAIN_GATE_SYNC = {
@@ -146,6 +146,7 @@ export const MENU_CONFIG = {
   DOORS: { title: "Doors", code: "door_01", icon: "DoorOpen" },
   DEVICES: { title: "Devices", code: "dev_01", icon: "Cpu" },
   USER_ADMIN: { title: "User Admin", code: "uadmin_01", icon: "UserCog" },
+  EMERGENCY_UNBLOCK: { title: "Emergency Unblock All", code: "act_emg_01", icon: "RefreshCw" },
 } as const;
 
 

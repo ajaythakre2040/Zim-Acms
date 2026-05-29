@@ -5686,6 +5686,8 @@ ${fromDate} || ' to ' || ${toDate}
         oldData: logData.oldData ? logData.oldData : null,
         newData: logData.newData ? logData.newData : null,
         changedColumns: logData.changedColumns ? logData.changedColumns : null,
+        ipAddress: logData.ipAddress || null, 
+        userAgent: logData.userAgent || null,
       });
     } catch (error) {
       console.error("Audit log background me save nahi ho paya:", error);

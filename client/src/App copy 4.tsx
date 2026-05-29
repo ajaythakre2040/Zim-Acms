@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmProvider } from "@/hooks/use-confirm";
-import { Shield, Lock, Fingerprint, ScanLine, Sparkles, Radio, User, KeyRound, LogIn, UserPlus, LogOut, Users, RefreshCw } from "lucide-react";
+import { Shield, Lock, Fingerprint, ScanLine, Sparkles, Radio, User, KeyRound, LogIn, UserPlus, LogOut, Users } from "lucide-react";
 import { useState } from "react";
 
 import NotFound from "@/pages/not-found";
@@ -47,11 +47,7 @@ import CompaniesPage from "./pages/company";
 import CategoriesPage from "./pages/category";
 import RoleFormPage from "./pages/role_form";
 import RolePermissionViewPage from "./pages/RolePermissionViewPage";
-import { useToast } from "./hooks/use-toast";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { usePermission } from "./hooks/use-permission";
-import { MENU_CONFIG } from "../../server/constant";
+
 
 function StandardRouter() {
   return (
@@ -88,23 +84,29 @@ function StandardRouter() {
       <Route path="/role" component={RolesPage} />
       <Route path="/master-data/roles/add" component={RoleFormPage} />
       <Route path="/master-data/roles/edit/:id" component={RoleFormPage} />
-      <Route path="/master-data/roles/view/:id" component={RolePermissionViewPage} />
+      <Route path="/master-data/roles/view/:id" component={RolePermissionViewPage} />{" "}
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
-  const { login, loginError, isLoggingIn, register, registerError, isRegistering } = auth;
+  const { login, loginError, isLoggingIn, register, registerError, isRegistering, } = auth;
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("Admin@123");
   const [email, setEmail] = useState("");
+  const [firstName, setFirstName] = useState(""); 
+  const [lastName, setLastName] = useState("");   
   const [name, setName] = useState("");
+
+  
   const [activeTab, setActiveTab] = useState<"biometric" | "access_control">("biometric");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    
     localStorage.setItem("selected_dashboard_mode", activeTab);
 
     if (mode === "login") {
@@ -124,6 +126,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      {/* Dynamic Floating Background Blur Animations (Kept Completely Intact) */}
       <div className="absolute inset-0 gradient-primary opacity-[0.03] dark:opacity-[0.06]" />
       <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-primary/5 dark:bg-primary/10 blur-3xl animate-float" />
       <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-accent/5 dark:bg-accent/10 blur-3xl animate-float animate-float-delay-2" />
@@ -149,12 +152,14 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
         </div>
 
         <div className="glass-panel rounded-2xl p-8 space-y-6">
+
           <div className="grid grid-cols-2 gap-4 mb-2">
+
             <div
-              onClick={() => setActiveTab("biometric")}
+              onClick={() => setActiveTab("biometric")} 
               className={`flex flex-col items-center gap-2 p-4 rounded-xl cursor-pointer transition-all border ${activeTab === "biometric"
-                ? "bg-blue-50/90 dark:bg-blue-950/40 border-blue-400 shadow-sm ring-2 ring-blue-400/20 scale-[1.02]"
-                : "bg-background/40 border-border opacity-60 hover:opacity-90"
+                  ? "bg-blue-50/90 dark:bg-blue-950/40 border-blue-400 shadow-sm ring-2 ring-blue-400/20 scale-[1.02]"
+                  : "bg-background/40 border-border opacity-60 hover:opacity-90"
                 }`}
               data-testid="feature-workforce"
             >
@@ -169,8 +174,8 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
             <div
               onClick={() => setActiveTab("access_control")}
               className={`flex flex-col items-center gap-2 p-4 rounded-xl cursor-pointer transition-all border ${activeTab === "access_control"
-                ? "bg-violet-50/90 dark:bg-violet-950/40 border-violet-400 shadow-sm ring-2 ring-violet-400/20 scale-[1.02]"
-                : "bg-background/40 border-border opacity-60 hover:opacity-90"
+                  ? "bg-violet-50/90 dark:bg-violet-950/40 border-violet-400 shadow-sm ring-2 ring-violet-400/20 scale-[1.02]"
+                  : "bg-background/40 border-border opacity-60 hover:opacity-90"
                 }`}
               data-testid="feature-card-access"
             >
@@ -181,6 +186,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
                 Access Control
               </span>
             </div>
+
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -301,45 +307,6 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
 
 function AuthenticatedApp() {
   const activeDashboardMode = localStorage.getItem("selected_dashboard_mode") || "biometric";
-  const { toast } = useToast();
-
-  // 🛡️ State to control the custom emergency alert dialog open/close
-  const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
-
-  // 🛡️ 1. DYNAMIC PERMISSION MATRIX HOOK CHECK
-  const { canView, canEdit } = usePermission(MENU_CONFIG.EMERGENCY_UNBLOCK.code);
-
-  // 🛡️ 2. STRICT TYPE CAST TO PREVENT STRING TRUTHY BYPASS ("false" -> false)
-  const isButtonVisible = canView === true || String(canView) === "true";
-  const isActionAllowed = canEdit === true || String(canEdit) === "true";
-
-  // 🔴 EMERGENCY MUTATION (Dispatch commands directly to hardware controllers)
-  const bulkEmergencyUnblockMut = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/emergency/bulk-unblock", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: (response: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/people"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/alerts"] });
-
-      toast({
-        title: "Emergency Action Success",
-        description: response.message || "Commands dispatched successfully.",
-      });
-    },
-    onError: (err: any) => {
-      toast({
-        variant: "destructive",
-        title: "Emergency Action Failed",
-        description: err.message || "Failed to trigger emergency unblock.",
-      });
-    }
-  });
 
   const handleLogout = () => {
     localStorage.removeItem("selected_dashboard_mode");
@@ -349,102 +316,58 @@ function AuthenticatedApp() {
     }).then(() => window.location.reload());
   };
 
-  // Reusable Emergency Button Component
-  const EmergencyButton = () => (
-    <>
-      {/* Rule 1: Matrix view checkbox control mapping */}
-      {isButtonVisible && (
-        <Button
-          variant="destructive"
-          size="sm"
-          // Force fallback classes added to physically intercept actions if browser style overrides default disabled tags
-          className="flex items-center justify-center gap-1.5 shadow-sm font-semibold h-8 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed select-none"
-          // Rule 2: Strict boolean evaluation wrapper mapping
-          disabled={!isActionAllowed || bulkEmergencyUnblockMut.isPending}
-          onClick={() => setIsEmergencyAlertOpen(true)}
-        >
-          <RefreshCw
-            className={`w-3.5 h-3.5 ${bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""}`}
-          />
-          <span>Emergency Unblock All</span>
-        </Button>
-      )}
-    </>
-  );
+  
+  if (activeDashboardMode === "access_control") {
+    return (
+      <div className="min-h-screen w-full bg-background relative flex flex-col">
+        {/* Dedicated Exit Trigger for Access Control interface screen */}
+        <div className="absolute top-4 right-4 z-50 flex items-center gap-2 bg-background/80 backdrop-blur p-2 rounded-xl border border-border shadow-sm">
+          <ThemeToggle />
+          <Button variant="destructive" size="sm" onClick={handleLogout} className="flex items-center gap-1.5 shadow-sm">
+            <LogOut className="w-4 h-4" />
+            Logout
+          </Button>
+        </div>
+
+        {/* Render ONLY LiveLogsDashboard fullscreen style */}
+        <div className="flex-1 w-full overflow-auto">
+          <LiveLogsDashboard />
+        </div>
+      </div>
+    );
+  }
+
+  
+  const style = {
+    "--sidebar-width": "16rem",
+    "--sidebar-width-icon": "3rem",
+  };
 
   return (
-    <>
-      {/* 🛡️ SHADCN CUSTOM CONFIRMATION DIALOG INTERFACE */}
-      <AlertDialog open={isEmergencyAlertOpen} onOpenChange={setIsEmergencyAlertOpen}>
-        <AlertDialogContent className="max-w-[440px] rounded-2xl border border-destructive/20 shadow-2xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold flex items-center gap-2 text-destructive">
-              ⚠️ Trigger Emergency Unblock?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-muted-foreground pt-2">
-              This action will dispatch override commands to **UNBLOCK ALL** active personnel access rights across **ALL** integrated biometric hardware controllers instantly.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 mt-4">
-            <AlertDialogCancel className="rounded-xl px-5 font-medium">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="rounded-xl px-5 bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold"
-              onClick={() => bulkEmergencyUnblockMut.mutate()}
-            >
-              Yes, Unblock All
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* --- ACCESS CONTROL SCREEN LAYOUT --- */}
-      {activeDashboardMode === "access_control" ? (
-        <div className="min-h-screen w-full bg-background relative flex flex-col">
-          <div className="absolute top-4 right-4 z-50 flex items-center gap-2 bg-background/80 backdrop-blur p-2 rounded-xl border border-border shadow-sm">
-            <ThemeToggle />
-            <EmergencyButton />
-            <Button variant="destructive" size="sm" onClick={handleLogout} className="flex items-center gap-1.5 shadow-sm h-8">
-              <LogOut className="w-4 h-4" />
-              Logout
-            </Button>
-          </div>
-
-          <div className="flex-1 w-full overflow-auto">
-            <LiveLogsDashboard />
-          </div>
-        </div>
-      ) : (
-        /* --- STANDARD BIOMETRIC INTERFACE LAYOUT --- */
-        <SidebarProvider style={{ "--sidebar-width": "16rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}>
-          <div className="flex h-screen w-full">
-            <AppSidebar />
-            <div className="flex flex-col flex-1 min-w-0">
-              <header className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border sticky top-0 z-50 bg-background/80 backdrop-blur-md">
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
-                <div className="flex items-center gap-2">
-                  <ThemeToggle />
-                  <EmergencyButton />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-muted-foreground hover:text-foreground"
-                    onClick={handleLogout}
-                    data-testid="button-logout"
-                  >
-                    Logout
-                  </Button>
-                </div>
-              </header>
-              <main className="flex-1 overflow-auto">
-                <StandardRouter />
-              </main>
+    <SidebarProvider style={style as React.CSSProperties}>
+      <div className="flex h-screen w-full">
+        <AppSidebar />
+        <div className="flex flex-col flex-1 min-w-0">
+          <header className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border sticky top-0 z-50 bg-background/80 backdrop-blur-md">
+            <SidebarTrigger data-testid="button-sidebar-toggle" />
+            <div className="flex items-center gap-1">
+              <ThemeToggle />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                data-testid="button-logout"
+              >
+                Logout
+              </Button>
             </div>
-          </div>
-        </SidebarProvider>
-      )}
-    </>
+          </header>
+          <main className="flex-1 overflow-auto">
+            <StandardRouter />
+          </main>
+        </div>
+      </div>
+    </SidebarProvider>
   );
 }
 

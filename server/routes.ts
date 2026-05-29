@@ -1061,7 +1061,17 @@ crudRoutes(
       res.status(500).json({ message: error.message });
     }
   });
-  app.post("/api/people/emergency-toggle", withAudit(TABLES.PEOPLE, "EDIT", async (req) => { const result = await storage.toggleEmployeeDeviceAccess(req.body); return { success: true, data: result }; }, 200));
+  // app.post("/api/people/emergency-toggle", withAudit(TABLES.PEOPLE, "EDIT", async (req) => { const result = await storage.toggleEmployeeDeviceAccess(req.body); return { success: true, data: result }; }, 200));
+  app.post(
+    "/api/people/emergency-toggle",
+    withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, (req) => {
+      // Agar body me action 'block' hai to log me "EMERGENCY_BLOCK" jayega, nahi to "EMERGENCY_UNBLOCK"
+      return req.body.action === "block" ? "EMERGENCY_BLOCK" : "EMERGENCY_UNBLOCK";
+    }, async (req) => {
+      const result = await storage.toggleEmployeeDeviceAccess(req.body);
+      return { success: true, data: result };
+    }, 200)
+  );
   crudRoutes(
     app,
     "/api/cron-lists",
@@ -1196,7 +1206,7 @@ crudRoutes(
   //     });
   //   }
   // });
-  app.post("/api/emergency/bulk-unblock", isAuthenticated, withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, "EDIT", async (req) => {
+  app.post("/api/emergency/bulk-unblock", isAuthenticated, withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, "EMERGENCY_UNBLOCK_ALL", async (req) => {
     const loginId = req.session?.userId;
     if (!loginId) throw new Error("User session not found. Please re-login.");
     const user = await storage.getUser(loginId.toString());

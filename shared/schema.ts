@@ -878,8 +878,10 @@ export const auditLogs = pgTable("audit_logs", {
   action: text("action").notNull(),       // Kya kiya: 'ADD', 'EDIT', 'DELETE'
   oldData: jsonb("old_data"),             // Badalne se pehle kya data tha
   newData: jsonb("new_data"),   
-  changedColumns: text("changed_columns"),          // Badalne ke baad kya data hua
-  createdAt: timestamp("created_at").defaultNow().notNull(), // Kab kiya
+  changedColumns: text("changed_columns"), 
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(), 
 });
 // ==================== INSERT SCHEMAS ====================
 

@@ -360,7 +360,7 @@ export default function RoleFormPage() {
         </div>
 
         {/* FLOATING ACTION BAR */}
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-48px)] max-w-[1400px] bg-white/95 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-2xl flex justify-between items-center z-50">
+        <div className="fixed bottom-6 right-6 left-auto w-[calc(100%-240px-48px)] max-w-[1150px] bg-white/95 backdrop-blur-md p-4 rounded-2xl border border-slate-200 shadow-2xl flex justify-between items-center z-50 transition-all">
           <div className="flex items-center gap-3 pl-4">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
@@ -389,9 +389,9 @@ export default function RoleFormPage() {
             )}
           </div>
         </div>
-        </div>
-
       </div>
-    
+
+    </div>
+
   );
 }
