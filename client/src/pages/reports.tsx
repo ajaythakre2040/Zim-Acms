@@ -1254,7 +1254,7 @@ const filterConfig: Record<string, string[]> = {
   ],
   "daily-efficiency": ["date", "employeeCode"],
   "monthly-efficiency": ["dateFrom", "dateTo", "employeeCode"],
-  "department-wise-manpower": ["dateFrom", "dateTo","employeeCode"],
+  "department-wise-manpower": ["dateFrom", "dateTo", "employeeCode"],
   "cabin-lockout": ["dateFrom", "dateTo", "employeeCode"],
 };
 function getCurrentMonthDates() {
@@ -1395,37 +1395,37 @@ function ReportFilters({
                 </Select>
               </div>
             )} */}
-             {/* EMPLOYEE */}
-{allowed.includes("employeeCode") && (
-  <div className="space-y-1">
-    <Label className="text-[10px] text-muted-foreground">
-      EMPLOYEE
-    </Label>
+            {/* EMPLOYEE */}
+            {allowed.includes("employeeCode") && (
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">
+                  EMPLOYEE
+                </Label>
 
-    <Input
-      type="text"
-      list="employee-list"
-      placeholder="Search Employee"
-      value={filters.employeeCode || ""}
-      onChange={(e) =>
-        setFilters({
-          ...filters,
-          employeeCode: e.target.value,
-        })
-      }
-      className="text-xs"
-    />
+                <Input
+                  type="text"
+                  list="employee-list"
+                  placeholder="Search Employee"
+                  value={filters.employeeCode || ""}
+                  onChange={(e) =>
+                    setFilters({
+                      ...filters,
+                      employeeCode: e.target.value,
+                    })
+                  }
+                  className="text-xs"
+                />
 
-    <datalist id="employee-list">
-      {people.map((p) => (
-        <option
-          key={p.id}
-          value={`${p.employeeName} (${p.employeeCode})`}
-        />
-      ))}
-    </datalist>
-  </div>
-)}
+                <datalist id="employee-list">
+                  {people.map((p) => (
+                    <option
+                      key={p.id}
+                      value={`${p.employeeName} (${p.employeeCode})`}
+                    />
+                  ))}
+                </datalist>
+              </div>
+            )}
             {allowed.includes("deviceId") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
@@ -1480,7 +1480,6 @@ function ReportFilters({
                 </Select>
               </div>
             )}
-            
           </div>
           {/* BUTTONS */}
           <div className="flex gap-2 shrink-0">
@@ -4498,7 +4497,9 @@ export default function ReportsPage() {
                     <div className="text-sm text-muted-foreground order-2 md:order-1">
                       Showing{" "}
                       <span className="font-semibold text-foreground">
-                        {(perfPage - 1) * perfPageSize + 1}
+                        {reportResponse.totalCount === 0
+                          ? 0
+                          : (perfPage - 1) * perfPageSize + 1}
                       </span>{" "}
                       to{" "}
                       <span className="font-semibold text-foreground">
@@ -4583,7 +4584,10 @@ export default function ReportsPage() {
                               Math.min(reportResponse.totalPages, p + 1),
                             )
                           }
-                          disabled={perfPage === reportResponse.totalPages}
+                          disabled={
+                            reportResponse.totalCount === 0 ||
+                            perfPage >= reportResponse.totalPages
+                          }
                         >
                           Next
                           <ChevronRight className="h-4 w-4" />
@@ -4595,7 +4599,10 @@ export default function ReportsPage() {
                           size="icon"
                           className="h-8 w-8"
                           onClick={() => setPerfPage(reportResponse.totalPages)}
-                          disabled={perfPage === reportResponse.totalPages}
+                          disabled={
+                            reportResponse.totalCount === 0 ||
+                            perfPage >= reportResponse.totalPages
+                          }
                         >
                           <ChevronsRight className="h-4 w-4" />
                         </Button>
