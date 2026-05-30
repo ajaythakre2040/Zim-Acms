@@ -20,7 +20,7 @@ export const EMPLOYEE_STATUS = {
   INACTIVE: "inactive"      // Standard inactive fallback
 } as const;
 export const AUTOSUSPEND_CONFIG = {
-  MAX_INACTIVE_DAYS: 60, // 60 din se zyada inactive employees ko suspend kar dega
+  MAX_INACTIVE_DAYS: 1, // 60 din se zyada inactive employees ko suspend kar dega
 } as const;
 
 export const MAIN_GATE_SYNC = {

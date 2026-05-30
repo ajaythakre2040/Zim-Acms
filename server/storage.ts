@@ -1834,7 +1834,8 @@ export class DatabaseStorage implements IStorage {
             .returning();
 
           if (newRec?.employeeCode) {
-            await this.executeHardwareSync(newRec.employeeCode, null, true);
+            // await this.executeHardwareSync(newRec.employeeCode, null, true);
+            this.executeHardwareSyncBackground(newRec.employeeCode);
           }
 
           currentPgData.push({
@@ -1980,7 +1981,23 @@ export class DatabaseStorage implements IStorage {
       pageSize: size,
     };
   }
+  // 🛠️ Helper function to trigger sync in the background without locking the main thread
+  private async executeHardwareSyncBackground(employeeCode: string) {
+    // Thoda sa delay taaki biometric database user ko fully process karle
+    await new Promise((resolve) => setTimeout(resolve, 2000));
 
+    try {
+      console.log(`⚡ Background Hardware Sync Started for New Employee: ${employeeCode}`);
+
+      // blockAll ko 'false' bhejenge, kuki aapke executeHardwareSync ke andar logic pehle se likha hai ki:
+      // Agar employee assignments me nahi hai (AllowedDoorIds khali hai), toh Main Gate ko chodkar baki sab automatic block ho jayenge!
+      await this.executeHardwareSync(employeeCode, null, false);
+
+      console.log(`✅ Background Hardware Sync Completed for: ${employeeCode}`);
+    } catch (err: any) {
+      console.error(`❌ Background Hardware Sync Failed for ${employeeCode}:`, err.message);
+    }
+  }
   // async getPeople(search?: string): Promise<Person[]> {
   //   const [pgDataRaw, msDataRaw] = await Promise.all([
   //     db
@@ -4072,16 +4089,33 @@ export class DatabaseStorage implements IStorage {
         if (!serialNumber) return;
         const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
         let shouldBlock: boolean;
-        if (blockAll) {
-          shouldBlock = true;
-        } else if (isMainGate) {
+        // if (blockAll) {
+        //   shouldBlock = true;
+        // } else if (isMainGate) {
+        //   shouldBlock = false;
+        // } else {
+        //   const doorIdForThisDevice = deviceToDoorMap.get(msDeviceId);
+        //   const isDoorAllowed = doorIdForThisDevice
+        //     ? allowedDoorIds.has(doorIdForThisDevice)
+        //     : false;
+        //   shouldBlock = blockAll || !isDoorAllowed;
+        // }
+         if (isMainGate) {
+
           shouldBlock = false;
+
         } else {
+
           const doorIdForThisDevice = deviceToDoorMap.get(msDeviceId);
+
           const isDoorAllowed = doorIdForThisDevice
+
             ? allowedDoorIds.has(doorIdForThisDevice)
+
             : false;
+
           shouldBlock = blockAll || !isDoorAllowed;
+
         }
         const currentStatus = shouldBlock ? "block" : "unblock";
         const lastDeviceLog = lastLogs
@@ -4487,6 +4521,10 @@ export class DatabaseStorage implements IStorage {
     employeeCode: string;
     doorIds: number[];
   }) {
+    console.log(`Upsert Request for Employee ${data.employeeCode} with Doors: ${data.doorIds.join(
+      ",",
+    )}`,
+    );
     const result = await db.transaction(async (tx: any) => {
       const uniqueDoorIds = [...new Set(data.doorIds.map((id) => Number(id)))];
       const [person] = await tx
@@ -4528,6 +4566,7 @@ export class DatabaseStorage implements IStorage {
       const isCurrentlyInside =
         person.currentZone === ZONES.IN || person.currentZone === ZONES.CABIN;
       const shouldBlockAll = !isCurrentlyInside;
+      // const shouldBlockAll = false;
       await this.executeHardwareSync(
         data.employeeCode.toString(),
         null,
