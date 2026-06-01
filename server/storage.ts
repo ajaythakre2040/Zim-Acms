@@ -414,17 +414,28 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     try {
       const conditions = [];
-      if (filters?.dateFrom) {
-        conditions.push(
-          gte(schema.employeeActivityLogs.logDate, new Date(filters.dateFrom)),
-        );
-      }
-      if (filters?.dateTo) {
-        const endDate = new Date(filters.dateTo);
-        endDate.setHours(23, 59, 59, 999);
+      // if (filters?.dateFrom) {
+      //   conditions.push(
+      //     gte(schema.employeeActivityLogs.logDate, new Date(filters.dateFrom)),
+      //   );
+      // }
+      // if (filters?.dateTo) {
+      //   const endDate = new Date(filters.dateTo);
+      //   endDate.setHours(23, 59, 59, 999);
 
-        conditions.push(lte(schema.employeeActivityLogs.logDate, endDate));
-      }
+      //   conditions.push(lte(schema.employeeActivityLogs.logDate, endDate));
+      // }
+      if (filters?.dateFrom) {
+  conditions.push(
+    sql`DATE(${schema.employeeActivityLogs.logDate}) >= ${filters.dateFrom}`
+  );
+}
+
+if (filters?.dateTo) {
+  conditions.push(
+    sql`DATE(${schema.employeeActivityLogs.logDate}) <= ${filters.dateTo}`
+  );
+}
       // if (filters?.employeeCode) {
       //   conditions.push(
       //     eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
