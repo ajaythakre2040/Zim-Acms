@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmProvider } from "@/hooks/use-confirm";
-import { Shield, Lock, Fingerprint, ScanLine, Sparkles, Radio, User, KeyRound, LogIn, UserPlus, LogOut, Users, RefreshCw } from "lucide-react";
+import { Shield,  Eye, EyeOff,Lock, Fingerprint, ScanLine, Sparkles, Radio, User, KeyRound, LogIn, UserPlus, LogOut, Users, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import NotFound from "@/pages/not-found";
@@ -101,6 +101,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("Admin@123");
+  const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [activeTab, setActiveTab] = useState<"biometric" | "access_control">("biometric");
@@ -210,16 +211,26 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
               </Label>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+
                 <Input
                   id="password"
-                  type="password"
+                  type={showPassword ? "text" : "password"} // 👈 State ke mutabiq text ya password change hoga
                   placeholder="Enter password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 pr-10" // 👈 Right side me space di eye icon ke liye
                   required
                   data-testid="input-password"
                 />
+
+                {/* 👁️ Password View / Hide Toggle Button */}
+                <button
+                  type="button" // 👈 Kisi form submission ko trigger hone se rokne ke liye type="button" zaroori hai
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
@@ -407,10 +418,7 @@ function AuthenticatedApp() {
           <div className="absolute top-4 right-4 z-50 flex items-center gap-2 bg-background/80 backdrop-blur p-2 rounded-xl border border-border shadow-sm">
             <ThemeToggle />
             <EmergencyButton />
-            <Button variant="destructive" size="sm" onClick={handleLogout} className="flex items-center gap-1.5 shadow-sm h-8">
-              <LogOut className="w-4 h-4" />
-              Logout
-            </Button>
+            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" onClick={handleLogout} data-testid="button-logout" > Logout </Button>
           </div>
 
           <div className="flex-1 w-full overflow-auto">
