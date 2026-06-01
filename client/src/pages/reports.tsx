@@ -2324,19 +2324,22 @@ function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
     <div className="space-y-4">
       {safeData.length > 0 ? (
         safeData.map((r, i) => {
-          const groupedDoors: Record<string, { in: string[]; out: string[] }> =
-            {};
+          const groupedDoors: Record<
+            string,
+            { inTime: string; outTime: string }[]
+          > = {};
 
           (r.movementDetails || []).forEach((m: any) => {
             const key = String(m.doorName || "").trim();
 
             if (!groupedDoors[key]) {
-              groupedDoors[key] = { in: [], out: [] };
+              groupedDoors[key] = [];
             }
 
-            groupedDoors[key].in.push(m.inTime ? formatTime(m.inTime) : "-");
-
-            groupedDoors[key].out.push(m.outTime ? formatTime(m.outTime) : "-");
+            groupedDoors[key].push({
+              inTime: m.inTime ? formatTime(m.inTime) : "-",
+              outTime: m.outTime ? formatTime(m.outTime) : "-",
+            });
           });
 
           return (
@@ -2389,15 +2392,27 @@ function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
                           </td>
 
                           <td className="border p-1.5 text-center text-blue-600">
-                            {doorData?.in?.length
-                              ? doorData.in.join(", ")
-                              : "-"}
+                            {doorData?.length ? (
+                              <div className="flex flex-col gap-1">
+                                {doorData.map((item, i) => (
+                                  <div key={i}>{item.inTime}</div>
+                                ))}
+                              </div>
+                            ) : (
+                              "-"
+                            )}
                           </td>
 
                           <td className="border p-1.5 text-center text-orange-600">
-                            {doorData?.out?.length
-                              ? doorData.out.join(", ")
-                              : "-"}
+                            {doorData?.length ? (
+                              <div className="flex flex-col gap-1">
+                                {doorData.map((item, i) => (
+                                  <div key={i}>{item.outTime}</div>
+                                ))}
+                              </div>
+                            ) : (
+                              "-"
+                            )}
                           </td>
                         </tr>
                       );
@@ -3248,7 +3263,7 @@ export default function ReportsPage() {
 
   // 🔥 Daily Efficiency Results Pagination
   const [effPage, setEffPage] = useState(1);
-  const [effPageSize, setEffPageSize] = useState(5);
+  const [effPageSize, setEffPageSize] = useState(1);
 
   // 🔥 Employee Performance Pagination
   const [empPerfPage, setEmpPerfPage] = useState(1);
@@ -5336,3 +5351,4 @@ function exportCSV(id: string, data: any[]) {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
