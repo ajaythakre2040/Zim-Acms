@@ -1,9 +1,12 @@
 import { useParams, useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { ArrowLeft } from "lucide-react";
+import { useLocation } from "wouter";
 
 export default function EmployeeView() {
   const [, params] = useRoute("/employees/view/:id");
+  const [, navigate] = useLocation();
   const id = params?.id;
 
   const {
@@ -42,7 +45,17 @@ export default function EmployeeView() {
 
   return (
     <div className="min-h-screen bg-muted/20 py-8 px-4 flex justify-center">
-      <Card className="w-full max-w-[900px] shadow-xl">
+        
+      <Card className="relative w-full max-w-[900px] shadow-xl">
+        <div className="absolute top-4 left-4 print:hidden">
+  <button
+    onClick={() => window.history.back()}
+    className="flex items-center gap-2 px-4 py-2 border rounded-md bg-white"
+  >
+    <ArrowLeft className="h-4 w-4" />
+    Back
+  </button>
+</div>
         <CardContent className="p-8">
           {/* Header */}
           <div className="text-center border-b pb-5 mb-8">
