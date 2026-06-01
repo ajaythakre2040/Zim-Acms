@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useConfirm } from "@/hooks/use-confirm";
-import { useLocation } from "wouter";
 import {
   ShieldCheck,
   RefreshCw,
@@ -71,7 +70,6 @@ export default function PeoplePage() {
       </div>
     );
   }
-  const [, navigate] = useLocation();
   const confirm = useConfirm();
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -157,7 +155,7 @@ export default function PeoplePage() {
   useEffect(() => {
     if (roledialogOpen && roleassign) {
       const existingDoors = (roleassign as any)?.doorIds || [];
-      console.log("Existing Doors:", existingDoors);
+      console.log("Existing Doors:", existingDoors); 
       setSelectedDoorIds(existingDoors);
     }
   }, [roledialogOpen, roleassign]);
@@ -170,7 +168,7 @@ export default function PeoplePage() {
       queryClient.setQueryData(
         ["/api/device-status", deviceViewPerson?.employeeCode],
         (oldData: any) => {
-          const newLog = response.data?.[0] || response.data;
+          const newLog = response.data?.[0] || response.data; 
           if (!oldData) return [newLog];
           const filtered = oldData.filter(
             (l: any) => Number(l.deviceId) !== Number(newLog.deviceId),
@@ -181,7 +179,7 @@ export default function PeoplePage() {
       queryClient.invalidateQueries({
         queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
       });
-      refetchLogs();
+      refetchLogs(); 
       toast({ title: "Updated" });
     },
     onError: (e: Error) =>
@@ -413,7 +411,7 @@ export default function PeoplePage() {
       },
     },
     {
-      key: "lastSeenTime",
+      key: "lastSeenTime", 
       label: "Last Seen",
       hideOnMobile: true,
       render: (p: any) => (
@@ -447,27 +445,8 @@ export default function PeoplePage() {
                     variant="ghost"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/employees/view/${p.id}`);
-                    }}
-                  >
-                    <Eye className="w-4 h-4 text-green-500" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>View Employee Details</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeviceViewPerson(p);
-                      setDeviceStatusOpen(true);
+                      setDeviceViewPerson(p); 
+                      setDeviceStatusOpen(true); 
                     }}
                   >
                     <ShieldCheck className="w-4 h-4 text-blue-500" />
@@ -511,7 +490,7 @@ export default function PeoplePage() {
                       setDialogOpen(true);
                     }}
                   >
-                    <Pencil className="w-4 h-4 text-blue-500" />
+                    <Pencil className="w-4 h-4" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
@@ -525,7 +504,7 @@ export default function PeoplePage() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="hover:text-destructive text-red-500"
+                    className="hover:text-destructive"
                     disabled={deleteMut.isPending}
                     onClick={async (e) => {
                       e.stopPropagation();
@@ -1015,7 +994,7 @@ export default function PeoplePage() {
                     toast({
                       title: "Success",
                       description: "Doors assigned successfully!",
-                      variant: "default",
+                      variant: "default", 
                     });
                     setRoleDialogOpen(false);
                     setRoleAssign(null);
@@ -1025,7 +1004,7 @@ export default function PeoplePage() {
                   toast({
                     title: "Error",
                     description: "Failed to assign doors. Please try again.",
-                    variant: "destructive",
+                    variant: "destructive", 
                   });
                 }
               }}

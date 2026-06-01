@@ -47,6 +47,7 @@ import CompaniesPage from "./pages/company";
 import CategoriesPage from "./pages/category";
 import RoleFormPage from "./pages/role_form";
 import RolePermissionViewPage from "./pages/RolePermissionViewPage";
+import EmployeeView from "./pages/EmployeeView";
 import { useToast } from "./hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -89,6 +90,7 @@ function StandardRouter() {
       <Route path="/master-data/roles/add" component={RoleFormPage} />
       <Route path="/master-data/roles/edit/:id" component={RoleFormPage} />
       <Route path="/master-data/roles/view/:id" component={RolePermissionViewPage} />
+      <Route path="/employees/view/:id" component={EmployeeView} />
       <Route component={NotFound} />
     </Switch>
   );

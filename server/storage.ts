@@ -1779,10 +1779,12 @@ if (filters?.dateTo) {
           `,
           },
           departmentName: departments.name,
+          designationName: designations.name,
           lastPunchDoorName: doors.name,
         })
         .from(people)
         .leftJoin(departments, eq(people.departmentId, departments.id))
+        .leftJoin(designations, eq(people.designationId, designations.id))
         .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
 
       dbMsSql.select().from({ dbName: "Employees" }).execute(),
@@ -1797,6 +1799,7 @@ if (filters?.dateTo) {
     const currentPgData = pgDataRaw.map((row) => ({
       ...row.person,
       departmentName: row.departmentName || "N/A",
+      designationName: row.designationName || "N/A",
       lastPunchDoorName: row.lastPunchDoorName || "No Door",
       ruleName:
         row.person.ruleid !== null
@@ -1852,6 +1855,7 @@ if (filters?.dateTo) {
           currentPgData.push({
             ...newRec,
             departmentName: "N/A",
+            designationName: "N/A",
             lastPunchDoorName: "No Door",
             ruleName:
               newRec.ruleid !== null
@@ -2137,10 +2141,37 @@ if (filters?.dateTo) {
   //     ).values(),
   //   ) as Person[];
   // }
-  async getPerson(id: number): Promise<Person | undefined> {
-    const [person] = await db.select().from(people).where(eq(people.id, id));
-    return person;
-  }
+
+  async getPerson(id: number): Promise<any> {
+  const [result] = await db
+    .select({
+      person: people,
+      departmentName: departments.name,
+      designationName: designations.name,
+    })
+    .from(people)
+    .leftJoin(
+      departments,
+      eq(people.departmentId, departments.id)
+    )
+    .leftJoin(
+      designations,
+      eq(people.designationId, designations.id)
+    )
+    .where(eq(people.id, id));
+
+  if (!result) return undefined;
+
+  return {
+    ...result.person,
+    departmentName: result.departmentName,
+    designationName: result.designationName,
+  };
+}
+  // async getPerson(id: number): Promise<Person | undefined> {
+  //   const [person] = await db.select().from(people).where(eq(people.id, id));
+  //   return person;
+  // }
   async getPersonByCode(code: string): Promise<Person | undefined> {
     return (
       await db.select().from(people).where(eq(people.employeeCode, code))
