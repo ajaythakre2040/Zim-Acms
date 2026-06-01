@@ -1,20 +1,14 @@
 import { eq, lte, and } from "drizzle-orm";
-import { db } from "../db";
-// import { EMPLOYEE_STATUS, AUTOSUSPEND_CONFIG } from "../constants";
-import { storage } from "../storage";
-import { people } from "@shared/schema";
+import { db, mssqlPool } from "../db";
+import { people, blockUnblockLogs } from "@shared/schema";
 import { AUTOSUSPEND_CONFIG, EMPLOYEE_STATUS } from "../constant";
+import { esslService } from "../services/essl-service";
 
-/**
- * 🔄 Automated Auto-Suspend Service Task
- * Check karega ki kaunse employees pichle 30 din se inactive hain aur unhe block karega.
- */
 export async function runAutoSuspendCron(): Promise<void> {
     try {
         const thresholdDate = new Date();
         thresholdDate.setDate(thresholdDate.getDate() - AUTOSUSPEND_CONFIG.MAX_INACTIVE_DAYS);
 
-        // 1. Database se active employees nikaalein jinka last punch time 30 din se purana hai
         const inactiveEmployees = await db
             .select()
             .from(people)
@@ -25,35 +19,58 @@ export async function runAutoSuspendCron(): Promise<void> {
                 )
             );
 
-        if (inactiveEmployees.length === 0) {
-            return;
-        }
+        if (inactiveEmployees.length === 0) return;
 
-        // 2. Loop chalakar ek-ek employee ko block karein
+        const msDevicesRaw = await mssqlPool
+            .request()
+            .query("SELECT DeviceID, SerialNumber FROM Devices")
+            .then((res: any) => res.recordset as any[]);
+
+        if (!msDevicesRaw?.length) return;
+
+        const lastLogsRaw = await db.select().from(blockUnblockLogs).execute();
+
         for (const employee of inactiveEmployees) {
-            if (!employee.employeeCode) continue;
+            const rawEmpCode = employee.employeeCode || (employee as any).employee_code;
+            if (!rawEmpCode) continue;
 
-            // A. Update Postgres Local DB Status to 'suspended'
+            const finalEmpCode = String(rawEmpCode).trim();
+
             await db
                 .update(people)
-                .set({
-                    status: EMPLOYEE_STATUS.SUSPENDED,
-                    updatedAt: new Date()
-                })
-                .where(eq(people.employeeCode, employee.employeeCode));
+                .set({ status: EMPLOYEE_STATUS.SUSPENDED, updatedAt: new Date() })
+                .where(eq(people.employeeCode, finalEmpCode));
 
-            // B. Trigger Instant Total Hardware Device Sync Block
-            try {
-                await storage.executeHardwareSync(
-                    employee.employeeCode,
-                    null,
-                    true
-                );
-            } catch (hwError) {
-                // Hardware fail hone par background silent try catch block taaki agla loop na ruke
-            }
+            const userLastLogs = lastLogsRaw.filter(l => l.employeeCode === finalEmpCode);
+
+            const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
+                const msDeviceId = Number(msDevice.DeviceID || msDevice.DeviceId);
+                const serialNumber = msDevice.SerialNumber?.trim();
+                if (!serialNumber) return;
+
+                const lastDeviceLog = userLastLogs
+                    .filter((l) => l.deviceId === msDeviceId)
+                    .sort((a, b) => new Date(b.updatedAt!).getTime() - new Date(a.updatedAt!).getTime())[0];
+
+                try {
+                    await esslService.syncUserBlockStatus(finalEmpCode, serialNumber, true);
+
+                    if (!lastDeviceLog || lastDeviceLog.type !== "block") {
+                        await db.insert(blockUnblockLogs).values({
+                            employeeCode: finalEmpCode,
+                            deviceId: msDeviceId,
+                            type: "block",
+                            updatedAt: new Date(),
+                        });
+                    }
+                } catch (err) {
+                    // Failover shell context protection to keep loop running
+                }
+            });
+
+            await Promise.all(syncPromises);
         }
     } catch (error) {
-        // Top-level execution shell boundary protection
+        // Top-level crash guard protection boundary
     }
 }

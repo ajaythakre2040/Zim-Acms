@@ -3,6 +3,14 @@ export const SHIFT_START = "09:00:00";
 export const SHIFT_END = "18:00:00";
 export const EXPECTED_WORKING_HRS = 9;
 
+
+export const DEFAULT_ADMIN_CONFIG = {
+  EMPLOYEE_CODE: "ADM001",
+  EMPLOYEE_NAME: "System Administrator",
+  USERNAME: "admin",
+  DEFAULT_PASSWORD: "Admin@123",
+  ROLE_CODE: "admin_01",
+};
 // In values ko backend generate karega aur frontend filter karega
 export const ATTENDANCE_STATUS = {
   PRESENT: "present",

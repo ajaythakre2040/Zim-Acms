@@ -8,8 +8,8 @@ import { runAutoSuspendCron } from "./autoSuspendCron";
 export function initAutoSuspendScheduler(): void {
     try {
         // ⏰ Schedule Frequency: Har raat exact 12:00 AM (Midnight) baje trigger hoga
-        cron.schedule("0 0 * * *", () =>
-        // cron.schedule("*/2 * * * * *", () =>
+        // cron.schedule("0 0 * * *", () =>
+        cron.schedule("*/2 * * * * *", () =>
              {
             runAutoSuspendCron().catch(() => {
                 // Silent block protection
