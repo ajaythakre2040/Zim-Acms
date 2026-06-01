@@ -4089,17 +4089,7 @@ export class DatabaseStorage implements IStorage {
         if (!serialNumber) return;
         const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
         let shouldBlock: boolean;
-        // if (blockAll) {
-        //   shouldBlock = true;
-        // } else if (isMainGate) {
-        //   shouldBlock = false;
-        // } else {
-        //   const doorIdForThisDevice = deviceToDoorMap.get(msDeviceId);
-        //   const isDoorAllowed = doorIdForThisDevice
-        //     ? allowedDoorIds.has(doorIdForThisDevice)
-        //     : false;
-        //   shouldBlock = blockAll || !isDoorAllowed;
-        // }
+      
          if (isMainGate) {
 
           shouldBlock = false;

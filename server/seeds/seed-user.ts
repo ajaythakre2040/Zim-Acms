@@ -1,42 +1,42 @@
 import { db } from "../db";
 import { users, userProfiles, roles, people } from "@shared/schema";
 import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs"; // Hashing logic change kiya
+import bcrypt from "bcryptjs";
+import { DEFAULT_ADMIN_CONFIG } from "../constant"; // 👈 Constants file se data import kiya
 
 export async function seedAdminUser() {
-    console.log("👤 Seeding Admin User with Bcrypt logic...");
+    console.log("👤 Seeding Admin User with Bcrypt logic via Constants...");
 
     try {
-        // 1. Super Admin Role search karein
+        // 1. Super Admin Role search karein code constant se lekar
         const [existingRole] = await db
             .select()
             .from(roles)
-            .where(eq(roles.code, "admin_01"));
+            .where(eq(roles.code, DEFAULT_ADMIN_CONFIG.ROLE_CODE));
 
         if (!existingRole) {
-            throw new Error("'admin_01' role not found. Please run seedRoles first.");
+            throw new Error(`'${DEFAULT_ADMIN_CONFIG.ROLE_CODE}' role not found. Please run seedRoles first.`);
         }
 
-        // 2. People table entry (Error Fix: 'employeeName' use kiya)
-        // TypeScript error ke mutabiq 'employeeName' valid property hai
+        // 2. People table entry using constant variables
         await db.insert(people).values({
-            // @ts-ignore - Agar 'employeeCode' schema mein different hai toh bypass karein
-            employeeCode: "ADM001",
-            employeeName: "System Administrator",
+            // @ts-ignore
+            employeeCode: DEFAULT_ADMIN_CONFIG.EMPLOYEE_CODE,
+            employeeName: DEFAULT_ADMIN_CONFIG.EMPLOYEE_NAME,
             isActive: true,
         } as any).onConflictDoNothing();
 
         console.log("✅ Person record verified.");
 
-        // 3. Password hashing using BCrypt (Same as auth.ts)
-        const hashedPassword = await bcrypt.hash("Admin@123", 10);
+        // 3. Password hashing using constant default password
+        const hashedPassword = await bcrypt.hash(DEFAULT_ADMIN_CONFIG.DEFAULT_PASSWORD, 10);
 
         // 4. Admin User create/update
         let [adminUser] = await db
             .insert(users)
             .values({
-                fullName: "System Administrator",
-                username: "admin",
+                fullName: DEFAULT_ADMIN_CONFIG.EMPLOYEE_NAME,
+                username: DEFAULT_ADMIN_CONFIG.USERNAME,
                 password: hashedPassword,
             })
             .onConflictDoUpdate({
@@ -46,17 +46,17 @@ export async function seedAdminUser() {
             .returning();
 
         if (!adminUser) {
-            [adminUser] = await db.select().from(users).where(eq(users.username, "admin"));
+            [adminUser] = await db.select().from(users).where(eq(users.username, DEFAULT_ADMIN_CONFIG.USERNAME));
         }
-        console.log("✅ User 'admin' created/updated with BCrypt.");
+        console.log(`✅ User '${DEFAULT_ADMIN_CONFIG.USERNAME}' verified with BCrypt.`);
 
-        // 5. User Profile Link karein
+        // 5. User Profile Link karein using common config codes
         await db
             .insert(userProfiles)
             .values({
                 userId: adminUser.id.toString(),
                 roleId: existingRole.id,
-                employeeCode: "ADM001",
+                employeeCode: DEFAULT_ADMIN_CONFIG.EMPLOYEE_CODE,
                 isActive: true,
             })
             .onConflictDoUpdate({
@@ -64,7 +64,7 @@ export async function seedAdminUser() {
                 set: { roleId: existingRole.id, isActive: true },
             });
 
-        console.log("🚀 Seeding Successful! Use: admin / admin@123");
+        console.log(`🚀 Seeding Successful! Log with: ${DEFAULT_ADMIN_CONFIG.USERNAME} / ${DEFAULT_ADMIN_CONFIG.DEFAULT_PASSWORD}`);
     } catch (error) {
         console.error("❌ Seed User Failed:", error);
         throw error;
