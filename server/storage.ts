@@ -6050,5 +6050,284 @@ ${fromDate} || ' to ' || ${toDate}
       throw error;
     }
   }
+
+  async getEmployeeMovementLogsReport(
+    filters?: {
+      date?: string;
+      employeeCode?: string;
+    },
+    page?: number | string,
+    pageSize?: number | string,
+  ) {
+    try {
+      const conditions = [];
+      // =========================
+      // Selected Date
+      // =========================
+      const selectedDate = filters?.date
+        ? filters.date
+        : new Date().toISOString().split("T")[0];
+      // Previous Date
+      const previousDateObj = new Date(selectedDate);
+      previousDateObj.setDate(previousDateObj.getDate() - 1);
+      const previousDateStr = previousDateObj.toISOString().split("T")[0];
+      // Next Date
+      const nextDateObj = new Date(selectedDate);
+      nextDateObj.setDate(nextDateObj.getDate() + 1);
+      const nextDateStr = nextDateObj.toISOString().split("T")[0];
+      // Fetch previous + selected + next
+      // conditions.push(
+      //   gte(schema.employeeActivityLogs.onlyDate, previousDateStr),
+      // );
+      // conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
+      // conditions.push(lte(schema.employeeActivityLogs.onlyDate, nextDateStr));
+      conditions.push(
+        gte(sql`DATE(${schema.employeeActivityLogs.logDate})`, previousDateStr),
+      );
+
+      conditions.push(
+        lte(sql`DATE(${schema.employeeActivityLogs.logDate})`, nextDateStr),
+      );
+      // if (filters?.employeeCode) {
+      //   conditions.push(
+      //     eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
+      //   );
+      // }
+      if (filters?.employeeCode) {
+        conditions.push(
+          or(
+            ilike(
+              schema.employeeActivityLogs.employeeName,
+              `%${filters.employeeCode}%`,
+            ),
+
+            sql`CAST(${schema.employeeActivityLogs.employeeCode} AS TEXT)
+          ILIKE ${`%${filters.employeeCode}%`}`,
+          ),
+        );
+      }
+      const logs = await db
+        .select({
+          employeeCode: schema.employeeActivityLogs.employeeCode,
+          employeeName: schema.employeeActivityLogs.employeeName,
+          gender: schema.people.gender,
+          shiftName: schema.employeeActivityLogs.shiftName,
+          shiftTime: schema.employeeActivityLogs.shiftTime,
+          workingHours: schema.shifts.workingHours,
+          logDate: schema.employeeActivityLogs.logDate,
+          // onlyDate: schema.employeeActivityLogs.onlyDate,
+          onlyDate: sql<string>`
+          DATE(${schema.employeeActivityLogs.logDate}) `,
+          direction: schema.employeeActivityLogs.direction,
+          doorId: schema.employeeActivityLogs.doorId,
+          doorName: schema.employeeActivityLogs.doorName,
+          deviceId: schema.employeeActivityLogs.deviceId,
+          doorType: schema.doors.doorType,
+        })
+        .from(schema.employeeActivityLogs)
+        .leftJoin(
+          schema.doors,
+          eq(schema.employeeActivityLogs.doorId, schema.doors.id),
+        )
+        .leftJoin(
+          schema.people,
+          eq(
+            schema.employeeActivityLogs.employeeCode,
+            schema.people.employeeCode,
+          ),
+        )
+        .leftJoin(
+          schema.shifts,
+          eq(schema.employeeActivityLogs.shiftName, schema.shifts.name),
+        )
+        .where(conditions.length ? and(...conditions) : undefined)
+        .orderBy(
+          asc(schema.employeeActivityLogs.employeeCode),
+          asc(schema.employeeActivityLogs.logDate),
+        );
+      // =========================
+      // GROUP BY EMPLOYEE
+      // =========================
+      const grouped: Record<string, any[]> = {};
+      for (const log of logs) {
+        const key = log.employeeCode;
+        if (!grouped[key]) {
+          grouped[key] = [];
+        }
+        grouped[key].push(log);
+      }
+      const result = [];
+      // =========================
+      // PROCESS EACH EMPLOYEE
+      // =========================
+      for (const key of Object.keys(grouped)) {
+        const allLogs = grouped[key];
+        // =========================
+        // Selected date ka FIRST IN
+        // =========================
+        const todayFirstIn = allLogs.find(
+          (l) => l.onlyDate === selectedDate && l.direction === "IN",
+        );
+        // Agar selected date pe IN hi nahi mila
+        if (!todayFirstIn) {
+          continue;
+        }
+        const todayFirstInTime = new Date(todayFirstIn.logDate).getTime();
+        // Previous date ke gate logs
+        const previousGateLogs = allLogs.filter(
+          (l) => l.onlyDate < selectedDate && l.doorType === "gate",
+        );
+        // Previous session ka last gate log
+        const lastPreviousGateLog = previousGateLogs.at(-1);
+        // Agar previous session gate OUT pe end hua hai
+        const previousSessionClosed = lastPreviousGateLog?.direction === "OUT";
+        // Continuation logic
+        if (!previousSessionClosed) {
+          const previousLogTime = new Date(
+            lastPreviousGateLog?.logDate,
+          ).getTime();
+          const diffHours =
+            (todayFirstInTime - previousLogTime) / (1000 * 60 * 60);
+          if (diffHours <= 12) {
+            continue;
+          }
+        }
+        // =========================
+        // FINAL SESSION START
+        // =========================
+        const shiftStartLog = todayFirstIn;
+        // Session cutoff
+        const startTime = new Date(shiftStartLog.logDate).getTime();
+        const cutoffTime = startTime + 16 * 60 * 60 * 1000;
+        // Session logs
+        const employeeLogs = allLogs.filter((l) => {
+          const logTime = new Date(l.logDate).getTime();
+          return logTime >= startTime && logTime <= cutoffTime;
+        });
+        // =========================
+        // Calculations
+        // =========================
+        let productiveMinutes = 0;
+const movementDetails: any[] = [];
+const stack: Record<string, any> = {};
+
+let firstTime: number | null = null;
+let lastTime: number | null = null;
+
+for (const log of employeeLogs) {
+  const time = new Date(log.logDate).getTime();
+
+  if (firstTime === null) {
+    firstTime = time;
+  }
+
+  lastTime = time;
+
+  const isGate = log.doorType === "gate";
+  const doorKey = String(log.doorId);
+
+  // IN punch
+  if (log.direction === "IN") {
+    const row = {
+      doorName: log.doorName,
+      doorType: log.doorType,
+      inDeviceId: log.deviceId,
+      inTime: log.logDate,
+      outDeviceId: null,
+      outTime: null,
+      durationMinutes: 0,
+      isGateEntry: isGate,
+    };
+
+    movementDetails.push(row);
+
+    if (!stack[doorKey]) {
+      stack[doorKey] = [];
+    }
+
+    stack[doorKey].push(row);
+  }
+
+  // OUT punch
+  else if (log.direction === "OUT") {
+    const openRows = stack[doorKey];
+
+    if (openRows?.length) {
+      const row = openRows.shift();
+
+      row.outDeviceId = log.deviceId;
+      row.outTime = log.logDate;
+
+      const duration =
+        (new Date(log.logDate).getTime() -
+          new Date(row.inTime).getTime()) /
+        60000;
+
+      const safeDuration = Math.max(0, duration);
+
+      row.durationMinutes = Math.floor(safeDuration);
+
+      if (!isGate) {
+        productiveMinutes += safeDuration;
+      }
+    } else {
+      movementDetails.push({
+        doorName: log.doorName,
+        doorType: log.doorType,
+        inDeviceId: null,
+        inTime: null,
+        outDeviceId: log.deviceId,
+        outTime: log.logDate,
+        durationMinutes: 0,
+        isGateEntry: isGate,
+      });
+    }
+  }
+}
+        // Presence
+        const totalPresenceMinutes =
+          firstTime && lastTime ? (lastTime - firstTime) / 60000 : 0;
+        const productiveHours = productiveMinutes / 60;
+        const shiftHours = Number(employeeLogs[0]?.workingHours || 8);
+        // OT
+        let otHours = 0;
+        if (productiveHours >= shiftHours + 2) {
+          otHours = Math.floor(productiveHours - shiftHours);
+        }
+        // FINAL RESULT
+        result.push({
+          employeeCode: employeeLogs[0]?.employeeCode,
+          employeeName: employeeLogs[0]?.employeeName,
+          gender: employeeLogs[0]?.gender || "-",
+          shift: employeeLogs[0]?.shiftName || "-",
+          shiftTime: employeeLogs[0]?.shiftTime || "-",
+          workingHours: employeeLogs[0]?.workingHours || "-",
+          latestPunchDoor: employeeLogs.at(-1)?.doorName || "-",
+          inPunch: employeeLogs[0]?.logDate || null,
+          outPunch: employeeLogs.at(-1)?.logDate || null,
+          productiveMinutes: Math.floor(productiveMinutes),
+          productiveHours: productiveHours.toFixed(2),
+          totalPresenceMinutes: Math.floor(totalPresenceMinutes),
+          totalPresenceHours: (totalPresenceMinutes / 60).toFixed(2),
+          hoursWorked: productiveHours.toFixed(2),
+          otHours,
+          dutyStatus: "Present",
+          date: selectedDate,
+          totalSessions: movementDetails.length,
+          movementDetails,
+        });
+      }
+      return withPagination(
+        null,
+        null,
+        JSON.parse(JSON.stringify(result)),
+        page,
+        pageSize,
+      );
+    } catch (err) {
+      console.error(err);
+      throw err;
+    }
+  }
 }
 export const storage = new DatabaseStorage();

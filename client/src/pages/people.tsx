@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useLocation } from "wouter";
+import { DEFAULT_ADMIN_CONFIG } from "../../../server/constant";
 import {
   ShieldCheck,
   RefreshCw,
@@ -434,124 +435,140 @@ export default function PeoplePage() {
       ),
     },
     {
-      key: "actions",
-      label: "Actions",
-      render: (p: Person) => (
-        <TooltipProvider delayDuration={100}>
-          <div className="flex">
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/employees/view/${p.id}`);
-                    }}
-                  >
-                    <Eye className="w-4 h-4 text-green-500" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>View Employee Details</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeviceViewPerson(p);
-                      setDeviceStatusOpen(true);
-                    }}
-                  >
-                    <ShieldCheck className="w-4 h-4 text-blue-500" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Device Access Status</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setRoleAssign(p);
-                      setRoleDialogOpen(true);
-                    }}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Assign Role</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditing(p);
-                      setFieldErrors({});
-                      setDialogOpen(true);
-                    }}
-                  >
-                    <Pencil className="w-4 h-4 text-blue-500" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Edit</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {canDelete && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="hover:text-destructive text-red-500"
-                    disabled={deleteMut.isPending}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      const confirmed = await confirm({
-                        title: "Delete Person?",
-                        description: `Are you sure you want to delete "${p.employeeName}" from all systems? This action cannot be undone.`,
-                        confirmText: "Yes, Delete",
-                        cancelText: "Cancel",
-                        variant: "destructive",
-                      });
-                      if (!confirmed) return;
-                      deleteMut.mutate(p.id);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Delete</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        </TooltipProvider>
-      ),
-    },
+  key: "actions",
+  label: "Actions",
+  render: (p: Person) => {
+    const isAdmin =
+      p.employeeCode === DEFAULT_ADMIN_CONFIG.EMPLOYEE_CODE;
+
+    if (isAdmin) {
+      return null;
+    }
+
+    return (
+      <TooltipProvider delayDuration={100}>
+        <div className="flex">
+          {canEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/employees/view/${p.id}`);
+                  }}
+                >
+                  <Eye className="w-4 h-4 text-green-500" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View Employee Details</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {canEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeviceViewPerson(p);
+                    setDeviceStatusOpen(true);
+                  }}
+                >
+                  <ShieldCheck className="w-4 h-4 text-blue-500" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Device Access Status</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {canEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRoleAssign(p);
+                    setRoleDialogOpen(true);
+                  }}
+                >
+                  <UserPlus className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Assign Role</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {canEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditing(p);
+                    setFieldErrors({});
+                    setDialogOpen(true);
+                  }}
+                >
+                  <Pencil className="w-4 h-4 text-blue-500" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Edit</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {canDelete && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="hover:text-destructive text-red-500"
+                  disabled={deleteMut.isPending}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+
+                    const confirmed = await confirm({
+                      title: "Delete Person?",
+                      description: `Are you sure you want to delete "${p.employeeName}" from all systems? This action cannot be undone.`,
+                      confirmText: "Yes, Delete",
+                      cancelText: "Cancel",
+                      variant: "destructive",
+                    });
+
+                    if (!confirmed) return;
+
+                    deleteMut.mutate(p.id);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      </TooltipProvider>
+    );
+  },
+},
   ].filter((col) => {
     if (col.key === "actions") {
       return canEdit || canDelete;

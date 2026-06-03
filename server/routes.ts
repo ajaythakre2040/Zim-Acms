@@ -1866,6 +1866,39 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
 
     return updatedUser;
   }, 200));
+  
+  app.get("/api/reports/employee-movement-logs", async (req, res) => {
+  try {
+    const { date, employeeCode } = req.query;
+
+    const page = req.query.page
+      ? String(req.query.page)
+      : undefined;
+
+    const pageSize = req.query.pageSize
+      ? String(req.query.pageSize)
+      : undefined;
+
+    const data = await storage.getEmployeeMovementLogsReport(
+      {
+        date: date as string,
+        employeeCode: employeeCode as string,
+      },
+      page,
+      pageSize,
+    );
+
+    res.json(data);
+  } catch (error: any) {
+    console.error("Employee Movement Logs Report Error:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch employee movement logs report",
+      error: error.message,
+    });
+  }
+  });
   app.get("/api/reports/department-wise-manpower", async (req, res) => {
     try {
 
@@ -1917,4 +1950,6 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
     }
   });
   return httpServer;
+
+  
 }
