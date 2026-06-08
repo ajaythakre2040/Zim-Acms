@@ -85,7 +85,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
     if (mode === "login") {
       await login({ username, password });
     } else {
-      await register({ username, password, email: email || undefined, firstName: firstName || undefined, lastName: lastName || undefined });
+      await register({ username, password, email: email || undefined});
     }
   };
 

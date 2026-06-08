@@ -30,6 +30,7 @@ import {
   Pencil,
   Trash2,
   FolderTree,
+  History,
 } from "lucide-react";
 
 import { useCrud } from "@/hooks/use-crud";
@@ -96,6 +97,8 @@ export default function MenuPage() {
     Siren,
     ChevronDown,
     Activity,
+    History,
+
   };
 
   const iconOptions = Object.keys(iconMap);
@@ -144,11 +147,10 @@ export default function MenuPage() {
             className={`flex items-center gap-3 ${item.isSubMenu ? "ml-10" : ""}`}
           >
             <div
-              className={`p-2 rounded-lg border transition-all ${
-                item.isSubMenu
+              className={`p-2 rounded-lg border transition-all ${item.isSubMenu
                   ? "bg-slate-50 border-slate-100 scale-90"
                   : "bg-blue-50 border-blue-100 shadow-sm"
-              }`}
+                }`}
             >
               <IconComponent
                 className={`w-4 h-4 ${item.isSubMenu ? "text-slate-400" : "text-blue-600"}`}
@@ -235,7 +237,7 @@ export default function MenuPage() {
             <Button
               size="icon"
               variant="ghost"
-              className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+              className="text-destructive"
               onClick={async () => {
                 const confirmed = await confirm({
                   title: "Delete Menu Item?",
@@ -286,7 +288,7 @@ export default function MenuPage() {
               setErrors({}); // Naya form khulne par errors clear
               setOpen(true);
             }}
-            // className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl font-bold transition-all shadow-lg shadow-slate-200"
+          // className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl font-bold transition-all shadow-lg shadow-slate-200"
           >
             <Plus className="w-4 h-4 stroke-[3]" /> Add Menu Item
           </Button>

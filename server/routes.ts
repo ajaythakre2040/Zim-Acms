@@ -21,6 +21,7 @@ import {
   insertBlockUnblockLogSchema,
   insertMenuMasterSchema,
   userProfiles,
+  insertContractorSchema,
 } from "@shared/schema";
 import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC, TableNames, TABLES } from "./constant";
 import { logProfileAudit, withAudit } from "./utils/auditWrapper";
@@ -29,6 +30,7 @@ import { db } from "./db";
 import { validateNoHtml } from "@/lib/validation";
 import { validatePasswordStrength } from "./utils/validators";
 import bcrypt from "bcryptjs";
+import { appendErrors } from "react-hook-form";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
   next();
@@ -126,7 +128,7 @@ function crudRoutes<T>(
   //   });
   // }
   app.post(basePath, requireAuth, (req: any, res: any) => {
-    return withAudit(tableName, "ADD/EDIT", async (innerReq) => {
+    return withAudit(tableName, "ADD", async (innerReq) => {
       const input = schema.parse(innerReq.body);
       return await create(input);
     }, 201)(req, res).catch((e) => {
@@ -138,7 +140,7 @@ function crudRoutes<T>(
     app.put(`${basePath}/:id`, requireAuth, (req: any, res: any) => {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      return withAudit(tableName, "EDIT", async (innerReq) => {
+      return withAudit(tableName, "UPDATE", async (innerReq) => {
         const input = schema.partial().parse(innerReq.body);
         return await update(id, input);
       }, 200)(req, res).catch((e) => {
@@ -243,7 +245,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //   return { id: targetUserId };
   // }, 200));
   // 
-    // app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
+  // app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
   //   try {
   //     const input = insertUserProfileSchema.partial().parse(req.body);
   //     const profile = await storage.updateUserProfile(parseInt(req.params.id), input);
@@ -261,18 +263,18 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //     res.status(500).json({ message: e.message || "Failed to save" });
   //   }
   // });
-  // app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "EDIT", async (req) => await storage.upsertUser({ ...req.body, id: req.params.id }), 200));
+  // app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "UPDATE", async (req) => await storage.upsertUser({ ...req.body, id: req.params.id }), 200));
   app.post("/api/user-profiles", requireAuth, withAudit(TABLES.USERS, "ADD", async (req) => {
     const newUser = await storage.upsertUser(req.body);
     await logProfileAudit(req, "ADD", newUser.id);
     return newUser;
   }, 201));
-  app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "EDIT", async (req) => {
+  app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "UPDATE", async (req) => {
     const userIdFromParams = req.params.id;
-    const [oldProfile] = await db .select() .from(userProfiles) .where(eq(userProfiles.userId, userIdFromParams)) .limit(1);
+    const [oldProfile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userIdFromParams)).limit(1);
     const updatedUser = await storage.upsertUser({ ...req.body, id: userIdFromParams });
-    const [newProfile] = await db .select() .from(userProfiles) .where(eq(userProfiles.userId, userIdFromParams)) .limit(1);
-    await logProfileAudit(req, "EDIT", userIdFromParams, oldProfile, newProfile);
+    const [newProfile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userIdFromParams)).limit(1);
+    await logProfileAudit(req, "UPDATE", userIdFromParams, oldProfile, newProfile);
     return updatedUser;
   }, 200));
   app.delete("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "DELETE", async (req) => {
@@ -281,7 +283,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     await storage.deleteUser(targetUserId);
     return { id: targetUserId };
   }, 200));
-  // app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "EDIT", async (req) => {
+  // app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "UPDATE", async (req) => {
   //   const userIdFromParams = req.params.id;
   //   return await storage.upsertUser({
   //     ...req.body,
@@ -313,21 +315,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // );
 
   crudRoutes(
-  app,
-  "/api/companies",
-  insertCompanySchema,
-  (query: any) =>
-    storage.getCompanies(
-      query.page,
-      query.pageSize,
-      query.search   // 🔥 ADD THIS
-    ),
-  (d) => storage.createCompany(d),
-  (id, d) => storage.updateCompany(id, d),
-  (id) => storage.deleteCompany(id),
-  undefined,
-  TABLES.COMPANIES
-);
+    app,
+    "/api/companies",
+    insertCompanySchema,
+    (query: any) =>
+      storage.getCompanies(
+        query.page,
+        query.pageSize,
+        query.search   // 🔥 ADD THIS
+      ),
+    (d) => storage.createCompany(d),
+    (id, d) => storage.updateCompany(id, d),
+    (id) => storage.deleteCompany(id),
+    undefined,
+    TABLES.COMPANIES
+  );
 
 
   // crudRoutes(
@@ -341,19 +343,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //   undefined,
   //   TABLES.DEPARTMENTS
   // );
-  
+
   crudRoutes(
-  app,
-  "/api/departments",
-  insertDepartmentSchema,
-  // 👇 Yahan query.search add karna zaroori hai
-  (query: any) => storage.getDepartments(query.page, query.pageSize, query.search), 
-  (d) => storage.createDepartment(d),
-  (id, d) => storage.updateDepartment(id, d),
-  (id) => storage.deleteDepartment(id),
-  undefined,
-  TABLES.DEPARTMENTS
-);
+    app,
+    "/api/departments",
+    insertDepartmentSchema,
+    // 👇 Yahan query.search add karna zaroori hai
+    (query: any) => storage.getDepartments(query.page, query.pageSize, query.search),
+    (d) => storage.createDepartment(d),
+    (id, d) => storage.updateDepartment(id, d),
+    (id) => storage.deleteDepartment(id),
+    undefined,
+    TABLES.DEPARTMENTS
+  );
 
   // crudRoutes(
   //   app,
@@ -366,24 +368,24 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //   undefined,
   //   TABLES.DESIGNATIONS
   // );
-  
+
   crudRoutes(
-  app,
-  "/api/designations",
-  insertDesignationSchema,
-  (query: any) =>
-    storage.getDesignations(
-      Number(query.page),
-      Number(query.pageSize),
-      query.search
-    ),
-  (d) => storage.createDesignation(d),
-  (id, d) => storage.updateDesignation(id, d),
-  (id) => storage.deleteDesignation(id),
-  undefined,
-  TABLES.DESIGNATIONS
-);
-  
+    app,
+    "/api/designations",
+    insertDesignationSchema,
+    (query: any) =>
+      storage.getDesignations(
+        Number(query.page),
+        Number(query.pageSize),
+        query.search
+      ),
+    (d) => storage.createDesignation(d),
+    (id, d) => storage.updateDesignation(id, d),
+    (id) => storage.deleteDesignation(id),
+    undefined,
+    TABLES.DESIGNATIONS
+  );
+
   crudRoutes(
     app,
     "/api/categories",
@@ -395,23 +397,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.CATEGORIES
   );
-  
+
   crudRoutes(
-  app,
-  "/api/categories",
-  insertCategorySchema,
-  (query: any) =>
-    storage.getCategories(
-      Number(query.page),
-      Number(query.pageSize),
-      query.search
-    ),
-  (d) => storage.createCategory(d),
-  (id, d) => storage.updateCategory(id, d),
-  (id) => storage.deleteCategory(id),
-  undefined,
-  TABLES.CATEGORIES
-);
+    app,
+    "/api/categories",
+    insertCategorySchema,
+    (query: any) =>
+      storage.getCategories(
+        Number(query.page),
+        Number(query.pageSize),
+        query.search
+      ),
+    (d) => storage.createCategory(d),
+    (id, d) => storage.updateCategory(id, d),
+    (id) => storage.deleteCategory(id),
+    undefined,
+    TABLES.CATEGORIES
+  );
   crudRoutes(app, "/api/vendors", insertVendorSchema,
     () => storage.getVendors(), (d) => storage.createVendor(d),
     (id, d) => storage.updateVendor(id, d), (id) => storage.deleteVendor(id), undefined, TABLES.VENDORS);
@@ -445,7 +447,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/zones", insertZoneSchema,
     () => storage.getZones(), (d) => storage.createZone(d),
     (id, d) => storage.updateZone(id, d), (id) => storage.deleteZone(id), undefined, TABLES.ZONES);
-  
+
   //   crudRoutes(
   //   app,
   //   "/api/doors",
@@ -472,54 +474,54 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // );
 
   crudRoutes(
-  app,
-  "/api/doors",
-  insertDoorSchema,
+    app,
+    "/api/doors",
+    insertDoorSchema,
 
-  // GET (page + pageSize + search support)
-  async (query: any) => {
-    return await storage.getDoors(
-      query.page,
-      query.pageSize,
-      query.search
-    );
-  },
+    // GET (page + pageSize + search support)
+    async (query: any) => {
+      return await storage.getDoors(
+        query.page,
+        query.pageSize,
+        query.search
+      );
+    },
 
-  // CREATE
-  async (data: any) => {
-    return await storage.createDoor(data);
-  },
+    // CREATE
+    async (data: any) => {
+      return await storage.createDoor(data);
+    },
 
-  // UPDATE
-  async (id, data) => {
-    return await storage.updateDoor(id, data);
-  },
+    // UPDATE
+    async (id, data) => {
+      return await storage.updateDoor(id, data);
+    },
 
-  // DELETE
-  async (id) => {
-    return await storage.deleteDoor(id);
-  },
+    // DELETE
+    async (id) => {
+      return await storage.deleteDoor(id);
+    },
 
-  undefined,
-  TABLES.DOORS
-);
+    undefined,
+    TABLES.DOORS
+  );
 
   crudRoutes(
-  app,
-  "/api/devices",
-  insertDeviceSchema,
-  (query: any) =>
-    storage.getDevices(
-      query.page,
-      query.pageSize,
-      query.search   // 🔥 IMPORTANT ADD
-    ),
-  (d) => storage.createDevice(d),
-  (id, d) => storage.updateDevice(id, d),
-  (id) => storage.deleteDevice(id),
-  undefined,
-  TABLES.DEVICES
-);
+    app,
+    "/api/devices",
+    insertDeviceSchema,
+    (query: any) =>
+      storage.getDevices(
+        query.page,
+        query.pageSize,
+        query.search   // 🔥 IMPORTANT ADD
+      ),
+    (d) => storage.createDevice(d),
+    (id, d) => storage.updateDevice(id, d),
+    (id) => storage.deleteDevice(id),
+    undefined,
+    TABLES.DEVICES
+  );
 
   // app.get("/api/people", async (req, res) => {
   //   try {
@@ -537,7 +539,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  
+
   app.get("/api/people/:id", async (req, res) => {
     try {
       const person = await storage.getPerson(parseInt(req.params.id));
@@ -562,8 +564,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //     res.status(500).json({ message: e.message });
   //   }
   // });
-  app.post("/api/people", requireAuth, withAudit(TABLES.PEOPLE, "ADD/EDIT", async (req) => await storage.createPerson(insertPersonSchema.parse(req.body)), 201));
-  app.put("/api/people/:id", requireAuth, withAudit(TABLES.PEOPLE, "EDIT", async (req) => await storage.updatePerson(parseInt(req.params.id), insertPersonSchema.partial().parse(req.body)), 200));
+  app.post("/api/people", requireAuth, withAudit(TABLES.PEOPLE, "ADD/UPDATE", async (req) => await storage.createPerson(insertPersonSchema.parse(req.body)), 201));
+  app.put("/api/people/:id", requireAuth, withAudit(TABLES.PEOPLE, "UPDATE", async (req) => await storage.updatePerson(parseInt(req.params.id), insertPersonSchema.partial().parse(req.body)), 200));
   app.delete("/api/people/:id", requireAuth, withAudit(TABLES.PEOPLE, "DELETE", async (req) => { await storage.deletePerson(parseInt(req.params.id)); return null; }, 204));
   // app.put("/api/people/:id", requireAuth, async (req, res) => {
   //   try {
@@ -602,31 +604,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // );
 
   crudRoutes(
-  app,
-  "/api/shifts",
-  insertShiftSchema,
+    app,
+    "/api/shifts",
+    insertShiftSchema,
 
-  // GET (page + pageSize + search)
-  async (query: any) => {
-    return await storage.getShifts(
-      query.page,
-      query.pageSize,
-      query.search
-    );
-  },
+    // GET (page + pageSize + search)
+    async (query: any) => {
+      return await storage.getShifts(
+        query.page,
+        query.pageSize,
+        query.search
+      );
+    },
 
-  // CREATE
-  (d) => storage.createShift(d),
+    // CREATE
+    (d) => storage.createShift(d),
 
-  // UPDATE
-  (id, d) => storage.updateShift(id, d),
+    // UPDATE
+    (id, d) => storage.updateShift(id, d),
 
-  // DELETE
-  (id) => storage.deleteShift(id),
+    // DELETE
+    (id) => storage.deleteShift(id),
 
-  undefined,
-  TABLES.SHIFTS
-);
+    undefined,
+    TABLES.SHIFTS
+  );
 
   app.get("/api/shift-assignments", async (req, res) => {
     try {
@@ -647,22 +649,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //   (id) => storage.deleteHoliday(id), undefined, TABLES.HOLIDAYS
   // );
 
-crudRoutes(
-  app,
-  "/api/holidays",
-  insertHolidaySchema,
-  (query: any) =>
-    storage.getHolidays(
-      query.page,
-      query.pageSize,
-      query.search,
-    ),
-  (d) => storage.createHoliday(d),
-  (id, d) => storage.updateHoliday(id, d),
-  (id) => storage.deleteHoliday(id),
-  undefined,
-  TABLES.HOLIDAYS
-);
+  crudRoutes(
+    app,
+    "/api/holidays",
+    insertHolidaySchema,
+    (query: any) =>
+      storage.getHolidays(
+        query.page,
+        query.pageSize,
+        query.search,
+      ),
+    (d) => storage.createHoliday(d),
+    (id, d) => storage.updateHoliday(id, d),
+    (id) => storage.deleteHoliday(id),
+    undefined,
+    TABLES.HOLIDAYS
+  );
 
   crudRoutes(app, "/api/access-levels", insertAccessLevelSchema,
     () => storage.getAccessLevels(), (d) => storage.createAccessLevel(d),
@@ -685,7 +687,7 @@ crudRoutes(
       res.status(500).json({ message: e.message });
     }
   });
-  app.post("/api/person-access", requireAuth, withAudit(TABLES.PERSON_ACCESS, "ADD/EDIT", async (req) => await storage.createPersonAccess(insertPersonAccessSchema.parse(req.body)), 201));
+  app.post("/api/person-access", requireAuth, withAudit(TABLES.PERSON_ACCESS, "ADD", async (req) => await storage.createPersonAccess(insertPersonAccessSchema.parse(req.body)), 201));
   app.delete("/api/person-access/:id", requireAuth, withAudit(TABLES.PERSON_ACCESS, "DELETE", async (req) => { await storage.deletePersonAccess(parseInt(req.params.id)); return null; }, 204));
   crudRoutes(app, "/api/visitors", insertVisitorSchema,
     () => storage.getVisitors(), (d) => storage.createVisitor(d),
@@ -753,8 +755,8 @@ crudRoutes(
       res.json({ date, total: records.length, present, late, absent, halfDay, onLeave });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.post("/api/attendance", requireAuth, withAudit(TABLES.ATTENDANCE, "ADD/EDIT", async (req) => await storage.createAttendance(insertAttendanceSchema.parse(req.body)), 201));
-  app.put("/api/attendance/:id", requireAuth, withAudit(TABLES.ATTENDANCE, "EDIT", async (req) => await storage.updateAttendance(parseInt(req.params.id), insertAttendanceSchema.partial().parse(req.body)), 200));
+  app.post("/api/attendance", requireAuth, withAudit(TABLES.ATTENDANCE, "ADD", async (req) => await storage.createAttendance(insertAttendanceSchema.parse(req.body)), 201));
+  app.put("/api/attendance/:id", requireAuth, withAudit(TABLES.ATTENDANCE, "UPDATE", async (req) => await storage.updateAttendance(parseInt(req.params.id), insertAttendanceSchema.partial().parse(req.body)), 200));
   app.get("/api/access-logs", async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
@@ -762,16 +764,16 @@ crudRoutes(
       res.json(await storage.getAccessLogs(limit, siteId));
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.post("/api/access-logs", requireAuth, withAudit(TABLES.ACCESS_LOGS, "ADD/EDIT", async (req) => await storage.createAccessLog(insertAccessLogSchema.parse(req.body)), 201));
+  app.post("/api/access-logs", requireAuth, withAudit(TABLES.ACCESS_LOGS, "ADD/UPDATE", async (req) => await storage.createAccessLog(insertAccessLogSchema.parse(req.body)), 201));
   app.get("/api/alerts", async (req, res) => {
     try {
       const isResolved = req.query.resolved === "true" ? true : req.query.resolved === "false" ? false : undefined;
       res.json(await storage.getAlerts(isResolved));
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.post("/api/alerts", requireAuth, withAudit(TABLES.ALERTS, "ADD/EDIT", async (req) => await storage.createAlert(insertAlertSchema.parse(req.body)), 201));
-  app.put("/api/alerts/:id/acknowledge", requireAuth, withAudit(TABLES.ALERTS, "EDIT", async (req) => await storage.updateAlert(parseInt(req.params.id), { isRead: true }), 200));
-  app.put("/api/alerts/:id/resolve", requireAuth, withAudit(TABLES.ALERTS, "EDIT", async (req) => await storage.updateAlert(parseInt(req.params.id), { isResolved: true, resolvedBy: req.session?.userId, resolvedAt: new Date() }), 200));
+  app.post("/api/alerts", requireAuth, withAudit(TABLES.ALERTS, "ADD", async (req) => await storage.createAlert(insertAlertSchema.parse(req.body)), 201));
+  app.put("/api/alerts/:id/acknowledge", requireAuth, withAudit(TABLES.ALERTS, "UPDATE", async (req) => await storage.updateAlert(parseInt(req.params.id), { isRead: true }), 200));
+  app.put("/api/alerts/:id/resolve", requireAuth, withAudit(TABLES.ALERTS, "UPDATE", async (req) => await storage.updateAlert(parseInt(req.params.id), { isResolved: true, resolvedBy: req.session?.userId, resolvedAt: new Date() }), 200));
   app.get("/api/exceptions", async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
@@ -813,7 +815,7 @@ crudRoutes(
     try { res.json(await storage.getSystemSettings()); }
     catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.post("/api/system-settings", requireAuth, withAudit(TABLES.SYSTEM_SETTINGS, "ADD/EDIT", async (req) => await storage.upsertSystemSetting(insertSystemSettingSchema.parse(req.body)), 200));
+  app.post("/api/system-settings", requireAuth, withAudit(TABLES.SYSTEM_SETTINGS, "ADD/UPDATE", async (req) => await storage.upsertSystemSetting(insertSystemSettingSchema.parse(req.body)), 200));
   app.get("/api/reports/attendance", async (req, res) => {
     try {
       const filters = {
@@ -1061,7 +1063,7 @@ crudRoutes(
       res.status(500).json({ message: error.message });
     }
   });
-  // app.post("/api/people/emergency-toggle", withAudit(TABLES.PEOPLE, "EDIT", async (req) => { const result = await storage.toggleEmployeeDeviceAccess(req.body); return { success: true, data: result }; }, 200));
+  // app.post("/api/people/emergency-toggle", withAudit(TABLES.PEOPLE, "UPDATE", async (req) => { const result = await storage.toggleEmployeeDeviceAccess(req.body); return { success: true, data: result }; }, 200));
   app.post(
     "/api/people/emergency-toggle",
     withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, (req) => {
@@ -1309,7 +1311,7 @@ crudRoutes(
   //     });
   //   }
   // });
-  app.post("/api/employee-door-assignments", withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "ADD/EDIT", async (req) => {
+  app.post("/api/employee-door-assignments", withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "ADD/UPDATE", async (req) => {
     const { employeeCode, doorIds } = req.body;
     if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");
     return { status: "success", message: "Access privileges updated successfully.", data: await storage.upsertEmployeeDoorAssignment({ employeeCode, doorIds }) };
@@ -1335,49 +1337,49 @@ crudRoutes(
     }
   });
   app.get("/api/reports/muster-roll", async (req: Request, res: Response) => {
-  try {
-    const q = req.query as any;
+    try {
+      const q = req.query as any;
 
-    const page = q.page ? String(q.page) : undefined;
-    const pageSize = q.pageSize ? String(q.pageSize) : undefined;
-    const employeeCode = q.employeeCode ? String(q.employeeCode) : undefined;
+      const page = q.page ? String(q.page) : undefined;
+      const pageSize = q.pageSize ? String(q.pageSize) : undefined;
+      const employeeCode = q.employeeCode ? String(q.employeeCode) : undefined;
 
-    const data = await storage.getRangeReport(
-      q.dateFrom,
-      q.dateTo,
-      employeeCode,
-      page,
-      pageSize
-    );
+      const data = await storage.getRangeReport(
+        q.dateFrom,
+        q.dateTo,
+        employeeCode,
+        page,
+        pageSize
+      );
 
-    res.json(data);
-  } catch (e: any) {
-    res.status(500).json({ message: e.message });
-  }
-});
-app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
-  try {
-    const q = req.query as any;
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+  app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
+    try {
+      const q = req.query as any;
 
-    const page = q.page ? String(q.page) : undefined;
-    const pageSize = q.pageSize ? String(q.pageSize) : undefined;
-    const employeeCode = q.employeeCode ? String(q.employeeCode) : undefined;
+      const page = q.page ? String(q.page) : undefined;
+      const pageSize = q.pageSize ? String(q.pageSize) : undefined;
+      const employeeCode = q.employeeCode ? String(q.employeeCode) : undefined;
 
-    const data = await storage.getRangeReport(
-      q.dateFrom,
-      q.dateTo,
-      employeeCode,
-      page,
-      pageSize
-    );
+      const data = await storage.getRangeReport(
+        q.dateFrom,
+        q.dateTo,
+        employeeCode,
+        page,
+        pageSize
+      );
 
-    res.json(data);
-  } catch (e: any) {
-    res.status(500).json({
-      message: e.message,
-    });
-  }
-});
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({
+        message: e.message,
+      });
+    }
+  });
   // // 2. Monthly Muster Roll
   // app.get("/api/reports/muster-roll", async (req: Request, res: Response) => {
   //   try {
@@ -1436,27 +1438,27 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
   // });
 
   app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
-  try {
-    const q = req.query as any;
+    try {
+      const q = req.query as any;
 
-    const date = q.date || new Date().toISOString().split("T")[0];
-    const employeeCode = q.employeeCode || undefined;
+      const date = q.date || new Date().toISOString().split("T")[0];
+      const employeeCode = q.employeeCode || undefined;
 
-    const page = q.page ? String(q.page) : undefined;
-    const pageSize = q.pageSize ? String(q.pageSize) : undefined;
+      const page = q.page ? String(q.page) : undefined;
+      const pageSize = q.pageSize ? String(q.pageSize) : undefined;
 
-    const data = await storage.getDailyReport(
-      date,
-      employeeCode,
-      page,
-      pageSize
-    );
+      const data = await storage.getDailyReport(
+        date,
+        employeeCode,
+        page,
+        pageSize
+      );
 
-    res.json(data);
-  } catch (e: any) {
-    res.status(500).json({ message: e.message });
-  }
-});
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
 
 
   // app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
@@ -1490,16 +1492,14 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
     "/api/menus",
     insertMenuMasterSchema,
     () => storage.getMenus(),
-    // ✅ Sirf data pass karein taaki TS error na aaye
     async (data: any) => {
       try {
         return await storage.createMenu(data);
       } catch (error: any) {
-        // 💡 Custom error throw karein jisme status code ho
-        // Isse backend handler ise pakad lega, ya aap manually res handle karenge
+
         const customError: any = new Error(error.message);
         customError.status = 400;
-        // Agar aapka front-end hook 'errors' field expect karta hai
+
         customError.errors = { code: error.message };
         throw customError;
       }
@@ -1566,7 +1566,7 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
   //     });
   //   }
   // });
-  app.post("/api/roles-with-permissions", withAudit(TABLES.ROLES, "ADD/EDIT", async (req) => {
+  app.post("/api/roles-with-permissions", withAudit(TABLES.ROLES, "ADD/UPDATE", async (req) => {
     const { role, permissions } = req.body;
     if (!role?.code || !Array.isArray(permissions)) throw new Error("Required data missing: code (string) and permissions (array) are mandatory.");
     const menuIds = permissions.map((p: any) => p.menuId);
@@ -1586,7 +1586,7 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
   //     res.status(500).json({ message: e.message });
   //   }
   // });
-  app.put("/api/roles-with-permissions/:id", withAudit(TABLES.ROLES, "EDIT", async (req) => { await storage.updateRoleWithPermissions(parseInt(req.params.id), req.body.role, req.body.permissions); return { message: "Role and Permissions updated successfully" }; }, 200));
+  app.put("/api/roles-with-permissions/:id", withAudit(TABLES.ROLES, "UPDATE", async (req) => { await storage.updateRoleWithPermissions(parseInt(req.params.id), req.body.role, req.body.permissions); return { message: "Role and Permissions updated successfully" }; }, 200));
   // Get Role specific permissions
   app.get("/api/roles-with-permissions/:id", async (req, res) => {
     try {
@@ -1629,9 +1629,10 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
       };
       const page = req.query.page ? String(req.query.page) : undefined;
       const pageSize = req.query.pageSize ? String(req.query.pageSize) : undefined;
-      const data = await storage.getDeviceLogsWithEmployee( filters, page, pageSize );
+      const data = await storage.getDeviceLogsWithEmployee(filters, page, pageSize);
       res.json(data);
-    } catch (e: any) { console.error(e); res.status(500).json({ message: e.message, });
+    } catch (e: any) {
+      console.error(e); res.status(500).json({ message: e.message, });
     }
   });
   // app.get("/api/reports/employee-productive-report", async (req, res) => {
@@ -1716,7 +1717,7 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
   //   }
   // });
 
-    app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
+  app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
     try {
       const {
         dateFrom,
@@ -1788,8 +1789,8 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
   //     });
   //   }
   // });
-  
-  
+
+
   app.get("/api/reports/department-efficiency", async (req, res) => {
     try {
       const {
@@ -1838,7 +1839,7 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
     }
   });
 
-  app.put("/api/users/:id/change-password", requireAuth, withAudit(TABLES.USERS, "EDIT", async (req: any) => {
+  app.put("/api/users/:id/change-password", requireAuth, withAudit(TABLES.USERS, "UPDATE", async (req: any) => {
     const targetUserId = req.params.id;
     const { newPassword, confirmPassword } = req.body;
 
@@ -1866,38 +1867,38 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
 
     return updatedUser;
   }, 200));
-  
+
   app.get("/api/reports/employee-movement-logs", async (req, res) => {
-  try {
-    const { date, employeeCode } = req.query;
+    try {
+      const { date, employeeCode } = req.query;
 
-    const page = req.query.page
-      ? String(req.query.page)
-      : undefined;
+      const page = req.query.page
+        ? String(req.query.page)
+        : undefined;
 
-    const pageSize = req.query.pageSize
-      ? String(req.query.pageSize)
-      : undefined;
+      const pageSize = req.query.pageSize
+        ? String(req.query.pageSize)
+        : undefined;
 
-    const data = await storage.getEmployeeMovementLogsReport(
-      {
-        date: date as string,
-        employeeCode: employeeCode as string,
-      },
-      page,
-      pageSize,
-    );
+      const data = await storage.getEmployeeMovementLogsReport(
+        {
+          date: date as string,
+          employeeCode: employeeCode as string,
+        },
+        page,
+        pageSize,
+      );
 
-    res.json(data);
-  } catch (error: any) {
-    console.error("Employee Movement Logs Report Error:", error);
+      res.json(data);
+    } catch (error: any) {
+      console.error("Employee Movement Logs Report Error:", error);
 
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch employee movement logs report",
-      error: error.message,
-    });
-  }
+      res.status(500).json({
+        success: false,
+        message: "Failed to fetch employee movement logs report",
+        error: error.message,
+      });
+    }
   });
   app.get("/api/reports/department-wise-manpower", async (req, res) => {
     try {
@@ -1949,7 +1950,182 @@ app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
       });
     }
   });
+  // 1. GET Request Handler (For initial page load and search)
+  app.get("/api/contractors", async (req, res) => {
+    try {
+      const page = req.query.page ? Number(req.query.page) : undefined;
+      const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
+      const search = req.query.search ? String(req.query.search) : undefined;
+
+      const result = await storage.getContractors(page, pageSize, search);
+      return res.json(result);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // 2. POST Request Handler (For adding/saving a new contractor)
+  app.post("/api/contractors", requireAuth, async (req: any, res: any) => {
+    try {
+      const input = insertContractorSchema.parse(req.body);
+
+      // 🔥 Duplicate contractor code validation check
+      const contractorsList = await storage.getContractors();
+      const existing = Array.isArray(contractorsList) ? contractorsList : contractorsList?.data || [];
+      const isDuplicate = existing.some(
+        (c: any) => c.contractorCode?.toLowerCase() === input.contractorCode?.toLowerCase()
+      );
+
+      if (isDuplicate) {
+        return res.status(400).json({
+          isDuplicate: true,
+          message: "Contractor Code is already in use. Please provide a unique value."
+        });
+      }
+
+      // Set fallback active status safely
+      const dataToSave = {
+        ...input,
+        status: input.status || "active"
+      };
+
+      const item = await storage.createContractor(dataToSave);
+      return res.status(201).json(item);
+    } catch (error: any) {
+      if (error.name === "ZodError" || error.errors) {
+        return res.status(400).json(error.errors);
+      }
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // 3. PUT Request Handler (For updating a contractor)
+  app.put("/api/contractors/:id", requireAuth, async (req: any, res: any) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const input = insertContractorSchema.partial().parse(req.body);
+      const item = await storage.updateContractor(id, input);
+      return res.json(item);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // 4. PATCH Request Handler Alias (For frontend hooks compatibility)
+  app.patch("/api/contractors/:id", requireAuth, async (req: any, res: any) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      const input = insertContractorSchema.partial().parse(req.body);
+      const item = await storage.updateContractor(id, input);
+      return res.json(item);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // 5. DELETE Request Handler
+  app.delete("/api/contractors/:id", requireAuth, async (req: any, res: any) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+
+      await storage.deleteContractor(id);
+      return res.sendStatus(204);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/audit-logs", requireAuth, async (req, res) => {
+    try {
+      const page = req.query.page ? Number(req.query.page) : undefined;
+      const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
+      const search = req.query.search ? String(req.query.search) : undefined;
+
+      // Naye specific filters query params se extract kiye
+      const performedBy = req.query.performedBy ? String(req.query.performedBy) : undefined;
+      const module = req.query.module ? String(req.query.module) : undefined;
+      const action = req.query.action ? String(req.query.action) : undefined;
+      const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
+      const toDate = req.query.toDate ? String(req.query.toDate) : undefined;
+
+      // Saare parameters ko getAuditLogs storage method me pass kiya
+      const result = await storage.getAuditLogs(
+        page,
+        pageSize,
+        search,
+        performedBy,
+        module,
+        action,
+        fromDate,
+        toDate
+      );
+
+      return res.json(result);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.get("/api/login-logs", requireAuth, async (req, res) => {
+    try {
+      const page = req.query.page ? Number(req.query.page) : undefined;
+      const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
+      const search = req.query.search ? String(req.query.search) : undefined;
+
+      // Naye login logs ke filters extract kiye
+      const userId = req.query.userId ? String(req.query.userId) : undefined;
+      const status = req.query.status ? String(req.query.status) : undefined;
+      const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
+      const toDate = req.query.toDate ? String(req.query.toDate) : undefined;
+
+      // Saare parameters ko getLoginLogs storage method me pass kiya
+      const result = await storage.getLoginLogs(
+        page,
+        pageSize,
+        search,
+        userId,
+        status,
+        fromDate,
+        toDate
+      );
+
+      return res.json(result);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+  app.get("/api/audit-logs/users", requireAuth, async (req, res) => {
+    try {
+      const data = await storage.getAuditUsersDropdown();
+      return res.json(data);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+
+  // Modules/Tables list dropdown ke liye API
+  app.get("/api/audit-logs/modules", requireAuth, async (req, res) => {
+    try {
+      const data = await storage.getAuditModulesDropdown();
+      return res.json(data);
+    } catch (error: any) {
+      return res.status(500).json({ message: error.message });
+    }
+  });
+  app.get("/api/audit-logs/actions", async (req, res, next) => {
+    try {
+      const actions = await storage.getAuditActions();
+      res.status(200).json(actions);
+    } catch (error) {
+      next(error);
+    }
+  });
   return httpServer;
 
-  
+
 }

@@ -505,7 +505,7 @@ export default function PeoplePage() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Assign Role</p>
+                <p>Assign Door</p>
               </TooltipContent>
             </Tooltip>
           )}

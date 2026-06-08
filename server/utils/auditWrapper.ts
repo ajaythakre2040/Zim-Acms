@@ -71,8 +71,8 @@ const getChangedFields = (oldData: any, newData: any): string[] => {
 // 🛡️ Main Generic Middleware Wrapper (Your Original Logic + Dynamic Column Audit)
 // export const withAudit = (
 //     tableName: TableNames,
-//     // action: "ADD" | "EDIT" | "DELETE" | "ADD/EDIT" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" |"EMERGENCY_UNBLOCK_ALL",
-//     action: "ADD" | "EDIT" | "DELETE" | "ADD/EDIT" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" | "EMERGENCY_UNBLOCK_ALL" | ((req: any) => string),  storageOperation: (req: any) => Promise<any>,
+//     // action: "ADD" | "UPDATE" | "DELETE" | "ADD/UPDATE" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" |"EMERGENCY_UNBLOCK_ALL",
+//     action: "ADD" | "UPDATE" | "DELETE" | "ADD/UPDATE" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" | "EMERGENCY_UNBLOCK_ALL" | ((req: any) => string),  storageOperation: (req: any) => Promise<any>,
 //     statusCode = 200
 // ) => {
 //     return async (req: any, res: any) => {
@@ -84,8 +84,8 @@ const getChangedFields = (oldData: any, newData: any): string[] => {
 //             const rawId = req.params.id;
 //             let oldData: any = null;
 
-//             // 2. EDIT / DELETE ke liye automatic internal GET call (Original Logic)
-//             if ((action === "EDIT" || action === "DELETE") && rawId) {
+//             // 2. UPDATE / DELETE ke liye automatic internal GET call (Original Logic)
+//             if ((action === "UPDATE" || action === "DELETE") && rawId) {
 //                 const queryParam = isNaN(Number(rawId)) ? rawId : parseInt(rawId, 10);
 
 //                 // user_profiles me string ID aane par user_id check karega, baki sab me standard id
@@ -101,7 +101,7 @@ const getChangedFields = (oldData: any, newData: any): string[] => {
 //             const finalNewData = action === "DELETE" ? null : result;
 
 //             // Multiple changed columns detect karne ke liye helper call kiya
-//             const changedColumns = action === "EDIT" ? getChangedFields(oldData, finalNewData) : [];
+//             const changedColumns = action === "UPDATE" ? getChangedFields(oldData, finalNewData) : [];
 
             
 //             storage.logAudit(db, {
@@ -130,7 +130,7 @@ const getChangedFields = (oldData: any, newData: any): string[] => {
 // };
 export const withAudit = (
     tableName: TableNames,
-    action: "ADD" | "EDIT" | "DELETE" | "ADD/EDIT" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" | "EMERGENCY_UNBLOCK_ALL" | ((req: any) => string),
+    action: "ADD" | "UPDATE" | "DELETE" | "ADD/UPDATE" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" | "EMERGENCY_UNBLOCK_ALL" | ((req: any) => string),
     storageOperation: (req: any) => Promise<any>,
     statusCode = 200
 ) => {
@@ -142,7 +142,7 @@ export const withAudit = (
             const rawId = req.params.id;
             let oldData: any = null;
 
-            if ((action === "EDIT" || action === "DELETE") && rawId) {
+            if ((action === "UPDATE" || action === "DELETE") && rawId) {
                 const queryParam = isNaN(Number(rawId)) ? rawId : parseInt(rawId, 10);
                 const filterColumn = (tableName === "user_profiles" && isNaN(Number(rawId))) ? "user_id" : "id";
                 oldData = await getRecordByField(tableName, filterColumn, queryParam);
@@ -152,7 +152,7 @@ export const withAudit = (
 
             const recordId = result?.id || result?.userId || result?.data?.id || result?.data?.employeeCode || rawId || "N/A";
             const finalNewData = action === "DELETE" ? null : result;
-            const changedColumns = action === "EDIT" ? getChangedFields(oldData, finalNewData) : [];
+            const changedColumns = action === "UPDATE" ? getChangedFields(oldData, finalNewData) : [];
             const finalAction = typeof action === "function" ? action(req) : action;
 
             storage.logAudit(db, {
@@ -182,7 +182,7 @@ export const withAudit = (
 // 🛠️ Independent Profile Audit Helper (Chupchaap background me call hoga)
 export const logProfileAudit = async (
     req: any,
-    action: "ADD" | "EDIT" | "DELETE",
+    action: "ADD" | "UPDATE" | "DELETE",
     targetUserId: string,
     passedOldData: any = null, // 👈 Naya parameter
     passedNewData: any = null  // 👈 Naya parameter
@@ -211,7 +211,7 @@ export const logProfileAudit = async (
             const finalNewData = action === "DELETE" ? null : (action === "ADD" ? oldProfile : newProfile);
 
             // Ab explicit data milne par calculation 100% accurate hogi
-            const changedColumns = action === "EDIT" ? getChangedFields(finalOldData, finalNewData) : [];
+            const changedColumns = action === "UPDATE" ? getChangedFields(finalOldData, finalNewData) : [];
 
             storage.logAudit(db, {
                 userId: String(userId),

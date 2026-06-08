@@ -6,154 +6,23 @@ dayjs.extend(utc);
 dayjs.extend(isBetween);
 dayjs.extend(customParseFormat);
 import {
-  userProfiles,
-  companies,
-  departments,
-  designations,
-  categories,
-  vendors,
-  sites,
-  buildings,
-  floors,
-  zones,
-  doors,
-  devices,
-  people,
-  credentials,
-  accessCards,
-  shifts,
-  shiftAssignments,
-  holidays,
-  accessLevels,
-  accessRules,
-  personAccess,
-  visitors,
-  visits,
-  attendance,
-  accessLogs,
-  alerts,
-  exceptions,
-  systemSettings,
-  InsertRole,
-  Role,
-  roles,
-  type User,
-  type UpsertUser,
-  type UserProfile,
-  type InsertUserProfile,
-  type Company,
-  type InsertCompany,
-  type Department,
-  type InsertDepartment,
-  type Designation,
-  type InsertDesignation,
-  type Category,
-  type InsertCategory,
-  type Vendor,
-  type InsertVendor,
-  type Site,
-  type InsertSite,
-  type Building,
-  type InsertBuilding,
-  type Floor,
-  type InsertFloor,
-  type Zone,
-  type InsertZone,
-  type Door,
-  type InsertDoor,
-  type Device,
-  type InsertDevice,
-  type Person,
-  type InsertPerson,
-  type Credential,
-  type InsertCredential,
-  type AccessCard,
-  type InsertAccessCard,
-  type Shift,
-  type InsertShift,
-  type ShiftAssignment,
-  type InsertShiftAssignment,
-  type Holiday,
-  type InsertHoliday,
-  type AccessLevel,
-  type InsertAccessLevel,
-  type AccessRule,
-  type InsertAccessRule,
-  type PersonAccess,
-  type InsertPersonAccess,
-  type Visitor,
-  type InsertVisitor,
-  type Visit,
-  type InsertVisit,
-  type Attendance,
-  type InsertAttendance,
-  type AccessLog,
-  type InsertAccessLog,
-  type Alert,
-  type InsertAlert,
-  type Exception,
-  type InsertException,
-  type SystemSetting,
-  type InsertSystemSetting,
-  blockUnblockLogs,
-  CronMaster,
-  cronMaster,
-  InsertCronMaster,
-  doorDevices,
-  InsertDoorDevice,
-  DoorDevice,
-  BlockUnblockLog,
-  InsertBlockUnblockLog,
-  dailyAttendanceSummary,
-  MenuMaster,
-  InsertMenuMaster,
-  menuMaster,
-  rolePermissions,
-  users,
-  auditLogs,
-  InsertAuditLog,
+  userProfiles, companies, departments, designations, categories, vendors, sites, buildings, floors, zones, doors, devices, people, credentials, accessCards, shifts, shiftAssignments, holidays, accessLevels, accessRules, personAccess, visitors, visits, attendance, accessLogs, alerts, exceptions, systemSettings, InsertRole, Role, roles,
+  type User, type UpsertUser, type UserProfile, type InsertUserProfile, type Company, type InsertCompany, type Department, type InsertDepartment, type Designation, type InsertDesignation, type Category, type InsertCategory, type Vendor, type InsertVendor, type Site, type InsertSite, type Building, type InsertBuilding, type Floor, type InsertFloor, type Zone, type InsertZone, type Door, type InsertDoor, type Device, type InsertDevice, type Person, type InsertPerson, type Credential, type InsertCredential, type AccessCard, type InsertAccessCard, type Shift, type InsertShift, type ShiftAssignment, type InsertShiftAssignment, type Holiday, type InsertHoliday, type AccessLevel, type InsertAccessLevel, type AccessRule, type InsertAccessRule, type PersonAccess, type InsertPersonAccess, type Visitor, type InsertVisitor, type Visit, type InsertVisit, type Attendance, type InsertAttendance, type AccessLog, type InsertAccessLog, type Alert, type InsertAlert, type Exception, type InsertException, type SystemSetting, type InsertSystemSetting,
+  blockUnblockLogs, CronMaster, cronMaster, InsertCronMaster, doorDevices, InsertDoorDevice, DoorDevice, BlockUnblockLog, InsertBlockUnblockLog, dailyAttendanceSummary, MenuMaster, InsertMenuMaster, menuMaster, rolePermissions, users, auditLogs, InsertAuditLog, Contractor, InsertContractor, contractors,
+  sessions,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
-import {
-  eq,
-  desc,
-  or,
-  and,
-  ne,
-  count,
-  sql,
-  ilike,
-  notInArray,
-  inArray,
-  asc,
-  lte,
-  gte,
-  between,
-  not,
-} from "drizzle-orm";
+import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not, } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
-import {
-  DeviceAdapter,
-  HolidayAdapter,
-  PersonAdapter,
-  SiteAdapter,
-} from "@shared/mssql_schema";
-import {
-  SHIFT_START,
-  SHIFT_END,
-  EXPECTED_WORKING_HRS,
-  ATTENDANCE_STATUS,
-  ALERT_TEMPLATES,
-  ACCESS_RULES,
-  ZONES,
-  EMPLOYEE_STATUS,
-} from "./constant";
+import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter, } from "@shared/mssql_schema";
+import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES, EMPLOYEE_STATUS, } from "./constant";
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
 import { withPagination } from "./utils/pagination.utils";
 import bcryptjs from "bcryptjs";
 dayjs.extend(isBetween);
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
@@ -349,6 +218,13 @@ export interface IStorage {
   createMenu(menu: InsertMenuMaster): Promise<MenuMaster>;
   updateMenu(id: number, menu: Partial<InsertMenuMaster>): Promise<MenuMaster>;
   deleteMenu(id: number): Promise<void>;
+
+  getContractors(): Promise<schema.Contractor[]>;
+  getContractor(id: number): Promise<Contractor | undefined>;
+  getContractorByBiometricId(biometricId: string): Promise<Contractor | undefined>;
+  createContractor(contractor: InsertContractor): Promise<Contractor>;
+  updateContractor(id: number, contractor: Partial<InsertContractor>): Promise<Contractor>;
+  deleteContractor(id: number): Promise<boolean>;
 }
 export class DatabaseStorage implements IStorage {
   // async getDeviceLogsWithEmployee(filters?: {
@@ -426,16 +302,16 @@ export class DatabaseStorage implements IStorage {
       //   conditions.push(lte(schema.employeeActivityLogs.logDate, endDate));
       // }
       if (filters?.dateFrom) {
-  conditions.push(
-    sql`DATE(${schema.employeeActivityLogs.logDate}) >= ${filters.dateFrom}`
-  );
-}
+        conditions.push(
+          sql`DATE(${schema.employeeActivityLogs.logDate}) >= ${filters.dateFrom}`
+        );
+      }
 
-if (filters?.dateTo) {
-  conditions.push(
-    sql`DATE(${schema.employeeActivityLogs.logDate}) <= ${filters.dateTo}`
-  );
-}
+      if (filters?.dateTo) {
+        conditions.push(
+          sql`DATE(${schema.employeeActivityLogs.logDate}) <= ${filters.dateTo}`
+        );
+      }
       // if (filters?.employeeCode) {
       //   conditions.push(
       //     eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
@@ -841,14 +717,14 @@ if (filters?.dateTo) {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     return currentSites;
@@ -922,7 +798,7 @@ if (filters?.dateTo) {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) {}
+        } catch (e) { }
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -1226,12 +1102,12 @@ if (filters?.dateTo) {
 
       const filteredDoors = searchText
         ? resolvedDoors.filter((door) => {
-            return (
-              door.name?.toLowerCase().includes(searchText) ||
-              door.code?.toLowerCase().includes(searchText) ||
-              door.doorType?.toLowerCase().includes(searchText)
-            );
-          })
+          return (
+            door.name?.toLowerCase().includes(searchText) ||
+            door.code?.toLowerCase().includes(searchText) ||
+            door.doorType?.toLowerCase().includes(searchText)
+          );
+        })
         : resolvedDoors;
 
       // -------------------------
@@ -1277,12 +1153,12 @@ if (filters?.dateTo) {
 
       return pageSize
         ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-          }
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+        }
         : [];
     }
   }
@@ -1914,7 +1790,7 @@ if (filters?.dateTo) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(people).where(eq(people.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
 
@@ -2143,31 +2019,31 @@ if (filters?.dateTo) {
   // }
 
   async getPerson(id: number): Promise<any> {
-  const [result] = await db
-    .select({
-      person: people,
-      departmentName: departments.name,
-      designationName: designations.name,
-    })
-    .from(people)
-    .leftJoin(
-      departments,
-      eq(people.departmentId, departments.id)
-    )
-    .leftJoin(
-      designations,
-      eq(people.designationId, designations.id)
-    )
-    .where(eq(people.id, id));
+    const [result] = await db
+      .select({
+        person: people,
+        departmentName: departments.name,
+        designationName: designations.name,
+      })
+      .from(people)
+      .leftJoin(
+        departments,
+        eq(people.departmentId, departments.id)
+      )
+      .leftJoin(
+        designations,
+        eq(people.designationId, designations.id)
+      )
+      .where(eq(people.id, id));
 
-  if (!result) return undefined;
+    if (!result) return undefined;
 
-  return {
-    ...result.person,
-    departmentName: result.departmentName,
-    designationName: result.designationName,
-  };
-}
+    return {
+      ...result.person,
+      departmentName: result.departmentName,
+      designationName: result.designationName,
+    };
+  }
   // async getPerson(id: number): Promise<Person | undefined> {
   //   const [person] = await db.select().from(people).where(eq(people.id, id));
   //   return person;
@@ -2312,15 +2188,15 @@ if (filters?.dateTo) {
 
       const finalQuery = searchText
         ? db
-            .select()
-            .from(shifts)
-            .where(
-              or(
-                ilike(shifts.name, `%${searchText}%`),
-                ilike(shifts.code, `%${searchText}%`),
-              ),
-            )
-            .orderBy(asc(shifts.id))
+          .select()
+          .from(shifts)
+          .where(
+            or(
+              ilike(shifts.name, `%${searchText}%`),
+              ilike(shifts.code, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(shifts.id))
         : baseQuery;
 
       // -------------------------
@@ -2758,9 +2634,9 @@ if (filters?.dateTo) {
         workingHours:
           logs.length > 1
             ? (
-                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-                3600000
-              ).toFixed(2)
+              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+              3600000
+            ).toFixed(2)
             : "0.00",
       };
     });
@@ -3047,7 +2923,7 @@ if (filters?.dateTo) {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-              String(presentRow.status).toLowerCase() === "present"
+                String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -3075,16 +2951,16 @@ if (filters?.dateTo) {
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
             : String(row.employeeCode)
-                .toLowerCase()
-                .includes(String(filters.employeeCode).toLowerCase()) ||
-              String(row.firstName)
-                .toLowerCase()
-                .includes(String(filters.employeeCode).toLowerCase());
+              .toLowerCase()
+              .includes(String(filters.employeeCode).toLowerCase()) ||
+            String(row.firstName)
+              .toLowerCase()
+              .includes(String(filters.employeeCode).toLowerCase());
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-              String(filters.status).toLowerCase();
+            String(filters.status).toLowerCase();
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => {
@@ -3139,7 +3015,7 @@ if (filters?.dateTo) {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -4131,8 +4007,8 @@ if (filters?.dateTo) {
         if (!serialNumber) return;
         const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
         let shouldBlock: boolean;
-      
-         if (isMainGate) {
+
+        if (isMainGate) {
 
           shouldBlock = false;
 
@@ -4657,11 +4533,11 @@ if (filters?.dateTo) {
           //   : undefined
           employeeCode
             ? or(
-                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+              ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
 
-                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+              sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
           ILIKE ${`%${employeeCode}%`}`,
-              )
+            )
             : undefined,
         ),
       );
@@ -4722,11 +4598,11 @@ if (filters?.dateTo) {
           //   : undefined
           employeeCode
             ? or(
-                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+              ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
 
-                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+              sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
           ILIKE ${`%${employeeCode}%`}`,
-              )
+            )
             : undefined,
         ),
       )
@@ -5757,7 +5633,7 @@ ${fromDate} || ' to ' || ${toDate}
         oldData: logData.oldData ? logData.oldData : null,
         newData: logData.newData ? logData.newData : null,
         changedColumns: logData.changedColumns ? logData.changedColumns : null,
-        ipAddress: logData.ipAddress || null, 
+        ipAddress: logData.ipAddress || null,
         userAgent: logData.userAgent || null,
       });
     } catch (error) {
@@ -5816,14 +5692,14 @@ ${fromDate} || ' to ' || ${toDate}
             //   : undefined,
             filters.employeeCode
               ? or(
-                  ilike(
-                    dailyAttendanceSummary.employeeName,
-                    `%${filters.employeeCode}%`,
-                  ),
+                ilike(
+                  dailyAttendanceSummary.employeeName,
+                  `%${filters.employeeCode}%`,
+                ),
 
-                  sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
           ILIKE ${`%${filters.employeeCode}%`}`,
-                )
+              )
               : undefined,
           ),
         );
@@ -6208,82 +6084,82 @@ ${fromDate} || ' to ' || ${toDate}
         // Calculations
         // =========================
         let productiveMinutes = 0;
-const movementDetails: any[] = [];
-const stack: Record<string, any> = {};
+        const movementDetails: any[] = [];
+        const stack: Record<string, any> = {};
 
-let firstTime: number | null = null;
-let lastTime: number | null = null;
+        let firstTime: number | null = null;
+        let lastTime: number | null = null;
 
-for (const log of employeeLogs) {
-  const time = new Date(log.logDate).getTime();
+        for (const log of employeeLogs) {
+          const time = new Date(log.logDate).getTime();
 
-  if (firstTime === null) {
-    firstTime = time;
-  }
+          if (firstTime === null) {
+            firstTime = time;
+          }
 
-  lastTime = time;
+          lastTime = time;
 
-  const isGate = log.doorType === "gate";
-  const doorKey = String(log.doorId);
+          const isGate = log.doorType === "gate";
+          const doorKey = String(log.doorId);
 
-  // IN punch
-  if (log.direction === "IN") {
-    const row = {
-      doorName: log.doorName,
-      doorType: log.doorType,
-      inDeviceId: log.deviceId,
-      inTime: log.logDate,
-      outDeviceId: null,
-      outTime: null,
-      durationMinutes: 0,
-      isGateEntry: isGate,
-    };
+          // IN punch
+          if (log.direction === "IN") {
+            const row = {
+              doorName: log.doorName,
+              doorType: log.doorType,
+              inDeviceId: log.deviceId,
+              inTime: log.logDate,
+              outDeviceId: null,
+              outTime: null,
+              durationMinutes: 0,
+              isGateEntry: isGate,
+            };
 
-    movementDetails.push(row);
+            movementDetails.push(row);
 
-    if (!stack[doorKey]) {
-      stack[doorKey] = [];
-    }
+            if (!stack[doorKey]) {
+              stack[doorKey] = [];
+            }
 
-    stack[doorKey].push(row);
-  }
+            stack[doorKey].push(row);
+          }
 
-  // OUT punch
-  else if (log.direction === "OUT") {
-    const openRows = stack[doorKey];
+          // OUT punch
+          else if (log.direction === "OUT") {
+            const openRows = stack[doorKey];
 
-    if (openRows?.length) {
-      const row = openRows.shift();
+            if (openRows?.length) {
+              const row = openRows.shift();
 
-      row.outDeviceId = log.deviceId;
-      row.outTime = log.logDate;
+              row.outDeviceId = log.deviceId;
+              row.outTime = log.logDate;
 
-      const duration =
-        (new Date(log.logDate).getTime() -
-          new Date(row.inTime).getTime()) /
-        60000;
+              const duration =
+                (new Date(log.logDate).getTime() -
+                  new Date(row.inTime).getTime()) /
+                60000;
 
-      const safeDuration = Math.max(0, duration);
+              const safeDuration = Math.max(0, duration);
 
-      row.durationMinutes = Math.floor(safeDuration);
+              row.durationMinutes = Math.floor(safeDuration);
 
-      if (!isGate) {
-        productiveMinutes += safeDuration;
-      }
-    } else {
-      movementDetails.push({
-        doorName: log.doorName,
-        doorType: log.doorType,
-        inDeviceId: null,
-        inTime: null,
-        outDeviceId: log.deviceId,
-        outTime: log.logDate,
-        durationMinutes: 0,
-        isGateEntry: isGate,
-      });
-    }
-  }
-}
+              if (!isGate) {
+                productiveMinutes += safeDuration;
+              }
+            } else {
+              movementDetails.push({
+                doorName: log.doorName,
+                doorType: log.doorType,
+                inDeviceId: null,
+                inTime: null,
+                outDeviceId: log.deviceId,
+                outTime: log.logDate,
+                durationMinutes: 0,
+                isGateEntry: isGate,
+              });
+            }
+          }
+        }
         // Presence
         const totalPresenceMinutes =
           firstTime && lastTime ? (lastTime - firstTime) / 60000 : 0;
@@ -6327,6 +6203,299 @@ for (const log of employeeLogs) {
     } catch (err) {
       console.error(err);
       throw err;
+    }
+  }
+
+  async getContractors(
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
+    try {
+      const conditions = [];
+
+      if (search && search.trim() !== "") {
+        conditions.push(
+          or(
+            ilike(contractors.contractorName, `%${search}%`),
+            ilike(contractors.contractorCode, `%${search}%`),
+            ilike(contractors.companyName, `%${search}%`)
+          )
+        );
+      }
+
+      const whereClause = conditions.length ? and(...conditions) : undefined;
+
+      const baseQuery = db
+        .select({
+          id: contractors.id,
+          contractorName: contractors.contractorName,
+          contractorCode: contractors.contractorCode,
+          gender: contractors.gender,
+          aadhaarNumber: contractors.aadhaarNumber,
+          contactNumber: contractors.contactNumber,
+          email: contractors.email,
+          address: contractors.address,
+          companyName: contractors.companyName,
+          startDate: contractors.startDate,
+          expiryDate: contractors.expiryDate,
+          biometricId: contractors.biometricId,
+          status: contractors.status,
+          createdAt: contractors.createdAt,
+        })
+        .from(contractors)
+        .where(whereClause)
+        .orderBy(asc(contractors.id));
+
+      if (search && search.trim() !== "") {
+        const filteredArrayData = await baseQuery;
+        return await withPagination(db, contractors, filteredArrayData, page, pageSize);
+      }
+
+      return await withPagination(db, contractors, baseQuery, page, pageSize);
+
+    } catch (dbError: any) {
+      console.error("Error in getContractors storage method:", dbError);
+      throw dbError;
+    }
+  }
+
+  async createContractor(data: any): Promise<any> {
+    const [created] = await db.insert(contractors).values(data).returning();
+    return created;
+  }
+  async getContractor(id: number): Promise<any | null> {
+    const [contractor] = await db
+      .select()
+      .from(contractors)
+      .where(eq(contractors.id, id));
+    return contractor || null;
+  }
+
+  async getContractorByBiometricId(biometricId: string): Promise<any | null> {
+    const [contractor] = await db
+      .select()
+      .from(contractors)
+      .where(eq(contractors.biometricId, biometricId));
+    return contractor || null;
+  }
+  async updateContractor(
+    id: number,
+    data: any,
+  ): Promise<any> {
+    const [updated] = await db
+      .update(contractors)
+      .set(data)
+      .where(eq(contractors.id, id))
+      .returning();
+    return updated;
+  }
+
+  async deleteContractor(id: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(contractors)
+      .where(eq(contractors.id, id))
+      .returning();
+
+    return !!deleted;
+  }
+  async getAuditLogs(
+    page?: number,
+    pageSize?: number,
+    search?: string,
+    performedBy?: string,
+    module?: string,
+    action?: string,
+    fromDate?: string,
+    toDate?: string,
+  ): Promise<any> {
+    try {
+      const conditions = [];
+
+      if (search && search.trim() !== "") {
+        const searchPattern = `%${search.trim()}%`;
+        conditions.push(
+          or(
+            ilike(auditLogs.tableName, searchPattern),
+            ilike(auditLogs.action, searchPattern),
+            ilike(auditLogs.userId, searchPattern),
+            ilike(users.username, searchPattern)
+          )
+        );
+      }
+
+      if (performedBy && performedBy.trim() !== "" && performedBy !== "all") {
+        conditions.push(
+          eq(sql`cast(${auditLogs.userId} as text)`, sql`cast(${performedBy.trim()} as text)`)
+        );
+      }
+
+      if (module && module.trim() !== "" && module !== "all") {
+        conditions.push(ilike(auditLogs.tableName, `%${module.trim()}%`));
+      }
+
+      if (action && action.trim() !== "" && action !== "all") {
+        conditions.push(eq(auditLogs.action, action.trim()));
+      }
+
+      if (fromDate && fromDate.trim() !== "") {
+        const start = new Date(fromDate.trim());
+        start.setHours(0, 0, 0, 0);
+        conditions.push(gte(auditLogs.createdAt, start));
+      }
+
+      if (toDate && toDate.trim() !== "") {
+        const end = new Date(toDate.trim());
+        end.setHours(23, 59, 59, 999);
+        conditions.push(lte(auditLogs.createdAt, end));
+      }
+
+      const whereClause = conditions.length ? and(...conditions) : undefined;
+
+      const baseQuery = db
+        .select({
+          id: auditLogs.id,
+          tableName: auditLogs.tableName,
+          recordId: auditLogs.recordId,
+          action: auditLogs.action,
+          oldData: auditLogs.oldData,
+          newData: auditLogs.newData,
+          changedColumns: auditLogs.changedColumns,
+          ipAddress: auditLogs.ipAddress,
+          userAgent: auditLogs.userAgent,
+          createdAt: auditLogs.createdAt,
+          userId: auditLogs.userId,
+          username: users.username,
+        })
+        .from(auditLogs)
+        .leftJoin(
+          users,
+          eq(sql`cast(${auditLogs.userId} as text)`, sql`cast(${users.id} as text)`)
+        )
+        .where(whereClause)
+        .orderBy(desc(auditLogs.id));
+
+      return await withPagination(db, auditLogs, baseQuery, page, pageSize, whereClause);
+    } catch (dbError: any) {
+      console.error("Error in getAuditLogs storage method:", dbError);
+      throw dbError;
+    }
+  }
+  async getAuditActions(): Promise<string[]> {
+    try {
+      const uniqueActions = await db
+        .select({ action: auditLogs.action })
+        .from(auditLogs)
+        .groupBy(auditLogs.action);
+
+      return uniqueActions
+        .map((item) => item.action)
+        .filter((action) => action && action.trim() !== "");
+    } catch (error) {
+      console.error("Error fetching unique audit actions:", error);
+      throw error;
+    }
+  }
+
+  async getLoginLogs(
+    page?: number,
+    pageSize?: number,
+    search?: string,
+    userId?: string,
+    status?: string,
+    fromDate?: string,
+    toDate?: string,
+  ): Promise<any> {
+    try {
+      const conditions = [];
+
+      if (search && search.trim() !== "") {
+        const searchPattern = `%${search.trim()}%`;
+        conditions.push(
+          or(
+            ilike(sessions.username, searchPattern),
+            ilike(sessions.ipAddress, searchPattern),
+            ilike(sessions.status, searchPattern),
+            ilike(sessions.userId, searchPattern),
+            ilike(sessions.userAgent, searchPattern)
+          )
+        );
+      }
+
+      if (userId && userId.trim() !== "") {
+        conditions.push(
+          eq(sql`cast(${sessions.userId} as text)`, sql`cast(${userId.trim()} as text)`)
+        );
+      }
+
+      if (status && status.trim() !== "") {
+        conditions.push(eq(sessions.status, status.trim()));
+      }
+
+      if (fromDate && fromDate.trim() !== "") {
+        const start = new Date(fromDate.trim());
+        start.setHours(0, 0, 0, 0);
+        conditions.push(gte(sessions.createdAt, start));
+      }
+
+      if (toDate && toDate.trim() !== "") {
+        const end = new Date(toDate.trim());
+        end.setHours(23, 59, 59, 999);
+        conditions.push(lte(sessions.createdAt, end));
+      }
+
+      const whereClause = conditions.length ? and(...conditions) : undefined;
+
+      const baseQuery = db
+        .select({
+          id: sessions.sid,
+          sess: sessions.sess,
+          expire: sessions.expire,
+          userId: sessions.userId,
+          username: sessions.username,
+          ipAddress: sessions.ipAddress,
+          userAgent: sessions.userAgent,
+          status: sessions.status,
+          createdAt: sessions.createdAt,
+          logoutAt: sessions.logoutAt,
+        })
+        .from(sessions)
+        .where(whereClause)
+        .orderBy(desc(sessions.createdAt));
+
+      return await withPagination(db, sessions, baseQuery, page, pageSize, whereClause);
+    } catch (dbError: any) {
+      console.error("Error in getLoginLogs storage method:", dbError);
+      throw dbError;
+    }
+  } 
+  async getAuditUsersDropdown(): Promise<any[]> {
+    try {
+      return await db
+        .selectDistinct({
+          id: users.id,
+          username: users.username,
+        })
+        .from(users)
+        .innerJoin(auditLogs, eq(sql`cast(${auditLogs.userId} as text)`, sql`cast(${users.id} as text)`));
+    } catch (error) {
+      console.error("Error fetching audit users dropdown:", error);
+      return [];
+    }
+  }
+
+  // 2. Audit Logs dropdown ke liye unique Table/Modules ki list
+  async getAuditModulesDropdown(): Promise<any[]> {
+    try {
+      return await db
+        .selectDistinct({
+          tableName: auditLogs.tableName,
+        })
+        .from(auditLogs)
+        .where(sql`${auditLogs.tableName} IS NOT NULL`);
+    } catch (error) {
+      console.error("Error fetching audit modules dropdown:", error);
+      return [];
     }
   }
 }

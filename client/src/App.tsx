@@ -48,11 +48,14 @@ import CategoriesPage from "./pages/category";
 import RoleFormPage from "./pages/role_form";
 import RolePermissionViewPage from "./pages/RolePermissionViewPage";
 import EmployeeView from "./pages/EmployeeView";
+import Contractors from "./pages/contractors";
 import { useToast } from "./hooks/use-toast";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePermission } from "./hooks/use-permission";
 import { MENU_CONFIG } from "../../server/constant";
+import AuditTrailPage from "./pages/audit-trail";
+
 
 function StandardRouter() {
   return (
@@ -91,6 +94,9 @@ function StandardRouter() {
       <Route path="/master-data/roles/edit/:id" component={RoleFormPage} />
       <Route path="/master-data/roles/view/:id" component={RolePermissionViewPage} />
       <Route path="/employees/view/:id" component={EmployeeView} />
+      <Route path="/contractors" component={Contractors} />
+      <Route path="/audit-trail" component={AuditTrailPage} />
+
       <Route component={NotFound} />
     </Switch>
   );

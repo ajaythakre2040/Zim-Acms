@@ -39,7 +39,7 @@ export async function seedMenus() {
         await upsertMenu(MENU_CONFIG.CATEGORY, mast.id, 5);
         await upsertMenu(MENU_CONFIG.COMPANY, mast.id, 6);
 
-        // 3. Standalone Menus
+        // 3. Standalone Menus (Update kiye gaye)
         const standalone = [
             { cfg: MENU_CONFIG.EMPLOYEES, order: 2 },
             { cfg: MENU_CONFIG.SHIFTS, order: 3 },
@@ -50,6 +50,9 @@ export async function seedMenus() {
             { cfg: MENU_CONFIG.DEVICES, order: 8 },
             { cfg: MENU_CONFIG.USER_ADMIN, order: 10 },
             { cfg: MENU_CONFIG.EMERGENCY_UNBLOCK, order: 11 },
+            { cfg: MENU_CONFIG.VISITORS, order: 12 },        // Naya Add kiya
+            { cfg: MENU_CONFIG.CONTRACTORS, order: 13 },     // Naya Add kiya
+            { cfg: MENU_CONFIG.AUDIT_TRAIL, order: 14 },     // Naya Add kiya
         ];
 
         for (const item of standalone) {

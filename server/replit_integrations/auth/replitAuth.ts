@@ -5,6 +5,9 @@ import type { Express, RequestHandler } from "express";
 import connectPg from "connect-pg-simple";
 import { authStorage } from "./storage";
 import { validateNoHtml } from "@/lib/validation";
+import { db } from "../../db";
+import { sessions } from "@shared/models/auth";
+import { eq, sql } from "drizzle-orm";
 
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
@@ -33,6 +36,40 @@ export async function setupAuth(app: Express) {
   app.use(getSession());
 
   // LOGIN ROUTE
+  // app.post("/api/login", async (req, res) => {
+  //   try {
+  //     const { username, password } = req.body;
+  //     if (!username || !password) {
+  //       return res.status(400).json({ message: "Username and password are required" });
+  //     }
+
+  //     // Hamara updated storage ab user + profile + permissions fetch karega
+  //     const user = await authStorage.getUserByUsername(username);
+  //     if (!user) {
+  //       return res.status(401).json({ message: "Invalid username or password" });
+  //     }
+
+  //     const bcrypt = await import("bcryptjs");
+  //     const valid = await bcrypt.compare(password, user.password || "");
+  //     if (!valid) {
+  //       return res.status(401).json({ message: "Invalid username or password" });
+  //     }
+
+  //     // Security fix: login ke baad session regenerate karna
+  //     req.session.regenerate((err) => {
+  //       if (err) return res.status(500).json({ message: "Login failed" });
+
+  //       (req.session as any).userId = user.id;
+  //       (req.session as any).authenticated = true;
+
+  //       const { password: _, ...safeUser } = user;
+  //       res.json(safeUser);
+  //     });
+  //   } catch (error) {
+  //     console.error("Login error:", error);
+  //     res.status(500).json({ message: "Login failed" });
+  //   }
+  // });
   app.post("/api/login", async (req, res) => {
     try {
       const { username, password } = req.body;
@@ -40,7 +77,6 @@ export async function setupAuth(app: Express) {
         return res.status(400).json({ message: "Username and password are required" });
       }
 
-      // Hamara updated storage ab user + profile + permissions fetch karega
       const user = await authStorage.getUserByUsername(username);
       if (!user) {
         return res.status(401).json({ message: "Invalid username or password" });
@@ -52,22 +88,47 @@ export async function setupAuth(app: Express) {
         return res.status(401).json({ message: "Invalid username or password" });
       }
 
-      // Security fix: login ke baad session regenerate karna
-      req.session.regenerate((err) => {
+      req.session.regenerate(async (err) => {
         if (err) return res.status(500).json({ message: "Login failed" });
 
         (req.session as any).userId = user.id;
         (req.session as any).authenticated = true;
 
-        const { password: _, ...safeUser } = user;
-        res.json(safeUser);
+        // 🔥 Standard session data ko pehle DB mein write lock karne ke liye explicit save call
+        req.session.save(async (saveErr) => {
+          if (saveErr) {
+            console.error("Session save error:", saveErr);
+            return res.status(500).json({ message: "Login failed" });
+          }
+
+          try {
+            const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+            const agent = req.headers["user-agent"];
+            const cleanIp = typeof ip === "string" ? ip : ip?.[0] || null;
+
+            await db.execute(sql`
+              UPDATE sessions 
+              SET user_id = ${user.id}::text, 
+                  username = ${user.username}::text, 
+                  ip_address = ${cleanIp}::text, 
+                  user_agent = ${agent}::text, 
+                  status = 'LOGIN', 
+                  created_at = NOW() 
+              WHERE sid = ${req.sessionID}
+            `);
+          } catch (dbErr) {
+            console.error("Session columns tracking update failed:", dbErr);
+          }
+
+          const { password: _, ...safeUser } = user;
+          return res.json(safeUser);
+        });
       });
     } catch (error) {
       console.error("Login error:", error);
       res.status(500).json({ message: "Login failed" });
     }
   });
-
   // REGISTER ROUTE
   // app.post("/api/register", async (req, res) => {
   //   try {
@@ -155,14 +216,42 @@ export async function setupAuth(app: Express) {
     }
   });
   // LOGOUT
-  app.post("/api/logout", (req, res) => {
-    req.session.destroy((err) => {
-      if (err) return res.status(500).json({ message: "Logout failed" });
-      res.clearCookie("connect.sid"); // Cookie bhi clear karein
-      res.json({ message: "Logged out" });
-    });
-  });
+  // app.post("/api/logout", (req, res) => {
+  //   req.session.destroy((err) => {
+  //     if (err) return res.status(500).json({ message: "Logout failed" });
+  //     res.clearCookie("connect.sid"); // Cookie bhi clear karein
+  //     res.json({ message: "Logged out" });
+  //   });
+  // });
+  app.post("/api/logout", async (req, res) => {
+    const currentSessionId = req.sessionID;
 
+    if (currentSessionId) {
+      try {
+        // Step 1: Database me record secure karein
+        // Yahan new Date() ki jagah sql`NOW()` use kiya hai taaki timezone match kare
+        await db
+          .update(sessions)
+          .set({
+            status: "LOGOUT",
+            logoutAt: sql`NOW()` // 🔥 FIX: Ye exact PostgreSQL server ka local/NOW time capture karega
+          })
+          .where(eq(sessions.sid, currentSessionId));
+
+        // Step 2: Database me data force save karein
+        if (req.session) {
+          await new Promise((resolve) => req.session.save(resolve));
+        }
+
+      } catch (e) {
+        console.error("Error setting session state to LOGOUT:", e);
+      }
+    }
+
+    // Step 3: Browser se cookie delete kar dein
+    res.clearCookie("connect.sid", { path: "/" });
+    return res.json({ message: "Logged out successfully" });
+  });
   // ME ROUTE (Session check ke liye)
   app.get("/api/user", async (req, res) => {
     if (!(req.session as any).userId) {

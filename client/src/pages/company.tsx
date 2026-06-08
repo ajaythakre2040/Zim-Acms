@@ -138,8 +138,7 @@ export default function CompaniesPage() {
               size="icon"
               variant="ghost"
               title="Delete Company"
-              className="hover:text-destructive hover:bg-destructive/10 transition-colors"
-              onClick={async (e) => {
+             className="text-destructive"              onClick={async (e) => {
                 e.stopPropagation();
 
                 const confirmed = await confirm({

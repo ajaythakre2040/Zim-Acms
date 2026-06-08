@@ -1,8 +1,7 @@
 export * from "./models/auth";
-
 import {
-  pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date, bigserial, // <--- Add this
-  decimal,   // <--- Add this
+  pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date, bigserial, 
+  decimal,   
   index,
   unique,
 } from "drizzle-orm/pg-core";
@@ -11,10 +10,6 @@ import { z } from "zod";
 import { relations, sql } from "drizzle-orm";
 import { users } from "./models/auth";
 import { bigint } from "drizzle-orm/pg-core";
-
-
-
-// ==================== USER PROFILES (RBAC) ====================
 export const userProfiles = pgTable("user_profiles", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().unique()
@@ -22,8 +17,6 @@ export const userProfiles = pgTable("user_profiles", {
   roleId: integer("role_id").notNull()
     .references(() => roles.id),
   employeeCode: varchar("employee_code").unique(),
-  // employeeCode: varchar("employee_code").unique()
-  //   .references(() => people.employeeCode, { onDelete: "set null" }),
   department: text("department"),
   designation: text("designation"),
   phone: text("phone"),
@@ -32,8 +25,6 @@ export const userProfiles = pgTable("user_profiles", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
-
-// ==================== COMPANIES ====================
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -45,8 +36,6 @@ export const companies = pgTable("companies", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== DEPARTMENTS ====================
 export const departments = pgTable("departments", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -56,8 +45,6 @@ export const departments = pgTable("departments", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== DESIGNATIONS ====================
 export const designations = pgTable("designations", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -68,8 +55,6 @@ export const designations = pgTable("designations", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== CATEGORIES ====================
 export const categories = pgTable("categories", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -77,8 +62,6 @@ export const categories = pgTable("categories", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== VENDORS ====================
 export const vendors = pgTable("vendors", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -95,8 +78,6 @@ export const vendors = pgTable("vendors", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== SITES ====================
 export const sites = pgTable("sites", {
   id: serial("id").primaryKey(),
   msId: integer("ms_id").unique(),
@@ -110,8 +91,6 @@ export const sites = pgTable("sites", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== BUILDINGS ====================
 export const buildings = pgTable("buildings", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -122,8 +101,6 @@ export const buildings = pgTable("buildings", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== FLOORS ====================
 export const floors = pgTable("floors", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -133,8 +110,6 @@ export const floors = pgTable("floors", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== ZONES ====================
 export const zones = pgTable("zones", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -149,8 +124,6 @@ export const zones = pgTable("zones", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== DOORS ====================
 export const doors = pgTable("doors", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -169,12 +142,10 @@ export const doors = pgTable("doors", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
-
-// ==================== DEVICES ====================
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
-  msId: integer("ms_id").unique(), // MS SQL DeviceId ke liye
-  name: text("name").notNull(), // DeviceName yahan aayega
+  msId: integer("ms_id").unique(), 
+  name: text("name").notNull(), 
   deviceDirection: text("device_direction"),
   serialNumber: text("serial_number"),
   opstamp: text("opstamp"),
@@ -183,8 +154,7 @@ export const devices = pgTable("devices", {
   activationCode: text("activation_code"),
   isAttendanceDevice: integer("is_attendance_device"),
   deviceType: text("device_type").default("reader"),
-  locationId: integer("location_id"), // LocationId yahan aayega
-  // Baki fields
+  locationId: integer("location_id"), 
   zoneId: integer("zone_id"),
   ipAddress: text("ip_address"),
   lastHeartbeat: timestamp("last_heartbeat"),
@@ -192,8 +162,6 @@ export const devices = pgTable("devices", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== PEOPLE ====================
 export const people = pgTable("people", {
   id: serial("id").primaryKey(),
   roleId: integer("role_id"),
@@ -240,21 +208,15 @@ export const people = pgTable("people", {
   lastPunchDoorId: integer("last_punch_door_id"),
   ruleid: integer("rule_id"),
   is_lockout_enabled: boolean("is_lockout_enabled").default(false),
-  activeShiftDate: text("active_shift_date"), // Yahan hum wo date lock karenge jiske liye attendance lag rahi hai
+  activeShiftDate: text("active_shift_date"), 
   isNightShiftActive: boolean("is_night_shift_active").default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
-    .$defaultFn(() => new Date()) // TypeScript automatic handle kar lega
+    .$defaultFn(() => new Date()) 
     .notNull(),
-
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .$defaultFn(() => new Date())
     .notNull(),
-
 });
-
-
-
-// ==================== CREDENTIALS ====================
 export const credentials = pgTable("credentials", {
   id: serial("id").primaryKey(),
   personId: integer("person_id").notNull(),
@@ -268,8 +230,6 @@ export const credentials = pgTable("credentials", {
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== ACCESS CARDS ====================
 export const accessCards = pgTable("access_cards", {
   id: serial("id").primaryKey(),
   cardNumber: text("card_number").notNull().unique(),
@@ -281,8 +241,6 @@ export const accessCards = pgTable("access_cards", {
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== SHIFTS ====================
 export const shifts = pgTable("shifts", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().notNull(),
@@ -296,8 +254,6 @@ export const shifts = pgTable("shifts", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== SHIFT ASSIGNMENTS ====================
 export const shiftAssignments = pgTable("shift_assignments", {
   id: serial("id").primaryKey(),
   personId: integer("person_id").notNull(),
@@ -308,8 +264,6 @@ export const shiftAssignments = pgTable("shift_assignments", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== HOLIDAYS ====================
 export const holidays = pgTable("holidays", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -320,8 +274,6 @@ export const holidays = pgTable("holidays", {
   createdAt: timestamp("created_at").defaultNow(),
   msId: integer("ms_id"),
 });
-
-// ==================== ACCESS LEVELS ====================
 export const accessLevels = pgTable("access_levels", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -332,8 +284,6 @@ export const accessLevels = pgTable("access_levels", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== ACCESS RULES ====================
 export const accessRules = pgTable("access_rules", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
@@ -350,8 +300,6 @@ export const accessRules = pgTable("access_rules", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== PERSON ACCESS (Level assignments) ====================
 export const personAccess = pgTable("person_access", {
   id: serial("id").primaryKey(),
   personId: integer("person_id").notNull(),
@@ -361,8 +309,6 @@ export const personAccess = pgTable("person_access", {
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== DOOR ACCESS LEVELS ====================
 export const doorAccessLevels = pgTable("door_access_levels", {
   id: serial("id").primaryKey(),
   doorId: integer("door_id").notNull(),
@@ -370,8 +316,6 @@ export const doorAccessLevels = pgTable("door_access_levels", {
   timeSchedule: jsonb("time_schedule").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== VISITORS ====================
 export const visitors = pgTable("visitors", {
   id: serial("id").primaryKey(),
   firstName: text("first_name").notNull(),
@@ -388,8 +332,6 @@ export const visitors = pgTable("visitors", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
-
-// ==================== VISITS ====================
 export const visits = pgTable("visits", {
   id: serial("id").primaryKey(),
   visitorId: integer("visitor_id").notNull(),
@@ -404,16 +346,12 @@ export const visits = pgTable("visits", {
   checkOutAt: timestamp("check_out_at"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== VISIT ACCESS (door permissions) ====================
 export const visitAccess = pgTable("visit_access", {
   id: serial("id").primaryKey(),
   visitId: integer("visit_id").notNull(),
   doorId: integer("door_id").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== ATTENDANCE ====================
 export const attendance = pgTable("attendance", {
   id: serial("id").primaryKey(),
   personId: integer("person_id").notNull(),
@@ -436,8 +374,6 @@ export const attendance = pgTable("attendance", {
   sourceSystem: text("source_system"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== ACCESS LOGS ====================
 export const accessLogs = pgTable("access_logs", {
   id: serial("id").primaryKey(),
   personId: integer("person_id"),
@@ -455,8 +391,6 @@ export const accessLogs = pgTable("access_logs", {
   externalId: text("external_id"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== ACCESS EVENTS (detailed) ====================
 export const accessEvents = pgTable("access_events", {
   id: serial("id").primaryKey(),
   accessLogId: integer("access_log_id"),
@@ -469,8 +403,6 @@ export const accessEvents = pgTable("access_events", {
   temperature: real("temperature"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== ALERTS ====================
 export const alerts = pgTable("alerts", {
   id: serial("id").primaryKey(),
   alertType: text("alert_type", { enum: ["security", "device", "system", "visitor", "attendance"] }).notNull(),
@@ -489,8 +421,6 @@ export const alerts = pgTable("alerts", {
   createdAt: timestamp("created_at").defaultNow(),
   createdBy: varchar("created_by"),
 });
-
-// ==================== EXCEPTIONS ====================
 export const exceptions = pgTable("exceptions", {
   id: serial("id").primaryKey(),
   personId: integer("person_id").notNull(),
@@ -508,8 +438,6 @@ export const exceptions = pgTable("exceptions", {
   rejectionReason: text("rejection_reason"),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== SYSTEM SETTINGS ====================
 export const systemSettings = pgTable("system_settings", {
   id: serial("id").primaryKey(),
   key: text("key").notNull().unique(),
@@ -519,67 +447,53 @@ export const systemSettings = pgTable("system_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 });
-
-// ==================== RELATIONS ====================
 export const userProfilesRelations = relations(userProfiles, ({ one }) => ({
   user: one(users, { fields: [userProfiles.userId], references: [users.id] }),
   employee: one(people, { fields: [userProfiles.employeeCode], references: [people.employeeCode] }),
   role: one(roles, { fields: [userProfiles.roleId], references: [roles.id] }),
 }));
-
 export const buildingsRelations = relations(buildings, ({ one }) => ({
   site: one(sites, { fields: [buildings.locationId], references: [sites.id] }),
 }));
-
 export const floorsRelations = relations(floors, ({ one }) => ({
   building: one(buildings, { fields: [floors.buildingId], references: [buildings.id] }),
 }));
-
 export const zonesRelations = relations(zones, ({ one }) => ({
   site: one(sites, { fields: [zones.locationId], references: [sites.id] }),
   building: one(buildings, { fields: [zones.buildingId], references: [buildings.id] }),
   floor: one(floors, { fields: [zones.floorId], references: [floors.id] }),
   parentZone: one(zones, { fields: [zones.parentZoneId], references: [zones.id] }),
 }));
-
 export const doorsRelations = relations(doors, ({ one }) => ({
   zone: one(zones, { fields: [doors.zoneId], references: [zones.id] }),
   site: one(sites, { fields: [doors.locationId], references: [sites.id] }),
 }));
-
 export const devicesRelations = relations(devices, ({ one }) => ({
   site: one(sites, { fields: [devices.locationId], references: [sites.id] }),
   zone: one(zones, { fields: [devices.zoneId], references: [zones.id] }),
 }));
-
 export const peopleRelations = relations(people, ({ one }) => ({
   department: one(departments, { fields: [people.departmentId], references: [departments.id] }),
   designation: one(designations, { fields: [people.designationId], references: [designations.id] }),
   company: one(companies, { fields: [people.companyId], references: [companies.id] }),
-  // category: one(categories, { fields: [people.categoryId], references: [categories.id] }),
   site: one(sites, { fields: [people.locationId], references: [sites.id] }),
 }));
-
 export const credentialsRelations = relations(credentials, ({ one }) => ({
   person: one(people, { fields: [credentials.personId], references: [people.id] }),
 }));
-
 export const accessCardsRelations = relations(accessCards, ({ one }) => ({
   person: one(people, { fields: [accessCards.personId], references: [people.id] }),
 }));
-
 export const visitsRelations = relations(visits, ({ one }) => ({
   visitor: one(visitors, { fields: [visits.visitorId], references: [visitors.id] }),
   site: one(sites, { fields: [visits.locationId], references: [sites.id] }),
   host: one(people, { fields: [visits.hostPersonId], references: [people.id] }),
 }));
-
 export const attendanceRelations = relations(attendance, ({ one }) => ({
   person: one(people, { fields: [attendance.personId], references: [people.id] }),
   site: one(sites, { fields: [attendance.locationId], references: [sites.id] }),
   shift: one(shifts, { fields: [attendance.shiftId], references: [shifts.id] }),
 }));
-
 export const accessLogsRelations = relations(accessLogs, ({ one }) => ({
   person: one(people, { fields: [accessLogs.personId], references: [people.id] }),
   visitor: one(visitors, { fields: [accessLogs.visitorId], references: [visitors.id] }),
@@ -588,39 +502,24 @@ export const accessLogsRelations = relations(accessLogs, ({ one }) => ({
   site: one(sites, { fields: [accessLogs.locationId], references: [sites.id] }),
   zone: one(zones, { fields: [accessLogs.zoneId], references: [zones.id] }),
 }));
-
 export const alertsRelations = relations(alerts, ({ one }) => ({
   person: one(people, { fields: [alerts.personId], references: [people.id] }),
   visitor: one(visitors, { fields: [alerts.visitorId], references: [visitors.id] }),
   device: one(devices, { fields: [alerts.deviceId], references: [devices.id] }),
   site: one(sites, { fields: [alerts.locationId], references: [sites.id] }),
 }));
-
-
-// export const roles = pgTable("roles", {
-//   id: serial("id").primaryKey(),
-//   name: text("name").notNull(),
-//   code: text("code").notNull().unique(),
-//   deviceIds: jsonb("device_ids").$type<number[]>().default([]), // Devices store karne ke liye
-//   isActive: boolean("is_active").default(true),
-//   updatedBy: varchar("updated_by"),
-//   updatedAt: timestamp("updated_at").defaultNow(),
-//   createdAt: timestamp("created_at").defaultNow(),
-// });
 export const blockUnblockLogs = pgTable("user_block_unblock_logs", {
   id: serial("id").primaryKey(),
   employeeCode: varchar("employee_code", { length: 20 }).notNull(),
   deviceId: integer("device_id").notNull(),
   type: text("type", { enum: ["block", "unblock"] }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
-    .$defaultFn(() => new Date()) // TypeScript automatic handle kar lega
+    .$defaultFn(() => new Date()) 
     .notNull(),
-
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .$defaultFn(() => new Date())
     .notNull(),
 });
-
 export const employeeDoorAssignments = pgTable("employee_door_assignments", {
   id: serial("id").primaryKey(),
   employeeCode: varchar("employee_code", { length: 100 })
@@ -631,18 +530,14 @@ export const employeeDoorAssignments = pgTable("employee_door_assignments", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()
 });
-
-
-// --- Main Gate Activity Logs Table ---
 export const mainGateLogs = pgTable("main_gate_logs", {
   id: serial("id").primaryKey(),
   employeeCode: text("employee_code").notNull(),
   deviceId: integer("device_id").notNull(),
-  direction: text("direction").notNull(), // 'IN' or 'OUT'
+  direction: text("direction").notNull(), 
   punchTime: timestamp("punch_time").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-
 }, (table) => {
   return {
     uniquePunchIdx: uniqueIndex("unique_punch_idx").on(
@@ -652,25 +547,10 @@ export const mainGateLogs = pgTable("main_gate_logs", {
     ),
   };
 });
-// export const mainGateLogs = pgTable("main_gate_logs", {
-//   id: serial("id").primaryKey(),
-//   employeeCode: text("employee_code").notNull(),
-//   deviceId: integer("device_id").notNull(),
-//   doorId: integer("door_id").notNull(),
-//   logDate: timestamp("log_date").notNull(),
-//   deviceDirection: text("device_direction", { enum: ["IN", "OUT"] }).notNull(),
-//   createdAt: timestamp("created_at").defaultNow(),
-//   updatedAt: timestamp("updated_at").defaultNow(),
-// })
 export const doorDevices = pgTable("door_devices", {
   id: serial("id").primaryKey(),
   doorId: integer("door_id").references(() => doors.id, { onDelete: "cascade" }),
-
-  // 🔥 NAYA COLUMN: Door Classification
-  // true = Main Gate (Sabko building mein lata hai)
-  // false = Cabin/Sensitive Area (Isme enter hote hi baki sab block hoga)
   isMainGate: boolean("is_main_gate").default(false),
-
   inDeviceIds: integer("in_device_ids").array().default([]),
   outDeviceIds: integer("out_device_ids").array().default([]),
   isActive: boolean("is_active").default(true),
@@ -679,46 +559,27 @@ export const doorDevices = pgTable("door_devices", {
 export const cronMaster = pgTable("cron_master", {
   id: serial("id").primaryKey(),
   doorId: integer("door_id"),
-
-  // --- Configuration ---
   displayName: text("display_name").notNull(),
-  code: text("code").unique().notNull(), // Example: 'MG_SYNC_01'
+  code: text("code").unique().notNull(), 
   scheduleSecond: integer("schedule_second").default(0),
   scheduleMinute: integer("schedule_minute").default(0),
   scheduleHour: integer("schedule_hour").default(24),
-  // Sync Interval (Seconds mein, default 30s)
-  // scheduleTime: integer("schedule_time").notNull().default(30),
-
   lockoutHours: integer("lockout_hours").default(24),
   lockoutMinutes: integer("lockout_minutes").default(0),
   task: text("task"),
   group: text("group"),
-
-  // --- Sync Pointers (Crucial for MS SQL) ---
-  // mode: "number" use karne se JS side par pointer handling asaan rehti hai
   lastProcessedId: bigint("last_processed_id", { mode: "number" }).default(0),
-
-  // --- Execution Controls ---
   retryCount: integer("retry_count").default(3),
   timeoutMinutes: integer("timeout_minutes").default(15),
   priority: text("priority").default("medium"),
-
-  // --- Status & Tracking ---
   isActive: boolean("is_active").default(true),
   isRunning: boolean("is_running").default(false),
-
-  // 🕒 Time Details (With IST Support)
-  // withTimezone: true + TZ=Asia/Kolkata = Perfect Indian Time
   lastRun: timestamp("last_run", { withTimezone: false }),
-  lastRunDuration: integer("last_run_duration"), // Sync hone mein kitne seconds lage
-  lastStatus: text("last_status"), // 'success' or 'failed'
-  lastMessage: text("last_message"), // Error message ya summary data
-
-  // --- Maintenance ---
+  lastRunDuration: integer("last_run_duration"), 
+  lastStatus: text("last_status"), 
+  lastMessage: text("last_message"), 
   logRetentionDays: integer("log_retention_days").default(30),
   alertEmail: text("alert_email"),
-
-  // Auto-timestamps (Database level par IST handle karne ke liye)
   createdAt: timestamp("created_at", { withTimezone: false }).default(sql`CURRENT_TIMESTAMP`),
   updatedAt: timestamp("updated_at", { withTimezone: false }).default(sql`CURRENT_TIMESTAMP`),
 });
@@ -726,54 +587,34 @@ export const cabinLockouts = pgTable("cabin_lockouts", {
   id: serial("id").primaryKey(),
   employeeCode: text("employee_code").notNull(),
   doorId: integer("door_id").notNull(),
-
-  // Timestamps for audit
-  inPunchTime: timestamp("in_punch_time"),       // Jab cabin mein enter hua
-  outPunchTime: timestamp("out_punch_time"),     // Jab cabin se bahar nikla (Trigger point)
-
-  // Lockout logic
+  inPunchTime: timestamp("in_punch_time"),       
+  outPunchTime: timestamp("out_punch_time"),     
   lockoutExpiry: timestamp("lockoutExpiry").notNull(),
-  // durationHours: integer("duration_hours").default(24), // Custom duration agar kabhi badalna ho
-
   status: text("status").default("active"),
   createdAt: timestamp("created_at", { withTimezone: true })
-    .$defaultFn(() => new Date()) // TypeScript automatic handle kar lega
+    .$defaultFn(() => new Date()) 
     .notNull(),
-
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .$defaultFn(() => new Date())
     .notNull(),
-
-  // createdAt: timestamp("created_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
-  // updatedAt: timestamp("updated_at", { withTimezone: true }).default(sql`CURRENT_TIMESTAMP`),
 });
-
-// // ==================== 4. ACTIVITY LOGS (Detailed Movements) ====================
-// Ye table har employee ka 10,000+ data points save karegi
 export const employeeActivityLogs = pgTable("employee_activity_logs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   deviceLogId: integer("device_log_id").unique(),
   employeeCode: text("employee_code").notNull(),
   employeeName: text("employee_name"),
-
-  // Device & Door Info
   deviceId: integer("device_id"),
   deviceName: text("device_name"),
   doorId: integer("door_id"),
   doorName: text("door_name"),
-  direction: text("direction"), // IN / OUT
-
-  // Shift & Organization
+  direction: text("direction"), 
   shiftName: text("shift_name"),
   shiftTime: text("shift_time"),
   departmentName: text("department_name"),
   designationName: text("designation_name"),
   locationName: text("location_name"),
-
-  // Timings & Calculation
   logDate: timestamp("log_date").notNull(),
   onlyDate: date("only_date").notNull(),
-
   stayDurationMinutes: integer("stay_duration_minutes").default(0),
   prevZone: text("prev_zone"),
   currentZone: text("current_zone"),
@@ -783,9 +624,6 @@ export const employeeActivityLogs = pgTable("employee_activity_logs", {
 }, (table) => ({
   empDateIdx: index("idx_logs_emp_date").on(table.employeeCode, table.onlyDate),
 }));
-
-// daily_attendance_summary table update
-// Reporting ke liye optimized table
 export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   workDate: date("work_date").notNull(),
@@ -793,63 +631,46 @@ export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
   employeeName: text("employee_name"),
   gender: text("gender"),
   doorName: text("door_name"),
-  // Timings
   firstIn: timestamp("first_in"),
   lastOut: timestamp("last_out"),
   shifttime: text("shift_time"),
-
   shiftname: text("shift_name"),
-  // Data Points
   totalPresenceMinutes: integer("total_presence_minutes").default(0),
   totalPresenceHours: decimal("total_presence_hours", { precision: 10, scale: 2 }).default("0"),
-  
   productiveMinutes: integer("productive_minutes").default(0),
   productiveHours: decimal("productive_hours", { precision: 10, scale: 2 }).default("0"),
-
-  
   overtimeMinutes: integer("overtime_minutes").default(0),
   otHours: decimal("ot_hours", { precision: 10, scale: 2 }).default("0"),
-
   totalPunches: integer("total_punches").default(0),
-
-  // Analysis (Image 2 logic)
   efficiencyPercent: decimal("efficiency_percent", { precision: 5, scale: 2 }).default("0"),
   attendanceStatus: text("attendance_status").default("P"),
-
-  // Fast Reporting Metadata (No Joins Needed)
   departmentName: text("department_name"),
   designationName: text("designation_name"),
   departmentId: integer("department_id"),
   designationId: integer("designation_id"),
-
-  // totalPresenceMinutes: integer("total_presence_minutes").default(0),
-  
 }, (table) => ({
   uniqueDateEmp: uniqueIndex("idx_summary_date_emp").on(table.workDate, table.employeeCode),
   dateIdx: index("idx_summary_date").on(table.workDate),
 }));
-
 export const syncMeta = pgTable("sync_meta", {
   id: serial("id").primaryKey(),
-  syncCode: text("sync_code").unique().notNull(), // 'ATTENDANCE_SYNC'
+  syncCode: text("sync_code").unique().notNull(), 
   lastProcessedId: integer("last_processed_id").default(0),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
-
 export const menuMaster = pgTable("menu_master", {
   id: serial("id").primaryKey(),
-  title: text("title").notNull().unique(), // Unique Name
-  code: text("code").notNull().unique(), // Unique Code (Numeric or String)
+  title: text("title").notNull().unique(), 
+  code: text("code").notNull().unique(), 
   icon: text("icon"),
   parentId: integer("parent_id").default(0),
   sortOrder: integer("sort_order").default(0),
   isActive: boolean("is_active").default(true),
 });
-
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
-  roleName: text("role_name").notNull(),       // e.g., "Super Administrator"
-  code: text("code").notNull().unique(), // e.g., "SUPER_ADMIN", "STAFF_01"
+  roleName: text("role_name").notNull(),       
+  code: text("code").notNull().unique(), 
   description: text("description"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -866,24 +687,38 @@ export const rolePermissions = pgTable("role_permissions", {
   print: boolean("print").default(false),
 }, (table) => {
   return {
-    // Ye line ensure karegi ki ek role ke liye ek menu ki entry sirf ek hi baar ho
     roleMenuUnique: unique("role_menu_unique").on(table.roleId, table.menuId),
   };
 });
 export const auditLogs = pgTable("audit_logs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  userId: text("user_id").notNull(),     // Kisne change kiya (User ID)
-  tableName: text("table_name").notNull(), // Kis table me change hua (people, devices etc.)
-  recordId: text("record_id").notNull(),   // Jis row ko badla uski ID
-  action: text("action").notNull(),       // Kya kiya: 'ADD', 'EDIT', 'DELETE'
-  oldData: jsonb("old_data"),             // Badalne se pehle kya data tha
+  userId: text("user_id").notNull(),     
+  tableName: text("table_name").notNull(), 
+  recordId: text("record_id").notNull(),   
+  action: text("action").notNull(),       
+  oldData: jsonb("old_data"),             
   newData: jsonb("new_data"),   
   changedColumns: text("changed_columns"), 
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at").defaultNow().notNull(), 
 });
-// ==================== INSERT SCHEMAS ====================
+export const contractors = pgTable("contractors", {
+  id: serial("id").primaryKey(),
+  contractorName: text("contractor_name").notNull(),
+  contractorCode: text("contractor_code").notNull(), 
+  gender: text("gender").default("Male").notNull(),
+  aadhaarNumber: text("aadhaar_number"), 
+  contactNumber: text("contact_number").notNull(),
+  email: text("email"), 
+  address: text("address"), 
+  companyName: text("company_name").notNull(), 
+  startDate: text("start_date").notNull(),
+  expiryDate: text("expiry_date").notNull(), 
+  biometricId: text("biometric_id"), 
+  status: text("status").default("active").notNull(), 
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
@@ -925,37 +760,31 @@ export const insertEmployeeActivityLogSchema = createInsertSchema(employeeActivi
 export const insertDailyAttendanceSummarySchema = createInsertSchema(dailyAttendanceSummary, { workDate: z.any() }).omit({ id: true });
 export const insertRoleSchema = createInsertSchema(roles).omit({ id: true })
 export const insertMenuMasterSchema = createInsertSchema(menuMaster).omit({ id: true }).extend({ parentId: z.number().nullable().optional().default(0), sortOrder: z.number().optional().default(0), isActive: z.boolean().optional().default(true), });
-export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({
-  id: true
-}).extend({
-  view: z.boolean().default(true),
-  add: z.boolean().default(false),
-  edit: z.boolean().default(false),
-  delete: z.boolean().default(false),
-  export: z.boolean().default(false),
-  print: z.boolean().default(false),
-});
+export const insertRolePermissionSchema = createInsertSchema(rolePermissions).omit({ id: true }).extend({ view: z.boolean().default(true), add: z.boolean().default(false), edit: z.boolean().default(false), delete: z.boolean().default(false), export: z.boolean().default(false), print: z.boolean().default(false), });
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: true, createdAt: true });
+export const insertContractorSchema = createInsertSchema(contractors)
+  .omit({ id: true, createdAt: true })
+  .extend({
+    contactNumber: z.string().min(10, "Contact number must be at least 10 digits"),
+    aadhaarNumber: z.string().min(12, "Aadhaar must be exactly 12 digits").max(12).optional().nullable(),
+    email: z.string().email("Invalid email layout structure").optional().nullable(),
+    biometricId: z.string().optional().nullable(), 
+  });
 
-// ==================== TYPES ====================
-// Menu Master Types
+
+
+export type Contractor = typeof contractors.$inferSelect;
+export type InsertContractor = z.infer<typeof insertContractorSchema>;
 export type MenuMaster = typeof menuMaster.$inferSelect;
 export type InsertMenuMaster = z.infer<typeof insertMenuMasterSchema>;
-
-// Role Permissions Types
 export type RolePermission = typeof rolePermissions.$inferSelect;
 export type InsertRolePermission = z.infer<typeof insertRolePermissionSchema>;
-
-// Role Types (Inke bina role seeder kaam nahi karega)
 export type Role = typeof roles.$inferSelect;
 export type InsertRole = z.infer<typeof insertRoleSchema>;
-
 export type EmployeeActivityLog = typeof employeeActivityLogs.$inferSelect;
 export type InsertEmployeeActivityLog = z.infer<typeof insertEmployeeActivityLogSchema>;
-
 export type DailyAttendanceSummary = typeof dailyAttendanceSummary.$inferSelect;
 export type InsertDailyAttendanceSummary = z.infer<typeof insertDailyAttendanceSummarySchema>;
-
 export type UserProfile = typeof userProfiles.$inferSelect;
 export type InsertUserProfile = z.infer<typeof insertUserProfileSchema>;
 export type Company = typeof companies.$inferSelect;
@@ -1018,7 +847,6 @@ export type Exception = typeof exceptions.$inferSelect;
 export type InsertException = z.infer<typeof insertExceptionSchema>;
 export type SystemSetting = typeof systemSettings.$inferSelect;
 export type InsertSystemSetting = z.infer<typeof insertSystemSettingSchema>;
-
 export type BlockUnblockLog = typeof blockUnblockLogs.$inferSelect;
 export type InsertBlockUnblockLog = z.infer<typeof insertBlockUnblockLogSchema>;
 export type MainGateLog = typeof mainGateLogs.$inferSelect;
@@ -1031,5 +859,3 @@ export type EmployeeDoorAssignment = typeof employeeDoorAssignments.$inferSelect
 export type InsertEmployeeDoorAssignment = z.infer<typeof insertEmployeeDoorAssignmentSchema>;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
-
-

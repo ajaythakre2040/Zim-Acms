@@ -155,6 +155,9 @@ export const MENU_CONFIG = {
   DEVICES: { title: "Devices", code: "dev_01", icon: "Cpu" },
   USER_ADMIN: { title: "User Admin", code: "uadmin_01", icon: "UserCog" },
   EMERGENCY_UNBLOCK: { title: "Emergency Unblock All", code: "act_emg_01", icon: "RefreshCw" },
+  VISITORS: { title: "Visitors", code: "visit_01", icon: "UserCog" },
+  CONTRACTORS: { title: "Contractors", code: "contr_01", icon: "Users" },
+  AUDIT_TRAIL: { title: "Audit Trail", code: "audit_01", icon: "History" }
 } as const;
 
 
@@ -204,7 +207,8 @@ export const TABLES = {
   VISITORS: "visitors",
   VISITS: "visits",
   VISIT_ACCESS: "visit_access",
-  ZONES: "zones"
+  ZONES: "zones",
+  CONTRACTORS: "contractors"
 } as const;
 
 export type TableNames = typeof TABLES[keyof typeof TABLES];

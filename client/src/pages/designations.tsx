@@ -154,8 +154,7 @@ export default function DesignationPage() {
               size="icon"
               variant="ghost"
               title="Delete Designation" // Tooltip text
-              className="hover:text-destructive hover:bg-destructive/10 transition-colors" // Red hover effect
-              onClick={async (e) => {
+              className="text-destructive"              onClick={async (e) => {
                 e.stopPropagation();
 
                 const confirmed = await confirm({

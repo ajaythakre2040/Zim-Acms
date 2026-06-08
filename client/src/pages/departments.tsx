@@ -142,7 +142,7 @@ export default function DepartmentsPage() {
               size="icon"
               variant="ghost"
               title="Delete Department"
-              className="hover:text-destructive hover:bg-destructive/10 transition-colors"
+              className="text-destructive"
               onClick={async (e) => {
                 e.stopPropagation();
 

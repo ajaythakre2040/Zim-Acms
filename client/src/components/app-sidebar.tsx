@@ -35,7 +35,6 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { MENU_CONFIG } from "../../../server/constant";
 
-// --- 1. TypeScript Interfaces ---
 interface MenuPermission {
   permissionId: number;
   menuId: number;
@@ -51,12 +50,10 @@ interface AuthUser {
   id: string;
   username: string | null;
   fullName: string | null;
-  // lastName: string | null;
   roleName?: string;
   menuPermissions?: MenuPermission[];
 }
 
-// --- 2. Configuration & Helpers ---
 const groupStyles: Record<string, { color: string; bgColor: string }> = {
   Overview: { color: "text-blue-400", bgColor: "bg-blue-500/15" },
   Employees: { color: "text-cyan-400", bgColor: "bg-cyan-500/15" },
@@ -68,7 +65,6 @@ const groupStyles: Record<string, { color: string; bgColor: string }> = {
   Default: { color: "text-slate-400", bgColor: "bg-slate-500/15" },
 };
 
-// Title ko URL friendly banane ke liye helper (e.g. "Shifts & Holidays" -> "shifts-and-holidays")
 const getUrlPath = (title: string) => {
   return title
     .toLowerCase()
@@ -86,52 +82,21 @@ export function AppSidebar() {
   const [location] = useLocation();
   const auth = useAuth();
 
-  // User data casting to solve TypeScript errors
   const user = auth.user as AuthUser | null;
 
   const initials = user
     ? `${(user.fullName || "U")[0]}`
     : "?";
 
-  // --- 3. Dynamic Menu Tree Logic ---
-  // const navGroups = useMemo(() => {
-  //   if (!user?.menuPermissions) return [];
-
-  //   const map: Record<number, any> = {};
-  //   const roots: any[] = [];
-
-  //   user.menuPermissions.forEach((item) => {
-  //     map[item.menuId] = {
-  //       ...item,
-  //       renderIcon: getIcon(item.icon),
-  //       urlPath: `/${getUrlPath(item.title)}`, // Pre-calculate path
-  //       subItems: [],
-  //     };
-  //   });
-
-  //   user.menuPermissions.forEach((item) => {
-  //     if (item.parentId && item.parentId !== 0 && map[item.parentId]) {
-  //       map[item.parentId].subItems.push(map[item.menuId]);
-  //     } else {
-  //       roots.push(map[item.menuId]);
-  //     }
-  //   });
-
-  //   return roots.sort((a, b) => a.sortOrder - b.sortOrder);
-  // }, [user?.menuPermissions]);
-  // --- 3. Dynamic Menu Tree Logic ---
   const navGroups = useMemo(() => {
     if (!user?.menuPermissions) return [];
 
-    // FIX: Pehle permissions ko filter karein jahan view: true ho
-    // const visiblePermissions = user.menuPermissions.filter(item => item.view === true);
     const visiblePermissions = user.menuPermissions.filter(
-      (item) => item.view === true && item.code !== MENU_CONFIG.EMERGENCY_UNBLOCK.code // 👈 Yeh condition sidebar se emergency menu ko gayab kar degi
+      (item) => item.view === true && item.code !== MENU_CONFIG.EMERGENCY_UNBLOCK.code
     );
     const map: Record<number, any> = {};
     const roots: any[] = [];
 
-    // Ab sirf visible items ko map mein daalein
     visiblePermissions.forEach((item) => {
       map[item.menuId] = {
         ...item,
@@ -145,13 +110,13 @@ export function AppSidebar() {
       if (item.parentId && item.parentId !== 0 && map[item.parentId]) {
         map[item.parentId].subItems.push(map[item.menuId]);
       } else if (!item.parentId || item.parentId === 0) {
-        // Sirf wahi root mein jayenge jinka parentId 0 hai aur view true hai
         roots.push(map[item.menuId]);
       }
     });
 
     return roots.sort((a, b) => a.sortOrder - b.sortOrder);
   }, [user?.menuPermissions]);
+
   return (
     <Sidebar>
       <SidebarHeader className="p-4">
@@ -179,7 +144,6 @@ export function AppSidebar() {
           const styles = groupStyles[group.title] || groupStyles["Default"];
           const hasSubItems = group.subItems && group.subItems.length > 0;
 
-          // Logic to check if active
           const isAnySubActive = group.subItems?.some(
             (sub: any) => location === sub.urlPath
           );
@@ -215,10 +179,11 @@ export function AppSidebar() {
                               return (
                                 <SidebarMenuSubItem key={sub.menuId}>
                                   <SidebarMenuSubButton asChild isActive={isSubActive} className="h-8 transition-colors">
-                                    <Link href={sub.urlPath}>
-                                      <a className={`text-[12px] w-full ${isSubActive ? "font-bold text-blue-500" : "text-sidebar-foreground/60 hover:text-sidebar-foreground"}`}>
-                                        {sub.title}
-                                      </a>
+                                    <Link
+                                      href={sub.urlPath}
+                                      className={`text-[12px] w-full block ${isSubActive ? "font-bold text-blue-500" : "text-sidebar-foreground/60 hover:text-sidebar-foreground"}`}
+                                    >
+                                      {sub.title}
                                     </Link>
                                   </SidebarMenuSubButton>
                                 </SidebarMenuSubItem>
@@ -231,16 +196,14 @@ export function AppSidebar() {
                   ) : (
                     <SidebarMenuItem>
                       <SidebarMenuButton asChild data-active={isActive} className="mx-2 rounded-lg group">
-                        <Link href={group.urlPath}>
-                          <a className="flex items-center gap-2 w-full">
-                            <div className={`flex items-center justify-center w-6 h-6 rounded-md ${isActive ? styles.bgColor : "bg-transparent group-hover:bg-sidebar-accent/50"} transition-all duration-200`}>
-                              <group.renderIcon className={`w-4 h-4 ${isActive ? styles.color : "text-sidebar-foreground/60 opacity-70"}`} />
-                            </div>
-                            <span className={`text-[13px] font-medium ${isActive ? "text-sidebar-foreground font-semibold" : "text-sidebar-foreground/80"}`}>
-                              {group.title}
-                            </span>
-                            {isActive && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 ml-auto shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
-                          </a>
+                        <Link href={group.urlPath} className="flex items-center gap-2 w-full">
+                          <div className={`flex items-center justify-center w-6 h-6 rounded-md ${isActive ? styles.bgColor : "bg-transparent group-hover:bg-sidebar-accent/50"} transition-all duration-200`}>
+                            <group.renderIcon className={`w-4 h-4 ${isActive ? styles.color : "text-sidebar-foreground/60 opacity-70"}`} />
+                          </div>
+                          <span className={`text-[13px] font-medium ${isActive ? "text-sidebar-foreground font-semibold" : "text-sidebar-foreground/80"}`}>
+                            {group.title}
+                          </span>
+                          {isActive && <div className="w-1.5 h-1.5 rounded-full bg-blue-500 ml-auto shadow-[0_0_8px_rgba(59,130,246,0.5)]" />}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -263,7 +226,7 @@ export function AppSidebar() {
           </Avatar>
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-xs font-bold truncate text-sidebar-foreground">
-              {user?.fullName || "System"} 
+              {user?.fullName || "System"}
             </span>
             <span className="text-[9px] text-emerald-500 font-medium flex items-center gap-1 leading-none mt-0.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
