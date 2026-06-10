@@ -46,6 +46,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
+import { PaginationSize } from "@/components/ui/pagination";
 type RoleWithDoors = Role & {
   assignedDoorNames?: string;
 };
@@ -89,7 +90,8 @@ export default function PeoplePage() {
     totalCount: number;
   };
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  // const pageSize = 5;
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
   const {
     data: peopleResponse,
@@ -650,6 +652,13 @@ export default function PeoplePage() {
         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
           {/* Go to Page */}
           <div className="flex items-center gap-2">
+            <PaginationSize
+              pageSize={pageSize}
+              setPageSize={(val) => {
+                setPageSize(val);
+                setPage(1); // Page size change hone par 1st page par jayein
+              }}
+            />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Go to Page
             </span>

@@ -21,7 +21,7 @@ import {
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
 import { formatDateTime } from "@/lib/utils";
-import { PaginationSize } from "@/components/ui/pagination"; 
+
 function exportCSV(fileName: string, data: any[]) {
     if (!data || !data.length) return;
     const headers = Object.keys(data[0]);
@@ -42,9 +42,11 @@ function exportCSV(fileName: string, data: any[]) {
     link.download = `${fileName}.csv`;
     link.click();
 }
+
 export default function AuditTrailPage() {
     const { canView } = usePermission(MENU_CONFIG.AUDIT_TRAIL?.code || "audit_01");
     const { canView: canExport } = usePermission(MENU_CONFIG.AUDIT_TRAIL?.code || "audit_01");
+
     if (!canView) {
         return (
             <div className="p-6 text-center text-muted-foreground">
@@ -52,12 +54,15 @@ export default function AuditTrailPage() {
             </div>
         );
     }
-    const [pageSize, setPageSize] = useState(10);
+
+    const pageSize = 10;
     const [activeTab, setActiveTab] = useState<"activity" | "sessions">("activity");
+
     const [auditUsersList, setAuditUsersList] = useState<any[]>([]);
     const [auditModulesList, setAuditModulesList] = useState<any[]>([]);
     const [auditActionsList, setAuditActionsList] = useState<any[]>([]);
     const [loginUsersList, setLoginUsersList] = useState<any[]>([]);
+
     const [auditPage, setAuditPage] = useState(1);
     const [auditSearch, setAuditSearch] = useState("");
     const [auditPerformedBy, setAuditPerformedBy] = useState("");
@@ -65,38 +70,47 @@ export default function AuditTrailPage() {
     const [auditAction, setAuditAction] = useState("");
     const [auditFromDate, setAuditFromDate] = useState("");
     const [auditToDate, setAuditToDate] = useState("");
+
     const [auditResponse, setAuditResponse] = useState<any>(null);
     const [auditLoading, setAuditLoading] = useState(false);
+
     const [loginPage, setLoginPage] = useState(1);
     const [loginSearch, setLoginSearch] = useState("");
     const [loginUsername, setLoginUsername] = useState("");
     const [loginStatus, setLoginStatus] = useState("");
     const [loginFromDate, setLoginFromDate] = useState("");
     const [loginToDate, setLoginToDate] = useState("");
+
     const [loginResponse, setLoginResponse] = useState<any>(null);
     const [loginLoading, setLoginLoading] = useState(false);
+
     const [selectedLog, setSelectedLog] = useState<any>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedSession, setSelectedSession] = useState<any>(null);
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+
     useEffect(() => {
         fetch("/api/audit-logs/users")
             .then((res) => res.json())
             .then((data) => setAuditUsersList(data))
             .catch((err) => console.error("Error fetching audit users:", err));
+
         fetch("/api/audit-logs/modules")
             .then((res) => res.json())
             .then((data) => setAuditModulesList(data))
             .catch((err) => console.error("Error fetching audit modules:", err));
+
         fetch("/api/audit-logs/actions")
             .then((res) => res.json())
             .then((data) => setAuditActionsList(data))
             .catch((err) => console.error("Error fetching audit actions:", err));
+
         fetch("/api/audit-logs/users")
             .then((res) => res.json())
             .then((data) => setLoginUsersList(data))
             .catch((err) => console.error("Error fetching login users:", err));
     }, []);
+
     const fetchAuditLogs = async (isExport = false) => {
         try {
             if (!isExport) setAuditLoading(true);
@@ -118,6 +132,7 @@ export default function AuditTrailPage() {
             const query = new URLSearchParams(queryParams);
             const res = await fetch(`/api/audit-logs?${query.toString()}`);
             const data = await res.json();
+
             if (isExport) {
                 return Array.isArray(data) ? data : (data.data || []);
             } else {
@@ -129,6 +144,7 @@ export default function AuditTrailPage() {
             if (!isExport) setAuditLoading(false);
         }
     };
+
     const fetchLoginLogs = async (isExport = false) => {
         try {
             if (!isExport) setLoginLoading(true);
@@ -149,6 +165,7 @@ export default function AuditTrailPage() {
             const query = new URLSearchParams(queryParams);
             const res = await fetch(`/api/login-logs?${query.toString()}`);
             const data = await res.json();
+
             if (isExport) {
                 return Array.isArray(data) ? data : (data.data || []);
             } else {
@@ -160,18 +177,21 @@ export default function AuditTrailPage() {
             if (!isExport) setLoginLoading(false);
         }
     };
+
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchAuditLogs();
         }, 300);
         return () => clearTimeout(timer);
-    }, [auditPage, pageSize, auditSearch, auditPerformedBy, auditModule, auditAction, auditFromDate, auditToDate]);
+    }, [auditPage, auditSearch, auditPerformedBy, auditModule, auditAction, auditFromDate, auditToDate]);
+
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchLoginLogs();
         }, 300);
         return () => clearTimeout(timer);
-    }, [loginPage, pageSize, loginSearch, loginUsername, loginStatus, loginFromDate, loginToDate]);
+    }, [loginPage, loginSearch, loginUsername, loginStatus, loginFromDate, loginToDate]);
+
     const handleExport = async (tabType: "activity" | "sessions") => {
         try {
             const data = tabType === "activity" ? await fetchAuditLogs(true) : await fetchLoginLogs(true);
@@ -204,6 +224,7 @@ export default function AuditTrailPage() {
             alert("Error exporting data!");
         }
     };
+
     const resetAuditFilters = () => {
         setAuditSearch("");
         setAuditPerformedBy("");
@@ -213,6 +234,7 @@ export default function AuditTrailPage() {
         setAuditToDate("");
         setAuditPage(1);
     };
+
     const resetLoginFilters = () => {
         setLoginSearch("");
         setLoginUsername("");
@@ -221,18 +243,23 @@ export default function AuditTrailPage() {
         setLoginToDate("");
         setLoginPage(1);
     };
+
     const auditData = auditResponse?.data || [];
     const auditTotalPages = auditResponse?.totalPages || 1;
+
     const loginData = loginResponse?.data || [];
     const loginTotalPages = loginResponse?.totalPages || 1;
+
     const handleOpenDetails = (log: any) => {
         setSelectedLog(log);
         setIsModalOpen(true);
     };
+
     const handleOpenSessionDetails = (session: any) => {
         setSelectedSession(session);
         setIsSessionModalOpen(true);
     };
+
     const auditColumns = [
         {
             key: "id",
@@ -293,6 +320,7 @@ export default function AuditTrailPage() {
             ),
         },
     ];
+
     const loginColumns = [
         {
             key: "username",
@@ -351,6 +379,7 @@ export default function AuditTrailPage() {
             ),
         },
     ];
+
     return (
         <div className="p-4 md:p-6 bg-slate-50/50 min-h-screen">
             <div className="mb-6">
@@ -359,12 +388,14 @@ export default function AuditTrailPage() {
                 </h1>
                 <p className="text-sm text-slate-500 font-medium">Monitor system activity and session logs</p>
             </div>
+
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
                 <div className="flex items-center justify-between mb-4">
                     <TabsList className="grid w-full max-w-md grid-cols-2 bg-slate-100 p-1 rounded-lg">
                         <TabsTrigger value="activity" className="data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-semibold transition-all">Activity Logs</TabsTrigger>
                         <TabsTrigger value="sessions" className="data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm font-semibold transition-all">Login Sessions</TabsTrigger>
                     </TabsList>
+
                     {canExport && (
                         <Button
                             onClick={() => handleExport(activeTab)}
@@ -377,6 +408,7 @@ export default function AuditTrailPage() {
                         </Button>
                     )}
                 </div>
+
                 <TabsContent value="activity" className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm mt-0">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100 items-center">
                         <input
@@ -385,6 +417,7 @@ export default function AuditTrailPage() {
                             onChange={(e) => { setAuditSearch(e.target.value); setAuditPage(1); }}
                             className="h-9 px-3 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white"
                         />
+
                         <select
                             value={auditPerformedBy}
                             onChange={(e) => { setAuditPerformedBy(e.target.value); setAuditPage(1); }}
@@ -397,6 +430,7 @@ export default function AuditTrailPage() {
                                 </option>
                             ))}
                         </select>
+
                         <select
                             value={auditModule}
                             onChange={(e) => { setAuditModule(e.target.value); setAuditPage(1); }}
@@ -409,6 +443,7 @@ export default function AuditTrailPage() {
                                 </option>
                             ))}
                         </select>
+
                         <select
                             value={auditAction}
                             onChange={(e) => { setAuditAction(e.target.value); setAuditPage(1); }}
@@ -421,6 +456,7 @@ export default function AuditTrailPage() {
                                 </option>
                             ))}
                         </select>
+
                         <div className="flex items-center gap-1 col-span-1 md:col-span-2">
                             <input
                                 type="date"
@@ -440,19 +476,14 @@ export default function AuditTrailPage() {
                             </Button>
                         </div>
                     </div>
+
                     <DataTable columns={auditColumns} data={auditData} isLoading={auditLoading} />
+
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t border-slate-100 bg-slate-50/50 mt-4 rounded-b-lg">
                         <div className="text-sm text-slate-500 order-2 md:order-1 font-medium">
                             Showing <span className="font-bold text-slate-800">{(auditPage - 1) * pageSize + 1}</span> to <span className="font-bold text-slate-800">{Math.min(auditPage * pageSize, auditResponse?.totalCount || 0)}</span> of <span className="font-bold text-slate-800">{auditResponse?.totalCount || 0}</span> records
                         </div>
                         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
-                            <PaginationSize
-                                pageSize={pageSize}
-                                setPageSize={(val) => {
-                                    setPageSize(val);
-                                    setAuditPage(1); 
-                                }}
-                            />
                             <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Go to Page</span>
                                 <input
@@ -489,6 +520,7 @@ export default function AuditTrailPage() {
                         </div>
                     </div>
                 </TabsContent>
+
                 <TabsContent value="sessions" className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm mt-0">
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100 items-center">
                         <input
@@ -497,6 +529,7 @@ export default function AuditTrailPage() {
                             onChange={(e) => { setLoginSearch(e.target.value); setLoginPage(1); }}
                             className="h-9 px-3 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white"
                         />
+
                         <select
                             value={loginUsername}
                             onChange={(e) => { setLoginUsername(e.target.value); setLoginPage(1); }}
@@ -509,6 +542,7 @@ export default function AuditTrailPage() {
                                 </option>
                             ))}
                         </select>
+
                         <select
                             value={loginStatus}
                             onChange={(e) => { setLoginStatus(e.target.value); setLoginPage(1); }}
@@ -518,6 +552,7 @@ export default function AuditTrailPage() {
                             <option value="LOGIN">LOGGED IN / ACTIVE</option>
                             <option value="LOGOUT">LOGGED OUT</option>
                         </select>
+
                         <div className="flex items-center gap-1 col-span-1 md:col-span-2">
                             <input
                                 type="date"
@@ -537,19 +572,14 @@ export default function AuditTrailPage() {
                             </Button>
                         </div>
                     </div>
+
                     <DataTable columns={loginColumns} data={loginData} isLoading={loginLoading} />
+
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t border-slate-100 bg-slate-50/50 mt-4 rounded-b-lg">
                         <div className="text-sm text-slate-500 order-2 md:order-1 font-medium">
                             Showing <span className="font-bold text-slate-800">{(loginPage - 1) * pageSize + 1}</span> to <span className="font-bold text-slate-800">{Math.min(loginPage * pageSize, loginResponse?.totalCount || 0)}</span> of <span className="font-bold text-slate-800">{loginResponse?.totalCount || 0}</span> sessions
                         </div>
                         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
-                            <PaginationSize
-                                pageSize={pageSize}
-                                setPageSize={(val) => {
-                                    setPageSize(val);
-                                    setLoginPage(1); 
-                                }}
-                            />
                             <div className="flex items-center gap-2">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Go to Page</span>
                                 <input
@@ -587,6 +617,7 @@ export default function AuditTrailPage() {
                     </div>
                 </TabsContent>
             </Tabs>
+
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
                 <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto bg-white rounded-xl shadow-xl">
                     <DialogHeader>
@@ -594,6 +625,7 @@ export default function AuditTrailPage() {
                             Audit Log Details <span className="text-indigo-600 font-extrabold">(Log #{selectedLog?.id})</span>
                         </DialogTitle>
                     </DialogHeader>
+
                     {selectedLog && (
                         <div className="space-y-4 mt-2">
                             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100 text-sm font-medium">
@@ -622,6 +654,7 @@ export default function AuditTrailPage() {
                                     <span className="text-slate-700">{new Date(selectedLog.createdAt).toLocaleString()}</span>
                                 </div>
                             </div>
+
                             {selectedLog.changedColumns && (
                                 <div>
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Changed Columns</h4>
@@ -630,6 +663,7 @@ export default function AuditTrailPage() {
                                     </div>
                                 </div>
                             )}
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Old Data Block</h4>
@@ -637,6 +671,7 @@ export default function AuditTrailPage() {
                                         {selectedLog.oldData ? JSON.stringify(selectedLog.oldData, null, 2) : "NULL / NO PREVIOUS DATA"}
                                     </pre>
                                 </div>
+
                                 <div>
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">New Data Block</h4>
                                     <pre className="bg-slate-900 text-sky-400 p-3 rounded-lg text-xs font-mono overflow-x-auto border max-h-[250px] overflow-y-auto shadow-inner">
@@ -644,6 +679,7 @@ export default function AuditTrailPage() {
                                     </pre>
                                 </div>
                             </div>
+
                             {selectedLog.userAgent && (
                                 <div>
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">User Agent (Browser Metadata)</h4>
@@ -656,6 +692,7 @@ export default function AuditTrailPage() {
                     )}
                 </DialogContent>
             </Dialog>
+
             <Dialog open={isSessionModalOpen} onOpenChange={setIsSessionModalOpen}>
                 <DialogContent className="max-w-xl bg-white rounded-xl shadow-xl">
                     <DialogHeader>

@@ -115,3 +115,26 @@ export {
   PaginationNext,
   PaginationPrevious,
 }
+export const PaginationSize = ({
+  pageSize,
+  setPageSize
+}: {
+  pageSize: number,
+  setPageSize: (size: number) => void
+}) => (
+  <div className="flex items-center gap-2">
+    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Page Size:</span>
+    <select
+      value={pageSize}
+      onChange={(e) => setPageSize(Number(e.target.value))}
+      className="h-9 px-2 border border-slate-200 rounded-md text-sm font-semibold bg-white text-slate-700 outline-none focus:border-indigo-500 cursor-pointer shadow-sm"
+    >
+      {/* Yahan aap apni zaroorat ke hisaab se values badha sakte hain */}
+      {[10, 20, 50, 100, 200, 500].map((size) => (
+        <option key={size} value={size}>
+          {size} records
+        </option>
+      ))}
+    </select>
+  </div>
+);

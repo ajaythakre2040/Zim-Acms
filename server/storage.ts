@@ -16,7 +16,7 @@ import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not, } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter, } from "@shared/mssql_schema";
-import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES, EMPLOYEE_STATUS, } from "./constant";
+import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES, EMPLOYEE_STATUS, DEVICE_OFFLINE_THRESHOLD_MINUTES, } from "./constant";
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
 import { withPagination } from "./utils/pagination.utils";
@@ -1372,7 +1372,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       const currentTime = new Date();
-      const THRESHOLD_MINUTES = 1;
+      const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
 
       let onlineCount = 0;
       let offlineCount = 0;
