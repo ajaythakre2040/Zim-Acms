@@ -103,7 +103,7 @@ const getChangedFields = (oldData: any, newData: any): string[] => {
 //             // Multiple changed columns detect karne ke liye helper call kiya
 //             const changedColumns = action === "UPDATE" ? getChangedFields(oldData, finalNewData) : [];
 
-            
+
 //             storage.logAudit(db, {
 //                 userId: String(userId),
 //                 tableName,
@@ -130,7 +130,7 @@ const getChangedFields = (oldData: any, newData: any): string[] => {
 // };
 export const withAudit = (
     tableName: TableNames,
-    action: "ADD" | "UPDATE" | "DELETE" | "ADD/UPDATE" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" | "EMERGENCY_UNBLOCK_ALL" | ((req: any) => string),
+    action: "ADD" | "UPDATE" | "DELETE" | "ADD/UPDATE" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" | "EMERGENCY_UNBLOCK_ALL" | "BULK_EMPOYEE_UPDATE" | "BULK_DOOR_ASIGNMENT" | ((req: any) => string),
     storageOperation: (req: any) => Promise<any>,
     statusCode = 200
 ) => {
@@ -149,8 +149,12 @@ export const withAudit = (
             }
 
             const result = await storageOperation(req);
-
-            const recordId = result?.id || result?.userId || result?.data?.id || result?.data?.employeeCode || rawId || "N/A";
+            // Middleware mein:
+            const recordId =
+                action === "BULK_EMPOYEE_UPDATE" ? "MULTIPLE_EMPLOYEES" :
+                    action === "BULK_DOOR_ASIGNMENT" ? "MULTIPLE_DOOR_ASSIGNMENTS" :
+                        (result?.id || result?.userId || result?.data?.id || result?.data?.employeeCode || rawId || "N/A");
+            // const recordId = result?.id || result?.userId || result?.data?.id || result?.data?.employeeCode || rawId || "N/A";
             const finalNewData = action === "DELETE" ? null : result;
             const changedColumns = action === "UPDATE" ? getChangedFields(oldData, finalNewData) : [];
             const finalAction = typeof action === "function" ? action(req) : action;
@@ -173,6 +177,9 @@ export const withAudit = (
                 return res.status(statusCode).json(result);
             }
         } catch (e: any) {
+            if (e.isCustom) {
+                return res.status(e.status).json({ errors: e.errors });
+            }
             const fallbackAction = typeof action === "function" ? "DYNAMIC_ACTION_FAILED" : action;
             console.error(`Audit API Error [${fallbackAction} on ${tableName}]:`, e);
             return res.status(500).json({ message: e.message || "Failed to process request" });

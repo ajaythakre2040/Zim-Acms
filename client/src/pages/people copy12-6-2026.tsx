@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useConfirm } from "@/hooks/use-confirm";
+import { useLocation } from "wouter";
+import { DEFAULT_ADMIN_CONFIG } from "../../../server/constant";
 import {
   ShieldCheck,
   RefreshCw,
@@ -44,6 +46,7 @@ import {
 import { formatDateTime } from "@/lib/utils";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
+import { PaginationSize } from "@/components/ui/pagination";
 type RoleWithDoors = Role & {
   assignedDoorNames?: string;
 };
@@ -70,6 +73,7 @@ export default function PeoplePage() {
       </div>
     );
   }
+  const [, navigate] = useLocation();
   const confirm = useConfirm();
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -80,56 +84,34 @@ export default function PeoplePage() {
   const { toast } = useToast();
   const [selectedDoorIds, setSelectedDoorIds] = useState<number[]>([]);
   const [doorSearch, setDoorSearch] = useState("");
-  // type PaginatedResponse<T> = {
-  //   data: T[];
-  //   totalPages: number;
-  //   totalCount: number;
-  // };
-
-  // const [page, setPage] = useState(1);
-  // const pageSize = 2;
-
-  // const {
-  //   data: peopleResponse,
-  //   isLoading,
-  //   refetch,
-  //   isFetching,
-  // } = useQuery<PaginatedResponse<Person>>({
-  //   queryKey: [`/api/people?page=${page}&pageSize=${pageSize}`],
-  // });
   type PaginatedResponse<T> = {
     data: T[];
     totalPages: number;
     totalCount: number;
   };
-
   const [page, setPage] = useState(1);
-  const pageSize = 5;
-
+  // const pageSize = 5;
+  const [pageSize, setPageSize] = useState(10);
+  const [search, setSearch] = useState("");
   const {
     data: peopleResponse,
     isLoading,
     refetch,
     isFetching,
   } = useQuery<PaginatedResponse<Person>, Error>({
-    queryKey: ["/api/people", page, pageSize],
-
+    queryKey: ["/api/people", page, pageSize, search],
     queryFn: async (): Promise<PaginatedResponse<Person>> => {
       const res = await apiRequest(
         "GET",
-        `/api/people?page=${page}&pageSize=${pageSize}`,
+        `/api/people?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
       );
-
       return await res.json();
     },
-
     placeholderData: (previousData) => previousData,
   });
-
   const people = peopleResponse?.data || [];
   const totalPages = peopleResponse?.totalPages || 1;
   const totalCount = peopleResponse?.totalCount || 0;
-
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ["/api/departments"],
   });
@@ -143,10 +125,6 @@ export default function PeoplePage() {
     queryKey: ["/api/categories"],
   });
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
-  // const { data: roles = [] } = useQuery<RoleWithDoors[]>({
-  //   queryKey: ["/api/roles"],
-  // });
-
   const { data: doors = [], isLoading: isLoadingDoors } = useQuery<any[]>({
     queryKey: ["/api/doors"],
   });
@@ -156,11 +134,9 @@ export default function PeoplePage() {
   const [deviceStatusOpen, setDeviceStatusOpen] = useState(false);
   const [deviceViewPerson, setDeviceViewPerson] = useState<Person | null>(null);
   const [deviceSearch, setDeviceSearch] = useState("");
-  // Shifts aur Departments ke liye queries
   const { data: shifts = [] } = useQuery<any[]>({
     queryKey: ["/api/shifts"],
   });
-
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { data: deviceLogs = [], refetch: refetchLogs } = useQuery({
     queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
@@ -174,67 +150,41 @@ export default function PeoplePage() {
     },
   });
   useEffect(() => {
+    setPage(1);
+  }, [search]);
+  useEffect(() => {
     if (deviceStatusOpen) {
       refetchLogs();
     }
   }, [deviceStatusOpen]);
-
   useEffect(() => {
     if (roledialogOpen && roleassign) {
       const existingDoors = (roleassign as any)?.doorIds || [];
-
-      console.log("Existing Doors:", existingDoors); // 🔍 debug
-
+      console.log("Existing Doors:", existingDoors);
       setSelectedDoorIds(existingDoors);
     }
   }, [roledialogOpen, roleassign]);
-
-  const bulkEmergencyUnblockMut = useMutation({
-    mutationFn: async () => {
-      const r = await apiRequest("POST", "/api/emergency/bulk-unblock", {});
-      return r.json();
-    },
-    onSuccess: (response) => {
-      // UI refresh
-      queryClient.invalidateQueries({ queryKey: ["/api/people"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/alerts"] });
-
-      toast({
-        title: "Emergency Action Success",
-        description: response.message || "Commands dispatched successfully.",
-      });
-    },
-    onError: (e: Error) =>
-      toast({
-        title: "Emergency Action Failed",
-        description: e.message,
-        variant: "destructive",
-      }),
-  });
   const emergencyToggleMut = useMutation({
     mutationFn: async (data: any) => {
       const r = await apiRequest("POST", "/api/people/emergency-toggle", data);
       return r.json();
     },
     onSuccess: (response) => {
-      // 1. Sabse pehle cache ko manual update karo (Instant UI change)
       queryClient.setQueryData(
         ["/api/device-status", deviceViewPerson?.employeeCode],
         (oldData: any) => {
-          const newLog = response.data?.[0] || response.data; // Ensure we get the log object
+          const newLog = response.data?.[0] || response.data;
           if (!oldData) return [newLog];
-
           const filtered = oldData.filter(
             (l: any) => Number(l.deviceId) !== Number(newLog.deviceId),
           );
           return [newLog, ...filtered];
         },
       );
-
       queryClient.invalidateQueries({
         queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
       });
-      refetchLogs(); // Force refetch
+      refetchLogs();
       toast({ title: "Updated" });
     },
     onError: (e: Error) =>
@@ -253,9 +203,7 @@ export default function PeoplePage() {
       await queryClient.invalidateQueries({
         queryKey: ["/api/people"],
       });
-
       setDialogOpen(false);
-
       toast({
         title: "Person created",
       });
@@ -272,10 +220,8 @@ export default function PeoplePage() {
       await queryClient.invalidateQueries({
         queryKey: ["/api/people"],
       });
-
       setDialogOpen(false);
       setEditing(null);
-
       toast({
         title: "Person updated",
       });
@@ -291,7 +237,6 @@ export default function PeoplePage() {
       await queryClient.invalidateQueries({
         queryKey: ["/api/people"],
       });
-
       toast({
         title: "Success",
         description: "Person deleted successfully.",
@@ -301,29 +246,24 @@ export default function PeoplePage() {
       toast({ title: "Error", description: e.message, variant: "destructive" });
     },
   });
-
   const fetchAssignedDoors = async () => {
     try {
       const res = await apiRequest(
         "GET",
         `/api/employee-door-assignments/${roleassign?.employeeCode}`,
       );
-
       const data = await res.json();
-
       setSelectedDoorIds(data?.doorIds || []);
     } catch (err) {
       console.error("Fetch Assigned Doors Error:", err);
       setSelectedDoorIds([]);
     }
   };
-
   useEffect(() => {
     if (roledialogOpen && roleassign) {
       fetchAssignedDoors();
     }
   }, [roledialogOpen, roleassign]);
-
   const fields: FieldConfig[] = [
     { key: "employeeName", label: "Employee Name", required: true },
     {
@@ -336,7 +276,6 @@ export default function PeoplePage() {
     } as any,
     { key: "email", label: "Email", type: "email" },
     { key: "phone", label: "Phone" },
-
     {
       key: "personType",
       label: "Type",
@@ -372,36 +311,13 @@ export default function PeoplePage() {
         label: d.name,
       })),
     },
-    // {
-    //   key: "shiftId",
-    //   label: "Shift",
-    //   type: "select",
-    //   options: shifts.map((s: any) => ({
-    //     value: String(s.id),
-    //     label: s.name || s.code || `Shift ${s.id}`,
-    //   })),
-    // },
-
     {
       key: "companyId",
       label: "Company",
       type: "select",
       options: companies.map((c) => ({ value: String(c.id), label: c.name })),
     },
-    // {
-    //   key: "locationId",
-    //   label: "Location",
-    //   type: "select",
-    //   options: sites.map((s) => ({ value: String(s.id), label: s.name })),
-    // },
     { key: "dateOfJoining", label: "Date of Joining", type: "date" },
-    // {
-    //   key: "lastSeenTime",
-    //   label: "Last Seen",
-    //   type: "text",
-    //   readOnly: true,
-    //   placeholder: "Auto-generated from logs",
-    // },
     {
       key: "status",
       label: "Status",
@@ -415,13 +331,10 @@ export default function PeoplePage() {
     },
     { key: "riskTier", label: "Risk Tier (1-5)", type: "number" },
   ];
-
   const hiddenOnEdit = ["companyId", "riskTier"];
-
   const filteredFields = fields.filter(
     (f) => !(editing && hiddenOnEdit.includes(f.key)),
   );
-
   const columns = [
     {
       key: "employeeName",
@@ -446,7 +359,6 @@ export default function PeoplePage() {
       hideOnMobile: true,
       render: (p: any) => {
         const isEnabled = p.is_lockout_enabled;
-
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
@@ -461,30 +373,12 @@ export default function PeoplePage() {
         );
       },
     },
-    // {
-    //   key: "roleName",
-    //   label: "Role",
-    //   hideOnMobile: true,
-    //   render: (p: any) => (
-    //     <span
-    //       className={
-    //         p.roleName
-    //           ? "text-sm text-foreground"
-    //           : "text-sm text-muted-foreground"
-    //       }
-    //     >
-    //       {p.roleName || "No Role Assigned"}
-    //     </span>
-    //   ),
-    // },
-
     {
       key: "currentAccessRule",
       label: "Current Rule",
       hideOnMobile: true,
       render: (p: any) => {
         const ruleId = p.ruleid ?? 0;
-
         const ruleNames: Record<number, string> = {
           0: "No Rule Assigned",
           1: "Main Gate In",
@@ -493,7 +387,6 @@ export default function PeoplePage() {
           4: "Lockout Active",
           5: "Main Gate Out",
         };
-
         return (
           <span className="text-sm">
             {ruleNames[ruleId as number] || "Unknown"}
@@ -501,8 +394,6 @@ export default function PeoplePage() {
         );
       },
     },
-
-    // ==================== LAST DOOR ACCESS (Simple) ====================
     {
       key: "lastDoorAccess",
       label: "Last Door Access",
@@ -517,7 +408,6 @@ export default function PeoplePage() {
           hour: "2-digit",
           minute: "2-digit",
         });
-
         return (
           <div className="text-sm">
             <div className="font-medium">{p.lastPunchDoorName}</div>
@@ -525,36 +415,8 @@ export default function PeoplePage() {
         );
       },
     },
-    // {
-    //   key: "f",
-    //   label: "Last Seen",
-    //   hideOnMobile: true,
-    //   render: (p: any) => {
-    //     const timestamp = p.lastSeenTime;
-
-    //     if (!timestamp) {
-    //       return <span className="text-sm text-muted-foreground">No Logs</span>;
-    //     }
-
-    //     const formattedTime = new Date(timestamp).toLocaleString("en-IN", {
-    //       timeZone: "Asia/Kolkata", // 🔥 important fix
-    //       day: "2-digit",
-    //       month: "short",
-    //       year: "numeric",
-    //       hour: "2-digit",
-    //       minute: "2-digit",
-    //       hour12: true,
-    //     });
-
-    //     return (
-    //       <div className="text-sm">
-    //         <span className="font-medium text-foreground">{formattedTime}</span>
-    //       </div>
-    //     );
-    //   },
-    // },
     {
-      key: "lastSeenTime", // 'f' ki jagah sahi key 'lastSeenTime' use karein
+      key: "lastSeenTime",
       label: "Last Seen",
       hideOnMobile: true,
       render: (p: any) => (
@@ -575,116 +437,146 @@ export default function PeoplePage() {
       ),
     },
     {
-      key: "actions",
-      label: "Actions",
-      render: (p: Person) => (
-        <TooltipProvider delayDuration={100}>
-          <div className="flex">
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeviceViewPerson(p); // Is person ko select karo
-                      setDeviceStatusOpen(true); // Modal kholo
-                    }}
-                  >
-                    <ShieldCheck className="w-4 h-4 text-blue-500" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Device Access Status</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setRoleAssign(p);
-                      setRoleDialogOpen(true);
-                    }}
-                  >
-                    <UserPlus className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Assign Role</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditing(p);
-                      setFieldErrors({});
-                      setDialogOpen(true);
-                    }}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Edit</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-            {canDelete && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="hover:text-destructive"
-                    disabled={deleteMut.isPending}
-                    onClick={async (e) => {
-                      e.stopPropagation();
+  key: "actions",
+  label: "Actions",
+  render: (p: Person) => {
+    const isAdmin =
+      p.employeeCode === DEFAULT_ADMIN_CONFIG.EMPLOYEE_CODE;
 
-                      const confirmed = await confirm({
-                        title: "Delete Person?",
-                        description: `Are you sure you want to delete "${p.employeeName}" from all systems? This action cannot be undone.`,
-                        confirmText: "Yes, Delete",
-                        cancelText: "Cancel",
-                        variant: "destructive",
-                      });
+    if (isAdmin) {
+      return null;
+    }
 
-                      if (!confirmed) return;
+    return (
+      <TooltipProvider delayDuration={100}>
+        <div className="flex">
+          {canEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/employees/view/${p.id}`);
+                  }}
+                >
+                  <Eye className="w-4 h-4 text-green-500" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>View Employee Details</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
 
-                      deleteMut.mutate(p.id);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Delete</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        </TooltipProvider>
-      ),
-    },
+          {canEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDeviceViewPerson(p);
+                    setDeviceStatusOpen(true);
+                  }}
+                >
+                  <ShieldCheck className="w-4 h-4 text-blue-500" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Device Access Status</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {canEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setRoleAssign(p);
+                    setRoleDialogOpen(true);
+                  }}
+                >
+                  <UserPlus className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Assign Door</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {canEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditing(p);
+                    setFieldErrors({});
+                    setDialogOpen(true);
+                  }}
+                >
+                  <Pencil className="w-4 h-4 text-blue-500" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Edit</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {canDelete && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="hover:text-destructive text-red-500"
+                  disabled={deleteMut.isPending}
+                  onClick={async (e) => {
+                    e.stopPropagation();
+
+                    const confirmed = await confirm({
+                      title: "Delete Person?",
+                      description: `Are you sure you want to delete "${p.employeeName}" from all systems? This action cannot be undone.`,
+                      confirmText: "Yes, Delete",
+                      cancelText: "Cancel",
+                      variant: "destructive",
+                    });
+
+                    if (!confirmed) return;
+
+                    deleteMut.mutate(p.id);
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Delete</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      </TooltipProvider>
+    );
+  },
+},
   ].filter((col) => {
-    // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
     if (col.key === "actions") {
       return canEdit || canDelete;
     }
     return true;
   });
-
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <PageHeader
@@ -693,58 +585,7 @@ export default function PeoplePage() {
         action={
           <div className="flex gap-2">
             {/* 🔴 EMERGENCY BUTTON */}
-            {canEdit && (
-              <Button
-                variant="destructive"
-                className="w-[220px] flex items-center justify-center gap-2"
-                onClick={() => {
-                  if (
-                    window.confirm(
-                      "⚠️ ALERT: This will UNBLOCK ALL employees on ALL devices. Proceed?",
-                    )
-                  ) {
-                    bulkEmergencyUnblockMut.mutate();
-                  }
-                }}
-                disabled={bulkEmergencyUnblockMut.isPending}
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${
-                    bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""
-                  }`}
-                />
-                <span className="w-[130px] text-center">
-                  Emergency Unblock All
-                </span>
-              </Button>
-            )}
             {/* 🔄 SYNC BUTTON (existing) */}
-            {/* <Button
-              variant="outline"
-              className="w-[140px] flex items-center justify-center gap-2"
-              onClick={async () => {
-                try {
-                  await refetch();
-                  toast({
-                    title: "Data Synced",
-                    description:
-                      "The people list has been refreshed successfully.",
-                  });
-                } catch (error) {
-                  toast({
-                    title: "Sync Failed",
-                    description: "Could not refresh data.",
-                    variant: "destructive",
-                  });
-                }
-              }}
-              disabled={isFetching}
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-1 ${isFetching ? "animate-spin" : ""}`}
-              />
-              {isFetching ? "Syncing..." : "Sync"}
-            </Button> */}
             <Button
               variant="outline"
               className="w-[140px] flex items-center justify-center gap-2"
@@ -774,12 +615,23 @@ export default function PeoplePage() {
           </div>
         }
       />
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search employee..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="w-full md:w-72 h-10 px-3 border rounded-md outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
       <DataTable
         columns={columns}
         data={people}
         isLoading={isLoading}
-        searchable
-        searchKeys={["employeeName", "employeeCode", "email"]}
+        searchable={false}
         emptyMessage="No people registered yet"
       />
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
@@ -796,15 +648,20 @@ export default function PeoplePage() {
           of <span className="font-semibold text-foreground">{totalCount}</span>{" "}
           employees
         </div>
-
         {/* Right Side Controls */}
         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
           {/* Go to Page */}
           <div className="flex items-center gap-2">
+            <PaginationSize
+              pageSize={pageSize}
+              setPageSize={(val) => {
+                setPageSize(val);
+                setPage(1); // Page size change hone par 1st page par jayein
+              }}
+            />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Go to Page
             </span>
-
             <input
               type="number"
               min={1}
@@ -821,7 +678,6 @@ export default function PeoplePage() {
               }}
             />
           </div>
-
           {/* Navigation Buttons */}
           <div className="flex items-center space-x-1">
             {/* First */}
@@ -834,7 +690,6 @@ export default function PeoplePage() {
             >
               ⏮
             </Button>
-
             {/* Prev */}
             <Button
               variant="outline"
@@ -845,12 +700,10 @@ export default function PeoplePage() {
             >
               ◀ Prev
             </Button>
-
             {/* Page Indicator */}
             <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
               {page} / {totalPages}
             </div>
-
             {/* Next */}
             <Button
               variant="outline"
@@ -861,7 +714,6 @@ export default function PeoplePage() {
             >
               Next ▶
             </Button>
-
             {/* Last */}
             <Button
               variant="ghost"
@@ -884,7 +736,6 @@ export default function PeoplePage() {
               Device Access : {deviceViewPerson?.employeeName}
             </DialogTitle>
           </DialogHeader>
-
           {/* :mag: SEARCH BAR */}
           <div className="p-3 border-b bg-muted/10">
             <input
@@ -895,7 +746,6 @@ export default function PeoplePage() {
               className="w-full px-3 py-2 text-xs border rounded-md outline-none focus:ring-1 focus:ring-primary"
             />
           </div>
-
           {/* :clipboard: DEVICE LIST */}
           <div className="flex-1 overflow-y-auto">
             {/* :red_circle: IMPORTANT: prevent shrink */}
@@ -913,23 +763,17 @@ export default function PeoplePage() {
                           .includes(deviceSearch.toLowerCase()),
                     )
                     .map((dev) => {
-                      // LOG MATCH
                       const latestLog = deviceLogs?.find((l: any) => {
                         const lId = l.deviceId ?? l.device_id;
                         return Number(lId) === Number(dev.msId);
                       });
-
-                      // ROLE MATCH
                       const isDoorAssigned =
                         ((deviceViewPerson as any)?.doorIds || [])?.includes(
                           Number(dev.msId),
                         ) ?? false;
-
-                      // FINAL STATUS
                       const isUnblocked = latestLog
                         ? latestLog.type === "unblock"
                         : isDoorAssigned;
-
                       return (
                         <tr key={dev.id} className="hover:bg-muted/30">
                           {/* DEVICE INFO */}
@@ -941,7 +785,6 @@ export default function PeoplePage() {
                               SN: {dev.serialNumber || "N/A"}
                             </p>
                           </td>
-
                           {/* STATUS */}
                           <td className="p-3 text-center">
                             <Badge
@@ -955,7 +798,6 @@ export default function PeoplePage() {
                               {isUnblocked ? "ALLOWED" : "BLOCKED"}
                             </Badge>
                           </td>
-
                           {/* ACTION */}
                           <td className="p-3 text-right">
                             <Button
@@ -982,7 +824,6 @@ export default function PeoplePage() {
                         </tr>
                       );
                     })}
-
                   {/* :x: NO DATA */}
                   {allDevices.filter(
                     (dev) =>
@@ -1006,7 +847,6 @@ export default function PeoplePage() {
               </table>
             </div>
           </div>
-
           {/* FOOTER */}
           <div className="p-2 text-[9px] text-center bg-muted/10 italic text-muted-foreground">
             Logs override the default Role settings.
@@ -1023,7 +863,6 @@ export default function PeoplePage() {
             setFieldErrors({});
           }}
           title={editing ? "Edit Person" : "Add Person"}
-          // fields={fields}
           fields={filteredFields}
           initialData={
             editing
@@ -1052,17 +891,12 @@ export default function PeoplePage() {
                 }
           }
           onSubmit={(data) => {
-            // 🛡️ Reset errors
             setFieldErrors({});
-
-            // 🛡️ XSS Validation
             const validationErrors = validateNoHtml(data);
             if (Object.keys(validationErrors).length > 0) {
               setFieldErrors(validationErrors);
               return;
             }
-
-            // 🔢 Convert numeric fields
             const numericFields = [
               "departmentId",
               "shiftId",
@@ -1071,12 +905,9 @@ export default function PeoplePage() {
               "locationId",
               "riskTier",
             ];
-
             numericFields.forEach((k) => {
               if (data[k]) data[k] = Number(data[k]);
             });
-
-            // 🚀 API Call
             if (editing) {
               updateMut.mutate({ id: editing.id, data });
             } else {
@@ -1100,7 +931,6 @@ export default function PeoplePage() {
               </div>
             </div>
           </div>
-
           {/* BODY */}
           <div className="p-6 space-y-4">
             {/* SEARCH */}
@@ -1116,7 +946,6 @@ export default function PeoplePage() {
               <span className="text-xs font-bold text-slate-400 uppercase">
                 {selectedDoorIds.length} Selected
               </span>
-
               <div className="flex gap-3">
                 <button
                   className="text-[11px] font-bold text-blue-600"
@@ -1124,7 +953,6 @@ export default function PeoplePage() {
                 >
                   Select All
                 </button>
-
                 <button
                   className="text-[11px] font-bold text-slate-400"
                   onClick={() => setSelectedDoorIds([])}
@@ -1133,7 +961,6 @@ export default function PeoplePage() {
                 </button>
               </div>
             </div>
-
             {/* ROLE LIST */}
             <div className="h-[300px] overflow-y-auto rounded-xl border bg-slate-50 p-2">
               {isLoadingDoors ? (
@@ -1156,7 +983,6 @@ export default function PeoplePage() {
                       onClick={() =>
                         setSelectedDoorIds((prev) => {
                           const safePrev = Array.isArray(prev) ? prev : [];
-
                           return safePrev.includes(door.id)
                             ? safePrev.filter((id) => id !== door.id)
                             : [...safePrev, door.id];
@@ -1164,10 +990,6 @@ export default function PeoplePage() {
                       }
                     >
                       {/* ✅ CHECKBOX */}
-                      {/* <Checkbox
-                        checked={selectedDoorIds.includes(door.id)}
-                        className="pointer-events-none"
-                      /> */}
                       <Checkbox
                         checked={
                           Array.isArray(selectedDoorIds) &&
@@ -1175,7 +997,6 @@ export default function PeoplePage() {
                         }
                         className="pointer-events-none"
                       />
-
                       {/* DOOR NAME */}
                       <span
                         className={`text-sm ${
@@ -1191,7 +1012,6 @@ export default function PeoplePage() {
               )}
             </div>
           </div>
-
           {/* FOOTER */}
           <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
             <Button
@@ -1205,7 +1025,6 @@ export default function PeoplePage() {
             >
               Cancel
             </Button>
-
             <Button
               className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
               onClick={async () => {
@@ -1218,25 +1037,21 @@ export default function PeoplePage() {
                       doorIds: selectedDoorIds,
                     },
                   );
-
                   if (response) {
-                    // ✅ Shadcn style success notification
                     toast({
                       title: "Success",
                       description: "Doors assigned successfully!",
-                      variant: "default", // Ya "success" agar aapne custom banaya hai
+                      variant: "default",
                     });
-
                     setRoleDialogOpen(false);
                     setRoleAssign(null);
                   }
                 } catch (error) {
                   console.error("Assignment Error:", error);
-                  // ❌ Shadcn style error notification
                   toast({
                     title: "Error",
                     description: "Failed to assign doors. Please try again.",
-                    variant: "destructive", // Ye red color ka dikhega
+                    variant: "destructive",
                   });
                 }
               }}

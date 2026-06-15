@@ -130,7 +130,7 @@ export const PaginationSize = ({
       className="h-9 px-2 border border-slate-200 rounded-md text-sm font-semibold bg-white text-slate-700 outline-none focus:border-indigo-500 cursor-pointer shadow-sm"
     >
       {/* Yahan aap apni zaroorat ke hisaab se values badha sakte hain */}
-      {[10, 20, 50, 100, 200, 500].map((size) => (
+      {[1,5,10, 20, 50, 100, 200, 500].map((size) => (
         <option key={size} value={size}>
           {size} records
         </option>

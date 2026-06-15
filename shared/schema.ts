@@ -1,7 +1,7 @@
 export * from "./models/auth";
 import {
-  pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date, bigserial, 
-  decimal,   
+  pgTable, text, serial, integer, boolean, timestamp, uniqueIndex, jsonb, real, varchar, date, bigserial,
+  decimal,
   index,
   unique,
 } from "drizzle-orm/pg-core";
@@ -144,8 +144,8 @@ export const doors = pgTable("doors", {
 });
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),
-  msId: integer("ms_id").unique(), 
-  name: text("name").notNull(), 
+  msId: integer("ms_id").unique(),
+  name: text("name").notNull(),
   deviceDirection: text("device_direction"),
   serialNumber: text("serial_number"),
   opstamp: text("opstamp"),
@@ -154,7 +154,7 @@ export const devices = pgTable("devices", {
   activationCode: text("activation_code"),
   isAttendanceDevice: integer("is_attendance_device"),
   deviceType: text("device_type").default("reader"),
-  locationId: integer("location_id"), 
+  locationId: integer("location_id"),
   zoneId: integer("zone_id"),
   ipAddress: text("ip_address"),
   lastHeartbeat: timestamp("last_heartbeat"),
@@ -208,10 +208,10 @@ export const people = pgTable("people", {
   lastPunchDoorId: integer("last_punch_door_id"),
   ruleid: integer("rule_id"),
   is_lockout_enabled: boolean("is_lockout_enabled").default(false),
-  activeShiftDate: text("active_shift_date"), 
+  activeShiftDate: text("active_shift_date"),
   isNightShiftActive: boolean("is_night_shift_active").default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
-    .$defaultFn(() => new Date()) 
+    .$defaultFn(() => new Date())
     .notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .$defaultFn(() => new Date())
@@ -514,7 +514,7 @@ export const blockUnblockLogs = pgTable("user_block_unblock_logs", {
   deviceId: integer("device_id").notNull(),
   type: text("type", { enum: ["block", "unblock"] }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
-    .$defaultFn(() => new Date()) 
+    .$defaultFn(() => new Date())
     .notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .$defaultFn(() => new Date())
@@ -534,7 +534,7 @@ export const mainGateLogs = pgTable("main_gate_logs", {
   id: serial("id").primaryKey(),
   employeeCode: text("employee_code").notNull(),
   deviceId: integer("device_id").notNull(),
-  direction: text("direction").notNull(), 
+  direction: text("direction").notNull(),
   punchTime: timestamp("punch_time").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -560,7 +560,7 @@ export const cronMaster = pgTable("cron_master", {
   id: serial("id").primaryKey(),
   doorId: integer("door_id"),
   displayName: text("display_name").notNull(),
-  code: text("code").unique().notNull(), 
+  code: text("code").unique().notNull(),
   scheduleSecond: integer("schedule_second").default(0),
   scheduleMinute: integer("schedule_minute").default(0),
   scheduleHour: integer("schedule_hour").default(24),
@@ -575,9 +575,9 @@ export const cronMaster = pgTable("cron_master", {
   isActive: boolean("is_active").default(true),
   isRunning: boolean("is_running").default(false),
   lastRun: timestamp("last_run", { withTimezone: false }),
-  lastRunDuration: integer("last_run_duration"), 
-  lastStatus: text("last_status"), 
-  lastMessage: text("last_message"), 
+  lastRunDuration: integer("last_run_duration"),
+  lastStatus: text("last_status"),
+  lastMessage: text("last_message"),
   logRetentionDays: integer("log_retention_days").default(30),
   alertEmail: text("alert_email"),
   createdAt: timestamp("created_at", { withTimezone: false }).default(sql`CURRENT_TIMESTAMP`),
@@ -587,12 +587,12 @@ export const cabinLockouts = pgTable("cabin_lockouts", {
   id: serial("id").primaryKey(),
   employeeCode: text("employee_code").notNull(),
   doorId: integer("door_id").notNull(),
-  inPunchTime: timestamp("in_punch_time"),       
-  outPunchTime: timestamp("out_punch_time"),     
+  inPunchTime: timestamp("in_punch_time"),
+  outPunchTime: timestamp("out_punch_time"),
   lockoutExpiry: timestamp("lockoutExpiry").notNull(),
   status: text("status").default("active"),
   createdAt: timestamp("created_at", { withTimezone: true })
-    .$defaultFn(() => new Date()) 
+    .$defaultFn(() => new Date())
     .notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .$defaultFn(() => new Date())
@@ -607,7 +607,7 @@ export const employeeActivityLogs = pgTable("employee_activity_logs", {
   deviceName: text("device_name"),
   doorId: integer("door_id"),
   doorName: text("door_name"),
-  direction: text("direction"), 
+  direction: text("direction"),
   shiftName: text("shift_name"),
   shiftTime: text("shift_time"),
   departmentName: text("department_name"),
@@ -654,14 +654,14 @@ export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
 }));
 export const syncMeta = pgTable("sync_meta", {
   id: serial("id").primaryKey(),
-  syncCode: text("sync_code").unique().notNull(), 
+  syncCode: text("sync_code").unique().notNull(),
   lastProcessedId: integer("last_processed_id").default(0),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 export const menuMaster = pgTable("menu_master", {
   id: serial("id").primaryKey(),
-  title: text("title").notNull().unique(), 
-  code: text("code").notNull().unique(), 
+  title: text("title").notNull().unique(),
+  code: text("code").notNull().unique(),
   icon: text("icon"),
   parentId: integer("parent_id").default(0),
   sortOrder: integer("sort_order").default(0),
@@ -669,8 +669,8 @@ export const menuMaster = pgTable("menu_master", {
 });
 export const roles = pgTable("roles", {
   id: serial("id").primaryKey(),
-  roleName: text("role_name").notNull(),       
-  code: text("code").notNull().unique(), 
+  roleName: text("role_name").notNull(),
+  code: text("code").notNull().unique(),
   description: text("description"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -692,31 +692,31 @@ export const rolePermissions = pgTable("role_permissions", {
 });
 export const auditLogs = pgTable("audit_logs", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
-  userId: text("user_id").notNull(),     
-  tableName: text("table_name").notNull(), 
-  recordId: text("record_id").notNull(),   
-  action: text("action").notNull(),       
-  oldData: jsonb("old_data"),             
-  newData: jsonb("new_data"),   
-  changedColumns: text("changed_columns"), 
+  userId: text("user_id").notNull(),
+  tableName: text("table_name").notNull(),
+  recordId: text("record_id").notNull(),
+  action: text("action").notNull(),
+  oldData: jsonb("old_data"),
+  newData: jsonb("new_data"),
+  changedColumns: text("changed_columns"),
   ipAddress: text("ip_address"),
   userAgent: text("user_agent"),
-  createdAt: timestamp("created_at").defaultNow().notNull(), 
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export const contractors = pgTable("contractors", {
   id: serial("id").primaryKey(),
   contractorName: text("contractor_name").notNull(),
-  contractorCode: text("contractor_code").notNull(), 
+  contractorCode: text("contractor_code").notNull().unique(),
   gender: text("gender").default("Male").notNull(),
-  aadhaarNumber: text("aadhaar_number"), 
+  aadhaarNumber: text("aadhaar_number"),
   contactNumber: text("contact_number").notNull(),
-  email: text("email"), 
-  address: text("address"), 
-  companyName: text("company_name").notNull(), 
+  email: text("email"),
+  address: text("address"),
+  companyName: text("company_name").notNull(),
   startDate: text("start_date").notNull(),
-  expiryDate: text("expiry_date").notNull(), 
-  biometricId: text("biometric_id"), 
-  status: text("status").default("active").notNull(), 
+  expiryDate: text("expiry_date").notNull(),
+  biometricId: text("biometric_id"),
+  status: text("status").default("active").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -765,12 +765,11 @@ export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ id: tru
 export const insertContractorSchema = createInsertSchema(contractors)
   .omit({ id: true, createdAt: true })
   .extend({
-    contactNumber: z.string().min(10, "Contact number must be at least 10 digits"),
-    aadhaarNumber: z.string().min(12, "Aadhaar must be exactly 12 digits").max(12).optional().nullable(),
-    email: z.string().email("Invalid email layout structure").optional().nullable(),
-    biometricId: z.string().optional().nullable(), 
+    contactNumber: z.string().optional().nullable(),
+    aadhaarNumber: z.string().optional().nullable(),
+    email: z.string().optional().nullable(),
+    biometricId: z.string().optional().nullable(),
   });
-
 
 
 export type Contractor = typeof contractors.$inferSelect;

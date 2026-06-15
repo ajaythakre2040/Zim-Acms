@@ -1,0 +1,7 @@
+employee_code,door_names,error
+E001,"Main Gate, PT, CEFELO","Database operation failed: Failed query: insert into ""employee_door_assignments"" (""id"", ""employee_code"", ""door_ids"", ""created_at"", ""updated_at"") values (default, $1, $2, default, $3) on conflict (""employee_code"") do update set ""door_ids"" = $4, ""updated_at"" = $5
+params: E001,{1,5,6},2026-06-15T10:21:40.862Z,{1,5,6},2026-06-15T10:21:40.862Z"
+E002,Main Gate,"Database operation failed: Failed query: insert into ""employee_door_assignments"" (""id"", ""employee_code"", ""door_ids"", ""created_at"", ""updated_at"") values (default, $1, $2, default, $3) on conflict (""employee_code"") do update set ""door_ids"" = $4, ""updated_at"" = $5
+params: E002,{1},2026-06-15T10:21:40.889Z,{1},2026-06-15T10:21:40.889Z"
+E003,"Main Gate, PT, CEFELO","Database operation failed: Failed query: insert into ""employee_door_assignments"" (""id"", ""employee_code"", ""door_ids"", ""created_at"", ""updated_at"") values (default, $1, $2, default, $3) on conflict (""employee_code"") do update set ""door_ids"" = $4, ""updated_at"" = $5
+params: E003,{1,5,6},2026-06-15T10:21:40.893Z,{1,5,6},2026-06-15T10:21:40.893Z"

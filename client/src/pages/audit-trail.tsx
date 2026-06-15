@@ -20,28 +20,9 @@ import {
 } from "lucide-react";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
-import { formatDateTime } from "@/lib/utils";
-import { PaginationSize } from "@/components/ui/pagination"; 
-function exportCSV(fileName: string, data: any[]) {
-    if (!data || !data.length) return;
-    const headers = Object.keys(data[0]);
-    const rows = data.map((row) =>
-        headers.map((field) => {
-            let value = row[field];
-            if (value === null || value === undefined) value = "";
-            else if (typeof value === "object") value = JSON.stringify(value);
-            value = String(value).replace(/"/g, '""');
-            return `"${value}"`;
-        }).join(",")
-    );
-    const csvContent = [headers.join(","), ...rows].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `${fileName}.csv`;
-    link.click();
-}
+import { capitalizeFirst, exportCSV, formatDateTime } from "@/lib/utils";
+import { PaginationSize } from "@/components/ui/pagination";
+
 export default function AuditTrailPage() {
     const { canView } = usePermission(MENU_CONFIG.AUDIT_TRAIL?.code || "audit_01");
     const { canView: canExport } = usePermission(MENU_CONFIG.AUDIT_TRAIL?.code || "audit_01");
@@ -52,7 +33,9 @@ export default function AuditTrailPage() {
             </div>
         );
     }
-    const [pageSize, setPageSize] = useState(10);
+    // const [pageSize, setPageSize] = useState(10);
+    const [auditPageSize, setAuditPageSize] = useState(10);
+    const [loginPageSize, setLoginPageSize] = useState(10);
     const [activeTab, setActiveTab] = useState<"activity" | "sessions">("activity");
     const [auditUsersList, setAuditUsersList] = useState<any[]>([]);
     const [auditModulesList, setAuditModulesList] = useState<any[]>([]);
@@ -79,6 +62,7 @@ export default function AuditTrailPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedSession, setSelectedSession] = useState<any>(null);
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
+
     useEffect(() => {
         fetch("/api/audit-logs/users")
             .then((res) => res.json())
@@ -110,7 +94,7 @@ export default function AuditTrailPage() {
             };
             if (!isExport) {
                 queryParams.page = auditPage.toString();
-                queryParams.pageSize = pageSize.toString();
+                queryParams.pageSize = auditPageSize.toString();
             } else {
                 queryParams.page = "1";
                 queryParams.pageSize = "100000";
@@ -141,7 +125,7 @@ export default function AuditTrailPage() {
             };
             if (!isExport) {
                 queryParams.page = loginPage.toString();
-                queryParams.pageSize = pageSize.toString();
+                queryParams.pageSize = loginPageSize.toString();
             } else {
                 queryParams.page = "1";
                 queryParams.pageSize = "100000";
@@ -165,13 +149,13 @@ export default function AuditTrailPage() {
             fetchAuditLogs();
         }, 300);
         return () => clearTimeout(timer);
-    }, [auditPage, pageSize, auditSearch, auditPerformedBy, auditModule, auditAction, auditFromDate, auditToDate]);
+    }, [auditPage, auditPageSize, auditSearch, auditPerformedBy, auditModule, auditAction, auditFromDate, auditToDate]);
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchLoginLogs();
         }, 300);
         return () => clearTimeout(timer);
-    }, [loginPage, pageSize, loginSearch, loginUsername, loginStatus, loginFromDate, loginToDate]);
+    }, [loginPage, loginPageSize, loginSearch, loginUsername, loginStatus, loginFromDate, loginToDate]);
     const handleExport = async (tabType: "activity" | "sessions") => {
         try {
             const data = tabType === "activity" ? await fetchAuditLogs(true) : await fetchLoginLogs(true);
@@ -393,7 +377,7 @@ export default function AuditTrailPage() {
                             <option value="">Performed By...</option>
                             {auditUsersList.map((user: any) => (
                                 <option key={user.id} value={user.id}>
-                                    {user.username}
+                                    {capitalizeFirst(user.username)}
                                 </option>
                             ))}
                         </select>
@@ -405,7 +389,7 @@ export default function AuditTrailPage() {
                             <option value="">Model</option>
                             {auditModulesList.map((mod: any) => (
                                 <option key={mod.tableName} value={mod.tableName}>
-                                    {mod.tableName}
+                                    {capitalizeFirst(mod.tableName)}
                                 </option>
                             ))}
                         </select>
@@ -417,7 +401,8 @@ export default function AuditTrailPage() {
                             <option value="">All Actions</option>
                             {auditActionsList.map((actionName: string, idx: number) => (
                                 <option key={idx} value={actionName}>
-                                    {actionName.toUpperCase()}
+
+                                    {capitalizeFirst(actionName)}
                                 </option>
                             ))}
                         </select>
@@ -440,17 +425,17 @@ export default function AuditTrailPage() {
                             </Button>
                         </div>
                     </div>
-                    <DataTable columns={auditColumns} data={auditData} isLoading={auditLoading} />
+                    <DataTable columns={auditColumns} data={auditData} isLoading={auditLoading} pageSize={auditPageSize} />
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t border-slate-100 bg-slate-50/50 mt-4 rounded-b-lg">
                         <div className="text-sm text-slate-500 order-2 md:order-1 font-medium">
-                            Showing <span className="font-bold text-slate-800">{(auditPage - 1) * pageSize + 1}</span> to <span className="font-bold text-slate-800">{Math.min(auditPage * pageSize, auditResponse?.totalCount || 0)}</span> of <span className="font-bold text-slate-800">{auditResponse?.totalCount || 0}</span> records
+                            Showing <span className="font-bold text-slate-800">{(auditPage - 1) * auditPageSize + 1}</span> to <span className="font-bold text-slate-800">{Math.min(auditPage * auditPageSize, auditResponse?.totalCount || 0)}</span> of <span className="font-bold text-slate-800">{auditResponse?.totalCount || 0}</span> records
                         </div>
                         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
                             <PaginationSize
-                                pageSize={pageSize}
+                                pageSize={auditPageSize}
                                 setPageSize={(val) => {
-                                    setPageSize(val);
-                                    setAuditPage(1); 
+                                    setAuditPageSize(val);
+                                    setAuditPage(1);
                                 }}
                             />
                             <div className="flex items-center gap-2">
@@ -537,17 +522,17 @@ export default function AuditTrailPage() {
                             </Button>
                         </div>
                     </div>
-                    <DataTable columns={loginColumns} data={loginData} isLoading={loginLoading} />
+                    <DataTable columns={loginColumns} data={loginData} isLoading={loginLoading} pageSize={loginPageSize} />
                     <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t border-slate-100 bg-slate-50/50 mt-4 rounded-b-lg">
                         <div className="text-sm text-slate-500 order-2 md:order-1 font-medium">
-                            Showing <span className="font-bold text-slate-800">{(loginPage - 1) * pageSize + 1}</span> to <span className="font-bold text-slate-800">{Math.min(loginPage * pageSize, loginResponse?.totalCount || 0)}</span> of <span className="font-bold text-slate-800">{loginResponse?.totalCount || 0}</span> sessions
+                            Showing <span className="font-bold text-slate-800">{(loginPage - 1) * loginPageSize + 1}</span> to <span className="font-bold text-slate-800">{Math.min(loginPage * loginPageSize, loginResponse?.totalCount || 0)}</span> of <span className="font-bold text-slate-800">{loginResponse?.totalCount || 0}</span> sessions
                         </div>
                         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
                             <PaginationSize
-                                pageSize={pageSize}
+                                pageSize={loginPageSize}
                                 setPageSize={(val) => {
-                                    setPageSize(val);
-                                    setLoginPage(1); 
+                                    setLoginPageSize(val);
+                                    setLoginPage(1);
                                 }}
                             />
                             <div className="flex items-center gap-2">

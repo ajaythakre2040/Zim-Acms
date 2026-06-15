@@ -63,7 +63,7 @@ function StandardRouter() {
       <Route path="/" component={Dashboard} />
       <Route path="/attendance-summary" component={Dashboard} />
       <Route path="/employees" component={PeoplePage} />
-      <Route path="/visitors" component={VisitorsPage} />
+      {/* <Route path="/visitors" component={VisitorsPage} /> */}
       <Route path="/attendance" component={AttendancePage} />
       <Route path="/access-logs" component={AccessLogsPage} />
       <Route path="/access-rules" component={AccessRulesPage} />

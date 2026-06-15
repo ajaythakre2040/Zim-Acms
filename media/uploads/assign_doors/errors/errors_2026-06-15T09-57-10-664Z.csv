@@ -1,0 +1,4 @@
+employee_code,door_names,error
+E001,"Main Gate, Server Room, IT Office",Database operation failed: Door not found: Server Room
+E002,Reception,Database operation failed: Door not found: Reception
+E003,"Main Gate, Parking, Cafeteria, Exit Gate",Database operation failed: Door not found: Parking

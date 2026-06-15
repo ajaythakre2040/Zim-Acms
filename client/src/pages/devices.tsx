@@ -104,21 +104,21 @@ export default function DevicesPage() {
     useCrud<any>("/api/devices", "Device");
 
   const fetchDevices = async () => {
-  const res = await fetch(
-    `/api/devices?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`
-  );
+    const res = await fetch(
+      `/api/devices?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`
+    );
 
-  const data = await res.json();
-  setPagedResponse(data);
-};
+    const data = await res.json();
+    setPagedResponse(data);
+  };
 
   useEffect(() => {
-  const timer = setTimeout(() => {
-    fetchDevices();
-  }, 300);
+    const timer = setTimeout(() => {
+      fetchDevices();
+    }, 300);
 
-  return () => clearTimeout(timer);
-}, [page, search]);
+    return () => clearTimeout(timer);
+  }, [page, search]);
 
   const data: Device[] = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -148,12 +148,12 @@ export default function DevicesPage() {
       label: "Type",
       type: "select",
       options: [
-        { value: "reader", label: "Reader" },
-        { value: "turnstile", label: "Turnstile" },
-        { value: "gate", label: "Gate" },
-        { value: "barrier", label: "Barrier" },
-        { value: "controller", label: "Controller" },
-        { value: "biometric", label: "Biometric" },
+        { value: "reader", label: "AI" },
+        { value: "turnstile", label: "Non AI" },
+        // { value: "gate", label: "Gate" },
+        // { value: "barrier", label: "Barrier" },
+        // { value: "controller", label: "Controller" },
+        // { value: "biometric", label: "Biometric" },
       ],
       defaultValue: "reader",
     },
@@ -399,22 +399,22 @@ export default function DevicesPage() {
         searchKeys={["name", "ipAddress", "serialNumber"]}
         emptyMessage="No devices registered"
       /> */}
-<div className="relative max-w-sm mb-4">
-  <input
-    placeholder="Search devices..."
-    value={search}
-    onChange={(e) => {
-      setSearch(e.target.value);
-      setPage(1); // IMPORTANT
-    }}
-    className="w-full h-9 border rounded-md pl-3"
-  />
-</div>
+      <div className="relative max-w-sm mb-4">
+        <input
+          placeholder="Search devices..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1); // IMPORTANT
+          }}
+          className="w-full h-9 border rounded-md pl-3"
+        />
+      </div>
       <DataTable
-  columns={columns}
-  data={data}
-  isLoading={isLoading}
-/>
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+      />
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
         {/* Left Side: Stats */}
         <div className="text-sm text-muted-foreground order-2 md:order-1">
@@ -526,12 +526,12 @@ export default function DevicesPage() {
           initialData={
             editing
               ? {
-                  ...editing,
-                  locationId: editing.locationId
-                    ? String(editing.locationId)
-                    : "",
-                  zoneId: editing.zoneId ? String(editing.zoneId) : "",
-                }
+                ...editing,
+                locationId: editing.locationId
+                  ? String(editing.locationId)
+                  : "",
+                zoneId: editing.zoneId ? String(editing.zoneId) : "",
+              }
               : undefined
           }
           onSubmit={async (formData) => {

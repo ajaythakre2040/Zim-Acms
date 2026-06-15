@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useLocation } from "wouter";
-import { DEFAULT_ADMIN_CONFIG } from "../../../server/constant";
+import { ACCESS_RULES, DEFAULT_ADMIN_CONFIG } from "../../../server/constant";
 import {
   ShieldCheck,
   RefreshCw,
@@ -18,6 +18,9 @@ import {
   Eye,
   Trash2,
   UserPlus,
+  Download,
+  Upload, KeyRound,
+  UploadCloud,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { validateNoHtml } from "@/lib/validation";
@@ -43,10 +46,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatDateTime } from "@/lib/utils";
+import { capitalizeFirst, formatDateTime, exportCSV } from "@/lib/utils";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
 import { PaginationSize } from "@/components/ui/pagination";
+import { BulkUploadDialog } from "@/components/bulk-upload-dialog";
 type RoleWithDoors = Role & {
   assignedDoorNames?: string;
 };
@@ -54,6 +58,14 @@ const statusColors: Record<string, string> = {
   active: "default",
   inactive: "secondary",
   suspended: "destructive",
+};
+const ruleNames: Record<string, string> = {
+  [ACCESS_RULES.NO_RULE]: "No Rule Assigned",
+  [ACCESS_RULES.MAIN_GATE_IN]: "Main Gate In",
+  [ACCESS_RULES.CABIN_IN]: "Cabin In",
+  [ACCESS_RULES.CABIN_OUT]: "Cabin Out",
+  [ACCESS_RULES.LOCKOUT_ACTIVE]: "Lockout Active",
+  [ACCESS_RULES.MAIN_GATE_OUT]: "Main Gate Out",
 };
 const personTypeLabels: Record<string, string> = {
   employee: "Employee",
@@ -73,6 +85,8 @@ export default function PeoplePage() {
       </div>
     );
   }
+  const [uploadDetailsOpen, setUploadDetailsOpen] = useState(false);
+  const [uploadDoorsOpen, setUploadDoorsOpen] = useState(false);
   const [, navigate] = useLocation();
   const confirm = useConfirm();
   const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
@@ -84,6 +98,10 @@ export default function PeoplePage() {
   const { toast } = useToast();
   const [selectedDoorIds, setSelectedDoorIds] = useState<number[]>([]);
   const [doorSearch, setDoorSearch] = useState("");
+  const [filterDept, setFilterDept] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterLockout, setFilterLockout] = useState("all"); // active/inactive
+  const [filterRule, setFilterRule] = useState("all");
   type PaginatedResponse<T> = {
     data: T[];
     totalPages: number;
@@ -93,17 +111,39 @@ export default function PeoplePage() {
   // const pageSize = 5;
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
+  // const { data: peopleResponse, isLoading, refetch, isFetching, } = useQuery<PaginatedResponse<Person>, Error>({
+  //   queryKey: ["/api/people", page, pageSize, search],
+  //   queryFn: async (): Promise<PaginatedResponse<Person>> => {
+  //     const res = await apiRequest(
+  //       "GET",
+  //       `/api/people?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
+  //     );
+  //     return await res.json();
+  //   },
+  //   placeholderData: (previousData) => previousData,
+  // });
   const {
     data: peopleResponse,
     isLoading,
     refetch,
     isFetching,
   } = useQuery<PaginatedResponse<Person>, Error>({
-    queryKey: ["/api/people", page, pageSize, search],
+    // Dependencies mein filters add karein taaki change hone par refetch ho
+    queryKey: ["/api/people", page, pageSize, search, filterDept, filterStatus, filterLockout, filterRule],
     queryFn: async (): Promise<PaginatedResponse<Person>> => {
+      // Dynamic params construct karein
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+        search: search,
+        dept: filterDept,
+        status: filterStatus,
+        lockout: filterLockout,
+        rule: filterRule,
+      });
       const res = await apiRequest(
         "GET",
-        `/api/people?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
+        `/api/people?${params.toString()}`,
       );
       return await res.json();
     },
@@ -112,6 +152,29 @@ export default function PeoplePage() {
   const people = peopleResponse?.data || [];
   const totalPages = peopleResponse?.totalPages || 1;
   const totalCount = peopleResponse?.totalCount || 0;
+  const handleExport = async () => {
+    // 1. Filtered data fetch karne ke liye parameters
+    const params = new URLSearchParams({
+      search: search,
+      dept: filterDept,
+      status: filterStatus,
+      lockout: filterLockout,
+      rule: filterRule,
+      pageSize: "10000" // Pura data mangne ke liye limit badhayi
+    });
+    try {
+      const res = await apiRequest("GET", `/api/people?${params.toString()}`);
+      const result = await res.json();
+      // 2. CSV Export trigger karein
+      if (result?.data?.length > 0) {
+        exportCSV("Employees_Export", result.data);
+      } else {
+        alert("No data available to export.");
+      }
+    } catch (err) {
+      console.error("Export failed:", err);
+    }
+  };
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ["/api/departments"],
   });
@@ -362,11 +425,10 @@ export default function PeoplePage() {
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
-            className={`text-xs font-bold ${
-              isEnabled
-                ? "bg-red-50 text-red-600 border-red-300"
-                : "bg-green-50 text-green-600 border-green-300"
-            }`}
+            className={`text-xs font-bold ${isEnabled
+              ? "bg-red-50 text-red-600 border-red-300"
+              : "bg-green-50 text-green-600 border-green-300"
+              }`}
           >
             {isEnabled ? "ACTIVE" : "INACTIVE"}
           </Badge>
@@ -437,140 +499,131 @@ export default function PeoplePage() {
       ),
     },
     {
-  key: "actions",
-  label: "Actions",
-  render: (p: Person) => {
-    const isAdmin =
-      p.employeeCode === DEFAULT_ADMIN_CONFIG.EMPLOYEE_CODE;
-
-    if (isAdmin) {
-      return null;
-    }
-
-    return (
-      <TooltipProvider delayDuration={100}>
-        <div className="flex">
-          {canEdit && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/employees/view/${p.id}`);
-                  }}
-                >
-                  <Eye className="w-4 h-4 text-green-500" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>View Employee Details</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
-          {canEdit && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setDeviceViewPerson(p);
-                    setDeviceStatusOpen(true);
-                  }}
-                >
-                  <ShieldCheck className="w-4 h-4 text-blue-500" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Device Access Status</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
-          {canEdit && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setRoleAssign(p);
-                    setRoleDialogOpen(true);
-                  }}
-                >
-                  <UserPlus className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Assign Door</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
-          {canEdit && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditing(p);
-                    setFieldErrors({});
-                    setDialogOpen(true);
-                  }}
-                >
-                  <Pencil className="w-4 h-4 text-blue-500" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Edit</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-
-          {canDelete && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="hover:text-destructive text-red-500"
-                  disabled={deleteMut.isPending}
-                  onClick={async (e) => {
-                    e.stopPropagation();
-
-                    const confirmed = await confirm({
-                      title: "Delete Person?",
-                      description: `Are you sure you want to delete "${p.employeeName}" from all systems? This action cannot be undone.`,
-                      confirmText: "Yes, Delete",
-                      cancelText: "Cancel",
-                      variant: "destructive",
-                    });
-
-                    if (!confirmed) return;
-
-                    deleteMut.mutate(p.id);
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Delete</p>
-              </TooltipContent>
-            </Tooltip>
-          )}
-        </div>
-      </TooltipProvider>
-    );
-  },
-},
+      key: "actions",
+      label: "Actions",
+      render: (p: Person) => {
+        const isAdmin =
+          p.employeeCode === DEFAULT_ADMIN_CONFIG.EMPLOYEE_CODE;
+        if (isAdmin) {
+          return null;
+        }
+        return (
+          <TooltipProvider delayDuration={100}>
+            <div className="flex">
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/employees/view/${p.id}`);
+                      }}
+                    >
+                      <Eye className="w-4 h-4 text-green-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>View Employee Details</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setDeviceViewPerson(p);
+                        setDeviceStatusOpen(true);
+                      }}
+                    >
+                      <ShieldCheck className="w-4 h-4 text-blue-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Device Access Status</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setRoleAssign(p);
+                        setRoleDialogOpen(true);
+                      }}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Assign Door</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditing(p);
+                        setFieldErrors({});
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="w-4 h-4 text-blue-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Edit</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+              {canDelete && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="hover:text-destructive text-red-500"
+                      disabled={deleteMut.isPending}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const confirmed = await confirm({
+                          title: "Delete Person?",
+                          description: `Are you sure you want to delete "${p.employeeName}" from all systems? This action cannot be undone.`,
+                          confirmText: "Yes, Delete",
+                          cancelText: "Cancel",
+                          variant: "destructive",
+                        });
+                        if (!confirmed) return;
+                        deleteMut.mutate(p.id);
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Delete</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </TooltipProvider>
+        );
+      },
+    },
   ].filter((col) => {
     if (col.key === "actions") {
       return canEdit || canDelete;
@@ -581,11 +634,9 @@ export default function PeoplePage() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <PageHeader
         title="Employees"
-        description="Manage employees, contractors, and others"
+        description="Manage employees, their access levels, and associated details."
         action={
           <div className="flex gap-2">
-            {/* 🔴 EMERGENCY BUTTON */}
-            {/* 🔄 SYNC BUTTON (existing) */}
             <Button
               variant="outline"
               className="w-[140px] flex items-center justify-center gap-2"
@@ -615,23 +666,90 @@ export default function PeoplePage() {
           </div>
         }
       />
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="Search employee..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
-          className="w-full md:w-72 h-10 px-3 border rounded-md outline-none focus:ring-2 focus:ring-primary"
-        />
+      {/* 1. Page Action Bar: Primary Actions */}
+      <div className="flex flex-col gap-3 mb-6">
+        {/* Row 1: Heavy Actions */}
+        <div className="flex justify-end items-center gap-3">
+          {/* Import Employee */}
+          <Button
+            className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all rounded-md flex items-center gap-2 text-sm font-medium"
+            onClick={() => setUploadDetailsOpen(true)}
+          >
+            <UploadCloud className="w-4 h-4" />
+            Import Employees
+          </Button>
+
+          {/* Assign Doors */}
+          <Button
+            className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg transition-all rounded-md flex items-center gap-2 text-sm font-medium"
+            onClick={() => setUploadDoorsOpen(true)}
+          >
+            <KeyRound className="w-4 h-4" />
+            Assign Doors
+          </Button>
+
+          {/* Export Data */}
+          {canExport && (
+            <Button
+              onClick={handleExport}
+              className="h-9 px-4 bg-emerald-700 hover:bg-emerald-800 text-white shadow-md hover:shadow-lg transition-all rounded-md flex items-center gap-2 text-sm font-medium"
+            >
+              <Download className="w-4 h-4" />
+              Export
+            </Button>
+          )}
+        </div>
+        {/* Row 2: Filters & Search */}
+        <div className="flex flex-wrap items-center gap-2 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
+          {/* Refresh Button at start */}
+          {/* Search Input (Flex-grow to fill gap) */}
+          <input
+            type="text"
+            placeholder="Search employee..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="h-10 px-3 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500/20 text-sm flex-grow min-w-[200px]"
+          />
+          {/* Filters (Uniform min-width) */}
+          <select className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]" value={filterDept} onChange={(e) => { setFilterDept(e.target.value); setPage(1); }}>
+            <option value="all">Dept: All</option>
+            {departments.map((d) => <option key={d.id} value={d.id}>{capitalizeFirst(d.name)}</option>)}
+          </select>
+          <select className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]" value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}>
+            <option value="all">Status: All</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="suspended">Suspended</option>
+          </select>
+          <select className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]" value={filterLockout} onChange={(e) => { setFilterLockout(e.target.value); setPage(1); }}>
+            <option value="all">Lockout: All</option>
+            <option value="true">Locked</option>
+            <option value="false">Unlocked</option>
+          </select>
+          <select className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]" value={filterRule} onChange={(e) => { setFilterRule(e.target.value); setPage(1); }}>
+            <option value="all">Rule: All</option>
+            {Object.entries(ruleNames).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+          <Button
+            variant="outline"
+            size="icon"
+            className="shrink-0 h-10 w-10 border-slate-300 hover:bg-slate-200"
+            onClick={() => {
+              setSearch(""); setFilterDept("all"); setFilterStatus("all");
+              setFilterLockout("all"); setFilterRule("all"); setPage(1);
+            }}
+            title="Refresh/Reset"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
       <DataTable
         columns={columns}
         data={people}
         isLoading={isLoading}
         searchable={false}
+        pageSize={pageSize}
         emptyMessage="No people registered yet"
       />
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
@@ -789,11 +907,10 @@ export default function PeoplePage() {
                           <td className="p-3 text-center">
                             <Badge
                               variant={isUnblocked ? "outline" : "destructive"}
-                              className={`text-[9px] font-bold px-2 ${
-                                isUnblocked
-                                  ? "border-green-500 text-green-600 bg-green-50"
-                                  : ""
-                              }`}
+                              className={`text-[9px] font-bold px-2 ${isUnblocked
+                                ? "border-green-500 text-green-600 bg-green-50"
+                                : ""
+                                }`}
                             >
                               {isUnblocked ? "ALLOWED" : "BLOCKED"}
                             </Badge>
@@ -834,15 +951,15 @@ export default function PeoplePage() {
                         .toLowerCase()
                         .includes(deviceSearch.toLowerCase()),
                   ).length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="text-center p-6 text-muted-foreground"
-                      >
-                        No devices found
-                      </td>
-                    </tr>
-                  )}
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="text-center p-6 text-muted-foreground"
+                        >
+                          No devices found
+                        </td>
+                      </tr>
+                    )}
                 </tbody>
               </table>
             </div>
@@ -867,28 +984,28 @@ export default function PeoplePage() {
           initialData={
             editing
               ? {
-                  ...editing,
-                  departmentId: editing.departmentId
-                    ? String(editing.departmentId)
-                    : "",
-                  shiftId: editing.shiftId ? String(editing.shiftId) : "",
-                  designationId: editing.designationId
-                    ? String(editing.designationId)
-                    : "",
-                  companyId: editing.companyId ? String(editing.companyId) : "",
-                  locationId: editing.locationId
-                    ? String(editing.locationId)
-                    : "",
-                  riskTier: editing.riskTier ?? 1,
-                }
+                ...editing,
+                departmentId: editing.departmentId
+                  ? String(editing.departmentId)
+                  : "",
+                shiftId: editing.shiftId ? String(editing.shiftId) : "",
+                designationId: editing.designationId
+                  ? String(editing.designationId)
+                  : "",
+                companyId: editing.companyId ? String(editing.companyId) : "",
+                locationId: editing.locationId
+                  ? String(editing.locationId)
+                  : "",
+                riskTier: editing.riskTier ?? 1,
+              }
               : {
-                  companyId: String(
-                    companies.find((c) => c.name.toLowerCase().includes("zim"))
-                      ?.id || "",
-                  ),
-                  status: "active",
-                  personType: "employee",
-                }
+                companyId: String(
+                  companies.find((c) => c.name.toLowerCase().includes("zim"))
+                    ?.id || "",
+                ),
+                status: "active",
+                personType: "employee",
+              }
           }
           onSubmit={(data) => {
             setFieldErrors({});
@@ -975,11 +1092,10 @@ export default function PeoplePage() {
                   .map((door) => (
                     <div
                       key={door.id}
-                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${
-                        selectedDoorIds.includes(door.id)
-                          ? "bg-white border-blue-200 shadow-sm"
-                          : "border-transparent hover:bg-white hover:border-slate-200"
-                      }`}
+                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id)
+                        ? "bg-white border-blue-200 shadow-sm"
+                        : "border-transparent hover:bg-white hover:border-slate-200"
+                        }`}
                       onClick={() =>
                         setSelectedDoorIds((prev) => {
                           const safePrev = Array.isArray(prev) ? prev : [];
@@ -999,11 +1115,10 @@ export default function PeoplePage() {
                       />
                       {/* DOOR NAME */}
                       <span
-                        className={`text-sm ${
-                          selectedDoorIds.includes(door.id)
-                            ? "font-bold text-blue-700"
-                            : "text-slate-600"
-                        }`}
+                        className={`text-sm ${selectedDoorIds.includes(door.id)
+                          ? "font-bold text-blue-700"
+                          : "text-slate-600"
+                          }`}
                       >
                         {door.name}
                       </span>
@@ -1061,6 +1176,8 @@ export default function PeoplePage() {
           </div>
         </DialogContent>
       </Dialog>
+      <BulkUploadDialog open={uploadDetailsOpen} onClose={() => setUploadDetailsOpen(false)} type="details" />
+      <BulkUploadDialog open={uploadDoorsOpen} onClose={() => setUploadDoorsOpen(false)} type="doors" />
     </div>
   );
 }

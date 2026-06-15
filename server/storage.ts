@@ -6260,10 +6260,7 @@ ${fromDate} || ' to ' || ${toDate}
     }
   }
 
-  async createContractor(data: any): Promise<any> {
-    const [created] = await db.insert(contractors).values(data).returning();
-    return created;
-  }
+
   async getContractor(id: number): Promise<any | null> {
     const [contractor] = await db
       .select()
@@ -6271,7 +6268,66 @@ ${fromDate} || ' to ' || ${toDate}
       .where(eq(contractors.id, id));
     return contractor || null;
   }
+  async createContractor(data: InsertContractor): Promise<Contractor> {
+    const cleanData = {
+      ...data,
+      contactNumber: data.contactNumber || undefined,
+      aadhaarNumber: data.aadhaarNumber || undefined,
+      email: data.email || undefined,
+      biometricId: data.biometricId || undefined,
+    };
 
+    if (!cleanData.contractorCode) throw new Error("Contractor code is required.");
+
+    if (cleanData.contactNumber && cleanData.contactNumber.length < 10) {
+      throw new Error("VALIDATION_ERROR: Contact number must be at least 10 digits");
+    }
+
+    if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+      throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits");
+    }
+
+    const [existing] = await db
+      .select()
+      .from(contractors)
+      .where(eq(contractors.contractorCode, cleanData.contractorCode));
+
+    if (existing) {
+      throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+    }
+
+    const [created] = await db.insert(contractors).values(cleanData as any).returning();
+    return created;
+  }
+
+  async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+    const cleanData = {
+      ...data,
+      contactNumber: data.contactNumber ?? undefined,
+      aadhaarNumber: data.aadhaarNumber ?? undefined,
+      email: data.email ?? undefined,
+      biometricId: data.biometricId ?? undefined,
+    };
+
+    if (cleanData.contractorCode) {
+      const [existing] = await db
+        .select()
+        .from(contractors)
+        .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+      if (existing) {
+        throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+      }
+    }
+
+    const [updated] = await db
+      .update(contractors)
+      .set(cleanData as any)
+      .where(eq(contractors.id, id))
+      .returning();
+
+    if (!updated) throw new Error("Contractor not found");
+    return updated;
+  }
   async getContractorByBiometricId(biometricId: string): Promise<any | null> {
     const [contractor] = await db
       .select()
@@ -6279,25 +6335,9 @@ ${fromDate} || ' to ' || ${toDate}
       .where(eq(contractors.biometricId, biometricId));
     return contractor || null;
   }
-  async updateContractor(
-    id: number,
-    data: any,
-  ): Promise<any> {
-    const [updated] = await db
-      .update(contractors)
-      .set(data)
-      .where(eq(contractors.id, id))
-      .returning();
-    return updated;
-  }
-
   async deleteContractor(id: number): Promise<boolean> {
-    const [deleted] = await db
-      .delete(contractors)
-      .where(eq(contractors.id, id))
-      .returning();
-
-    return !!deleted;
+    const result = await db.delete(contractors).where(eq(contractors.id, id));
+    return (result?.rowCount ?? 0) > 0;
   }
   async getAuditLogs(
     page?: number,
@@ -6468,7 +6508,7 @@ ${fromDate} || ' to ' || ${toDate}
       console.error("Error in getLoginLogs storage method:", dbError);
       throw dbError;
     }
-  } 
+  }
   async getAuditUsersDropdown(): Promise<any[]> {
     try {
       return await db

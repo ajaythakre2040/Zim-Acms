@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn, formatDateTime, formatTime } from "@/lib/utils";
+import { capitalizeFirst, cn, formatDateTime, formatTime } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -1575,8 +1575,7 @@ function ReportFilters({
                   {people.map((p) => (
                     <option
                       key={p.id}
-                      value={`${p.employeeName} (${p.employeeCode})`}
-                    />
+                      value={`${capitalizeFirst(p.employeeName)} (${p.employeeCode})`}                    />
                   ))}
                 </datalist>
               </div>

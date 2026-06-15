@@ -130,11 +130,11 @@ export function DataTable<T extends Record<string, any>>({
 
       {/* Footer: Stats & Pagination Controls */}
       <div className="flex items-center justify-between px-2">
-        <p className="text-xs text-muted-foreground">
+        {/* <p className="text-xs text-muted-foreground">
           Showing {paginatedData.length} of {filteredRecords.length} record{filteredRecords.length !== 1 ? "s" : ""}
-        </p>
+        </p> */}
         
-        {totalPages > 1 && (
+        {/* {totalPages > 1 && (
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
@@ -156,7 +156,7 @@ export function DataTable<T extends Record<string, any>>({
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-        )}
+        )} */}
       </div>
     </div>
   );
