@@ -42,6 +42,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { validateNoHtml } from "../lib/validation";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
+import { PaginationSize } from "@/components/ui/pagination";
 type PaginatedResponse<T> = {
   data: T[];
   totalPages: number;
@@ -84,7 +85,7 @@ export default function ZonesDoorsPage() {
   // PAGINATION STATES
   // ==========================
   const [doorPage, setDoorPage] = useState(1);
-  const pageSize = 5;
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
 
   // ==========================
@@ -121,7 +122,7 @@ export default function ZonesDoorsPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [doorPage, search]);
+  }, [doorPage, search, pageSize]);
   // ==========================
   // PAGINATION DATA
   // ==========================
@@ -624,6 +625,7 @@ export default function ZonesDoorsPage() {
             columns={doorColumns}
             data={doors}
             isLoading={doorCrud.isLoading}
+            pageSize={pageSize}
           />
           {/* <DataTable
             columns={doorColumns}
@@ -654,6 +656,13 @@ export default function ZonesDoorsPage() {
             <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
               {/* Go to Page Input */}
               <div className="flex items-center gap-2">
+                <PaginationSize
+                  pageSize={pageSize}
+                  setPageSize={(val) => {
+                    setPageSize(val);
+                    setDoorPage(1); // Page size change hone par 1st page par jayein
+                  }}
+                />
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Go to Page
                 </span>

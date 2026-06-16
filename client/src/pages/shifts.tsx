@@ -19,6 +19,7 @@ import {
 import type { Shift } from "@shared/schema";
 import { validateNoHtml } from "../lib/validation";
 import { MENU_CONFIG } from "../../../server/constant";
+import { PaginationSize } from "@/components/ui/pagination";
 export default function ShiftsPage() {
   const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
     MENU_CONFIG.SHIFTS.code,
@@ -32,7 +33,7 @@ export default function ShiftsPage() {
   }
   const confirm = useConfirm();
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -68,7 +69,7 @@ export default function ShiftsPage() {
 
   useEffect(() => {
     fetchShifts();
-  }, [page, search]);
+  }, [page, search, pageSize]);
 
   const shiftsData = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -264,6 +265,7 @@ export default function ShiftsPage() {
         data={shiftsData} // Sirf shifts ka array bhejein
         isLoading={isLoading}
         searchable={false}
+        pageSize={pageSize}
         searchKeys={["name", "code"]}
         emptyMessage="No shifts configured"
       />
@@ -291,6 +293,13 @@ export default function ShiftsPage() {
         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
           {/* Direct Jump (Professional Touch) */}
           <div className="flex items-center gap-2">
+            <PaginationSize
+              pageSize={pageSize}
+              setPageSize={(val) => {
+                setPageSize(val);
+                setPage(1); // Page size change hone par 1st page par jayein
+              }}
+            />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Go to Page
             </span>

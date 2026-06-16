@@ -30,6 +30,7 @@ import type { Device, Site, Zone } from "@shared/schema";
 import { formatDateTime } from "@/lib/utils";
 import { MENU_CONFIG } from "../../../server/constant";
 import { usePermission } from "@/hooks/use-permission";
+import { PaginationSize } from "@/components/ui/pagination";
 
 const statusConfig: Record<
   string,
@@ -55,7 +56,7 @@ export default function DevicesPage() {
   const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<Device | null>(null);
   const { toast } = useToast();
@@ -105,7 +106,7 @@ export default function DevicesPage() {
 
   const fetchDevices = async () => {
     const res = await fetch(
-      `/api/devices?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`
+      `/api/devices?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
     );
 
     const data = await res.json();
@@ -118,7 +119,7 @@ export default function DevicesPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [page, search]);
+  }, [page, search, pageSize]);
 
   const data: Device[] = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -414,6 +415,7 @@ export default function DevicesPage() {
         columns={columns}
         data={data}
         isLoading={isLoading}
+        pageSize={pageSize}
       />
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
         {/* Left Side: Stats */}
@@ -437,6 +439,13 @@ export default function DevicesPage() {
         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
           {/* Direct Jump (Professional Touch) */}
           <div className="flex items-center gap-2">
+            <PaginationSize
+              pageSize={pageSize}
+              setPageSize={(val) => {
+                setPageSize(val);
+                setPage(1); // Page size change hone par 1st page par jayein
+              }}
+            />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Go to Page
             </span>
@@ -526,12 +535,12 @@ export default function DevicesPage() {
           initialData={
             editing
               ? {
-                ...editing,
-                locationId: editing.locationId
-                  ? String(editing.locationId)
-                  : "",
-                zoneId: editing.zoneId ? String(editing.zoneId) : "",
-              }
+                  ...editing,
+                  locationId: editing.locationId
+                    ? String(editing.locationId)
+                    : "",
+                  zoneId: editing.zoneId ? String(editing.zoneId) : "",
+                }
               : undefined
           }
           onSubmit={async (formData) => {

@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { validateNoHtml } from "@/lib/validation";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
+import { PaginationSize } from "@/components/ui/pagination";
 
 export default function CompaniesPage() {
   const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
@@ -34,7 +35,7 @@ export default function CompaniesPage() {
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
 
   // const {
@@ -69,7 +70,7 @@ export default function CompaniesPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [page, search]);
+  }, [page, search, pageSize]);
 
   const data = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -138,7 +139,8 @@ export default function CompaniesPage() {
               size="icon"
               variant="ghost"
               title="Delete Company"
-             className="text-destructive"              onClick={async (e) => {
+              className="text-destructive"
+              onClick={async (e) => {
                 e.stopPropagation();
 
                 const confirmed = await confirm({
@@ -287,7 +289,12 @@ export default function CompaniesPage() {
           className="pl-3 w-full h-9 border rounded-md"
         />
       </div>
-      <DataTable columns={columns} data={data} isLoading={isLoading} />
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        pageSize={pageSize}
+      />
 
       {/* Pagination Controls */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
@@ -312,6 +319,13 @@ export default function CompaniesPage() {
         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
           {/* Go To Page */}
           <div className="flex items-center gap-2">
+            <PaginationSize
+              pageSize={pageSize}
+              setPageSize={(val) => {
+                setPageSize(val);
+                setPage(1); // Page size change hone par 1st page par jayein
+              }}
+            />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Go to Page
             </span>

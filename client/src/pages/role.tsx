@@ -71,78 +71,94 @@ export default function RolesPage() {
       ),
     },
     {
-      key: "actions",
-      label: "Actions",
-      render: (item: any) => (
-        <TooltipProvider delayDuration={0}>
-          <div className="flex items-center gap-1">
+  key: "actions",
+  label: "Actions",
+  render: (item: any) => {
+    const isSuperAdmin =
+      item.roleName?.toLowerCase() === "super admin" &&
+      item.code?.toLowerCase() === "admin_01";
+
+    return (
+      <TooltipProvider delayDuration={0}>
+        <div className="flex items-center gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                onClick={() =>
+                  navigate(`/master-data/roles/view/${item.id}`)
+                }
+              >
+                <Eye className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              View Permissions
+            </TooltipContent>
+          </Tooltip>
+
+          {canEdit && !isSuperAdmin && (
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                  onClick={() => navigate(`/master-data/roles/view/${item.id}`)}
+                  className="h-8 w-8 text-amber-600 hover:bg-amber-50"
+                  onClick={() =>
+                    navigate(`/master-data/roles/edit/${item.id}`)
+                  }
                 >
-                  <Eye className="w-4 h-4" />
+                  <Pencil className="w-4 h-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="top">View Permissions</TooltipContent>
+              <TooltipContent side="top">
+                Edit Role
+              </TooltipContent>
             </Tooltip>
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-amber-600 hover:bg-amber-50"
-                    onClick={() =>
-                      navigate(`/master-data/roles/edit/${item.id}`)
+          )}
+
+          {canDelete && !isSuperAdmin && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-red-500 hover:bg-red-50"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+
+                    const confirmed = await confirm({
+                      title: "Delete Role?",
+                      description: `Are you sure you want to delete role "${item.roleName}"? This action cannot be undone.`,
+                      confirmText: "Yes, Delete",
+                      cancelText: "Cancel",
+                      variant: "destructive",
+                    });
+
+                    if (!confirmed) return;
+
+                    try {
+                      await remove(item.id);
+                    } catch (err: any) {
+                      console.error(err);
                     }
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">Edit Role</TooltipContent>
-              </Tooltip>
-            )}
-            {canDelete && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-red-500 hover:bg-red-50"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-
-                      const confirmed = await confirm({
-                        title: "Delete Role?",
-                        description: `Are you sure you want to delete role "${item.roleName}"? This action cannot be undone.`,
-                        confirmText: "Yes, Delete",
-                        cancelText: "Cancel",
-                        variant: "destructive",
-                      });
-
-                      if (!confirmed) return;
-
-                      try {
-                        await remove(item.id);
-                      } catch (err: any) {
-                        console.error(err);
-                      }
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">Delete Role</TooltipContent>
-              </Tooltip>
-            )}
-          </div>
-        </TooltipProvider>
-      ),
-    },
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                Delete Role
+              </TooltipContent>
+            </Tooltip>
+          )}
+        </div>
+      </TooltipProvider>
+    );
+  },
+}
   ];
 
   return (

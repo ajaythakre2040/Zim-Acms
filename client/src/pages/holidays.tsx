@@ -21,6 +21,7 @@ import { useToast } from "@/hooks/use-toast";
 import { MENU_CONFIG } from "../../../server/constant";
 import { usePermission } from "@/hooks/use-permission";
 import { useConfirm } from "@/hooks/use-confirm";
+import { PaginationSize } from "@/components/ui/pagination";
 
 const typeColors: Record<string, string> = {
   national: "default",
@@ -47,7 +48,7 @@ export default function HolidaysPage() {
   }
   const confirm = useConfirm();
   const [page, setPage] = useState(1);
-  const pageSize = 5;
+  const [pageSize, setPageSize] = useState(10);
   // 🔥 ADD THESE STATES
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -85,7 +86,7 @@ export default function HolidaysPage() {
 
   useEffect(() => {
     fetchHolidays();
-  }, [page, search]);
+  }, [page, search, pageSize]);
 
   const data = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -257,6 +258,7 @@ export default function HolidaysPage() {
         data={data}
         isLoading={isLoading}
         searchable={false}
+        pageSize={pageSize}
         searchKeys={["name"]}
         emptyMessage="No holidays configured"
       />
@@ -282,6 +284,13 @@ export default function HolidaysPage() {
         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
           {/* Direct Jump (Professional Touch) */}
           <div className="flex items-center gap-2">
+            <PaginationSize
+              pageSize={pageSize}
+              setPageSize={(val) => {
+                setPageSize(val);
+                setPage(1); // Page size change hone par 1st page par jayein
+              }}
+            />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               Go to Page
             </span>
