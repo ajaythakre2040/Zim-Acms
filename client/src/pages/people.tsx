@@ -12,6 +12,13 @@ import { useConfirm } from "@/hooks/use-confirm";
 import { useLocation } from "wouter";
 import { ACCESS_RULES, DEFAULT_ADMIN_CONFIG } from "../../../server/constant";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+import {
   ShieldCheck,
   RefreshCw,
   Pencil,
@@ -19,7 +26,10 @@ import {
   Trash2,
   UserPlus,
   Download,
-  Upload, KeyRound,
+  Upload,
+  KeyRound,
+  FileSpreadsheet,
+  FileText,
   UploadCloud,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -46,7 +56,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { capitalizeFirst, formatDateTime, exportCSV } from "@/lib/utils";
+import {
+  capitalizeFirst,
+  formatDateTime,
+  exportCSV,
+  exportEmployeeCSV,
+  exportEmployeePDF,
+} from "@/lib/utils";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
 import { PaginationSize } from "@/components/ui/pagination";
@@ -129,7 +145,16 @@ export default function PeoplePage() {
     isFetching,
   } = useQuery<PaginatedResponse<Person>, Error>({
     // Dependencies mein filters add karein taaki change hone par refetch ho
-    queryKey: ["/api/people", page, pageSize, search, filterDept, filterStatus, filterLockout, filterRule],
+    queryKey: [
+      "/api/people",
+      page,
+      pageSize,
+      search,
+      filterDept,
+      filterStatus,
+      filterLockout,
+      filterRule,
+    ],
     queryFn: async (): Promise<PaginatedResponse<Person>> => {
       // Dynamic params construct karein
       const params = new URLSearchParams({
@@ -141,10 +166,7 @@ export default function PeoplePage() {
         lockout: filterLockout,
         rule: filterRule,
       });
-      const res = await apiRequest(
-        "GET",
-        `/api/people?${params.toString()}`,
-      );
+      const res = await apiRequest("GET", `/api/people?${params.toString()}`);
       return await res.json();
     },
     placeholderData: (previousData) => previousData,
@@ -160,7 +182,7 @@ export default function PeoplePage() {
       status: filterStatus,
       lockout: filterLockout,
       rule: filterRule,
-      pageSize: "10000" // Pura data mangne ke liye limit badhayi
+      pageSize: "10000", // Pura data mangne ke liye limit badhayi
     });
     try {
       const res = await apiRequest("GET", `/api/people?${params.toString()}`);
@@ -398,6 +420,7 @@ export default function PeoplePage() {
   const filteredFields = fields.filter(
     (f) => !(editing && hiddenOnEdit.includes(f.key)),
   );
+
   const columns = [
     {
       key: "employeeName",
@@ -425,10 +448,11 @@ export default function PeoplePage() {
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
-            className={`text-xs font-bold ${isEnabled
-              ? "bg-red-50 text-red-600 border-red-300"
-              : "bg-green-50 text-green-600 border-green-300"
-              }`}
+            className={`text-xs font-bold ${
+              isEnabled
+                ? "bg-red-50 text-red-600 border-red-300"
+                : "bg-green-50 text-green-600 border-green-300"
+            }`}
           >
             {isEnabled ? "ACTIVE" : "INACTIVE"}
           </Badge>
@@ -502,8 +526,7 @@ export default function PeoplePage() {
       key: "actions",
       label: "Actions",
       render: (p: Person) => {
-        const isAdmin =
-          p.employeeCode === DEFAULT_ADMIN_CONFIG.EMPLOYEE_CODE;
+        const isAdmin = p.employeeCode === DEFAULT_ADMIN_CONFIG.EMPLOYEE_CODE;
         if (isAdmin) {
           return null;
         }
@@ -690,13 +713,26 @@ export default function PeoplePage() {
 
           {/* Export Data */}
           {canExport && (
-            <Button
-              onClick={handleExport}
-              className="h-9 px-4 bg-emerald-700 hover:bg-emerald-800 text-white shadow-md hover:shadow-lg transition-all rounded-md flex items-center gap-2 text-sm font-medium"
-            >
-              <Download className="w-4 h-4" />
-              Export
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => exportEmployeeCSV(people)}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  CSV
+                </DropdownMenuItem>
+
+                <DropdownMenuItem onClick={() => exportEmployeePDF(people)}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
         {/* Row 2: Filters & Search */}
@@ -707,36 +743,79 @@ export default function PeoplePage() {
             type="text"
             placeholder="Search employee..."
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="h-10 px-3 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500/20 text-sm flex-grow min-w-[200px]"
           />
           {/* Filters (Uniform min-width) */}
-          <select className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]" value={filterDept} onChange={(e) => { setFilterDept(e.target.value); setPage(1); }}>
+          <select
+            className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
+            value={filterDept}
+            onChange={(e) => {
+              setFilterDept(e.target.value);
+              setPage(1);
+            }}
+          >
             <option value="all">Dept: All</option>
-            {departments.map((d) => <option key={d.id} value={d.id}>{capitalizeFirst(d.name)}</option>)}
+            {departments.map((d) => (
+              <option key={d.id} value={d.id}>
+                {capitalizeFirst(d.name)}
+              </option>
+            ))}
           </select>
-          <select className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]" value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}>
+          <select
+            className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
+            value={filterStatus}
+            onChange={(e) => {
+              setFilterStatus(e.target.value);
+              setPage(1);
+            }}
+          >
             <option value="all">Status: All</option>
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="suspended">Suspended</option>
           </select>
-          <select className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]" value={filterLockout} onChange={(e) => { setFilterLockout(e.target.value); setPage(1); }}>
+          <select
+            className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
+            value={filterLockout}
+            onChange={(e) => {
+              setFilterLockout(e.target.value);
+              setPage(1);
+            }}
+          >
             <option value="all">Lockout: All</option>
             <option value="true">Locked</option>
             <option value="false">Unlocked</option>
           </select>
-          <select className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]" value={filterRule} onChange={(e) => { setFilterRule(e.target.value); setPage(1); }}>
+          <select
+            className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
+            value={filterRule}
+            onChange={(e) => {
+              setFilterRule(e.target.value);
+              setPage(1);
+            }}
+          >
             <option value="all">Rule: All</option>
-            {Object.entries(ruleNames).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            {Object.entries(ruleNames).map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
           </select>
           <Button
             variant="outline"
             size="icon"
             className="shrink-0 h-10 w-10 border-slate-300 hover:bg-slate-200"
             onClick={() => {
-              setSearch(""); setFilterDept("all"); setFilterStatus("all");
-              setFilterLockout("all"); setFilterRule("all"); setPage(1);
+              setSearch("");
+              setFilterDept("all");
+              setFilterStatus("all");
+              setFilterLockout("all");
+              setFilterRule("all");
+              setPage(1);
             }}
             title="Refresh/Reset"
           >
@@ -907,10 +986,11 @@ export default function PeoplePage() {
                           <td className="p-3 text-center">
                             <Badge
                               variant={isUnblocked ? "outline" : "destructive"}
-                              className={`text-[9px] font-bold px-2 ${isUnblocked
-                                ? "border-green-500 text-green-600 bg-green-50"
-                                : ""
-                                }`}
+                              className={`text-[9px] font-bold px-2 ${
+                                isUnblocked
+                                  ? "border-green-500 text-green-600 bg-green-50"
+                                  : ""
+                              }`}
                             >
                               {isUnblocked ? "ALLOWED" : "BLOCKED"}
                             </Badge>
@@ -951,15 +1031,15 @@ export default function PeoplePage() {
                         .toLowerCase()
                         .includes(deviceSearch.toLowerCase()),
                   ).length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="text-center p-6 text-muted-foreground"
-                        >
-                          No devices found
-                        </td>
-                      </tr>
-                    )}
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="text-center p-6 text-muted-foreground"
+                      >
+                        No devices found
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -984,28 +1064,28 @@ export default function PeoplePage() {
           initialData={
             editing
               ? {
-                ...editing,
-                departmentId: editing.departmentId
-                  ? String(editing.departmentId)
-                  : "",
-                shiftId: editing.shiftId ? String(editing.shiftId) : "",
-                designationId: editing.designationId
-                  ? String(editing.designationId)
-                  : "",
-                companyId: editing.companyId ? String(editing.companyId) : "",
-                locationId: editing.locationId
-                  ? String(editing.locationId)
-                  : "",
-                riskTier: editing.riskTier ?? 1,
-              }
+                  ...editing,
+                  departmentId: editing.departmentId
+                    ? String(editing.departmentId)
+                    : "",
+                  shiftId: editing.shiftId ? String(editing.shiftId) : "",
+                  designationId: editing.designationId
+                    ? String(editing.designationId)
+                    : "",
+                  companyId: editing.companyId ? String(editing.companyId) : "",
+                  locationId: editing.locationId
+                    ? String(editing.locationId)
+                    : "",
+                  riskTier: editing.riskTier ?? 1,
+                }
               : {
-                companyId: String(
-                  companies.find((c) => c.name.toLowerCase().includes("zim"))
-                    ?.id || "",
-                ),
-                status: "active",
-                personType: "employee",
-              }
+                  companyId: String(
+                    companies.find((c) => c.name.toLowerCase().includes("zim"))
+                      ?.id || "",
+                  ),
+                  status: "active",
+                  personType: "employee",
+                }
           }
           onSubmit={(data) => {
             setFieldErrors({});
@@ -1092,10 +1172,11 @@ export default function PeoplePage() {
                   .map((door) => (
                     <div
                       key={door.id}
-                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id)
-                        ? "bg-white border-blue-200 shadow-sm"
-                        : "border-transparent hover:bg-white hover:border-slate-200"
-                        }`}
+                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${
+                        selectedDoorIds.includes(door.id)
+                          ? "bg-white border-blue-200 shadow-sm"
+                          : "border-transparent hover:bg-white hover:border-slate-200"
+                      }`}
                       onClick={() =>
                         setSelectedDoorIds((prev) => {
                           const safePrev = Array.isArray(prev) ? prev : [];
@@ -1115,10 +1196,11 @@ export default function PeoplePage() {
                       />
                       {/* DOOR NAME */}
                       <span
-                        className={`text-sm ${selectedDoorIds.includes(door.id)
-                          ? "font-bold text-blue-700"
-                          : "text-slate-600"
-                          }`}
+                        className={`text-sm ${
+                          selectedDoorIds.includes(door.id)
+                            ? "font-bold text-blue-700"
+                            : "text-slate-600"
+                        }`}
                       >
                         {door.name}
                       </span>
@@ -1176,8 +1258,16 @@ export default function PeoplePage() {
           </div>
         </DialogContent>
       </Dialog>
-      <BulkUploadDialog open={uploadDetailsOpen} onClose={() => setUploadDetailsOpen(false)} type="details" />
-      <BulkUploadDialog open={uploadDoorsOpen} onClose={() => setUploadDoorsOpen(false)} type="doors" />
+      <BulkUploadDialog
+        open={uploadDetailsOpen}
+        onClose={() => setUploadDetailsOpen(false)}
+        type="details"
+      />
+      <BulkUploadDialog
+        open={uploadDoorsOpen}
+        onClose={() => setUploadDoorsOpen(false)}
+        type="doors"
+      />
     </div>
   );
 }

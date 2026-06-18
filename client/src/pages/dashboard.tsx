@@ -2,12 +2,21 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, DoorOpen, Sparkles, Wifi, WifiOff, Server, UserCheck } from "lucide-react";
+import { Users, DoorOpen, Sparkles, Wifi, WifiOff, Server, UserCheck,FileText, FileSpreadsheet } from "lucide-react";
 import type { Device, Door } from "@shared/schema";
 import { navigate } from "wouter/use-browser-location";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
+import { Button } from "@/components/ui/button";
 
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { exportDoorAttendanceCSV, exportDoorAttendancePDF } from "@/lib/utils";
 export default function Dashboard() {
   const { canExport } = usePermission(MENU_CONFIG.ATTENDANCE_SUMMARY.code);
   const REFRESH_MS = 5000;
@@ -197,12 +206,32 @@ export function DoorAttendanceTable({
             className="border rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-400"
           />
           {canExport && (
-          <button
-            onClick={exportToCSV}
-            className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors shadow-sm font-medium"
-          >
-            Export CSV
-          </button>
+          <DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button
+      size="sm"
+      className="text-xs px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+    >
+      Export
+    </Button>
+  </DropdownMenuTrigger>
+
+  <DropdownMenuContent align="end">
+
+    {/* CSV */}
+    <DropdownMenuItem onClick={() => exportDoorAttendanceCSV(doorStats, selectedDate)}>
+      <FileSpreadsheet className="w-4 h-4 mr-2" />
+      Export CSV
+    </DropdownMenuItem>
+
+    {/* PDF */}
+    <DropdownMenuItem onClick={() => exportDoorAttendancePDF(doorStats, selectedDate)}>
+      <FileText className="w-4 h-4 mr-2" />
+      Export PDF
+    </DropdownMenuItem>
+
+  </DropdownMenuContent>
+</DropdownMenu>
           )}
 
         </div>

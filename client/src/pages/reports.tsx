@@ -9,6 +9,12 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { capitalizeFirst, cn, formatDateTime, formatTime } from "@/lib/utils";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -28,11 +34,38 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  FileSpreadsheet,
 } from "lucide-react";
 import { type Person } from "@shared/schema";
 import React from "react";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
+import {
+  exportAttendanceCSV,
+  exportAttendancePDF,
+  exportAccessLogsCSV,
+  exportAccessLogsPDF,
+  exportEmpProductiveEfficiencyCSV,
+  exportEmpProductiveEfficiencyPDF,
+  exportEmpPMovementLogsCSV,
+  exportEmpPMovementLogsPDF,
+  exportDailyPerformanceCSV,
+  exportDailyPerformancePDF,
+  exportMonthlyStatusCSV,
+  exportMonthlyStatusPDF,
+  exportOTSummaryCSV,
+  exportOTSummaryPDF,
+  exportLockoutCSV,
+  exportLockoutPDF,
+  exportEmployeePerformanceCSV,
+  exportEmployeePerformancePDF,
+  exportDepartmentEfficiencyCSV,
+  exportDepartmentEfficiencyPDF,
+  exportDepartmentWiseManpowerCSV,
+  exportDepartmentWiseManpowerPDF,
+} from "../lib/utils";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 // 1. Updated Report Configuration
 const reportTypes = [
   {
@@ -103,1279 +136,6 @@ const reportTypes = [
 
 //Export Functions ********************************************************************************************
 
-export async function exportAttendanceCSV(currentAppliedFilters: any) {
-  try {
-    const params = new URLSearchParams();
-
-    // 🔥 Filters add
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
-        params.append(k, String(v));
-      }
-    });
-
-    console.log("ATTENDANCE EXPORT PARAMS =>", params.toString());
-
-    const res = await fetch(`/api/reports/attendance?${params.toString()}`);
-
-    if (!res.ok) {
-      throw new Error("Attendance export fetch failed");
-    }
-
-    const apiResponse = await res.json();
-
-    console.log("ATTENDANCE EXPORT RESPONSE =>", apiResponse);
-
-    const reportData = apiResponse?.data || apiResponse || [];
-
-    if (!Array.isArray(reportData)) return;
-
-    const rows = reportData.map((r: any) => ({
-      Employee: r.firstName || r.employeeName || "-",
-
-      "Employee Code": r.employeeCode || "-",
-
-      Date: r.date || "-",
-
-      "Clock In": r.clockIn ? formatTime(r.clockIn) : "-",
-
-      Status: r.status || "-",
-    }));
-
-    if (!rows.length) return;
-
-    const headers = Object.keys(rows[0]);
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-
-      ...rows.map((row: any) =>
-        headers.map((header) => escapeCSV(row[header])).join(","),
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-
-    link.href = url;
-
-    link.download = `Attendance_Report.csv`;
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error("Attendance Export Error:", err);
-  }
-}
-export async function exportAccessLogsCSV(currentAppliedFilters: any) {
-  try {
-    const params = new URLSearchParams();
-
-    // 🔥 filters add
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
-        params.append(k, String(v));
-      }
-    });
-
-    console.log("EXPORT PARAMS =>", params.toString());
-
-    const res = await fetch(`/api/reports_access_logs?${params.toString()}`);
-
-    if (!res.ok) {
-      throw new Error("Export fetch failed");
-    }
-
-    const apiResponse = await res.json();
-
-    console.log("EXPORT RESPONSE =>", apiResponse);
-
-    const reportData = apiResponse?.data || apiResponse || [];
-
-    if (!Array.isArray(reportData)) return;
-
-    const rows = reportData.map((r: any) => ({
-      "Device Log ID": r.DeviceLogId || r.devicelogid || "-",
-
-      "Employee Name": r.employee_name || r.employeeName || "-",
-
-      "Employee Code": r.employeecode || r.employeeCode || "-",
-
-      Department: r.department_name || "-",
-
-      Designation: r.designation_name || "-",
-
-      "Device ID": r.deviceid || r.DeviceId || "-",
-
-      "Door Name": r.door_name || r.DoorName || "-",
-
-      Direction: r.direction || "-",
-
-      "Log Date":
-        r.logdate || r.LogDate
-          ? formatDateTime(r.logdate || r.LogDate).toLocaleString()
-          : "-",
-    }));
-
-    if (!rows.length) return;
-
-    const headers = Object.keys(rows[0]);
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-
-      ...rows.map((row: any) =>
-        headers.map((header) => escapeCSV(row[header])).join(","),
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-
-    link.href = url;
-
-    link.download = `Access_Logs_Report.csv`;
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error("Export Error:", err);
-  }
-}
-export async function exportEmpProductiveEfficiencyCSV(
-  currentAppliedFilters: any,
-  doors: any[],
-) {
-  try {
-    const params = new URLSearchParams();
-
-    // 🔥 Filters add
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
-        params.append(k, String(v));
-      }
-    });
-
-    console.log("EFFICIENCY EXPORT PARAMS =>", params.toString());
-
-    const res = await fetch(
-      `/api/reports/employee-productive-report?${params.toString()}`,
-    );
-
-    if (!res.ok) {
-      throw new Error("Efficiency export fetch failed");
-    }
-
-    const apiResponse = await res.json();
-
-    console.log("EFFICIENCY EXPORT RESPONSE =>", apiResponse);
-
-    const reportData = apiResponse?.data || apiResponse || [];
-
-    if (!Array.isArray(reportData)) return;
-
-    // 🔥 Time formatter
-    const formatTimeCSV = (time: any) => {
-      if (!time || time === "-") return "-";
-
-      const d = new Date(time);
-
-      if (isNaN(d.getTime())) return String(time);
-
-      // 🔥 UTC time ko same rakhne ke liye
-      return d.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-        timeZone: "UTC",
-      });
-    };
-
-    const rows: any[] = [];
-
-    reportData.forEach((r: any) => {
-      // 🔥 Door grouping
-      const groupedDoors: Record<
-        string,
-        {
-          in: string[];
-          out: string[];
-        }
-      > = {};
-
-      (r.movementDetails || []).forEach((m: any) => {
-        const key = String(m.doorName || "")
-          .trim()
-          .toLowerCase();
-
-        if (!groupedDoors[key]) {
-          groupedDoors[key] = {
-            in: [],
-            out: [],
-          };
-        }
-
-        if (m.inTime) {
-          groupedDoors[key].in.push(formatTimeCSV(m.inTime));
-        }
-
-        if (m.outTime) {
-          groupedDoors[key].out.push(formatTimeCSV(m.outTime));
-        }
-      });
-
-      // 🔥 Dynamic door columns
-      const doorValues = doors.flatMap((d) => {
-        const key = String(d.DeviceName || d.name || "")
-          .trim()
-          .toLowerCase();
-
-        const doorData = groupedDoors[key];
-
-        return [
-          doorData?.in?.length ? doorData.in.join("\n") : "-",
-
-          doorData?.out?.length ? doorData.out.join("\n") : "-",
-        ];
-      });
-
-      // 🔥 Efficiency calc
-      const efficiency =
-        Number(r.totalPresenceMinutes || 0) > 0
-          ? `${(
-              (Number(r.productiveMinutes || 0) /
-                Number(r.totalPresenceMinutes || 0)) *
-              100
-            ).toFixed(2)}%`
-          : "-";
-
-      rows.push([
-        r.employeeCode || "-",
-
-        r.employeeName || "-",
-
-        r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-",
-
-        ...doorValues,
-
-        r.totalPresenceHours
-          ? `${Number(r.totalPresenceHours).toFixed(2)}h`
-          : "-",
-
-        r.productiveHours ? `${Number(r.productiveHours).toFixed(2)}h` : "-",
-
-        efficiency,
-      ]);
-    });
-
-    // 🔥 Headers
-    const headers = [
-      "Employee Code",
-
-      "Employee Name",
-
-      "Log Date",
-
-      ...doors.flatMap((d) => [
-        `${d.DeviceName || d.name} IN`,
-        `${d.DeviceName || d.name} OUT`,
-      ]),
-
-      "Total Time",
-
-      "Productive Time",
-
-      "Efficiency %",
-    ];
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-
-      ...rows.map((row) => row.map(escapeCSV).join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-
-    link.href = url;
-
-    link.download = "Employee_Productive_Efficiency_Report.csv";
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error("Efficiency Export Error:", err);
-  }
-}
-export async function exportEmpPMovementLogsCSV(
-  currentAppliedFilters: any,
-  doors: any[],
-) {
-  try {
-    const params = new URLSearchParams();
-
-    // 🔥 Filters add
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
-        params.append(k, String(v));
-      }
-    });
-
-    console.log("EFFICIENCY EXPORT PARAMS =>", params.toString());
-
-    const res = await fetch(
-      `/api/reports/employee-movement-logs?${params.toString()}`,
-    );
-
-    if (!res.ok) {
-      throw new Error("Efficiency export fetch failed");
-    }
-
-    const apiResponse = await res.json();
-
-    console.log("EFFICIENCY EXPORT RESPONSE =>", apiResponse);
-
-    const reportData = apiResponse?.data || apiResponse || [];
-
-    if (!Array.isArray(reportData)) return;
-
-    // 🔥 Time formatter
-    const formatTimeCSV = (time: any) => {
-      if (!time || time === "-") return "-";
-
-      const d = new Date(time);
-
-      if (isNaN(d.getTime())) return String(time);
-
-      // 🔥 UTC time ko same rakhne ke liye
-      return d.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-        timeZone: "UTC",
-      });
-    };
-
-    const rows: any[] = [];
-
-    reportData.forEach((r: any) => {
-      // 🔥 Door grouping
-      const groupedDoors: Record<
-        string,
-        {
-          in: string[];
-          out: string[];
-        }
-      > = {};
-
-      (r.movementDetails || []).forEach((m: any) => {
-        const key = String(m.doorName || "")
-          .trim()
-          .toLowerCase();
-
-        if (!groupedDoors[key]) {
-          groupedDoors[key] = {
-            in: [],
-            out: [],
-          };
-        }
-
-        if (m.inTime) {
-          groupedDoors[key].in.push(formatTimeCSV(m.inTime));
-        }
-
-        if (m.outTime) {
-          groupedDoors[key].out.push(formatTimeCSV(m.outTime));
-        }
-      });
-
-      // 🔥 Dynamic door columns
-      const doorValues = doors.flatMap((d) => {
-        const key = String(d.DeviceName || d.name || "")
-          .trim()
-          .toLowerCase();
-
-        const doorData = groupedDoors[key];
-
-        return [
-          doorData?.in?.length ? doorData.in.join("\n") : "-",
-
-          doorData?.out?.length ? doorData.out.join("\n") : "-",
-        ];
-      });
-
-      rows.push([
-        r.employeeCode || "-",
-
-        r.employeeName || "-",
-
-        r.date ? new Date(r.date).toLocaleDateString("en-GB") : "-",
-
-        ...doorValues,
-      ]);
-    });
-
-    // 🔥 Headers
-    const headers = [
-      "Employee Code",
-
-      "Employee Name",
-
-      "Log Date",
-
-      ...doors.flatMap((d) => [
-        `${d.DeviceName || d.name} IN`,
-        `${d.DeviceName || d.name} OUT`,
-      ]),
-    ];
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-
-      ...rows.map((row) => row.map(escapeCSV).join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-
-    link.href = url;
-
-    link.download = "Employee_Productive_Efficiency_Report.csv";
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error("Efficiency Export Error:", err);
-  }
-}
-export async function exportDailyPerformanceCSV(currentAppliedFilters: any) {
-  try {
-    const params = new URLSearchParams();
-
-    // 🔥 Filters add
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
-        params.append(k, String(v));
-      }
-    });
-
-    console.log("DAILY PERFORMANCE EXPORT PARAMS =>", params.toString());
-
-    const res = await fetch(
-      `/api/reports/daily-efficiency?${params.toString()}`,
-    );
-
-    if (!res.ok) {
-      throw new Error("Daily performance export fetch failed");
-    }
-
-    const apiResponse = await res.json();
-
-    console.log("DAILY PERFORMANCE EXPORT RESPONSE =>", apiResponse);
-
-    const reportData = apiResponse?.data || apiResponse || [];
-
-    if (!Array.isArray(reportData)) return;
-
-    const rows = reportData.map((r: any) => ({
-      "Employee Name": r.employeeName || "-",
-      "Employee Code": r.employeeCode || "-",
-      Gender: r.gender || "-",
-
-      "Log Date": r.workDate
-        ? new Date(r.workDate).toLocaleDateString("en-GB")
-        : "-",
-
-      Shift: r.shiftname || "-",
-
-      "Shift Time": r.shifttime || "-",
-
-      "In Punch": r.firstIn ? formatTime(r.firstIn) : "-",
-
-      "Out Punch": r.lastOut ? formatTime(r.lastOut) : "-",
-
-      "Hours Worked": r.productiveHours
-        ? `${Number(r.productiveHours).toFixed(2)}h`
-        : "0h",
-
-      "Duty Status": r.attendanceStatus || "-",
-
-      "OT Hrs": r.otHours ? `${Number(r.otHours).toFixed(2)}h` : "0h",
-    }));
-
-    if (!rows.length) return;
-
-    const headers = Object.keys(rows[0]);
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-
-      ...rows.map((row: any) =>
-        headers.map((header) => escapeCSV(row[header])).join(","),
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-
-    link.href = url;
-
-    link.download = `Daily_Performance_Report.csv`;
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error("Daily Performance Export Error:", err);
-  }
-}
-// function exportMonthlyStatusCSV(data: any[], daysInMonth: number) {
-//   if (!data.length) return;
-//   const grouped: Record<string, any> = {};
-//   data.forEach((r) => {
-//     const key = r.employeeName;
-//     if (!grouped[key]) {
-//       grouped[key] = {
-//         employeeName: r.employeeName,
-//         days: {},
-//         present: 0,
-//         absent: 0,
-//         off: 0,
-//       };
-//     }
-//     const date = new Date(r.workDate).getDate();
-//     const status = (r.attendanceStatus || "").toLowerCase();
-//     grouped[key].days[date] = status;
-//     if (status === "present") grouped[key].present++;
-//     else if (status === "absent") grouped[key].absent++;
-//     else grouped[key].off++;
-//   });
-//   const employees = Object.values(grouped);
-//   // 🔥 HEADER dynamic
-//   const headers = [
-//     "Employee Name",
-//     ...Array.from({ length: daysInMonth }, (_, i) => `Day ${i + 1}`),
-//     "Present",
-//     "Off",
-//     "Absent",
-//     "Total Days",
-//   ];
-//   const rows = employees.map((emp: any) => {
-//     const totalDays = emp.present + emp.absent + emp.off;
-//     const dayValues = Array.from({ length: daysInMonth }, (_, i) => {
-//       const d = i + 1;
-//       const status = emp.days[d];
-//       if (status === "present") return "P";
-//       if (status === "absent") return "A";
-//       if (status === "off") return "O";
-//       return "-";
-//     });
-//     return [
-//       emp.employeeName,
-//       ...dayValues,
-//       emp.present,
-//       emp.off,
-//       emp.absent,
-//       totalDays,
-//     ];
-//   });
-//   const csv =
-//     headers.join(",") +
-//     "\n" +
-//     rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
-//   const blob = new Blob([csv], { type: "text/csv" });
-//   const url = URL.createObjectURL(blob);
-//   const a = document.createElement("a");
-//   a.href = url;
-//   a.download = "monthly-status-summary.csv";
-//   a.click();
-// }
-function exportMonthlyStatusCSV(data: any[], daysInMonth: number) {
-  if (!data.length) return;
-
-  const grouped: Record<string, any> = {};
-
-  const today = new Date().getDate();
-
-  // 🔥 GROUPING (same as table)
-  data.forEach((emp: any) => {
-    if (!grouped[emp.employeeName]) {
-      grouped[emp.employeeName] = {
-        employeeName: emp.employeeName,
-        perDayRate: emp.perDayRate || 0,
-        days: {},
-        present: 0,
-        absent: 0,
-        off: 0,
-      };
-    }
-
-    emp.records.forEach((r: any) => {
-      const date = new Date(r.workDate).getDate();
-      const status = (r.attendanceStatus || "").toLowerCase();
-
-      grouped[emp.employeeName].days[date] = status;
-
-      if (status === "present") grouped[emp.employeeName].present++;
-      else if (status === "absent") grouped[emp.employeeName].absent++;
-      else grouped[emp.employeeName].off++;
-    });
-  });
-
-  const employees = Object.values(grouped);
-
-  // 🔥 HEADER
-  const headers = [
-    "Employee Name",
-    ...Array.from({ length: daysInMonth }, (_, i) => `Day ${i + 1}`),
-    "Present",
-    "Off",
-    "Absent",
-    "Total Days",
-  ];
-
-  const rows = employees.map((emp: any) => {
-    const dayValues = Array.from({ length: daysInMonth }, (_, i) => {
-      const day = i + 1;
-      const status = emp.days[day];
-
-      if (status === "present") return "P";
-      if (status === "absent") return "A";
-      if (status === "off") return "O";
-
-      // 🔥 SAME LOGIC AS TABLE
-      if (day < today) return "A"; // past missing = absent
-      return "-"; // future/current missing
-    });
-
-    // 🔥 dynamic absent same as UI
-    const dynamicAbsent = Array.from(
-      { length: daysInMonth },
-      (_, i) => i + 1,
-    ).filter((d) => d < today && !emp.days[d]).length;
-
-    const finalAbsent = emp.absent + dynamicAbsent;
-    const totalDays = emp.present + emp.off + finalAbsent;
-
-    return [
-      emp.employeeName,
-      ...dayValues,
-      emp.present,
-      emp.off,
-      finalAbsent,
-      totalDays,
-    ];
-  });
-
-  const csv =
-    headers.join(",") +
-    "\n" +
-    rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "monthly-status-summary.csv";
-  a.click();
-
-  URL.revokeObjectURL(url);
-}
-function exportOTSummaryCSV(data: any[], daysInMonth: number) {
-  if (!Array.isArray(data) || !data.length) return;
-
-  const grouped: Record<string, any> = {};
-
-  // 🔥 SAME GROUPING AS TABLE
-  data.forEach((emp: any) => {
-    if (!grouped[emp.employeeName]) {
-      grouped[emp.employeeName] = {
-        employeeName: emp.employeeName,
-        days: {},
-        totalWorkingHrs: 0,
-      };
-    }
-
-    emp.records?.forEach((r: any) => {
-      const date = new Date(r.date || r.workDate).getDate();
-
-      // 🔥 SAME FIELD AS TABLE
-      const otHours = Number(r.otHours || 0);
-
-      grouped[emp.employeeName].days[date] = otHours;
-      grouped[emp.employeeName].totalWorkingHrs += otHours;
-    });
-  });
-
-  const employees = Object.values(grouped);
-
-  // 🔥 HEADER (same structure as table)
-  const headers = [
-    "Employee Name",
-    ...Array.from({ length: daysInMonth }, (_, i) => `Day ${i + 1}`),
-    "Total Hrs",
-  ];
-
-  const rows = employees.map((emp: any) => {
-    const dayValues = Array.from({ length: daysInMonth }, (_, i) => {
-      const day = i + 1;
-      const hrs = emp.days[day];
-
-      // same UI behavior
-      return hrs !== undefined ? Number(hrs).toFixed(0) : "0";
-    });
-
-    return [
-      emp.employeeName,
-      ...dayValues,
-      Number(emp.totalWorkingHrs || 0).toFixed(0),
-    ];
-  });
-
-  const csv =
-    headers.join(",") +
-    "\n" +
-    rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "ot-summary.csv";
-  a.click();
-
-  URL.revokeObjectURL(url);
-}
-export async function exportLockoutCSV(currentAppliedFilters: any) {
-  try {
-    const params = new URLSearchParams();
-
-    // 🔥 Filters add
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
-        params.append(k, String(v));
-      }
-    });
-
-    console.log("LOCKOUT EXPORT PARAMS =>", params.toString());
-
-    const res = await fetch(`/api/reports/cabin-lockout?${params.toString()}`);
-
-    if (!res.ok) {
-      throw new Error("Lockout export fetch failed");
-    }
-
-    const apiResponse = await res.json();
-
-    console.log("LOCKOUT EXPORT RESPONSE =>", apiResponse);
-
-    const reportData = apiResponse?.data || apiResponse || [];
-
-    if (!Array.isArray(reportData)) return;
-
-    const rows = reportData.map((row: any) => ({
-      Employee: row.employeeName || "-",
-
-      "Employee Code": row.employeeCode || "-",
-
-      "Cabin / Door": row.doorName || "-",
-
-      Status: row.status === "active" ? "ACTIVE" : "Inactive",
-
-      "Expiry Time": row.lockoutExpiry
-        ? formatDateTime(row.lockoutExpiry).toLocaleString()
-        : "-",
-    }));
-
-    if (!rows.length) return;
-
-    const headers = Object.keys(rows[0]);
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-
-      ...rows.map((row: any) =>
-        headers.map((header) => escapeCSV(row[header])).join(","),
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-
-    link.href = url;
-
-    link.download = "Lockout_Report.csv";
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error("Lockout Export Error:", err);
-  }
-}
-export async function exportEmployeePerformanceCSV(currentAppliedFilters: any) {
-  try {
-    const params = new URLSearchParams();
-
-    // filters add
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
-        params.append(k, String(v));
-      }
-    });
-
-    // 🔥 IMPORTANT FIX: force full export (bypass pagination)
-    params.set("page", "1");
-    params.set("pageSize", "100000"); // or backend max limit
-
-    console.log("EMPLOYEE EXPORT PARAMS =>", params.toString());
-
-    const res = await fetch(
-      `/api/reports/employee-efficiency-dateRange?${params.toString()}`,
-    );
-
-    if (!res.ok) {
-      throw new Error("Employee performance export fetch failed");
-    }
-
-    const apiResponse = await res.json();
-
-    console.log("EMPLOYEE EXPORT RESPONSE =>", apiResponse);
-
-    const reportData = apiResponse?.data || [];
-
-    if (!Array.isArray(reportData) || reportData.length === 0) return;
-
-    const rows = reportData.map((r: any) => {
-      const totalHours = Number(r.totalHours || 0);
-      const productiveHours = Number(r.productiveHours || 0);
-
-      const efficiency =
-        totalHours > 0
-          ? ((productiveHours / totalHours) * 100).toFixed(2)
-          : "0.00";
-
-      return {
-        "Employee Code": r.employeeCode || "-",
-        "Employee Name": r.employeeName || "-",
-
-        "Date Range": r.dateRange
-          ? r.dateRange
-              .split(" to ")
-              .map((d: string) => new Date(d).toLocaleDateString("en-GB"))
-              .join(" To ")
-          : "-",
-
-        "Total Days": Number(r.totalDays || 0),
-        "Total Hours": totalHours.toFixed(2),
-        "Productive Hours": productiveHours.toFixed(2),
-
-        "Avg. Efficiency %": `${efficiency}%`,
-      };
-    });
-
-    const headers = Object.keys(rows[0]);
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-      ...rows.map((row: any) =>
-        headers.map((header) => escapeCSV(row[header])).join(","),
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "Employee_Performance_Report.csv";
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error("Employee Performance Export Error:", err);
-  }
-}
-export async function exportDepartmentEfficiencyCSV(
-  currentAppliedFilters: any,
-) {
-  try {
-    const params = new URLSearchParams();
-
-    // filters add
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
-        params.append(k, String(v));
-      }
-    });
-
-    // 🔥 IMPORTANT FIX: force full data export
-    params.set("page", "1");
-    params.set("pageSize", "100000"); // backend max limit
-
-    console.log("DEPARTMENT EXPORT PARAMS =>", params.toString());
-
-    const res = await fetch(
-      `/api/reports/department-efficiency?${params.toString()}`,
-    );
-
-    if (!res.ok) {
-      throw new Error("Department efficiency export fetch failed");
-    }
-
-    const apiResponse = await res.json();
-
-    console.log("DEPARTMENT EXPORT RESPONSE =>", apiResponse);
-
-    const reportData = apiResponse?.data || [];
-
-    if (!Array.isArray(reportData) || reportData.length === 0) return;
-
-    const rows = reportData.map((r: any) => {
-      const totalHours = Number(r.totalManHours || 0);
-      const productiveHours = Number(r.productiveHours || 0);
-
-      const efficiency =
-        totalHours > 0
-          ? ((productiveHours / totalHours) * 100).toFixed(2)
-          : "0.00";
-
-      return {
-        Department: r.department || "-",
-
-        "Date Range": r.dateRange
-          ? r.dateRange
-              .split(" to ")
-              .map((d: string) => new Date(d).toLocaleDateString("en-GB"))
-              .join(" To ")
-          : "-",
-
-        "Total Manpower": Number(r.totalManpower || 0),
-
-        "Total Man Hours": totalHours.toFixed(2),
-
-        "Productive Hours": productiveHours.toFixed(2),
-
-        "Avg. Efficiency %": `${efficiency}%`,
-      };
-    });
-
-    const headers = Object.keys(rows[0]);
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-      ...rows.map((row: any) =>
-        headers.map((header) => escapeCSV(row[header])).join(","),
-      ),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "Department_Efficiency_Report.csv";
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error("Department Efficiency Export Error:", err);
-  }
-}
-export async function exportDepartmentWiseManpowerCSV(
-  currentAppliedFilters: any,
-  departmentsData: any[] = [],
-) {
-  try {
-    const params = new URLSearchParams();
-
-    // 🔥 Filters
-    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
-      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
-        params.append(k, String(v));
-      }
-    });
-
-    console.log("MANPOWER EXPORT PARAMS =>", params.toString());
-
-    const res = await fetch(
-      `/api/reports/department-wise-manpower?${params.toString()}`,
-    );
-
-    if (!res.ok) {
-      throw new Error("Department manpower export fetch failed");
-    }
-
-    const apiResponse = await res.json();
-
-    console.log("MANPOWER EXPORT RESPONSE =>", apiResponse);
-
-    const reportData = apiResponse?.data || [];
-
-    const footerTotals = apiResponse?.footerTotals || {};
-
-    if (!Array.isArray(reportData)) return;
-
-    // =========================================
-    // 🔥 AUTO DEPARTMENT LIST CREATE
-    // =========================================
-
-    let finalDepartments = departmentsData;
-
-    // Agar departments prop empty aaye
-    // to data se auto department nikal lo
-    if (!finalDepartments.length) {
-      const deptMap = new Map();
-
-      reportData.forEach((r: any) => {
-        Object.keys(r.departments || {}).forEach((deptName) => {
-          deptMap.set(deptName, {
-            departmentName: deptName,
-          });
-        });
-      });
-
-      finalDepartments = Array.from(deptMap.values());
-    }
-
-    console.log("FINAL DEPARTMENTS =>", finalDepartments);
-
-    // =========================================
-    // 🔥 CREATE MAIN ROWS
-    // =========================================
-
-    const rows = reportData.map((r: any) => {
-      const row: any = {
-        "Employee Code": r.employeeCode || "-",
-
-        "Employee Name": r.employeeName || "-",
-
-        "Per Day Rate": r.perDayRate || 0,
-
-        "Contractor Name": r.contractorName || "-",
-      };
-
-      // 🔥 Dynamic Department Columns
-      finalDepartments.forEach((dept: any) => {
-        const deptName = dept.departmentName || dept.name || "Unknown";
-
-        const deptData = r.departments?.[deptName] || {};
-
-        row[`${deptName} Duty`] = deptData?.duty || 0;
-
-        row[`${deptName} OT Hrs`] = deptData?.otHours || 0;
-      });
-
-      // 🔥 Totals
-      row["Total Duty"] = r.totalWorking?.duty || 0;
-
-      row["Total OT Hrs"] = r.totalWorking?.otHours || 0;
-
-      row["Duty Amount"] = r.amount?.dutyAmount || 0;
-
-      row["OT Amount"] = r.amount?.otAmount || 0;
-
-      row["Total Wages"] = r.amount?.totalWages || 0;
-
-      return row;
-    });
-
-    // =========================================
-    // 🔥 FOOTER ROW 1
-    // =========================================
-
-    const footerWorking: any = {
-      "Employee Code": "",
-
-      "Employee Name": "Device/Department Wise Working (Duty & OT)",
-
-      "Per Day Rate": "",
-
-      "Contractor Name": "",
-    };
-
-    finalDepartments.forEach((dept: any) => {
-      const deptName = dept.departmentName || dept.name || "Unknown";
-
-      const deptFooter = footerTotals?.departments?.[deptName] || {};
-
-      footerWorking[`${deptName} Duty`] = deptFooter?.duty || 0;
-
-      footerWorking[`${deptName} OT Hrs`] = deptFooter?.otHours || 0;
-    });
-
-    footerWorking["Total Duty"] = footerTotals?.totalWorking?.duty || 0;
-
-    footerWorking["Total OT Hrs"] = footerTotals?.totalWorking?.otHours || 0;
-
-    footerWorking["Duty Amount"] = footerTotals?.amount?.dutyAmount || 0;
-
-    footerWorking["OT Amount"] = footerTotals?.amount?.otAmount || 0;
-
-    footerWorking["Total Wages"] = footerTotals?.amount?.totalWages || 0;
-
-    rows.push(footerWorking);
-
-    // =========================================
-    // 🔥 FOOTER ROW 2
-    // =========================================
-
-    const footerAmount: any = {
-      "Employee Code": "",
-
-      "Employee Name": "Device/Department Wise Amount (Rs.)",
-
-      "Per Day Rate": "",
-
-      "Contractor Name": "",
-    };
-
-    finalDepartments.forEach((dept: any) => {
-      const deptName = dept.departmentName || dept.name || "Unknown";
-
-      const deptFooter = footerTotals?.departments?.[deptName] || {};
-
-      footerAmount[`${deptName} Duty`] = deptFooter?.dutyAmount || 0;
-
-      footerAmount[`${deptName} OT Hrs`] = deptFooter?.otAmount || 0;
-    });
-
-    footerAmount["Total Duty"] = footerTotals?.totalWorking?.duty || 0;
-
-    footerAmount["Total OT Hrs"] = footerTotals?.totalWorking?.otHours || 0;
-
-    footerAmount["Duty Amount"] = footerTotals?.amount?.dutyAmount || 0;
-
-    footerAmount["OT Amount"] = footerTotals?.amount?.otAmount || 0;
-
-    footerAmount["Total Wages"] = footerTotals?.amount?.totalWages || 0;
-
-    rows.push(footerAmount);
-
-    if (!rows.length) return;
-
-    // =========================================
-    // 🔥 CSV CREATE
-    // =========================================
-
-    const headers = Object.keys(rows[0]);
-
-    const escapeCSV = (val: any) =>
-      `"${String(val ?? "").replace(/"/g, '""')}"`;
-
-    const csvContent = [
-      headers.map(escapeCSV).join(","),
-
-      ...rows.map((row: any) =>
-        headers.map((header) => escapeCSV(row[header])).join(","),
-      ),
-    ].join("\n");
-
-    // =========================================
-    // 🔥 DOWNLOAD
-    // =========================================
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement("a");
-
-    link.href = url;
-
-    link.download = "Department_Wise_Manpower_Report.csv";
-
-    document.body.appendChild(link);
-
-    link.click();
-
-    document.body.removeChild(link);
-  } catch (err) {
-    console.error("Department Wise Manpower Export Error:", err);
-  }
-}
 //*************************************************************************************************************/
 
 function getDaysInMonth(dateStr?: string) {
@@ -1474,23 +234,27 @@ function ReportFilters({
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 flex-1">
             {/* FROM DATE */}
             {/* DAILY EFFICIENCY → SINGLE DATE */}
-            {["daily-efficiency", "employee-movement-logs"].includes(activeReport) && (
-  <div className="space-y-1">
-    <Label className="text-[10px] text-muted-foreground">
-      DATE
-    </Label>
-    <Input
-      type="date"
-      value={filters.date || ""}
-      onChange={(e) =>
-        setFilters({ ...filters, date: e.target.value })
-      }
-    />
-  </div>
-)}
+            {["daily-efficiency", "employee-movement-logs"].includes(
+              activeReport,
+            ) && (
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">
+                  DATE
+                </Label>
+                <Input
+                  type="date"
+                  value={filters.date || ""}
+                  onChange={(e) =>
+                    setFilters({ ...filters, date: e.target.value })
+                  }
+                />
+              </div>
+            )}
             {/* OTHER REPORTS → FROM DATE */}
-            {!["daily-efficiency", "employee-movement-logs"].includes(activeReport) &&
-  allowed.includes("dateFrom") && (
+            {!["daily-efficiency", "employee-movement-logs"].includes(
+              activeReport,
+            ) &&
+              allowed.includes("dateFrom") && (
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground">
                     FROM DATE
@@ -1505,8 +269,10 @@ function ReportFilters({
                 </div>
               )}
             {/* OTHER REPORTS → TO DATE */}
-            {!["daily-efficiency", "employee-movement-logs"].includes(activeReport) &&
-  allowed.includes("dateTo") && (
+            {!["daily-efficiency", "employee-movement-logs"].includes(
+              activeReport,
+            ) &&
+              allowed.includes("dateTo") && (
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground">
                     TO DATE
@@ -1575,7 +341,8 @@ function ReportFilters({
                   {people.map((p) => (
                     <option
                       key={p.id}
-                      value={`${capitalizeFirst(p.employeeName)} (${p.employeeCode})`}                    />
+                      value={`${capitalizeFirst(p.employeeName)} (${p.employeeCode})`}
+                    />
                   ))}
                 </datalist>
               </div>
@@ -2723,8 +1490,6 @@ function EmployeeMovementLogTable({
                   </tbody>
                 </table>
               </div>
-
-              
             </div>
           );
         })
@@ -4252,14 +3017,34 @@ export default function ReportsPage() {
                     Attendance Results ({reportResponse.totalCount})
                   </CardTitle>
                   {canExport && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => exportAttendanceCSV(currentAppliedFilters)}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Export
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <Download className="w-4 h-4 mr-2" />
+                          Export
+                        </Button>
+                      </DropdownMenuTrigger>
+
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            exportAttendanceCSV(currentAppliedFilters)
+                          }
+                        >
+                          <FileSpreadsheet className="w-4 h-4 mr-2" />
+                          CSV
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() =>
+                            exportAttendancePDF(currentAppliedFilters)
+                          }
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          PDF
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </CardHeader>
                 <CardContent className="p-0">
@@ -4384,13 +3169,34 @@ export default function ReportsPage() {
                     Access Logs Results ({reportResponse.totalCount})
                   </CardTitle>
                   {canExport && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => exportAccessLogsCSV(currentAppliedFilters)}
-                    >
-                      <Download className="w-4 h-4 mr-2" /> Export
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <Download className="w-4 h-4 mr-2" />
+                          Export
+                        </Button>
+                      </DropdownMenuTrigger>
+
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            exportAccessLogsCSV(currentAppliedFilters)
+                          }
+                        >
+                          <FileSpreadsheet className="w-4 h-4 mr-2" />
+                          CSV
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() =>
+                            exportAccessLogsPDF(currentAppliedFilters)
+                          }
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          PDF
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </CardHeader>
                 <CardContent className="p-0">
@@ -4518,15 +3324,40 @@ export default function ReportsPage() {
                       Monthly Attendance Summary (1-31 Days)
                     </CardTitle>
                     {canExport && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          exportMonthlyStatusCSV(musterRollData, daysInMonth)
-                        }
-                      >
-                        <Download className="w-4 h-4 mr-2" /> Export
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <Download className="w-4 h-4 mr-2" />
+                            Export
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportMonthlyStatusCSV(
+                                musterRollData,
+                                daysInMonth,
+                              )
+                            }
+                          >
+                            <FileSpreadsheet className="w-4 h-4 mr-2" />
+                            CSV
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportMonthlyStatusPDF(
+                                musterRollData,
+                                daysInMonth,
+                              )
+                            }
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </CardHeader>
 
@@ -4675,15 +3506,34 @@ export default function ReportsPage() {
                       Performance Overtime & Hours Summary
                     </CardTitle>
                     {canExport && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          exportOTSummaryCSV(otMatrixData, daysInMonth)
-                        }
-                      >
-                        <Download className="w-4 h-4 mr-2" /> Export
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <Download className="w-4 h-4 mr-2" />
+                            Export
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportOTSummaryCSV(otMatrixData, daysInMonth)
+                            }
+                          >
+                            <FileSpreadsheet className="w-4 h-4 mr-2" />
+                            CSV
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportOTSummaryPDF(otMatrixData, daysInMonth)
+                            }
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </CardHeader>
                   <CardContent className="p-0">
@@ -4826,16 +3676,34 @@ export default function ReportsPage() {
                       Daily Performance Details
                     </CardTitle>
                     {canExport && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          exportDailyPerformanceCSV(currentAppliedFilters)
-                        }
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Export
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <Download className="w-4 h-4 mr-2" />
+                            Export
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportDailyPerformanceCSV(currentAppliedFilters)
+                            }
+                          >
+                            <FileSpreadsheet className="w-4 h-4 mr-2" />
+                            CSV
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportDailyPerformancePDF(currentAppliedFilters)
+                            }
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </CardHeader>
                   <CardContent className="p-0">
@@ -4966,22 +3834,46 @@ export default function ReportsPage() {
                       Daily Efficiency Results
                     </CardTitle>
                     {canExport && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={
-                          !reportResponse || reportResponse.length === 0
-                        }
-                        onClick={() =>
-                          exportEmpProductiveEfficiencyCSV(
-                            currentAppliedFilters,
-                            doorData,
-                          )
-                        }
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Export
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              !reportResponse || reportResponse.length === 0
+                            }
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Export
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportEmpProductiveEfficiencyCSV(
+                                currentAppliedFilters,
+                                doorData,
+                              )
+                            }
+                          >
+                            <FileSpreadsheet className="w-4 h-4 mr-2" />
+                            CSV
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportEmpProductiveEfficiencyPDF(
+                                currentAppliedFilters,
+                                doorData,
+                              )
+                            }
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </CardHeader>
                   <CardContent className="p-0">
@@ -5104,22 +3996,46 @@ export default function ReportsPage() {
                       Employee Movement Logs
                     </CardTitle>
                     {canExport && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={
-                          !reportResponse || reportResponse.length === 0
-                        }
-                        onClick={() =>
-                          exportEmpPMovementLogsCSV(
-                            currentAppliedFilters,
-                            doorData,
-                          )
-                        }
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Export
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={
+                              !reportResponse || reportResponse.length === 0
+                            }
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Export
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportEmpPMovementLogsCSV(
+                                currentAppliedFilters,
+                                doorData,
+                              )
+                            }
+                          >
+                            <FileSpreadsheet className="w-4 h-4 mr-2" />
+                            CSV
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportEmpPMovementLogsPDF(
+                                currentAppliedFilters,
+                                doorData,
+                              )
+                            }
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </CardHeader>
                   <CardContent className="p-0">
@@ -5250,16 +4166,40 @@ export default function ReportsPage() {
                     Department Wise Manpower & OT Report
                   </CardTitle>
                   {canExport && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
-                        exportDepartmentWiseManpowerCSV(currentAppliedFilters)
-                      }
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Export
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <Download className="w-4 h-4 mr-2" />
+                          Export
+                        </Button>
+                      </DropdownMenuTrigger>
+
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            exportDepartmentWiseManpowerCSV(
+                              currentAppliedFilters,
+                              departments,
+                            )
+                          }
+                        >
+                          <FileSpreadsheet className="w-4 h-4 mr-2" />
+                          CSV
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() =>
+                            exportDepartmentWiseManpowerPDF(
+                              currentAppliedFilters,
+                              departments,
+                            )
+                          }
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          PDF
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </CardHeader>
 
@@ -5392,16 +4332,38 @@ export default function ReportsPage() {
                     </CardTitle>
 
                     {canExport && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          exportEmployeePerformanceCSV(currentAppliedFilters)
-                        }
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Export
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <Download className="w-4 h-4 mr-2" />
+                            Export
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportEmployeePerformanceCSV(
+                                currentAppliedFilters,
+                              )
+                            }
+                          >
+                            <FileSpreadsheet className="w-4 h-4 mr-2" />
+                            CSV
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportEmployeePerformancePDF(
+                                currentAppliedFilters,
+                              )
+                            }
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </CardHeader>
 
@@ -5526,16 +4488,38 @@ export default function ReportsPage() {
                     </CardTitle>
 
                     {canExport && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          exportDepartmentEfficiencyCSV(currentAppliedFilters)
-                        }
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Export
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <Download className="w-4 h-4 mr-2" />
+                            Export
+                          </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportDepartmentEfficiencyCSV(
+                                currentAppliedFilters,
+                              )
+                            }
+                          >
+                            <FileSpreadsheet className="w-4 h-4 mr-2" />
+                            CSV
+                          </DropdownMenuItem>
+
+                          <DropdownMenuItem
+                            onClick={() =>
+                              exportDepartmentEfficiencyPDF(
+                                currentAppliedFilters,
+                              )
+                            }
+                          >
+                            <FileText className="w-4 h-4 mr-2" />
+                            PDF
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </CardHeader>
 
@@ -5664,14 +4648,34 @@ export default function ReportsPage() {
                     Lockout Results ({lockoutTotalCount})
                   </CardTitle>
                   {canExport && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => exportLockoutCSV(currentAppliedFilters)}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Export
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="sm" variant="outline">
+                          <Download className="w-4 h-4 mr-2" />
+                          Export
+                        </Button>
+                      </DropdownMenuTrigger>
+
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() =>
+                            exportLockoutCSV(currentAppliedFilters)
+                          }
+                        >
+                          <FileSpreadsheet className="w-4 h-4 mr-2" />
+                          CSV
+                        </DropdownMenuItem>
+
+                        <DropdownMenuItem
+                          onClick={() =>
+                            exportLockoutPDF(currentAppliedFilters)
+                          }
+                        >
+                          <FileText className="w-4 h-4 mr-2" />
+                          PDF
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </CardHeader>
                 <CardContent className="p-0">

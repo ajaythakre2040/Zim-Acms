@@ -1,8 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, Clock, CalendarCheck } from "lucide-react";
+import { Download,FileText , TrendingUp, Clock, CalendarCheck,FileSpreadsheet } from "lucide-react";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   BarChart,
   Bar,
@@ -17,6 +25,7 @@ import {
 } from "recharts";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
+import { exportShiftDashboardCSV, exportShiftDashboardPDF } from "@/lib/utils";
 
 export default function ShiftDashboard() {
    const { canExport, canView } = usePermission(MENU_CONFIG.SHIFT_ANALYTICS.code);
@@ -159,12 +168,41 @@ export function ShiftWiseEmpCount({
           </CardTitle>
           {canExport && (
           
-          <button
-            onClick={exportToCSV}
-            className="text-xs px-3 py-1.5 bg-emerald-600 text-white rounded-md hover:bg-emerald-700 transition-colors shadow-sm font-medium"
-          >
-            Export CSV
-          </button>
+          <DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button
+      size="sm"
+      className="text-xs px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+    >
+      <Download className="w-4 h-4 mr-2" />
+      Export
+    </Button>
+  </DropdownMenuTrigger>
+
+  <DropdownMenuContent align="end">
+
+    {/* CSV */}
+    <DropdownMenuItem
+      onClick={() =>
+  exportShiftDashboardCSV(shiftStats, shifts, "shift_report", selectedDate)
+}
+    >
+      <FileSpreadsheet className="w-4 h-4 mr-2" />
+      Export CSV
+    </DropdownMenuItem>
+
+    {/* PDF */}
+    <DropdownMenuItem
+      onClick={() =>
+  exportShiftDashboardPDF(shiftStats, shifts, "shift_report", selectedDate)
+}
+    >
+      <FileText className="w-4 h-4 mr-2" />
+      Export PDF
+    </DropdownMenuItem>
+
+  </DropdownMenuContent>
+</DropdownMenu>
           )}
        
          
