@@ -2051,5 +2051,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(404).send("File not found");
     }
   });
+  app.patch("/api/users/:id/toggle-status", withAudit("users", "UPDATE", async (req: any) => {
+    const { id } = req.params;
+
+    if (!id) {
+      throw new Error("User ID is required");
+    }
+
+    // storage se function call karein
+    const newStatus = await storage.toggleUserStatus(id);
+
+    // Return value audit trail mein store hogi
+    return {
+      success: true,
+      newStatus: newStatus,
+      message: `User ${id} is now ${newStatus ? 'Active' : 'Blocked'}`
+    };
+  }));
    return httpServer;
 }

@@ -121,9 +121,17 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-md">
-            <Shield className="w-5 h-5 text-white" />
-            <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-sidebar animate-pulse" />
+          <div className="relative flex items-center justify-center w-9 h-9 rounded-xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+            {/* <img
+              src="/zim_logo.png"
+              alt="ZIM Logo"
+              className="w-full h-full object-contain p-1"
+            /> */}
+            <img
+              src="/zim_logo.png"
+              alt="ZIM Logo"
+              className="w-full h-full object-contain p-1 cursor-pointer animate-pulse transition-transform duration-500 hover:animate-none hover:rotate-[360deg]"
+            />
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-bold tracking-tight uppercase">

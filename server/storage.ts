@@ -410,6 +410,7 @@ export class DatabaseStorage implements IStorage {
         fullName: users.fullName,
         roleName: roles.roleName,
         roleCode: roles.code,
+        isAccountActive: users.isAccountActive,
       })
       .from(userProfiles)
       .leftJoin(users, eq(userProfiles.userId, users.id))
@@ -6537,6 +6538,35 @@ ${fromDate} || ' to ' || ${toDate}
       console.error("Error fetching audit modules dropdown:", error);
       return [];
     }
+  }
+  // storage.ts mein AuthStorage class ke andar add karein
+  async toggleUserStatus(userId: string): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      // 1. Current status check karein
+      const [user] = await tx
+        .select({ isAccountActive: users.isAccountActive })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      if (!user) throw new Error("User not found");
+
+      const newStatus = !user.isAccountActive;
+
+      // 2. Users table update karein
+      await tx.update(users)
+        .set({
+          isAccountActive: newStatus,
+          failedLoginAttempts: 0 // Account unlock karte hi attempts reset
+        })
+        .where(eq(users.id, userId));
+
+      // 3. Sync UserProfiles table (Agar wahan bhi status rakha hai)
+      await tx.update(userProfiles)
+        .set({ isActive: newStatus })
+        .where(eq(userProfiles.userId, userId));
+
+      return newStatus;
+    });
   }
 }
 export const storage = new DatabaseStorage();
