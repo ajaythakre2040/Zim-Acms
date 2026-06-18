@@ -12,13 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmProvider } from "@/hooks/use-confirm";
-import { Shield,  Eye, EyeOff,Lock, Fingerprint, ScanLine, Sparkles, Radio, User, KeyRound, LogIn, UserPlus, LogOut, Users, RefreshCw } from "lucide-react";
+import { Shield, Eye, EyeOff, User, KeyRound, LogIn, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
+// Pages
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import PeoplePage from "@/pages/people";
-import VisitorsPage from "@/pages/visitors";
 import AttendancePage from "@/pages/attendance";
 import AccessLogsPage from "@/pages/access-logs";
 import AccessRulesPage from "@/pages/access-rules";
@@ -49,13 +49,12 @@ import RoleFormPage from "./pages/role_form";
 import RolePermissionViewPage from "./pages/RolePermissionViewPage";
 import EmployeeView from "./pages/EmployeeView";
 import Contractors from "./pages/contractors";
+import AuditTrailPage from "./pages/audit-trail";
 import { useToast } from "./hooks/use-toast";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePermission } from "./hooks/use-permission";
 import { MENU_CONFIG } from "../../server/constant";
-import AuditTrailPage from "./pages/audit-trail";
-
 
 function StandardRouter() {
   return (
@@ -63,7 +62,6 @@ function StandardRouter() {
       <Route path="/" component={Dashboard} />
       <Route path="/attendance-summary" component={Dashboard} />
       <Route path="/employees" component={PeoplePage} />
-      {/* <Route path="/visitors" component={VisitorsPage} /> */}
       <Route path="/attendance" component={AttendancePage} />
       <Route path="/access-logs" component={AccessLogsPage} />
       <Route path="/access-rules" component={AccessRulesPage} />
@@ -96,370 +94,138 @@ function StandardRouter() {
       <Route path="/employees/view/:id" component={EmployeeView} />
       <Route path="/contractors" component={Contractors} />
       <Route path="/audit-trail" component={AuditTrailPage} />
-
       <Route component={NotFound} />
     </Switch>
   );
 }
 
 function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
-  const { login, loginError, isLoggingIn, register, registerError, isRegistering } = auth;
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const { login, loginError, isLoggingIn } = auth;
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("Admin@123");
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [activeTab, setActiveTab] = useState<"biometric" | "access_control">("biometric");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem("selected_dashboard_mode", activeTab);
-
-    if (mode === "login") {
-      await login({ username, password });
-    } else {
-      await register({
-        username,
-        password,
-        email: email || undefined,
-        name: name || undefined,
-      });
-    }
+    await login({ username, password });
   };
 
-  const error = mode === "login" ? loginError : registerError;
-  const isPending = mode === "login" ? isLoggingIn : isRegistering;
-
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      <div className="absolute inset-0 gradient-primary opacity-[0.03] dark:opacity-[0.06]" />
-      <div className="absolute top-20 left-20 w-72 h-72 rounded-full bg-primary/5 dark:bg-primary/10 blur-3xl animate-float" />
-      <div className="absolute bottom-20 right-20 w-96 h-96 rounded-full bg-accent/5 dark:bg-accent/10 blur-3xl animate-float animate-float-delay-2" />
-      <div className="absolute top-1/3 right-1/4 w-48 h-48 rounded-full bg-primary/3 dark:bg-primary/6 blur-2xl animate-float animate-float-delay-1" />
-
-      <div className="relative z-10 w-full max-w-md mx-4 animate-in">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f4f6]">
+      <div className="w-full max-w-lg mx-4">
         <div className="text-center mb-8">
-          <div className="relative inline-flex items-center justify-center w-18 h-18 mb-4">
-            <div className="absolute inset-0 w-[72px] h-[72px] rounded-2xl gradient-primary opacity-20 blur-lg animate-pulse-soft" />
-            <div className="relative w-[72px] h-[72px] rounded-2xl gradient-primary shadow-lg glow-primary flex items-center justify-center">
-              <Shield className="w-9 h-9 text-white" />
-              <div className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-emerald-400 border-2 border-background flex items-center justify-center">
-                <Sparkles className="w-2.5 h-2.5 text-white" />
-              </div>
-            </div>
+          <div className="flex justify-center mb-4">
+            <div className="w-20 h-20 bg-white rounded-2xl shadow-sm flex items-center justify-center p-2">
+              {/* <img src="/zim_logo.png" alt="Zim Logo" className="w-full h-full object-contain" /> */}
+              <img
+                src="/zim_logo.png"
+                alt="ZIM Logo"
+                className="w-full h-full object-contain p-1 cursor-pointer animate-pulse transition-transform duration-500 hover:animate-none hover:rotate-[360deg]"
+              />
+               </div>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight" data-testid="text-login-title">
-            <span className="gradient-text">ZIM-ACMS</span>
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Enterprise Access Control Management
-          </p>
+          <h1 className="text-3xl font-bold text-[#4c51bf] mb-2">ZIM Laboratories Limited</h1>
+          <p className="text-gray-500">Attendance Cum Access Control System</p>
         </div>
 
-        <div className="glass-panel rounded-2xl p-8 space-y-6">
-          <div className="grid grid-cols-2 gap-4 mb-2">
-            <div
-              onClick={() => setActiveTab("biometric")}
-              className={`flex flex-col items-center gap-2 p-4 rounded-xl cursor-pointer transition-all border ${activeTab === "biometric"
-                ? "bg-blue-50/90 dark:bg-blue-950/40 border-blue-400 shadow-sm ring-2 ring-blue-400/20 scale-[1.02]"
-                : "bg-background/40 border-border opacity-60 hover:opacity-90"
-                }`}
-              data-testid="feature-workforce"
-            >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center shadow-sm">
-                <Users className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                Attendance System
-              </span>
-            </div>
-
-            <div
-              onClick={() => setActiveTab("access_control")}
-              className={`flex flex-col items-center gap-2 p-4 rounded-xl cursor-pointer transition-all border ${activeTab === "access_control"
-                ? "bg-violet-50/90 dark:bg-violet-950/40 border-violet-400 shadow-sm ring-2 ring-violet-400/20 scale-[1.02]"
-                : "bg-background/40 border-border opacity-60 hover:opacity-90"
-                }`}
-              data-testid="feature-card-access"
-            >
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-500 flex items-center justify-center shadow-sm">
-                <ScanLine className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">
-                Access Control
-              </span>
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-xs font-medium">
-                Username
-              </Label>
+              <Label htmlFor="username" className="text-sm font-medium text-gray-700">Username</Label>
               <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  id="username"
-                  placeholder="Enter username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="pl-10"
-                  required
-                  data-testid="input-username"
-                />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} className="pl-10 h-11 bg-gray-50" required />
               </div>
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-xs font-medium">
-                Password
-              </Label>
+              <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
               <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"} // 👈 State ke mutabiq text ya password change hoga
-                  placeholder="Enter password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10 pr-10" // 👈 Right side me space di eye icon ke liye
-                  required
-                  data-testid="input-password"
-                />
-
-                {/* 👁️ Password View / Hide Toggle Button */}
-                <button
-                  type="button" // 👈 Kisi form submission ko trigger hone se rokne ke liye type="button" zaroori hai
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                >
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10 h-11 bg-gray-50" required />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
-
-            {mode === "register" && (
-              <>
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-xs font-medium">
-                    Name
-                  </Label>
-                  <Input
-                    id="name"
-                    placeholder="Full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    data-testid="input-name"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-xs font-medium">
-                    Email
-                  </Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="Email (optional)"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    data-testid="input-email"
-                  />
-                </div>
-              </>
-            )}
-
-            {error && (
-              <div
-                className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg p-3"
-                data-testid="text-auth-error"
-              >
-                {error}
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full gradient-primary border-0 text-white shadow-md"
-              disabled={isPending}
-              data-testid="button-login"
-            >
-              {isPending ? (
-                <Radio className="w-4 h-4 mr-2 animate-spin" />
-              ) : mode === "login" ? (
-                <LogIn className="w-4 h-4 mr-2" />
-              ) : (
-                <UserPlus className="w-4 h-4 mr-2" />
-              )}
-              {isPending
-                ? "Please wait..."
-                : mode === "login"
-                  ? "Sign In"
-                  : "Create Account"}
+            {loginError && <div className="text-sm text-red-500 bg-red-50 p-3 rounded-lg">{loginError}</div>}
+            <Button type="submit" className="w-full h-11 bg-[#5c54d5] hover:bg-[#4c44c5] text-white shadow-md" disabled={isLoggingIn}>
+              {isLoggingIn ? "Signing in..." : "Sign In"}
             </Button>
           </form>
-
-          <div className="text-center mt-4">
-            <p className="text-xs text-muted-foreground">
-              Don't have an account? Please contact the{" "}
-              <span className="font-semibold text-primary">System Administrator</span> to register your profile.
-            </p>
+          <div className="mt-6 text-center text-sm text-gray-500">
+            Don't have an account? Please contact the <span className="text-[#5c54d5] font-medium">System Administrator</span> to register your profile.
           </div>
-
-          <p className="text-[11px] text-muted-foreground text-center flex items-center justify-center gap-1.5">
-            <Shield className="w-3 h-3" />
-            Secured with enterprise-grade encryption
-          </p>
+          <div className="mt-6 flex justify-center items-center text-gray-400 text-xs">
+            &copy; {new Date().getFullYear()} ZIM Laboratories Limited. All rights reserved.
+          </div>
         </div>
+      </div>
+
+      <div className="mt-8 text-sm text-gray-400">
+
       </div>
     </div>
   );
 }
 
 function AuthenticatedApp() {
-  const activeDashboardMode = localStorage.getItem("selected_dashboard_mode") || "biometric";
   const { toast } = useToast();
-
-  // 🛡️ State to control the custom emergency alert dialog open/close
   const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
 
-  // 🛡️ 1. DYNAMIC PERMISSION MATRIX HOOK CHECK
-  const { canView, canEdit } = usePermission(MENU_CONFIG.EMERGENCY_UNBLOCK.code);
+  const handleLogout = () => {
+    fetch("/api/logout", { method: "POST" }).then(() => window.location.reload());
+  };
 
-  // 🛡️ 2. STRICT TYPE CAST TO PREVENT STRING TRUTHY BYPASS ("false" -> false)
-  const isButtonVisible = canView === true || String(canView) === "true";
-  const isActionAllowed = canEdit === true || String(canEdit) === "true";
-
-  // 🔴 EMERGENCY MUTATION (Dispatch commands directly to hardware controllers)
   const bulkEmergencyUnblockMut = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/emergency/bulk-unblock", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-      });
+      const res = await fetch("/api/emergency/bulk-unblock", { method: "POST" });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
-    onSuccess: (response: any) => {
+    onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["/api/people"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/alerts"] });
-
-      toast({
-        title: "Emergency Action Success",
-        description: response.message || "Commands dispatched successfully.",
-      });
+      toast({ title: "Success", description: res.message });
     },
     onError: (err: any) => {
-      toast({
-        variant: "destructive",
-        title: "Emergency Action Failed",
-        description: err.message || "Failed to trigger emergency unblock.",
-      });
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   });
 
-  const handleLogout = () => {
-    localStorage.removeItem("selected_dashboard_mode");
-    fetch("/api/logout", {
-      method: "POST",
-      credentials: "include",
-    }).then(() => window.location.reload());
-  };
-
-  // Reusable Emergency Button Component
-  const EmergencyButton = () => (
-    <>
-      {/* Rule 1: Matrix view checkbox control mapping */}
-      {isButtonVisible && (
-        <Button
-          variant="destructive"
-          size="sm"
-          // Force fallback classes added to physically intercept actions if browser style overrides default disabled tags
-          className="flex items-center justify-center gap-1.5 shadow-sm font-semibold h-8 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed select-none"
-          // Rule 2: Strict boolean evaluation wrapper mapping
-          disabled={!isActionAllowed || bulkEmergencyUnblockMut.isPending}
-          onClick={() => setIsEmergencyAlertOpen(true)}
-        >
-          <RefreshCw
-            className={`w-3.5 h-3.5 ${bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""}`}
-          />
-          <span>Emergency Unblock All</span>
-        </Button>
-      )}
-    </>
-  );
-
   return (
     <>
-      {/* 🛡️ SHADCN CUSTOM CONFIRMATION DIALOG INTERFACE */}
       <AlertDialog open={isEmergencyAlertOpen} onOpenChange={setIsEmergencyAlertOpen}>
-        <AlertDialogContent className="max-w-[440px] rounded-2xl border border-destructive/20 shadow-2xl">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold flex items-center gap-2 text-destructive">
-              ⚠️ Trigger Emergency Unblock?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-sm text-muted-foreground pt-2">
-              This action will dispatch override commands to **UNBLOCK ALL** active personnel access rights across **ALL** integrated biometric hardware controllers instantly.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Trigger Emergency Unblock?</AlertDialogTitle>
+            <AlertDialogDescription>This will UNBLOCK ALL doors.</AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter className="gap-2 mt-4">
-            <AlertDialogCancel className="rounded-xl px-5 font-medium">
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className="rounded-xl px-5 bg-destructive text-destructive-foreground hover:bg-destructive/90 font-semibold"
-              onClick={() => bulkEmergencyUnblockMut.mutate()}
-            >
-              Yes, Unblock All
-            </AlertDialogAction>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => bulkEmergencyUnblockMut.mutate()}>Confirm</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* --- ACCESS CONTROL SCREEN LAYOUT --- */}
-      {activeDashboardMode === "access_control" ? (
-        <div className="min-h-screen w-full bg-background relative flex flex-col">
-          <div className="absolute top-4 right-4 z-50 flex items-center gap-2 bg-background/80 backdrop-blur p-2 rounded-xl border border-border shadow-sm">
-            <ThemeToggle />
-            <EmergencyButton />
-            <Button variant="ghost" size="sm" className="h-8 text-muted-foreground hover:text-foreground" onClick={handleLogout} data-testid="button-logout" > Logout </Button>
-          </div>
-
-          <div className="flex-1 w-full overflow-auto">
-            <LiveLogsDashboard />
+      <SidebarProvider>
+        <div className="flex h-screen w-full">
+          <AppSidebar />
+          <div className="flex flex-col flex-1 min-w-0">
+            <header className="flex items-center justify-between px-4 py-2 border-b">
+              <SidebarTrigger />
+              <div className="flex items-center gap-2">
+                <ThemeToggle />
+                <Button variant="destructive" size="sm" onClick={() => setIsEmergencyAlertOpen(true)}>
+                  <RefreshCw className="w-4 h-4 mr-2" /> Emergency
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                  Logout
+                </Button>
+              </div>
+            </header>
+            <main className="flex-1 overflow-auto"><StandardRouter /></main>
           </div>
         </div>
-      ) : (
-        /* --- STANDARD BIOMETRIC INTERFACE LAYOUT --- */
-        <SidebarProvider style={{ "--sidebar-width": "16rem", "--sidebar-width-icon": "3rem" } as React.CSSProperties}>
-          <div className="flex h-screen w-full">
-            <AppSidebar />
-            <div className="flex flex-col flex-1 min-w-0">
-              <header className="flex items-center justify-between gap-2 px-4 py-2 border-b border-border sticky top-0 z-50 bg-background/80 backdrop-blur-md">
-                <SidebarTrigger data-testid="button-sidebar-toggle" />
-                <div className="flex items-center gap-2">
-                  <ThemeToggle />
-                  <EmergencyButton />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 text-muted-foreground hover:text-foreground"
-                    onClick={handleLogout}
-                    data-testid="button-logout"
-                  >
-                    Logout
-                  </Button>
-                </div>
-              </header>
-              <main className="flex-1 overflow-auto">
-                <StandardRouter />
-              </main>
-            </div>
-          </div>
-        </SidebarProvider>
-      )}
+      </SidebarProvider>
     </>
   );
 }
@@ -467,42 +233,15 @@ function AuthenticatedApp() {
 function AppContent() {
   const auth = useAuth();
   const { user, isLoading } = auth;
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative">
-            <div className="w-12 h-12 rounded-full gradient-primary opacity-20 animate-ping absolute inset-0" />
-            <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center relative">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <p className="text-sm text-muted-foreground animate-pulse-soft">
-            Loading ZIM-ACMS...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return <LoginPage auth={auth} />;
-  }
-
-  return <AuthenticatedApp />;
+  if (isLoading) return null;
+  return !user ? <LoginPage auth={auth} /> : <AuthenticatedApp />;
 }
 
 export default function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <ConfirmProvider>
-            <AppContent />
-            <Toaster />
-          </ConfirmProvider>
-        </TooltipProvider>
+        <TooltipProvider><ConfirmProvider><AppContent /><Toaster /></ConfirmProvider></TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

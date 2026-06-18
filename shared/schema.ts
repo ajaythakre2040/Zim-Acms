@@ -24,7 +24,10 @@ export const userProfiles = pgTable("user_profiles", {
   lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+},
+  (table) => [
+    index("IDX_user_profile_active").on(table.isActive)
+  ]);
 export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),

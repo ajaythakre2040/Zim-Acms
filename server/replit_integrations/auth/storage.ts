@@ -423,7 +423,7 @@ class AuthStorage implements IAuthStorage {
           .set({
             roleId: finalRoleId,
             employeeCode: finalEmployeeCode,
-            isActive: userData.isActive ?? true,
+            // isActive: userData.isActive ?? true,
             updatedAt: new Date(),
           })
           .where(eq(userProfiles.userId, targetUserId));

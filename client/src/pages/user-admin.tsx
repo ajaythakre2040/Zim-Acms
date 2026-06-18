@@ -31,7 +31,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Plus, Pencil, Trash2, Search, Loader2, ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft, EyeOff, Eye, Key } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Loader2, ChevronsRight, ChevronRight, ChevronLeft, ChevronsLeft, EyeOff, Eye, Key,Lock,Unlock } from "lucide-react";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
 
@@ -68,7 +68,7 @@ export default function UserAdminPage() {
     password: "",
     email: "",
     roleId: "",
-    isActive: true,
+    // isActive: true,
   });
 
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
@@ -123,7 +123,7 @@ export default function UserAdminPage() {
         password: "",
         email: editing.email || "",
         roleId: editing.roleId?.toString() || "",
-        isActive: editing.isActive ?? true,
+        // isActive: editing.isActive ?? true,  
       });
     } else if (!dialogOpen) {
       setFormData({
@@ -133,7 +133,7 @@ export default function UserAdminPage() {
         password: "",
         email: "",
         roleId: "",
-        isActive: true,
+        // isActive: true,
       });
     }
   }, [editing, dialogOpen]);
@@ -148,7 +148,7 @@ export default function UserAdminPage() {
       password: "",
       email: "",
       roleId: "",
-      isActive: true,
+      // isActive: true,
     }));
     try {
       const res = await apiRequest("GET", `/api/peoplebycode/${formData.employeeCode}`);
@@ -286,7 +286,20 @@ export default function UserAdminPage() {
       }
     }
   };
+  const handleToggleStatus = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/users/${userId}/toggle-status`, {
+        method: "PATCH"
+      });
 
+      if (res.ok) {
+        // Table data refresh karne ke liye (Aapka existing fetch function)
+        fetchUsers();
+      }
+    } catch (error) {
+      console.error("Error toggling status:", error);
+    }
+  };
   if (!canView) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -332,8 +345,11 @@ export default function UserAdminPage() {
       key: "isActive",
       label: "Status",
       render: (p: any) => (
-        <Badge variant={p.isActive ? "default" : "secondary"}>
-          {p.isActive ? "Active" : "Inactive"}
+        <Badge
+          variant={p.isAccountActive ? "default" : "destructive"}
+          className={!p.isAccountActive ? "bg-red-500 text-white" : ""}
+        >
+          {p.isAccountActive ? "Active" : "Blocked"}
         </Badge>
       ),
     },
@@ -343,6 +359,22 @@ export default function UserAdminPage() {
       render: (p: any) => (
         <TooltipProvider delayDuration={200}>
           <div className="flex gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className={p.isAccountActive ? "text-amber-600" : "text-emerald-600"}
+                  onClick={() => handleToggleStatus(p.id)} // Function Call
+                >
+                  {/* Dynamic Icon Change */}
+                  {p.isAccountActive ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{p.isAccountActive ? "Block User" : "Unblock User"}</p>
+              </TooltipContent>
+            </Tooltip>
             {canEdit && (
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -446,7 +478,7 @@ export default function UserAdminPage() {
           </span>{" "}
           to{" "}
           <span className="font-semibold text-foreground">
-            Make bound safe {Math.min(page * pageSize, pagedResponse?.totalCount || 0)}
+             {Math.min(page * pageSize, pagedResponse?.totalCount || 0)}
           </span>{" "}
           of{" "}
           <span className="font-semibold text-foreground">
@@ -550,7 +582,7 @@ export default function UserAdminPage() {
                       password: "",
                       email: "",
                       roleId: "",
-                      isActive: true,
+                      // isActive: true,
                     });
                   }}
                 />
@@ -649,7 +681,7 @@ export default function UserAdminPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-col gap-2">
+              {/* <div className="flex flex-col gap-2">
                 <Label>Account Status</Label>
                 <div className="flex items-center justify-between border h-10 px-3 rounded-md bg-muted/20">
                   <span className="text-sm">Active</span>
@@ -660,7 +692,7 @@ export default function UserAdminPage() {
                     }
                   />
                 </div>
-              </div>
+              </div> */}
             </div>
           </div>
 

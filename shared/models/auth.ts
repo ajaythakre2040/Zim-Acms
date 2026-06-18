@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, jsonb, pgTable, timestamp, varchar, text } from "drizzle-orm/pg-core";
+import { index, jsonb, pgTable, timestamp, varchar, text, integer, boolean } from "drizzle-orm/pg-core";
 // export const sessions = pgTable(
 //   "sessions",
 //   {
@@ -36,6 +36,8 @@ export const users = pgTable("users", {
   email: varchar("email").unique(),
   fullName: varchar("full_name"),
   profileImageUrl: varchar("profile_image_url"),
+  failedLoginAttempts: integer("failed_login_attempts").default(0),
+  isAccountActive: boolean("is_account_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

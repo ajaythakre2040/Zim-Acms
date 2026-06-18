@@ -88,7 +88,8 @@ or run the server directly in PowerShell:
 $env:NODE_ENV = "development"
 npx tsx server/index.ts
 ```
-
+port alredy use erorr solve
+npx kill-port 5000
 - `DATABASE_URL must be set`: ensure `DATABASE_URL` is defined in the same shell that runs the server and points to a reachable Postgres instance.
 
 - Vite / `crypto.hash` errors on some Node versions: use Node >= `20.19.0` (preferred) or `22.12.0+`. The repo includes a small polyfill in `vite.config.ts` to work around missing `crypto.hash` behavior in older Node builds.
