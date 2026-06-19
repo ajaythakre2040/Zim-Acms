@@ -10,6 +10,8 @@ import {
   type User, type UpsertUser, type UserProfile, type InsertUserProfile, type Company, type InsertCompany, type Department, type InsertDepartment, type Designation, type InsertDesignation, type Category, type InsertCategory, type Vendor, type InsertVendor, type Site, type InsertSite, type Building, type InsertBuilding, type Floor, type InsertFloor, type Zone, type InsertZone, type Door, type InsertDoor, type Device, type InsertDevice, type Person, type InsertPerson, type Credential, type InsertCredential, type AccessCard, type InsertAccessCard, type Shift, type InsertShift, type ShiftAssignment, type InsertShiftAssignment, type Holiday, type InsertHoliday, type AccessLevel, type InsertAccessLevel, type AccessRule, type InsertAccessRule, type PersonAccess, type InsertPersonAccess, type Visitor, type InsertVisitor, type Visit, type InsertVisit, type Attendance, type InsertAttendance, type AccessLog, type InsertAccessLog, type Alert, type InsertAlert, type Exception, type InsertException, type SystemSetting, type InsertSystemSetting,
   blockUnblockLogs, CronMaster, cronMaster, InsertCronMaster, doorDevices, InsertDoorDevice, DoorDevice, BlockUnblockLog, InsertBlockUnblockLog, dailyAttendanceSummary, MenuMaster, InsertMenuMaster, menuMaster, rolePermissions, users, auditLogs, InsertAuditLog, Contractor, InsertContractor, contractors,
   sessions,
+  InsertLoginAttempt,
+  loginAttempts,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
@@ -4853,19 +4855,51 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(roles).orderBy(asc(roles.id));
   }
   // Kisi specific role ki saari permissions fetch karna (with Menu details)
+    // async getRolePermissions(roleId: number) {
+    //   // 1. Role ki basic details fetch karein
+    //   const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
+    //   if (!role) return null;
+    //   // 2. Us role ki saari permissions fetch karein
+    //   const permissions = await db
+    //     .select()
+    //     .from(rolePermissions)
+    //     .where(eq(rolePermissions.roleId, roleId));
+    //   // 3. Dono ko merge karke return karein
+    //   return {
+    //     ...role,
+    //     permissions: permissions,
+    //   };
+    // }
   async getRolePermissions(roleId: number) {
     // 1. Role ki basic details fetch karein
     const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
     if (!role) return null;
-    // 2. Us role ki saari permissions fetch karein
-    const permissions = await db
-      .select()
+
+    // 2. RolePermissions aur MenuMaster ko Join karein
+    const permissionsWithMenu = await db
+      .select({
+        id: rolePermissions.id,
+        roleId: rolePermissions.roleId,
+        menuId: rolePermissions.menuId,
+        // Menu Master se details lein
+        menuTitle: menuMaster.title,
+        menuCode: menuMaster.code,
+        // Permissions
+        view: rolePermissions.view,
+        add: rolePermissions.add,
+        edit: rolePermissions.edit,
+        delete: rolePermissions.delete,
+        export: rolePermissions.export,
+        print: rolePermissions.print,
+      })
       .from(rolePermissions)
+      .leftJoin(menuMaster, eq(rolePermissions.menuId, menuMaster.id))
       .where(eq(rolePermissions.roleId, roleId));
-    // 3. Dono ko merge karke return karein
+
+    // 3. Result return karein
     return {
       ...role,
-      permissions: permissions,
+      permissions: permissionsWithMenu,
     };
   }
   // Naya Role banana aur default permissions set karna
@@ -6567,6 +6601,18 @@ ${fromDate} || ' to ' || ${toDate}
 
       return newStatus;
     });
+  }
+  async logLoginAttempt(data: InsertLoginAttempt): Promise<void> {
+    await db.insert(loginAttempts).values(data);
+
+    if (data.status === "FAILED") {
+      const [user] = await db.select().from(users).where(eq(users.username, data.username));
+      if (user) {
+        await db.update(users)
+          .set({ failedLoginAttempts: (user.failedLoginAttempts || 0) + 1 })
+          .where(eq(users.id, user.id));
+      }
+    }
   }
 }
 export const storage = new DatabaseStorage();

@@ -365,17 +365,17 @@ export default function UserAdminPage() {
                   size="icon"
                   variant="ghost"
                   className={p.isAccountActive ? "text-amber-600" : "text-emerald-600"}
-                  onClick={() => handleToggleStatus(p.id)} // Function Call
+                  onClick={() => handleToggleStatus(p.id)}
                 >
-                  {/* Dynamic Icon Change */}
                   {p.isAccountActive ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
+                {/* Yeh dynamic text user ke liye clarity badha dega */}
                 <p>{p.isAccountActive ? "Block User" : "Unblock User"}</p>
               </TooltipContent>
             </Tooltip>
-            {canEdit && (
+                        {canEdit && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
