@@ -6,7 +6,7 @@ import { validateNoHtml } from "@/lib/validation";
 import { db } from "../../db";
 import { sessions, users } from "@shared/models/auth";
 import { eq, sql } from "drizzle-orm";
-import { userProfiles } from "@shared/schema";
+import { loginAttempts, userProfiles } from "@shared/schema";
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000;
   const pgStore = connectPg(session);
@@ -31,7 +31,13 @@ export function getSession() {
 export async function setupAuth(app: Express) {
   app.set("trust proxy", 1);
   app.use(getSession());
+
   app.post("/api/login", async (req, res) => {
+    // 1. IP aur User-Agent pehle extract karein (Scope fix)
+    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+    const cleanIp = typeof ip === "string" ? ip : (Array.isArray(ip) ? ip[0] : "0.0.0.0");
+    const agent = req.headers["user-agent"] || "unknown";
+
     try {
       const { username, password } = req.body;
       if (!username || !password) {
@@ -56,9 +62,8 @@ export async function setupAuth(app: Express) {
         const newAttempts = (user.failedLoginAttempts || 0) + 1;
         const shouldLock = newAttempts >= 3;
 
-        // Transaction use karein taaki dono tables sync mein rahein
         await db.transaction(async (tx) => {
-          // 1. Update Users table (Security Flag)
+          // Update Users table
           await tx.update(users)
             .set({
               failedLoginAttempts: newAttempts,
@@ -66,25 +71,38 @@ export async function setupAuth(app: Express) {
             })
             .where(eq(users.id, user.id));
 
-          // 2. Update UserProfiles table (Profile Status)
-          // await tx.update(userProfiles)
-          //   .set({
-          //     isActive: !shouldLock
-          //   })
-          //   .where(eq(userProfiles.userId, user.id));
+          // Update UserProfiles table
+          await tx.update(userProfiles)
+            .set({ isActive: !shouldLock })
+            .where(eq(userProfiles.userId, user.id));
+
+          // Insert FAILED log
+          await tx.insert(loginAttempts).values({
+            username: username,
+            ipAddress: cleanIp,
+            userAgent: agent,
+            status: 'FAILED'
+          });
         });
 
         if (shouldLock) {
           return res.status(403).json({ message: "Account locked after 3 failed attempts." });
         }
-
         return res.status(401).json({ message: `Invalid password. ${3 - newAttempts} attempts remaining.` });
       }
 
-      // 3. Success: Reset attempts
+      // Success: Reset attempts
       await db.update(users)
         .set({ failedLoginAttempts: 0, isAccountActive: true })
         .where(eq(users.id, user.id));
+
+      // Insert SUCCESS log
+      await db.insert(loginAttempts).values({
+        username: user.username as string, // Ensure username is string
+        ipAddress: (cleanIp ?? "0.0.0.0") as string, // Fallback to string
+        userAgent: (agent ?? "unknown") as string,   // Fallback to string
+        status: 'SUCCESS'
+      });
 
       req.session.regenerate(async (err) => {
         if (err) return res.status(500).json({ message: "Login failed" });
@@ -96,10 +114,6 @@ export async function setupAuth(app: Express) {
           if (saveErr) return res.status(500).json({ message: "Login failed" });
 
           try {
-            const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-            const agent = req.headers["user-agent"];
-            const cleanIp = typeof ip === "string" ? ip : ip?.[0] || null;
-
             await db.execute(sql`
               UPDATE sessions 
               SET user_id = ${user.id}::text, 

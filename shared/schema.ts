@@ -722,7 +722,14 @@ export const contractors = pgTable("contractors", {
   status: text("status").default("active").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
-
+export const loginAttempts = pgTable("login_attempts", {
+  id: serial("id").primaryKey(),
+  username: varchar("username").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  status: text("status").notNull(), // "SUCCESS" or "FAILED"
+  attemptedAt: timestamp("attempted_at").defaultNow().notNull(),
+});
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
 export const insertDepartmentSchema = createInsertSchema(departments).omit({ id: true, createdAt: true });
@@ -773,8 +780,12 @@ export const insertContractorSchema = createInsertSchema(contractors)
     email: z.string().optional().nullable(),
     biometricId: z.string().optional().nullable(),
   });
+export const insertLoginAttemptSchema = createInsertSchema(loginAttempts).omit({
+  id: true,
+  attemptedAt: true,
+});
 
-
+export type InsertLoginAttempt = z.infer<typeof insertLoginAttemptSchema>;
 export type Contractor = typeof contractors.$inferSelect;
 export type InsertContractor = z.infer<typeof insertContractorSchema>;
 export type MenuMaster = typeof menuMaster.$inferSelect;
