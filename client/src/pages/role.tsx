@@ -1,9 +1,18 @@
 import { useCrud } from "@/hooks/use-crud";
 import { DataTable } from "@/components/data-table";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, Eye, ShieldCheck } from "lucide-react";
+import {
+  ArrowDownToLine,
+  Download,
+  Plus,
+  Pencil,
+  Trash2,
+  Eye,
+  ShieldCheck,
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { useConfirm } from "@/hooks/use-confirm";
+import { exportRolePermissionMatrixCSV } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -148,6 +157,45 @@ export default function RolesPage() {
                   <TooltipContent side="top">Delete Role</TooltipContent>
                 </Tooltip>
               )}
+              <Tooltip>
+  <TooltipTrigger asChild>
+    <Button
+      size="icon"
+      variant="ghost"
+      className="h-8 w-8 text-green-600 hover:bg-green-50"
+      onClick={async () => {
+        try {
+          const res = await fetch(
+            `/api/roles-with-permissions/${item.id}`
+          );
+
+          if (!res.ok) {
+            console.error("API Error:", res.status);
+            return;
+          }
+
+          const data = await res.json();
+
+          if (!data?.permissions?.length) {
+            console.error("No permissions found", data);
+            return;
+          }
+
+          exportRolePermissionMatrixCSV(
+            `Role_${item.roleName}_Permissions`,
+            data
+          );
+        } catch (err) {
+          console.error("Export failed:", err);
+        }
+      }}
+    >
+      <ArrowDownToLine className="w-4 h-4" />
+    </Button>
+  </TooltipTrigger>
+
+  <TooltipContent side="top">Export Role</TooltipContent>
+</Tooltip>
             </div>
           </TooltipProvider>
         );

@@ -34,7 +34,7 @@ export default function RolePermissionViewPage() {
     const { isLoading } = useQuery({
         queryKey: ["role-view", id],
         queryFn: async () => {
-            const res = await fetch(`/api/roles-with-permissions/${id}`);
+            const res = await fetch(`x`);
             const data = await res.json();
 
             setForm({

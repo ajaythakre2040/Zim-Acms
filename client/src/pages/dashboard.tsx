@@ -2,14 +2,22 @@ import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Users, DoorOpen, Sparkles, Wifi, WifiOff, Server, UserCheck,FileText, FileSpreadsheet } from "lucide-react";
+import {
+  Users,
+  DoorOpen,
+  Sparkles,
+  Wifi,
+  WifiOff,
+  Server,
+  UserCheck,
+  FileText,
+  FileSpreadsheet,
+} from "lucide-react";
 import type { Device, Door } from "@shared/schema";
 import { navigate } from "wouter/use-browser-location";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
 import { Button } from "@/components/ui/button";
-
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +28,9 @@ import { exportDoorAttendanceCSV, exportDoorAttendancePDF } from "@/lib/utils";
 export default function Dashboard() {
   const { canExport } = usePermission(MENU_CONFIG.ATTENDANCE_SUMMARY.code);
   const REFRESH_MS = 5000;
-  const [selectedDate, setSelectedDate] = React.useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = React.useState(
+    new Date().toISOString().split("T")[0],
+  );
 
   React.useEffect(() => {
     const handler = (e: any) => setSelectedDate(e.detail);
@@ -40,7 +50,9 @@ export default function Dashboard() {
   const { data: doorData } = useQuery<any>({
     queryKey: ["/api/dashboard/attendance/door-wise-stats", selectedDate],
     queryFn: async () => {
-      const res = await fetch(`/api/dashboard/attendance/door-wise-stats?date=${selectedDate}`);
+      const res = await fetch(
+        `/api/dashboard/attendance/door-wise-stats?date=${selectedDate}`,
+      );
       return res.json();
     },
     refetchInterval: REFRESH_MS,
@@ -58,16 +70,56 @@ export default function Dashboard() {
 
   // 🔥 Gradient Cards
   const statCards = [
-    { title: "Total Employees", value: stats?.totalPeople || 0, icon: Users, route: "/employees", bg: "bg-gradient-to-r from-blue-500 to-blue-700" },
-    { title: "Total Shifts", value: stats?.totalshift || 0, icon: UserCheck, route: "/shifts", bg: "bg-gradient-to-r from-emerald-500 to-emerald-700" },
-    { title: "Total Doors", value: doors.length, icon: DoorOpen, route: "/doors", bg: "bg-gradient-to-r from-orange-500 to-orange-700" },
-    { title: "Total Devices", value: devices.length, icon: Server, route: "/devices", bg: "bg-gradient-to-r from-violet-500 to-violet-700" },
-    { title: "Online", value: devices.filter(d => d.status === "online").length, icon: Wifi, route: "/devices", bg: "bg-gradient-to-r from-cyan-500 to-cyan-700" },
-    { title: "Offline", value: devices.filter(d => d.status === "offline").length, icon: WifiOff, route: "/devices", bg: "bg-gradient-to-r from-slate-500 to-slate-700" },
+    {
+      title: "Total Employees",
+      value: stats?.totalPeople || 0,
+      icon: Users,
+      route: "/employees",
+      bg: "bg-gradient-to-r from-blue-500 to-blue-700",
+    },
+    {
+      title: "Total Shifts",
+      value: stats?.totalshift || 0,
+      icon: UserCheck,
+      route: "/shifts",
+      bg: "bg-gradient-to-r from-emerald-500 to-emerald-700",
+    },
+    {
+      title: "Total Doors",
+      value: doors.length,
+      icon: DoorOpen,
+      route: "/doors",
+      bg: "bg-gradient-to-r from-orange-500 to-orange-700",
+    },
+    {
+      title: "Total Devices",
+      value: devices.length,
+      icon: Server,
+      route: "/devices",
+      bg: "bg-gradient-to-r from-violet-500 to-violet-700",
+    },
+    {
+      title: "Online",
+      value: devices.filter((d) => d.status === "online").length,
+      icon: Wifi,
+      route: "/devices",
+      bg: "bg-gradient-to-r from-cyan-500 to-cyan-700",
+    },
+    {
+      title: "Offline",
+      value: devices.filter((d) => d.status === "offline").length,
+      icon: WifiOff,
+      route: "/devices",
+      bg: "bg-gradient-to-r from-slate-500 to-slate-700",
+    },
   ];
 
   const extraCards = [
-    { title: "Main Gate IN", value: doorData?.mainGateIn || 0, bg: "bg-gradient-to-r from-blue-500 to-indigo-600" },
+    {
+      title: "Main Gate IN",
+      value: doorData?.mainGateIn || 0,
+      bg: "bg-gradient-to-r from-blue-500 to-indigo-600",
+    },
     // {
     //   title: "Main Gate IN",
     //   // Chote font size aur spans ka use karke inline style maintain rakhna
@@ -81,16 +133,35 @@ export default function Dashboard() {
     //   ),
     //   bg: "bg-gradient-to-r from-blue-500 to-indigo-600"
     // },
-    { title: "Main Gate OUT", value: doorData?.mainGateOut || 0, bg: "bg-gradient-to-r from-orange-500 to-red-500" },
-    { title: "Balance", value: doorData?.mainGateBal || 0, bg: "bg-gradient-to-r from-slate-500 to-gray-700" },
-    { title: "Absent", value: doorData?.totalAbsent || 0, bg: "bg-gradient-to-r from-red-500 to-pink-600" },
-    { title: "Present", value: doorData?.totalPresent || 0, bg: "bg-gradient-to-r from-emerald-500 to-green-700" },
-    { title: "Total Employees", value: doorData?.totalManpower || 0, bg: "bg-gradient-to-r from-violet-500 to-purple-700" },
+    {
+      title: "Main Gate OUT",
+      value: doorData?.mainGateOut || 0,
+      bg: "bg-gradient-to-r from-orange-500 to-red-500",
+    },
+    {
+      title: "Balance",
+      value: doorData?.mainGateBal || 0,
+      bg: "bg-gradient-to-r from-slate-500 to-gray-700",
+    },
+    {
+      title: "Absent",
+      value: doorData?.totalAbsent || 0,
+      bg: "bg-gradient-to-r from-red-500 to-pink-600",
+    },
+    {
+      title: "Present",
+      value: doorData?.totalPresent || 0,
+      bg: "bg-gradient-to-r from-emerald-500 to-green-700",
+    },
+    {
+      title: "Total Employees",
+      value: doorData?.totalManpower || 0,
+      bg: "bg-gradient-to-r from-violet-500 to-purple-700",
+    },
   ];
 
   return (
     <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto bg-gradient-to-br from-gray-50 to-white min-h-screen">
-
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg text-white">
@@ -143,7 +214,11 @@ export default function Dashboard() {
       </div>
 
       {/* Table */}
-      <DoorAttendanceTable selectedDate={selectedDate} apiResponse={doorData} canExport={canExport} />
+      <DoorAttendanceTable
+        selectedDate={selectedDate}
+        apiResponse={doorData}
+        canExport={canExport}
+      />
     </div>
   );
 }
@@ -157,7 +232,6 @@ export function DoorAttendanceTable({
   apiResponse: any;
   canExport: boolean; // Type define karein
 }) {
-
   // 🔹 CSV Export Logic
   const exportToCSV = () => {
     if (!doorStats.length) return;
@@ -172,8 +246,9 @@ export function DoorAttendanceTable({
       ["BAL", ...doorStats.map((d: any) => d.balance)],
     ];
 
-    let csvContent = "data:text/csv;charset=utf-8," 
-      + [headers, ...rows].map(e => e.join(",")).join("\n");
+    let csvContent =
+      "data:text/csv;charset=utf-8," +
+      [headers, ...rows].map((e) => e.join(",")).join("\n");
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -201,39 +276,46 @@ export function DoorAttendanceTable({
             type="date"
             value={selectedDate}
             onChange={(e) =>
-              window.dispatchEvent(new CustomEvent("dateChange", { detail: e.target.value }))
+              window.dispatchEvent(
+                new CustomEvent("dateChange", { detail: e.target.value }),
+              )
             }
             className="border rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-blue-400"
           />
           {canExport && (
-          <DropdownMenu>
-  <DropdownMenuTrigger asChild>
-    <Button
-      size="sm"
-      className="text-xs px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
-    >
-      Export
-    </Button>
-  </DropdownMenuTrigger>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  className="text-xs px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700"
+                >
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
 
-  <DropdownMenuContent align="end">
+              <DropdownMenuContent align="end">
+                {/* CSV */}
+                <DropdownMenuItem
+                  onClick={() =>
+                    exportDoorAttendanceCSV(doorStats, selectedDate)
+                  }
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  Export CSV
+                </DropdownMenuItem>
 
-    {/* CSV */}
-    <DropdownMenuItem onClick={() => exportDoorAttendanceCSV(doorStats, selectedDate)}>
-      <FileSpreadsheet className="w-4 h-4 mr-2" />
-      Export CSV
-    </DropdownMenuItem>
-
-    {/* PDF */}
-    <DropdownMenuItem onClick={() => exportDoorAttendancePDF(doorStats, selectedDate)}>
-      <FileText className="w-4 h-4 mr-2" />
-      Export PDF
-    </DropdownMenuItem>
-
-  </DropdownMenuContent>
-</DropdownMenu>
+                {/* PDF */}
+                <DropdownMenuItem
+                  onClick={() =>
+                    exportDoorAttendancePDF(doorStats, selectedDate)
+                  }
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Export PDF
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
-
         </div>
       </CardHeader>
 
@@ -245,7 +327,10 @@ export function DoorAttendanceTable({
               <tr>
                 <th className="px-4 py-3 text-left">Direction</th>
                 {doorStats.map((d: any) => (
-                  <th key={d.doorName} className="text-center border-l border-gray-200 px-4 py-3">
+                  <th
+                    key={d.doorName}
+                    className="text-center border-l border-gray-200 px-4 py-3"
+                  >
                     {d.doorName}
                   </th>
                 ))}
@@ -256,19 +341,34 @@ export function DoorAttendanceTable({
               <tr className="border-b border-gray-100">
                 <td className="px-4 py-3 font-bold text-blue-600">IN</td>
                 {doorStats.map((d: any) => (
-                  <td key={d.doorName} className="text-center border-l border-gray-200 px-4 py-3">{d.inCount}</td>
+                  <td
+                    key={d.doorName}
+                    className="text-center border-l border-gray-200 px-4 py-3"
+                  >
+                    {d.inCount}
+                  </td>
                 ))}
               </tr>
               <tr className="border-b border-gray-100">
                 <td className="px-4 py-3 font-bold text-orange-500">OUT</td>
                 {doorStats.map((d: any) => (
-                  <td key={d.doorName} className="text-center border-l border-gray-200 px-4 py-3">{d.outCount}</td>
+                  <td
+                    key={d.doorName}
+                    className="text-center border-l border-gray-200 px-4 py-3"
+                  >
+                    {d.outCount}
+                  </td>
                 ))}
               </tr>
               <tr>
                 <td className="px-4 py-3 font-bold text-slate-700">BAL</td>
                 {doorStats.map((d: any) => (
-                  <td key={d.doorName} className="text-center font-bold border-l border-gray-200 px-4 py-3">{d.balance}</td>
+                  <td
+                    key={d.doorName}
+                    className="text-center font-bold border-l border-gray-200 px-4 py-3"
+                  >
+                    {d.balance}
+                  </td>
                 ))}
               </tr>
             </tbody>

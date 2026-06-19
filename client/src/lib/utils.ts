@@ -2610,13 +2610,9 @@ export function exportEmployeePDF(data: any[]) {
 
       ruleNames[p.ruleid ?? 0] || "Unknown",
 
-      p.lastPunchDoorId
-        ? p.lastPunchDoorName || "-"
-        : "Never",
+      p.lastPunchDoorId ? p.lastPunchDoorName || "-" : "Never",
 
-      p?.lastSeenTime
-        ? formatDateTime(p.lastSeenTime)
-        : "-",
+      p?.lastSeenTime ? formatDateTime(p.lastSeenTime) : "-",
 
       p.status || "-",
 
@@ -2637,22 +2633,24 @@ export function exportEmployeePDF(data: any[]) {
         : "-",
     ]);
 
-    const headers = [[
-      "Name",
-      "Emp Code",
-      "Cabin Lockout",
-      "Current Rule",
-      "Last Door Access",
-      "Last Seen",
-      "Status",
-      "Email",
-      "Phone",
-      "Type",
-      "Gender",
-      "Department",
-      "Designation",
-      "Date Of Joining",
-    ]];
+    const headers = [
+      [
+        "Name",
+        "Emp Code",
+        "Cabin Lockout",
+        "Current Rule",
+        "Last Door Access",
+        "Last Seen",
+        "Status",
+        "Email",
+        "Phone",
+        "Type",
+        "Gender",
+        "Department",
+        "Designation",
+        "Date Of Joining",
+      ],
+    ];
 
     const doc = new jsPDF({
       orientation: "landscape",
@@ -2692,23 +2690,23 @@ export const exportShiftDashboardCSV = (
   data: any[],
   shifts: any[],
   fileName: string,
-  date?: string
+  date?: string,
 ) => {
   if (!data?.length) return;
 
   // Headers
-  const headers = ["Door Name", ...shifts.map(s => s.name), "Total Emp"];
+  const headers = ["Door Name", ...shifts.map((s) => s.name), "Total Emp"];
 
   // Rows
   const rows = data.map((row: any) => [
     row.doorName,
-    ...shifts.map(s => row[s.name] ?? 0),
-    row.totalEmp
+    ...shifts.map((s) => row[s.name] ?? 0),
+    row.totalEmp,
   ]);
 
   const csvContent =
     "data:text/csv;charset=utf-8," +
-    [headers, ...rows].map(r => r.join(",")).join("\n");
+    [headers, ...rows].map((r) => r.join(",")).join("\n");
 
   const encodedUri = encodeURI(csvContent);
 
@@ -2725,7 +2723,7 @@ export const exportShiftDashboardPDF = (
   data: any[],
   shifts: any[],
   fileName: string,
-  date?: string
+  date?: string,
 ) => {
   if (!data?.length) return;
 
@@ -2741,13 +2739,13 @@ export const exportShiftDashboardPDF = (
   }
 
   // Table headers
-  const headers = [["Door Name", ...shifts.map(s => s.name), "Total Emp"]];
+  const headers = [["Door Name", ...shifts.map((s) => s.name), "Total Emp"]];
 
   // Table rows
   const rows = data.map((row: any) => [
     row.doorName,
-    ...shifts.map(s => row[s.name] ?? 0),
-    row.totalEmp
+    ...shifts.map((s) => row[s.name] ?? 0),
+    row.totalEmp,
   ]);
 
   autoTable(doc, {
@@ -2755,8 +2753,8 @@ export const exportShiftDashboardPDF = (
     body: rows,
     startY: 30,
     styles: {
-      fontSize: 9
-    }
+      fontSize: 9,
+    },
   });
 
   doc.save(`${fileName}_${date || "report"}.pdf`);
@@ -2813,14 +2811,16 @@ export const exportMachineLogsPDF = (data: any[]) => {
   doc.setFontSize(14);
   doc.text("Machine Logs Report", 14, 15);
 
-  const headers = [[
-    "Employee Name",
-    "Employee Code",
-    "Door Name",
-    "Device Name",
-    "Direction",
-    "Log Date",
-  ]];
+  const headers = [
+    [
+      "Employee Name",
+      "Employee Code",
+      "Door Name",
+      "Device Name",
+      "Direction",
+      "Log Date",
+    ],
+  ];
 
   const rows = data.map((log: any) => {
     const dateObj = new Date(log.logDate);
@@ -2850,15 +2850,12 @@ export const exportMachineLogsPDF = (data: any[]) => {
 
 export const exportDoorAttendanceCSV = (
   doorStats: any[],
-  selectedDate?: string
+  selectedDate?: string,
 ) => {
   if (!doorStats?.length) return;
 
   // Headers
-  const headers = [
-    "Direction",
-    ...doorStats.map((d: any) => d.doorName),
-  ];
+  const headers = ["Direction", ...doorStats.map((d: any) => d.doorName)];
 
   // Rows
   const rows = [
@@ -2886,7 +2883,7 @@ export const exportDoorAttendanceCSV = (
 
 export const exportDoorAttendancePDF = (
   doorStats: any[],
-  selectedDate?: string
+  selectedDate?: string,
 ) => {
   if (!doorStats?.length) return;
 
@@ -2900,9 +2897,7 @@ export const exportDoorAttendancePDF = (
     doc.text(`Date: ${selectedDate}`, 14, 22);
   }
 
-  const headers = [
-    ["Direction", ...doorStats.map((d: any) => d.doorName)],
-  ];
+  const headers = [["Direction", ...doorStats.map((d: any) => d.doorName)]];
 
   const rows = [
     ["IN", ...doorStats.map((d: any) => d.inCount)],
@@ -2920,4 +2915,217 @@ export const exportDoorAttendancePDF = (
   });
 
   doc.save(`door_attendance_${selectedDate || "report"}.pdf`);
+};
+
+export const exportAuditTrailCSV = (fileName: string, data: any[]) => {
+  if (!data?.length) return;
+
+  const mapped: any[] = data.map((item) => ({
+    "Log ID": item.id,
+    "Module / Table": item.tableName,
+    Action: item.action,
+
+    "Performed By": item.username || item.userId || "System",
+
+    // 🔥 FULL RAW JSON IN ONE CELL
+    "Old Data": item.oldData
+  ? JSON.stringify(item.oldData).replace(/"/g, '""')
+  : "-",
+
+"New Data": item.newData
+  ? JSON.stringify(item.newData).replace(/"/g, '""')
+  : "-",
+
+    Timestamp: item.createdAt || "-",
+  }));
+
+  const headers = Object.keys(mapped[0]) as string[];
+
+  const rows = mapped.map((row) =>
+    headers.map((key) => `"${row[key] ?? ""}"`)
+  );
+
+  const csvContent =
+    "data:text/csv;charset=utf-8," +
+    [headers, ...rows].map((r) => r.join(",")).join("\n");
+
+  const link = document.createElement("a");
+  link.href = encodeURI(csvContent);
+  link.download = `${fileName}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+const formatJson = (val: any) => {
+  if (!val) return "-";
+  return JSON.stringify(val, null, 2);
+};
+
+export const exportAuditTrailPDF = (fileName: string, data: any[]) => {
+  if (!data?.length) return;
+
+  const doc = new jsPDF({
+    orientation: "landscape", // 🔥 important for wide JSON
+  });
+
+  const mapped: any[] = data.map((item) => ({
+    "Log ID": item.id || "-",
+    "Module / Table": item.tableName || "-",
+    Action: item.action || "-",
+    "Performed By": item.username || item.userId || "System",
+
+    "Old Data": formatJson(item.oldData),
+    "New Data": formatJson(item.newData),
+
+    Timestamp: item.createdAt || "-",
+  }));
+
+  const headers = [Object.keys(mapped[0])];
+
+  const body = mapped.map((row) =>
+    Object.keys(mapped[0]).map((key) => String(row[key] ?? ""))
+  );
+
+  doc.setFontSize(14);
+  doc.text(fileName.replaceAll("_", " "), 14, 15);
+
+  autoTable(doc, {
+    head: headers,
+    body,
+    startY: 25,
+
+    styles: {
+      fontSize: 7,
+      cellWidth: "wrap",      // 🔥 important
+      overflow: "linebreak",  // 🔥 important
+      valign: "top",
+    },
+
+    columnStyles: {
+      0: { cellWidth: 18 }, // Log ID
+      1: { cellWidth: 25 }, // Module
+      2: { cellWidth: 18 }, // Action
+      3: { cellWidth: 25 }, // Performed By
+      4: { cellWidth: 70 }, // Old Data
+      5: { cellWidth: 70 }, // New Data
+      6: { cellWidth: 35 }, // Timestamp
+    },
+
+    didParseCell: (data) => {
+      // 🔥 ensures proper wrapping for JSON
+      if (data.column.index === 4 || data.column.index === 5) {
+        data.cell.styles.fontSize = 6;
+      }
+    },
+  });
+
+  doc.save(`${fileName}.pdf`);
+};
+
+export const exportLoginSessionCSV = (fileName: string, data: any[]) => {
+  if (!data?.length) return;
+
+  const mapped: any[] = data.map((item) => ({
+    Username: item.username || "System",
+    "IP Address": item.ipAddress || "-",
+    Status: item.status || "-",
+    "Login Time": item.createdAt || "-",
+    "Logout Time": item.logoutAt || "ACTIVE SESSION",
+  }));
+
+  const headers = Object.keys(mapped[0]) as string[];
+
+  const rows = mapped.map((row) =>
+    headers.map((key) => `"${row[key] ?? ""}"`)
+  );
+
+  const csvContent =
+    "data:text/csv;charset=utf-8," +
+    [headers, ...rows].map((r) => r.join(",")).join("\n");
+
+  const link = document.createElement("a");
+  link.href = encodeURI(csvContent);
+  link.download = `${fileName}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+export const exportLoginSessionPDF = (fileName: string, data: any[]) => {
+  if (!data?.length) return;
+
+  const doc = new jsPDF();
+
+  const mapped: any[] = data.map((item) => ({
+    Username: item.username || "System",
+    "IP Address": item.ipAddress || "-",
+    Status: item.status || "-",
+    "Login Time": item.createdAt || "-",
+    "Logout Time": item.logoutAt || "ACTIVE SESSION",
+  }));
+
+  const headers = [Object.keys(mapped[0])];
+
+  const body = mapped.map((row) =>
+    Object.keys(mapped[0]).map((key) => String(row[key] ?? ""))
+  );
+
+  doc.setFontSize(14);
+  doc.text(fileName.replaceAll("_", " "), 14, 15);
+
+  autoTable(doc, {
+    head: headers,
+    body,
+    startY: 25,
+    styles: { fontSize: 8 },
+  });
+
+  doc.save(`${fileName}.pdf`);
+};
+
+export const exportRolePermissionMatrixCSV = (
+  fileName: string,
+  role: any
+) => {
+  if (!role?.permissions?.length) return;
+
+  const rows = role.permissions.map((p: any, index: number) => ({
+    "Role Name": index === 0 ? role.roleName : "",
+    "Role Code": index === 0 ? role.code : "",
+
+    "Parent Module": p.parentName || "-",
+
+    // RULE:
+    // if parent level → submodule blank
+    // if submenu exists → show name not ID
+    "Sub Module": p.menuName || "",
+
+    View: p.view ? "true" : "false",
+    Add: p.add ? "true" : "false",
+    Edit: p.edit ? "true" : "false",
+    Delete: p.delete ? "true" : "false",
+    Print: p.print ? "true" : "false",
+    Export: p.export ? "true" : "false",
+  }));
+
+  const headers = Object.keys(rows[0]);
+
+  const csvRows = rows.map((row: any) =>
+    headers.map((key) => `"${row[key] ?? ""}"`)
+  );
+
+  const csvContent =
+    "data:text/csv;charset=utf-8," +
+    [headers, ...csvRows].map((r) => r.join(",")).join("\n");
+
+  const link = document.createElement("a");
+  link.href = encodeURI(csvContent);
+  link.download = `${fileName}.csv`;
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
