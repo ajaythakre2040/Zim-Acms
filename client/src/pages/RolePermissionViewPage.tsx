@@ -34,7 +34,7 @@ export default function RolePermissionViewPage() {
     const { isLoading } = useQuery({
         queryKey: ["role-view", id],
         queryFn: async () => {
-            const res = await fetch(`x`);
+            const res = await fetch(`/api/roles-with-permissions/${id}`);
             const data = await res.json();
 
             setForm({
@@ -106,12 +106,12 @@ export default function RolePermissionViewPage() {
                         </div>
                     </div>
                     {canEdit && (
-                    <Button
-                        onClick={() => navigate(`/master-data/roles/edit/${id}`)}
-                    // className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-slate-200"
-                    >
-                        <Edit3 className="w-4 h-4" /> Edit Configuration
-                    </Button>
+                        <Button
+                            onClick={() => navigate(`/master-data/roles/edit/${id}`)}
+                        // className="bg-slate-900 hover:bg-slate-800 text-white gap-2 px-6 rounded-xl font-bold transition-all active:scale-95 shadow-lg shadow-slate-200"
+                        >
+                            <Edit3 className="w-4 h-4" /> Edit Configuration
+                        </Button>
                     )}
                 </div>
 

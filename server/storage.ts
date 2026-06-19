@@ -4870,6 +4870,7 @@ export class DatabaseStorage implements IStorage {
     //     permissions: permissions,
     //   };
     // }
+    
   async getRolePermissions(roleId: number) {
     // 1. Role ki basic details fetch karein
     const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
@@ -4902,6 +4903,7 @@ export class DatabaseStorage implements IStorage {
       permissions: permissionsWithMenu,
     };
   }
+
   // Naya Role banana aur default permissions set karna
   async createRoleWithPermissions(roleData: any, permissions: any[]) {
     return await db.transaction(async (tx) => {
