@@ -223,7 +223,6 @@ export interface IStorage {
 
   getContractors(): Promise<schema.Contractor[]>;
   getContractor(id: number): Promise<Contractor | undefined>;
-  getContractorByBiometricId(biometricId: string): Promise<Contractor | undefined>;
   createContractor(contractor: InsertContractor): Promise<Contractor>;
   updateContractor(id: number, contractor: Partial<InsertContractor>): Promise<Contractor>;
   deleteContractor(id: number): Promise<boolean>;
@@ -3060,10 +3059,9 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: visits.id,
         visitorId: visits.visitorId,
-        firstName: visitors.firstName,
-        lastName: visitors.lastName,
-        company: visitors.company,
-        phone: visitors.phone,
+        nameOfVisitor: visitors.nameOfVisitor,
+        company: visitors.visitorsCompanyName,
+        phone: visitors.contactNo,
         purpose: visits.purpose,
         status: visits.status,
         checkInAt: visits.checkInAt,
@@ -6254,9 +6252,9 @@ ${fromDate} || ' to ' || ${toDate}
       if (search && search.trim() !== "") {
         conditions.push(
           or(
-            ilike(contractors.contractorName, `%${search}%`),
+            ilike(contractors.nameOfAgencyOwner, `%${search}%`),
             ilike(contractors.contractorCode, `%${search}%`),
-            ilike(contractors.companyName, `%${search}%`)
+            ilike(contractors.nameOfTheAgency, `%${search}%`)
           )
         );
       }
@@ -6266,17 +6264,17 @@ ${fromDate} || ' to ' || ${toDate}
       const baseQuery = db
         .select({
           id: contractors.id,
-          contractorName: contractors.contractorName,
+          contractorName: contractors.nameOfAgencyOwner,
           contractorCode: contractors.contractorCode,
-          gender: contractors.gender,
-          aadhaarNumber: contractors.aadhaarNumber,
-          contactNumber: contractors.contactNumber,
-          email: contractors.email,
-          address: contractors.address,
-          companyName: contractors.companyName,
-          startDate: contractors.startDate,
-          expiryDate: contractors.expiryDate,
-          biometricId: contractors.biometricId,
+          // gender: contractors.gender,
+          // aadhaarNumber: contractors.aadhaarNumber,
+          contactNumber: contractors.contactNoOwner,
+          email: contractors.emailAddress,
+          address: contractors.address1,
+          companyName: contractors.nameOfTheAgency,
+          startDate: contractors.agreementFromDate,
+          expiryDate: contractors.agreementValidUpto,
+          // biometricId: contractors.biometricId,
           status: contractors.status,
           createdAt: contractors.createdAt,
         })
@@ -6365,13 +6363,7 @@ ${fromDate} || ' to ' || ${toDate}
     if (!updated) throw new Error("Contractor not found");
     return updated;
   }
-  async getContractorByBiometricId(biometricId: string): Promise<any | null> {
-    const [contractor] = await db
-      .select()
-      .from(contractors)
-      .where(eq(contractors.biometricId, biometricId));
-    return contractor || null;
-  }
+
   async deleteContractor(id: number): Promise<boolean> {
     const result = await db.delete(contractors).where(eq(contractors.id, id));
     return (result?.rowCount ?? 0) > 0;
