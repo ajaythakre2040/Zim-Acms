@@ -4,6 +4,7 @@ import {
   decimal,
   index,
   unique,
+  numeric,
 } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -319,22 +320,87 @@ export const doorAccessLevels = pgTable("door_access_levels", {
   timeSchedule: jsonb("time_schedule").$type<Record<string, any>>(),
   createdAt: timestamp("created_at").defaultNow(),
 });
+// export const visitors = pgTable("visitors", {
+//   id: serial("id").primaryKey(),
+//   firstName: text("first_name").notNull(),
+//   lastName: text("last_name"),
+//   email: text("email"),
+//   phone: text("phone"),
+//   company: text("company"),
+//   idProofType: text("id_proof_type", { enum: ["passport", "license", "national_id", "other"] }),
+//   idProofNumber: text("id_proof_number"),
+//   photoUrl: text("photo_url"),
+//   address: text("address"),
+//   isBlacklisted: boolean("is_blacklisted").default(false),
+//   blacklistReason: text("blacklist_reason"),
+//   createdAt: timestamp("created_at").defaultNow(),
+//   updatedAt: timestamp("updated_at").defaultNow(),
+// });
+
 export const visitors = pgTable("visitors", {
   id: serial("id").primaryKey(),
-  firstName: text("first_name").notNull(),
-  lastName: text("last_name"),
-  email: text("email"),
-  phone: text("phone"),
-  company: text("company"),
-  idProofType: text("id_proof_type", { enum: ["passport", "license", "national_id", "other"] }),
-  idProofNumber: text("id_proof_number"),
-  photoUrl: text("photo_url"),
-  address: text("address"),
-  isBlacklisted: boolean("is_blacklisted").default(false),
-  blacklistReason: text("blacklist_reason"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+  nameOfVisitor: text("name_of_visitor").notNull(), // Mr./Ms./Dr. ke saath poora naam
+  rfidCardNo: text("rfid_card_no"),
+  contactNo: text("contact_no").notNull(),
+  emailAddress: text("email_address"), 
+  visitorsCompanyName: text("visitors_company_name"),
+  designation: text("designation"), 
+  address1: text("address_1"),
+  address2: text("address_2"),
+  district: text("district"),
+  pincode: text("pincode"),
+  state: text("state"),
+  whomToMeet: text("whom_to_meet").notNull(), // ZIM Employee name
+  department: text("department"),
+  purpose: text("purpose"),
+  permissionDateFrom: text("permission_date_from"), 
+  permissionDateTo: text("permission_date_to"),     
+  
+  locationId: integer("location_id"),        
+  visitorCardId: integer("visitor_card_id"),   
+  visitorDeskId: integer("visitor_desk_id"),   
+  remark: text("remark"),                     
+  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const visitorCards = pgTable("visitor_cards", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(), // e.g., "RFID Card 1"
+  expiryFrom: timestamp("expiry_from"), // ISO Date format (2000-01-01T00:00:00) ke liye timestamp best hai
+  expiryTo: timestamp("expiry_to"),     // ISO Date format ke liye timestamp
+  locationId: integer("location_id"),
+  cardNumber: text("card_number").notNull(), // Card number ko text rakha hai leading zeros ya bade numbers ke liye
+  location: integer("location"), // Image me 'Location' column alag se hai (ho sakta hai ye location code ya id ho)
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const visitorCardLogs = pgTable("visitor_card_logs", {
+  id: serial("id").primaryKey(),
+  deviceId: integer("device_id").notNull(),
+  visitorCardId: integer("visitor_card_id").notNull(),
+  command: text("command").notNull(),    
+  status: text("status").notNull(),                 
+  syncDate: timestamp("sync_date"),                 
+  visitorCardCode: text("visitor_card_code"),
+  isDirtyDateTime: timestamp("is_dirty_date_time"),  
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const visitorDesks = pgTable("visitor_desks", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),           
+  loginName: text("login_name").notNull(), 
+  password: text("password").notNull(),    
+  locationId: integer("location_id"),   
+  uuid: text("uuid"),                      
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 export const visits = pgTable("visits", {
   id: serial("id").primaryKey(),
   visitorId: integer("visitor_id").notNull(),
@@ -706,22 +772,61 @@ export const auditLogs = pgTable("audit_logs", {
   userAgent: text("user_agent"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+// export const contractors = pgTable("contractors", {
+//   id: serial("id").primaryKey(),
+//   contractorName: text("contractor_name").notNull(),
+//   contractorCode: text("contractor_code").notNull().unique(),
+//   gender: text("gender").default("Male").notNull(),
+//   aadhaarNumber: text("aadhaar_number"),
+//   contactNumber: text("contact_number").notNull(),
+//   email: text("email"),
+//   address: text("address"),
+//   companyName: text("company_name").notNull(),
+//   startDate: text("start_date").notNull(),
+//   expiryDate: text("expiry_date").notNull(),
+//   biometricId: text("biometric_id"),
+//   status: text("status").default("active").notNull(),
+//   createdAt: timestamp("created_at").defaultNow().notNull(),
+// });
+
 export const contractors = pgTable("contractors", {
   id: serial("id").primaryKey(),
-  contractorName: text("contractor_name").notNull(),
+  nameOfTheAgency: text("name_of_the_agency").notNull(),
   contractorCode: text("contractor_code").notNull().unique(),
-  gender: text("gender").default("Male").notNull(),
-  aadhaarNumber: text("aadhaar_number"),
-  contactNumber: text("contact_number").notNull(),
-  email: text("email"),
-  address: text("address"),
-  companyName: text("company_name").notNull(),
-  startDate: text("start_date").notNull(),
-  expiryDate: text("expiry_date").notNull(),
-  biometricId: text("biometric_id"),
+  jobSummary: text("job_summary"),
+  address1: text("address_1"),
+  address2: text("address_2"),
+  district: text("district"),
+  pincode: text("pincode"),
+  state: text("state"),
+  experienceInSimilarField: text("experience_in_similar_field"),
+  commencementDate: text("commencement_date"), // dd-mmm-yyyy format ke liye text use kiya hai
+  associatedWithZimInYears: integer("associated_with_zim_in_years"),
+  referenceBy: text("reference_by"),
+  manpowerServiceAvailableInZim: integer("manpower_service_available_in_zim"),
+  totalManpowerServiceAvailableWithTheVendor: integer("total_manpower_service_available_with_the_vendor"),
+  percentageUtilizedInZim: numeric("percentage_utilized_in_zim"), // Percentage ke liye numeric/decimal scale sahi rahega
+  workingWithOtherVendors: text("working_with_other_vendors"),
+  nameOfAgencyOwner: text("name_of_agency_owner"),
+  contactNoOwner: text("contact_no_owner"), // Owner contact ko alag karne ke liye
+  nameOfTheRepresentative: text("name_of_the_representative"),
+  contactNoRepresentative: text("contact_no_representative"), // Representative contact ko alag karne ke liye
+  emailAddress: text("email_address"),
+  agreementFromDate: text("agreement_from_date"),
+  agreementValidUpto: text("agreement_valid_upto"),
+  licenseNo: text("license_no"),
+  licensedQuantity: integer("licensed_quantity"),
+  licenseValidity: text("license_validity"),
+  gstNo: text("gst_no"),
+  pfCodeNo: text("pf_code_no"),
+  esicCodeNo: text("esic_code_no"),
+  bankAccountNo: text("bank_account_no"),
+  bankName: text("bank_name"),
+  ifcCode: text("ifc_code"),
   status: text("status").default("active").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
 export const loginAttempts = pgTable("login_attempts", {
   id: serial("id").primaryKey(),
   username: varchar("username").notNull(),

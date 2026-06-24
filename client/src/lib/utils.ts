@@ -3092,16 +3092,14 @@ export const exportRolePermissionMatrixCSV = (
 ) => {
   if (!role?.permissions?.length) return;
 
-  const rows = role.permissions.map((p: any, index: number) => ({
+  const rows = role.permissions
+  .filter((p: any) => p.menuTitle)
+  .map((p: any, index: number) => ({
     "Role Name": index === 0 ? role.roleName : "",
     "Role Code": index === 0 ? role.code : "",
 
-    "Parent Module": p.parentName || "-",
-
-    // RULE:
-    // if parent level → submodule blank
-    // if submenu exists → show name not ID
-    "Sub Module": p.menuName || "",
+    "Menu Name": p.menuTitle,
+    "Menu Code": p.menuCode,
 
     View: p.view ? "true" : "false",
     Add: p.add ? "true" : "false",
