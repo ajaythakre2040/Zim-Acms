@@ -493,9 +493,9 @@ export default function AuditTrailPage() {
                   <>
                     <DropdownMenuItem
                       onClick={async () => {
-  const data = await fetchAuditLogs(true);
-  exportAuditTrailCSV("Audit_Activity_Logs", data);
-}}
+                        const data = await fetchAuditLogs(true);
+                        exportAuditTrailCSV("Audit_Activity_Logs", data);
+                      }}
                     >
                       <FileSpreadsheet className="w-4 h-4 mr-2" />
                       Export CSV
@@ -503,9 +503,9 @@ export default function AuditTrailPage() {
 
                     <DropdownMenuItem
                       onClick={async () => {
-  const data = await fetchAuditLogs(true);
-  exportAuditTrailPDF("Audit_Activity_Logs", data);
-}}
+                        const data = await fetchAuditLogs(true);
+                        exportAuditTrailPDF("Audit_Activity_Logs", data);
+                      }}
                     >
                       <FileText className="w-4 h-4 mr-2" />
                       Export PDF
@@ -515,9 +515,9 @@ export default function AuditTrailPage() {
                   <>
                     <DropdownMenuItem
                       onClick={async () => {
-  const data = await fetchLoginLogs(true);
-  exportLoginSessionCSV("Login_Sessions_Logs", data);
-}}
+                        const data = await fetchLoginLogs(true);
+                        exportLoginSessionCSV("Login_Sessions_Logs", data);
+                      }}
                     >
                       <FileSpreadsheet className="w-4 h-4 mr-2" />
                       Export CSV
@@ -525,9 +525,9 @@ export default function AuditTrailPage() {
 
                     <DropdownMenuItem
                       onClick={async () => {
-  const data = await fetchLoginLogs(true);
-  exportLoginSessionPDF("Login_Sessions_Logs", data);
-}}
+                        const data = await fetchLoginLogs(true);
+                        exportLoginSessionPDF("Login_Sessions_Logs", data);
+                      }}
                     >
                       <FileText className="w-4 h-4 mr-2" />
                       Export PDF
@@ -542,7 +542,10 @@ export default function AuditTrailPage() {
           value="activity"
           className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm mt-0"
         >
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100 items-center">
+          
+          <div className="flex items-center gap-3 mb-4 bg-slate-50 p-3 rounded-lg border border-slate-100 w-full overflow-x-auto whitespace-nowrap scrollbar-thin">
+
+            {/* 1. General Search */}
             <input
               placeholder="General Search..."
               value={auditSearch}
@@ -550,15 +553,17 @@ export default function AuditTrailPage() {
                 setAuditSearch(e.target.value);
                 setAuditPage(1);
               }}
-              className="h-9 px-3 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white"
+              className="h-9 px-3 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white min-w-[160px] flex-1"
             />
+
+            {/* 2. Performed By */}
             <select
               value={auditPerformedBy}
               onChange={(e) => {
                 setAuditPerformedBy(e.target.value);
                 setAuditPage(1);
               }}
-              className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white text-slate-700"
+              className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white text-slate-700 min-w-[140px]"
             >
               <option value="">Performed By...</option>
               {auditUsersList.map((user: any) => (
@@ -567,13 +572,15 @@ export default function AuditTrailPage() {
                 </option>
               ))}
             </select>
+
+            {/* 3. Model */}
             <select
               value={auditModule}
               onChange={(e) => {
                 setAuditModule(e.target.value);
                 setAuditPage(1);
               }}
-              className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white text-slate-700"
+              className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white text-slate-700 min-w-[120px]"
             >
               <option value="">Model</option>
               {auditModulesList.map((mod: any) => (
@@ -582,13 +589,15 @@ export default function AuditTrailPage() {
                 </option>
               ))}
             </select>
+
+            {/* 4. Action */}
             <select
               value={auditAction}
               onChange={(e) => {
                 setAuditAction(e.target.value);
                 setAuditPage(1);
               }}
-              className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white text-slate-700"
+              className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white text-slate-700 min-w-[120px]"
             >
               <option value="">All Actions</option>
               {auditActionsList.map((actionName: string, idx: number) => (
@@ -597,36 +606,41 @@ export default function AuditTrailPage() {
                 </option>
               ))}
             </select>
-            <div className="flex items-center gap-1 col-span-1 md:col-span-2">
-              <input
-                type="date"
-                value={auditFromDate}
-                onChange={(e) => {
-                  setAuditFromDate(e.target.value);
-                  setAuditPage(1);
-                }}
-                className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white w-full"
-              />
-              <span className="text-xs text-slate-400 font-bold mx-1">To</span>
-              <input
-                type="date"
-                value={auditToDate}
-                onChange={(e) => {
-                  setAuditToDate(e.target.value);
-                  setAuditPage(1);
-                }}
-                className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white w-full"
-              />
-              <Button
-                variant="outline"
-                size="icon"
-                className="h-9 w-10 shrink-0 text-slate-500 border-slate-200 shadow-sm ml-1 bg-white"
-                onClick={resetAuditFilters}
-                title="Reset Filters"
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
+
+            {/* 5. Date From */}
+            <input
+              type="date"
+              value={auditFromDate}
+              onChange={(e) => {
+                setAuditFromDate(e.target.value);
+                setAuditPage(1);
+              }}
+              className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white min-w-[130px]"
+            />
+
+            <span className="text-xs text-slate-400 font-bold shrink-0">To</span>
+
+            {/* 6. Date To */}
+            <input
+              type="date"
+              value={auditToDate}
+              onChange={(e) => {
+                setAuditToDate(e.target.value);
+                setAuditPage(1);
+              }}
+              className="h-9 px-2 border border-slate-200 rounded-md outline-none text-sm focus:border-indigo-500 bg-white min-w-[130px]"
+            />
+
+            {/* 7. Reset Button */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-9 w-10 shrink-0 text-slate-500 border-slate-200 shadow-sm bg-white"
+              onClick={resetAuditFilters}
+              title="Reset Filters"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </div>
           <DataTable
             columns={auditColumns}
