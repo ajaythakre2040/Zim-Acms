@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useToast } from "@/hooks/use-toast";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
-import { navigate } from "wouter/use-browser-location";
 
 export default function ContractorsPage() {
     const { canAdd, canEdit, canDelete, canView } = usePermission(MENU_CONFIG.CONTRACTORS?.code || "contractors");
@@ -54,36 +53,13 @@ export default function ContractorsPage() {
         } catch (err: any) { toast({ variant: "destructive", title: "Error", description: err.message }); }
     };
 
-    // ⬇️ UPDATE HANDLER MEIN DATE FIX KIYA HAI ⬇️
     const handleSubmit = async (formData: any) => {
         try {
-            const formatDialogDate = (dateVal: any) => {
-                if (!dateVal || dateVal === "") return null;
-                let cleanVal = dateVal;
-                if (typeof dateVal === 'string') {
-                    cleanVal = dateVal.split('T')[0];
-                }
-                const parsedDate = new Date(cleanVal);
-                return (parsedDate instanceof Date && !isNaN(parsedDate.getTime())) ? parsedDate.toISOString() : null;
-            };
-
-            // Payload prepare karte waqt dates ko safe standard format mein badal diya
-            const payload = {
-                ...formData,
-                startDate: formatDialogDate(formData.startDate),
-                expiryDate: formatDialogDate(formData.expiryDate),
-                commencementDate: formatDialogDate(formData.commencementDate || formData.startDate),
-                agreementFromDate: formatDialogDate(formData.agreementFromDate || formData.startDate),
-                agreementValidUpto: formatDialogDate(formData.agreementValidUpto || formData.expiryDate),
-                licenseValidity: formatDialogDate(formData.licenseValidity || formData.expiryDate),
-            };
-
             const response = await fetch(edit ? `/api/contractors/${edit.id}` : "/api/contractors", {
                 method: edit ? "PATCH" : "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload), // <-- Yahan payload jayega formData ki jagah
+                body: JSON.stringify(formData),
             });
-            
             if (!response.ok) {
                 const err = await response.json().catch(() => ({ message: "Operation failed" }));
                 throw new Error(err.message);
@@ -101,7 +77,7 @@ export default function ContractorsPage() {
     }, [page, pageSize, search]);
 
     const columns = [
-        { key: "contractorName", label: "Contractor Name" },
+        { key: "contractorName", label: "Name" },
         { key: "contractorCode", label: "Code" },
         { key: "companyName", label: "Agency" },
         { key: "status", label: "Status", render: (i: any) => <Badge variant={i.status === 'active' ? "default" : "secondary"}>{i.status}</Badge> },
@@ -109,11 +85,7 @@ export default function ContractorsPage() {
             key: "actions", label: "Actions", render: (item: any) => (
                 <div className="flex gap-1">
                     <Button variant="ghost" size="icon" onClick={() => { setSelectedItem(item); setViewOpen(true); }}><Eye className="w-4 h-4" /></Button>
-                    {canEdit && (
-                        <Button variant="ghost" size="icon" onClick={() => navigate(`/contractors/edit/${item.id}`)}>
-                            <Pencil className="w-4 h-4" />
-                        </Button>
-                    )}
+                    {canEdit && <Button variant="ghost" size="icon" onClick={() => { setEdit(item); setOpen(true); }}><Pencil className="w-4 h-4" /></Button>}
                     {canDelete && <Button variant="ghost" size="icon" className="text-red-500" onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4" /></Button>}
                 </div>
             )
@@ -126,11 +98,7 @@ export default function ContractorsPage() {
         <div className="p-6">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-black">Contractors</h1>
-                {canAdd && (
-                    <Button onClick={() => navigate("/contractors/new")}>
-                        <Plus className="mr-2 w-4 h-4" /> Add Contractor
-                    </Button>
-                )}
+                {canAdd && <Button onClick={() => { setEdit(null); setOpen(true); }}><Plus className="mr-2 w-4 h-4" /> Add Contractors</Button>}
             </div>
 
             <input className="mb-4 border rounded p-2 w-full max-w-sm" placeholder="Search..." onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
@@ -156,36 +124,24 @@ export default function ContractorsPage() {
                 </div>
             </div>
 
-            {/* Details Dialog Viewer */}
-            <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-                <DialogContent className="max-w-xl">
-                    <DialogHeader><DialogTitle>Contractor Details</DialogTitle></DialogHeader>
-                    {selectedItem && (
-                        <div className="grid grid-cols-2 gap-4 text-sm max-h-[70vh] overflow-y-auto p-1">
-                            {[
-                                { l: "Contractor Name", v: "contractorName" },
-                                { l: "Contractor Code", v: "contractorCode" },
-                                { l: "Agency Name", v: "companyName" },
-                                { l: "Mobile No", v: "contactNumber" },
-                                { l: "Email Address", v: "email" },
-                                { l: "Start Date", v: "startDate" },
-                                { l: "Expiry Date", v: "expiryDate" },
-                                { l: "Status", v: "status" }
-                            ].map(f => (
-                                <div key={f.l}><span className="block text-slate-400 font-bold uppercase text-xs">{f.l}</span>{selectedItem[f.v] || "N/A"}</div>
-                            ))}
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
+            <Dialog open={viewOpen} onOpenChange={setViewOpen}><DialogContent><DialogHeader><DialogTitle>Contractor Details</DialogTitle></DialogHeader>
+                {selectedItem && (
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                        {[{ l: "Name", v: "contractorName" }, { l: "Code", v: "contractorCode" }, { l: "Gender", v: "gender" }, { l: "Mobile", v: "contactNumber" }, { l: "Email", v: "email" }, { l: "Aadhaar", v: "aadhaarNumber" }, { l: "Agency", v: "companyName" }, { l: "Start Date", v: "startDate" }, { l: "Expiry", v: "expiryDate" }].map(f => (
+                            <div key={f.l}><span className="block text-slate-400 font-bold uppercase text-xs">{f.l}</span>{selectedItem[f.v] || "N/A"}</div>
+                        ))}
+                    </div>
+                )}
+            </DialogContent></Dialog>
 
-            {/* Add/Edit Form Dialog */}
             <CrudDialog open={open} onClose={() => { setOpen(false); setEdit(null); }} title={edit ? "Edit" : "Add"} onSubmit={handleSubmit} initialData={edit} fields={[
-                { key: "contractorName", label: "Contractor Name", required: true },
+                { key: "contractorName", label: "Name", required: true },
                 { key: "contractorCode", label: "Contractor Code", required: true, disabled: !!edit },
-                { key: "companyName", label: "Agency Name", required: true },
+                { key: "gender", label: "Gender", type: "select", options: [{ label: "Male", value: "male" }, { label: "Female", value: "female" }] },
+                { key: "aadhaarNumber", label: "Aadhaar Number" },
                 { key: "contactNumber", label: "Mobile", required: true },
-                { key: "email", label: "Email Address" },
+                { key: "email", label: "Email" },
+                { key: "companyName", label: "Agency Name", required: true },
                 { key: "startDate", label: "Start Date", type: "date", required: true },
                 { key: "expiryDate", label: "Expiry Date", type: "date", required: true },
                 { key: "status", label: "Status", type: "select", options: [{ label: "Active", value: "active" }, { label: "Inactive", value: "inactive" }] }

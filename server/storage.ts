@@ -6335,34 +6335,79 @@ ${fromDate} || ' to ' || ${toDate}
     return created;
   }
 
+  // async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+  //   const cleanData = {
+  //     ...data,
+  //     contactNumber: data.contactNumber ?? undefined,
+  //     aadhaarNumber: data.aadhaarNumber ?? undefined,
+  //     email: data.email ?? undefined,
+  //     biometricId: data.biometricId ?? undefined,
+  //   };
+
+  //   if (cleanData.contractorCode) {
+  //     const [existing] = await db
+  //       .select()
+  //       .from(contractors)
+  //       .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+  //     if (existing) {
+  //       throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+  //     }
+  //   }
+
+  //   const [updated] = await db
+  //     .update(contractors)
+  //     .set(cleanData as any)
+  //     .where(eq(contractors.id, id))
+  //     .returning();
+
+  //   if (!updated) throw new Error("Contractor not found");
+  //   return updated;
+  // }
+
   async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
-    const cleanData = {
-      ...data,
-      contactNumber: data.contactNumber ?? undefined,
-      aadhaarNumber: data.aadhaarNumber ?? undefined,
-      email: data.email ?? undefined,
-      biometricId: data.biometricId ?? undefined,
-    };
-
-    if (cleanData.contractorCode) {
-      const [existing] = await db
-        .select()
-        .from(contractors)
-        .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
-      if (existing) {
-        throw new Error("DUPLICATE_CODE: Contractor code already exists.");
-      }
+  // Safe helper function to extract clean date string or fallback to null/undefined
+  const formatDbDate = (dateVal: any) => {
+    if (dateVal === undefined) return undefined;
+    if (!dateVal || dateVal === "") return null;
+    if (typeof dateVal === 'string') {
+      return dateVal.split('T')[0]; // Extracted explicitly to prevent downstream conversion crashes
     }
+    return null;
+  };
 
-    const [updated] = await db
-      .update(contractors)
-      .set(cleanData as any)
-      .where(eq(contractors.id, id))
-      .returning();
+  const cleanData = {
+    ...data,
+    contactNumber: data.contactNumber ?? undefined,
+    aadhaarNumber: data.aadhaarNumber ?? undefined,
+    email: data.email ?? undefined,
+    biometricId: data.biometricId ?? undefined,
 
-    if (!updated) throw new Error("Contractor not found");
-    return updated;
+    // ⬇️ FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS ⬇️
+    commencementDate: formatDbDate(data.commencementDate),
+    agreementFromDate: formatDbDate(data.agreementFromDate),
+    agreementValidUpto: formatDbDate(data.agreementValidUpto),
+    licenseValidity: formatDbDate(data.licenseValidity),
+  };
+
+  if (cleanData.contractorCode) {
+    const [existing] = await db
+      .select()
+      .from(contractors)
+      .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+    if (existing) {
+      throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+    }
   }
+
+  const [updated] = await db
+    .update(contractors)
+    .set(cleanData as any)
+    .where(eq(contractors.id, id))
+    .returning();
+
+  if (!updated) throw new Error("Contractor not found");
+  return updated;
+}
 
   async deleteContractor(id: number): Promise<boolean> {
     const result = await db.delete(contractors).where(eq(contractors.id, id));
