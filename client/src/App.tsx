@@ -55,6 +55,7 @@ import { useMutation } from "@tanstack/react-query";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePermission } from "./hooks/use-permission";
 import { MENU_CONFIG } from "../../server/constant";
+import visitors from "./pages/visitors";
 
 function StandardRouter() {
   return (
@@ -94,6 +95,7 @@ function StandardRouter() {
       <Route path="/employees/view/:id" component={EmployeeView} />
       <Route path="/contractors" component={Contractors} />
       <Route path="/audit-trail" component={AuditTrailPage} />
+      <Route path="/visitors" component={visitors} />
       <Route component={NotFound} />
     </Switch>
   );
