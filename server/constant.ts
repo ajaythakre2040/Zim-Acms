@@ -156,7 +156,10 @@ export const MENU_CONFIG = {
   DEVICES: { title: "Devices", code: "dev_01", icon: "Cpu" },
   USER_ADMIN: { title: "User Admin", code: "uadmin_01", icon: "UserCog" },
   EMERGENCY_UNBLOCK: { title: "Emergency Unblock All", code: "act_emg_01", icon: "RefreshCw" },
-  VISITORS: { title: "Visitors", code: "visit_01", icon: "UserCog" },
+  VISITORS: { title: "Visitors", code: "visit_main", icon: "Users" },
+  VISITORS_DETAILS: { title: "Visitor Details", code: "visit_details", icon: "Info" },
+  VISITOR_CARDS: { title: "Visitor Cards", code: "visit_cards", icon: "CreditCard" },
+  VISITOR_LOGS: { title: "Visitor Logs", code: "visit_logs", icon: "FileText" },
   CONTRACTORS: { title: "Contractors", code: "contr_01", icon: "Users" },
   AUDIT_TRAIL: { title: "Audit Trail", code: "audit_01", icon: "History" }
 } as const;
@@ -211,5 +214,18 @@ export const TABLES = {
   ZONES: "zones",
   CONTRACTORS: "contractors"
 } as const;
+
+export const RFID_CARDS = [
+  { id: 1, name: "RFID Card 1", cardNumber: "5468103", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+  { id: 2, name: "RFID Card 2", cardNumber: "3062587", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+  { id: 3, name: "RFID Card 3", cardNumber: "8892104", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+  { id: 4, name: "RFID Card 4", cardNumber: "7741295", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+  { id: 5, name: "RFID Card 5", cardNumber: "9938472", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+  { id: 6, name: "RFID Card 6", cardNumber: "2201948", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+  { id: 7, name: "RFID Card 7", cardNumber: "6657301", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+  { id: 8, name: "RFID Card 8", cardNumber: "3384756", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+  { id: 9, name: "RFID Card 9", cardNumber: "1192837", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+  { id: 10, name: "RFID Card 10", cardNumber: "4475629", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
+];
 
 export type TableNames = typeof TABLES[keyof typeof TABLES];

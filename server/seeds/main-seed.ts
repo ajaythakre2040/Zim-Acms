@@ -6,6 +6,7 @@ import { seedPermissions } from "./seed-permissions";
 import { seedRoles } from "./seed-roles";
 import { seedAdminUser } from "./seed-user";
 import { seedShifts } from "./shift-seeder";
+import { seedRfidCards } from "../seeds/seed-rfid-cards";
 
 async function runAllSeeds() {
     try {
@@ -17,20 +18,25 @@ async function runAllSeeds() {
         console.log("2/6: Seeding Menus...");
         await seedMenus();
 
-        console.log("3/6: Seeding Permissions...");
+        console.log("3/: Seeding Permissions...");
         await seedPermissions();
 
-        console.log("4/6: Seeding Shifts...");
+        console.log("4/8: Seeding Shifts...");
         await seedShifts();
 
-        console.log("5/6: Seeding Cron Master...");
+        console.log("5/8: Seeding Cron Master...");
         await seedCronMaster();
 
-        console.log("6/6: Seeding Cabin Lockout...");
+        console.log("6/8: Seeding Cabin Lockout...");
         await seedCabinLockout();
 
-        console.log("7/7: Seeding Admin User Profile...");
+        console.log("7/8: Seeding RFID Cards (MS SQL & PG)...");
+        await seedRfidCards();
+
+        console.log("7/8: Seeding Admin User Profile...");
         await seedAdminUser();
+        
+        console.log("")
         
         console.log("✨ 🚀 DATABASE FULLY SEEDED SUCCESSFULLY!");
         process.exit(0);
