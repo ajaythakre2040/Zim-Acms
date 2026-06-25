@@ -110,3 +110,38 @@ export const SiteAdapter = {
         };
     }
 };
+export const VisitorCardAdapter = {
+    toPostgres: (row: any) => ({
+        msId: row.Id || null,
+        name: row.CardName || row.Name || "Unnamed Card",
+        cardNumber: row.CardNumber || null,
+        locationId: row.LocationId || null,
+        updatedAt: new Date()
+    }),
+    toMsSql: (pg: any) => ({
+        Name: pg.name,
+        CardNumber: pg.cardNumber,
+        LocationId: pg.locationId
+    })
+};
+
+export const VisitorAdapter = {
+    toPostgres: (row: any) => ({
+        msId: row.Id || null,
+        nameOfVisitor: row.Name || "Unknown",
+        contactNo: row.ContactNo || null,
+        visitorCardId: row.VisitorCardId || null,
+        whomToMeet: row.WhomToMeet || null,
+        purpose: row.Purpose || null,
+        inDate: row.InDate ? new Date(row.InDate) : null,
+        outDate: row.OutDate ? new Date(row.OutDate) : null
+    }),
+    toMsSql: (pg: any) => ({
+        Name: pg.nameOfVisitor,
+        ContactNo: pg.contactNo,
+        VisitorCardId: pg.visitorCardId,
+        WhomToMeet: pg.whomToMeet,
+        Purpose: pg.purpose,
+        InDate: pg.inDate ? pg.inDate.toISOString() : null
+    })
+};
