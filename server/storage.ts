@@ -6303,37 +6303,37 @@ ${fromDate} || ' to ' || ${toDate}
       .where(eq(contractors.id, id));
     return contractor || null;
   }
-  async createContractor(data: InsertContractor): Promise<Contractor> {
-    const cleanData = {
-      ...data,
-      contactNumber: data.contactNumber || undefined,
-      aadhaarNumber: data.aadhaarNumber || undefined,
-      email: data.email || undefined,
-      biometricId: data.biometricId || undefined,
-    };
+  // async createContractor(data: InsertContractor): Promise<Contractor> {
+  //   const cleanData = {
+  //     ...data,
+  //     contactNumber: data.contactNumber || undefined,
+  //     aadhaarNumber: data.aadhaarNumber || undefined,
+  //     email: data.email || undefined,
+  //     biometricId: data.biometricId || undefined,
+  //   };
 
-    if (!cleanData.contractorCode) throw new Error("Contractor code is required.");
+  //   if (!cleanData.contractorCode) throw new Error("Contractor code is required.");
 
-    if (cleanData.contactNumber && cleanData.contactNumber.length < 10) {
-      throw new Error("VALIDATION_ERROR: Contact number must be at least 10 digits");
-    }
+  //   if (cleanData.contactNumber && cleanData.contactNumber.length < 10) {
+  //     throw new Error("VALIDATION_ERROR: Contact number must be at least 10 digits");
+  //   }
 
-    if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
-      throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits");
-    }
+  //   if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+  //     throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits");
+  //   }
 
-    const [existing] = await db
-      .select()
-      .from(contractors)
-      .where(eq(contractors.contractorCode, cleanData.contractorCode));
+  //   const [existing] = await db
+  //     .select()
+  //     .from(contractors)
+  //     .where(eq(contractors.contractorCode, cleanData.contractorCode));
 
-    if (existing) {
-      throw new Error("DUPLICATE_CODE: Contractor code already exists.");
-    }
+  //   if (existing) {
+  //     throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+  //   }
 
-    const [created] = await db.insert(contractors).values(cleanData as any).returning();
-    return created;
-  }
+  //   const [created] = await db.insert(contractors).values(cleanData as any).returning();
+  //   return created;
+  // }
 
   // async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
   //   const cleanData = {
@@ -6364,7 +6364,114 @@ ${fromDate} || ' to ' || ${toDate}
   //   return updated;
   // }
 
-  async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+async createContractor(data: InsertContractor): Promise<Contractor> {
+    // 1. Sabse pehle empty strings ko undefined kijiye taaki sahi validation ho sake
+    const cleanData = {
+      ...data,
+      contractorCode: data.contractorCode ? data.contractorCode.trim() : "",
+      nameOfAgencyOwner: data.nameOfAgencyOwner ? data.nameOfAgencyOwner.trim() : "",
+      nameOfTheAgency: data.nameOfTheAgency ? data.nameOfTheAgency.trim() : "",
+      contactNoOwner: data.contactNoOwner ? data.contactNoOwner.trim() : "",
+      
+      // Baaki optional fields ke liye lengths checks bypass karne ke liye safe trimming
+      aadhaarNumber: data.aadhaarNumber && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : undefined,
+      email: data.email && data.email.trim() !== "" ? data.email.trim() : undefined,
+      biometricId: data.biometricId && data.biometricId.trim() !== "" ? data.biometricId.trim() : undefined,
+    };
+
+    // 2. MANDATORY FIELDS VALIDATION (Charo fields ka strict check)
+    if (!cleanData.contractorCode) {
+      throw new Error("VALIDATION_ERROR: Contractor Code is required.");
+    }
+    if (!cleanData.nameOfAgencyOwner) {
+      throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) is required.");
+    }
+    if (!cleanData.nameOfTheAgency) {
+      throw new Error("VALIDATION_ERROR: Agency Name is required.");
+    }
+    if (!cleanData.contactNoOwner) {
+      throw new Error("VALIDATION_ERROR: Mobile Number is required.");
+    }
+
+    // 3. STRICT MOBILE NUMBER VALIDATION (Exactly 10 digits & starts with 6,7,8,9)
+    const mobileRegex = /^[6-9]\d{9}$/;
+    if (!mobileRegex.test(cleanData.contactNoOwner)) {
+      throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+    }
+
+    // 4. STRICT EMAIL FORMAT VALIDATION (Optional field - checked only if present)
+    if (cleanData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanData.email)) {
+        throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+      }
+    }
+
+    // 5. LENGTH & FORMAT VALIDATION FOR OTHER OPTIONAL DETAILS
+    if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+      throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
+    }
+
+    // 6. DUPLICATE CHECK (Ek code do baar nahi ja sakta)
+    const [existing] = await db
+      .select()
+      .from(contractors)
+      .where(eq(contractors.contractorCode, cleanData.contractorCode));
+
+    if (existing) {
+      throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
+    }
+
+    // 7. INSERT INTO DATABASE
+    const [created] = await db.insert(contractors).values(cleanData as any).returning();
+    return created;
+  }
+
+//   async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+//   const formatDbDate = (dateVal: any) => {
+//     if (dateVal === undefined) return undefined;
+//     if (!dateVal || dateVal === "") return null;
+//     if (typeof dateVal === 'string') {
+//       return dateVal.split('T')[0]; // Extracted explicitly to prevent downstream conversion crashes
+//     }
+//     return null;
+//   };
+
+//   const cleanData = {
+//     ...data,
+//     contactNumber: data.contactNumber ?? undefined,
+//     aadhaarNumber: data.aadhaarNumber ?? undefined,
+//     email: data.email ?? undefined,
+//     biometricId: data.biometricId ?? undefined,
+
+//     // ⬇️ FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS ⬇️
+//     commencementDate: formatDbDate(data.commencementDate),
+//     agreementFromDate: formatDbDate(data.agreementFromDate),
+//     agreementValidUpto: formatDbDate(data.agreementValidUpto),
+//     licenseValidity: formatDbDate(data.licenseValidity),
+//   };
+
+//   if (cleanData.contractorCode) {
+//     const [existing] = await db
+//       .select()
+//       .from(contractors)
+//       .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+//     if (existing) {
+//       throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+//     }
+//   }
+
+//   const [updated] = await db
+//     .update(contractors)
+//     .set(cleanData as any)
+//     .where(eq(contractors.id, id))
+//     .returning();
+
+//   if (!updated) throw new Error("Contractor not found");
+//   return updated;
+// }
+
+async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
   // Safe helper function to extract clean date string or fallback to null/undefined
   const formatDbDate = (dateVal: any) => {
     if (dateVal === undefined) return undefined;
@@ -6375,30 +6482,73 @@ ${fromDate} || ' to ' || ${toDate}
     return null;
   };
 
+  // 1. Sabse pehle empty strings ko trim karke format normalize kijiye
   const cleanData = {
     ...data,
-    contactNumber: data.contactNumber ?? undefined,
-    aadhaarNumber: data.aadhaarNumber ?? undefined,
-    email: data.email ?? undefined,
-    biometricId: data.biometricId ?? undefined,
+    contractorCode: typeof data.contractorCode === 'string' ? data.contractorCode.trim() : (data.contractorCode === null ? "" : undefined),
+    nameOfAgencyOwner: typeof data.nameOfAgencyOwner === 'string' ? data.nameOfAgencyOwner.trim() : (data.nameOfAgencyOwner === null ? "" : undefined),
+    nameOfTheAgency: typeof data.nameOfTheAgency === 'string' ? data.nameOfTheAgency.trim() : (data.nameOfTheAgency === null ? "" : undefined),
+    contactNoOwner: typeof data.contactNoOwner === 'string' ? data.contactNoOwner.trim() : (data.contactNoOwner === null ? "" : undefined),
 
-    // ⬇️ FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS ⬇️
+    // Optional fields trimming & clean up
+    aadhaarNumber: typeof data.aadhaarNumber === 'string' && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : (data.aadhaarNumber === "" || data.aadhaarNumber === null ? null : data.aadhaarNumber),
+    email: typeof data.email === 'string' && data.email.trim() !== "" ? data.email.trim() : (data.email === "" || data.email === null ? null : data.email),
+    biometricId: typeof data.biometricId === 'string' && data.biometricId.trim() !== "" ? data.biometricId.trim() : (data.biometricId === "" || data.biometricId === null ? null : data.biometricId),
+
+    // FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS
     commencementDate: formatDbDate(data.commencementDate),
     agreementFromDate: formatDbDate(data.agreementFromDate),
     agreementValidUpto: formatDbDate(data.agreementValidUpto),
     licenseValidity: formatDbDate(data.licenseValidity),
   };
 
+  // 2. MANDATORY FIELDS VALIDATION (Agar ye fields payload mein hain, to khali nahi ho sakti)
+  if (cleanData.contractorCode === "") {
+    throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
+  }
+  if (cleanData.nameOfAgencyOwner === "") {
+    throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.");
+  }
+  if (cleanData.nameOfTheAgency === "") {
+    throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
+  }
+  if (cleanData.contactNoOwner === "") {
+    throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
+  }
+
+  // 3. STRICT MOBILE NUMBER VALIDATION (Exactly 10 digits & starts with 6,7,8,9)
+  if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
+    const mobileRegex = /^[6-9]\d{9}$/;
+    if (!mobileRegex.test(cleanData.contactNoOwner)) {
+      throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+    }
+  }
+
+  // 4. STRICT EMAIL FORMAT VALIDATION (Checked only if present)
+  if (cleanData.email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanData.email)) {
+      throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+    }
+  }
+
+  // 5. LENGTH VALIDATION FOR OTHER OPTIONAL DETAILS
+  if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+    throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
+  }
+
+  // 6. DUPLICATE CHECK
   if (cleanData.contractorCode) {
     const [existing] = await db
       .select()
       .from(contractors)
       .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
     if (existing) {
-      throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+      throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
     }
   }
 
+  // 7. UPDATE IN DATABASE
   const [updated] = await db
     .update(contractors)
     .set(cleanData as any)
