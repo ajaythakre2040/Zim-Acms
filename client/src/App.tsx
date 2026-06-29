@@ -56,7 +56,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { usePermission } from "./hooks/use-permission";
 import { MENU_CONFIG } from "../../server/constant";
 import ContractorFormPage from "./pages/ContractorFormPage"; // Aapka form page file path
-import visitors from "./pages/visitors";
+import visitors from "./pages/visitor-details";
 import VisitorLogs from "./pages/VisitorLogs";
 import VisitorCards from "./pages/VisitorCards";
 
@@ -100,8 +100,8 @@ function StandardRouter() {
       <Route path="/audit-trail" component={AuditTrailPage} />
       <Route path="/contractors/new" component={ContractorFormPage} />
       <Route path="/contractors/edit/:id" component={ContractorFormPage} />
-      <Route path="/visitors" component={visitors} />
-      <Route path="/visitors" component={visitors} />
+      <Route path="/visitor-details" component={visitors} />
+      {/* <Route path="/visitors" component={visitors} /> */}
       {/* <Route path="/visitor-cards" component={VisitorCards} /> */}
       <Route path="/visitor-logs" component={VisitorLogs} />
       <Route path="/visitor-cards" component={VisitorCards} />

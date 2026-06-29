@@ -18,7 +18,7 @@ import { useState } from "react";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import PeoplePage from "@/pages/people";
-import VisitorsPage from "@/pages/visitors";
+import VisitorsPage from "@/pages/visitor-details";
 import AttendancePage from "@/pages/attendance";
 import AccessLogsPage from "@/pages/access-logs";
 import AccessRulesPage from "@/pages/access-rules";

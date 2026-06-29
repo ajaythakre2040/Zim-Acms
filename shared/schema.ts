@@ -339,7 +339,7 @@ export const doorAccessLevels = pgTable("door_access_levels", {
 
 export const visitors = pgTable("visitors", {
   id: serial("id").primaryKey(),
-  nameOfVisitor: text("name_of_visitor").notNull(), // Mr./Ms./Dr. ke saath poora naam
+  nameOfVisitor: text("name_of_visitor").notNull(),
   rfidCardNo: text("rfid_card_no"),
   contactNo: text("contact_no").notNull(),
   emailAddress: text("email_address"), 

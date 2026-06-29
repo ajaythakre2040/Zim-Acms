@@ -664,10 +664,86 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.post("/api/person-access", requireAuth, withAudit(TABLES.PERSON_ACCESS, "ADD", async (req) => await storage.createPersonAccess(insertPersonAccessSchema.parse(req.body)), 201));
   app.delete("/api/person-access/:id", requireAuth, withAudit(TABLES.PERSON_ACCESS, "DELETE", async (req) => { await storage.deletePersonAccess(parseInt(req.params.id)); return null; }, 204));
-  crudRoutes(app, "/api/visitors", insertVisitorSchema,
-    () => storage.getVisitors(), (d) => storage.createVisitor(d),
-    (id, d) => storage.updateVisitor(id, d), (id) => storage.deleteVisitor(id),
-    (id) => storage.getVisitor(id));
+  // ==========================================
+  // 1. ALL VISITORS DROPDOWN ROUTE
+  // ==========================================
+  app.get("/api/visitors/all", async (req, res) => {
+    try {
+      const allVisitors = await storage.getVisitors();
+      return res.json(allVisitors);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to fetch dropdown visitors" });
+    }
+  });
+
+  // ==========================================
+  // 2. MAIN PAGINATED READ LIST FOR VISITORS
+  // ==========================================
+  app.get("/api/visitors", async (req, res) => {
+    try {
+      const page = req.query.page ? parseInt(req.query.page as string) : undefined;
+      const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : undefined;
+      const search = req.query.search ? String(req.query.search) : undefined;
+
+      const result = await storage.getVisitors(page, pageSize, search);
+      return res.json(result);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message || "Failed to fetch paginated visitors" });
+    }
+  });
+
+  // ==========================================
+  // 3. GET SINGLE VISITOR
+  // ==========================================
+  app.get("/api/visitors/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const visitor = await storage.getVisitor(id);
+      if (!visitor) return res.status(404).json({ error: "Visitor not found" });
+      return res.json(visitor);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==========================================
+  // 4. CREATE VISITOR
+  // ==========================================
+  app.post("/api/visitors", async (req, res) => {
+    try {
+      const parsed = insertVisitorSchema.parse(req.body);
+      const created = await storage.createVisitor(parsed);
+      return res.status(201).json(created);
+    } catch (error: any) {
+      return res.status(400).json({ error: error.message || "Invalid payload" });
+    }
+  });
+
+  // ==========================================
+  // 5. UPDATE VISITOR
+  // ==========================================
+  app.put("/api/visitors/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const updated = await storage.updateVisitor(id, req.body);
+      return res.json(updated);
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ==========================================
+  // 6. DELETE VISITOR
+  // ==========================================
+  app.delete("/api/visitors/:id", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await storage.deleteVisitor(id);
+      return res.json({ success: true, message: "Visitor deleted successfully" });
+    } catch (error: any) {
+      return res.status(500).json({ error: error.message });
+    }
+  });
   app.get("/api/visits", async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
@@ -2073,22 +2149,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     };
   }));
 
-  crudRoutes(
-    app,
-    "/api/visitor_cards",
-    insertVisitorCardSchema, // Aapke schema file se imported validation rule
-    (query: any) =>
-      storage.getVisitorCards(
-        query.page ? parseInt(query.page as string) : undefined,
-        query.pageSize ? parseInt(query.pageSize as string) : undefined,
-        query.search // 🔥 Yeh query parameters ko storage layer mein forward karega
-      ),
-    (d) => storage.createVisitorCard(d),
-    (id, d) => storage.updateVisitorCard(id, d),
-    (id) => storage.deleteVisitorCard(id),
-    undefined,
-    TABLES.VISITOR_CARDS // Aapke constant se card table mapper reference
-  );
+ crudRoutes(
+  app,
+  "/api/visitor_cards",
+  insertVisitorCardSchema, // Aapke schema file se imported validation rule
+  (query: any) =>
+    storage.getVisitorCards(
+      query.page ? parseInt(query.page as string) : undefined,
+      query.pageSize ? parseInt(query.pageSize as string) : undefined,
+      query.search // 🔥 Yeh query parameters ko storage layer mein forward karega
+    ),
+  (d) => storage.createVisitorCard(d),
+  (id, d) => storage.updateVisitorCard(id, d),
+  (id) => storage.deleteVisitorCard(id),
+  undefined,
+  TABLES.VISITOR_CARDS // Aapke constant se card table mapper reference
+);
   app.get("/api/visitor_card_logs", async (req, res) => {
     try {
       const logs = await db

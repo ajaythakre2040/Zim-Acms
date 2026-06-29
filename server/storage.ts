@@ -139,8 +139,11 @@ export interface IStorage {
   getPersonAccess(personId?: number): Promise<PersonAccess[]>;
   createPersonAccess(data: InsertPersonAccess): Promise<PersonAccess>;
   deletePersonAccess(id: number): Promise<void>;
-  getVisitors(): Promise<Visitor[]>;
-  getVisitor(id: number): Promise<Visitor | undefined>;
+  getVisitors(
+    page?: number,
+    pageSize?: number,
+    search?: string
+  ): Promise<{ data: Visitor[]; totalCount: number; totalPages: number } | Visitor[]>; getVisitor(id: number): Promise<Visitor | undefined>;
   createVisitor(data: InsertVisitor): Promise<Visitor>;
   updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor>;
   deleteVisitor(id: number): Promise<void>;
@@ -2544,8 +2547,26 @@ export class DatabaseStorage implements IStorage {
   async deletePersonAccess(id: number): Promise<void> {
     await db.delete(personAccess).where(eq(personAccess.id, id));
   }
-  async getVisitors(): Promise<Visitor[]> {
-    return await db.select().from(visitors);
+  async getVisitors(page?: number, pageSize?: number, search?: string): Promise<{ data: Visitor[]; totalCount: number; totalPages: number } | Visitor[]> {
+    // Base Query taiyar karein
+    let query = db.select().from(visitors).orderBy(desc(visitors.id));
+
+    // Search Filter Conditions build karein
+    let whereClause: any = undefined;
+    if (search) {
+      whereClause = or(
+        ilike(visitors.nameOfVisitor, `%${search}%`),
+        ilike(visitors.visitorsCompanyName, `%${search}%`),
+        ilike(visitors.whomToMeet, `%${search}%`),
+        ilike(visitors.contactNo, `%${search}%`)
+      );
+
+      // Agar search parameters hain to base query par apply karein
+      query = query.where(whereClause) as any;
+    }
+
+    // Aapke pagination helper ko execute karein
+    return await withPagination(db, visitors, query, page, pageSize, whereClause);
   }
 
   async getVisitor(id: number): Promise<Visitor | undefined> {
@@ -2556,10 +2577,10 @@ export class DatabaseStorage implements IStorage {
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
     return await db.transaction(async (tx) => {
       const [created] = await tx.insert(visitors).values(data).returning();
-
       try {
         await dbMsSql.insert(visitors).values(data);
       } catch (err) {
+        console.error("MS SQL Sync Insert Error:", err);
         tx.rollback();
         throw new Error("MS SQL Sync Failed during creation");
       }
@@ -2575,8 +2596,9 @@ export class DatabaseStorage implements IStorage {
         .returning();
 
       try {
-        await dbMsSql.update(visitors).set({ ...data, updatedAt: new Date() }).where(id);
+        await dbMsSql.update(visitors).set({ ...data, updatedAt: new Date() }).where(eq(visitors.id, id));
       } catch (err) {
+        console.error("MS SQL Sync Update Error:", err);
         tx.rollback();
         throw new Error("MS SQL Sync Failed during update");
       }
@@ -2587,10 +2609,10 @@ export class DatabaseStorage implements IStorage {
   async deleteVisitor(id: number): Promise<void> {
     return await db.transaction(async (tx) => {
       await tx.delete(visitors).where(eq(visitors.id, id));
-
       try {
-        await dbMsSql.delete(visitors).where(id);
+        await dbMsSql.delete(visitors).where(eq(visitors.id, id));
       } catch (err) {
+        console.error("MS SQL Sync Delete Error:", err);
         tx.rollback();
         throw new Error("MS SQL Sync Failed during deletion");
       }
@@ -4886,22 +4908,22 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(roles).orderBy(asc(roles.id));
   }
   // Kisi specific role ki saari permissions fetch karna (with Menu details)
-    // async getRolePermissions(roleId: number) {
-    //   // 1. Role ki basic details fetch karein
-    //   const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
-    //   if (!role) return null;
-    //   // 2. Us role ki saari permissions fetch karein
-    //   const permissions = await db
-    //     .select()
-    //     .from(rolePermissions)
-    //     .where(eq(rolePermissions.roleId, roleId));
-    //   // 3. Dono ko merge karke return karein
-    //   return {
-    //     ...role,
-    //     permissions: permissions,
-    //   };
-    // }
-    
+  // async getRolePermissions(roleId: number) {
+  //   // 1. Role ki basic details fetch karein
+  //   const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
+  //   if (!role) return null;
+  //   // 2. Us role ki saari permissions fetch karein
+  //   const permissions = await db
+  //     .select()
+  //     .from(rolePermissions)
+  //     .where(eq(rolePermissions.roleId, roleId));
+  //   // 3. Dono ko merge karke return karein
+  //   return {
+  //     ...role,
+  //     permissions: permissions,
+  //   };
+  // }
+
   async getRolePermissions(roleId: number) {
     // 1. Role ki basic details fetch karein
     const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
@@ -6397,7 +6419,7 @@ ${fromDate} || ' to ' || ${toDate}
   //   return updated;
   // }
 
-async createContractor(data: InsertContractor): Promise<Contractor> {
+  async createContractor(data: InsertContractor): Promise<Contractor> {
     // 1. Sabse pehle empty strings ko undefined kijiye taaki sahi validation ho sake
     const cleanData = {
       ...data,
@@ -6405,7 +6427,7 @@ async createContractor(data: InsertContractor): Promise<Contractor> {
       nameOfAgencyOwner: data.nameOfAgencyOwner ? data.nameOfAgencyOwner.trim() : "",
       nameOfTheAgency: data.nameOfTheAgency ? data.nameOfTheAgency.trim() : "",
       contactNoOwner: data.contactNoOwner ? data.contactNoOwner.trim() : "",
-      
+
       // Baaki optional fields ke liye lengths checks bypass karne ke liye safe trimming
       aadhaarNumber: data.aadhaarNumber && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : undefined,
       email: data.email && data.email.trim() !== "" ? data.email.trim() : undefined,
@@ -6460,137 +6482,137 @@ async createContractor(data: InsertContractor): Promise<Contractor> {
     return created;
   }
 
-//   async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
-//   const formatDbDate = (dateVal: any) => {
-//     if (dateVal === undefined) return undefined;
-//     if (!dateVal || dateVal === "") return null;
-//     if (typeof dateVal === 'string') {
-//       return dateVal.split('T')[0]; // Extracted explicitly to prevent downstream conversion crashes
-//     }
-//     return null;
-//   };
+  //   async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+  //   const formatDbDate = (dateVal: any) => {
+  //     if (dateVal === undefined) return undefined;
+  //     if (!dateVal || dateVal === "") return null;
+  //     if (typeof dateVal === 'string') {
+  //       return dateVal.split('T')[0]; // Extracted explicitly to prevent downstream conversion crashes
+  //     }
+  //     return null;
+  //   };
 
-//   const cleanData = {
-//     ...data,
-//     contactNumber: data.contactNumber ?? undefined,
-//     aadhaarNumber: data.aadhaarNumber ?? undefined,
-//     email: data.email ?? undefined,
-//     biometricId: data.biometricId ?? undefined,
+  //   const cleanData = {
+  //     ...data,
+  //     contactNumber: data.contactNumber ?? undefined,
+  //     aadhaarNumber: data.aadhaarNumber ?? undefined,
+  //     email: data.email ?? undefined,
+  //     biometricId: data.biometricId ?? undefined,
 
-//     // ⬇️ FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS ⬇️
-//     commencementDate: formatDbDate(data.commencementDate),
-//     agreementFromDate: formatDbDate(data.agreementFromDate),
-//     agreementValidUpto: formatDbDate(data.agreementValidUpto),
-//     licenseValidity: formatDbDate(data.licenseValidity),
-//   };
+  //     // ⬇️ FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS ⬇️
+  //     commencementDate: formatDbDate(data.commencementDate),
+  //     agreementFromDate: formatDbDate(data.agreementFromDate),
+  //     agreementValidUpto: formatDbDate(data.agreementValidUpto),
+  //     licenseValidity: formatDbDate(data.licenseValidity),
+  //   };
 
-//   if (cleanData.contractorCode) {
-//     const [existing] = await db
-//       .select()
-//       .from(contractors)
-//       .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
-//     if (existing) {
-//       throw new Error("DUPLICATE_CODE: Contractor code already exists.");
-//     }
-//   }
+  //   if (cleanData.contractorCode) {
+  //     const [existing] = await db
+  //       .select()
+  //       .from(contractors)
+  //       .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+  //     if (existing) {
+  //       throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+  //     }
+  //   }
 
-//   const [updated] = await db
-//     .update(contractors)
-//     .set(cleanData as any)
-//     .where(eq(contractors.id, id))
-//     .returning();
+  //   const [updated] = await db
+  //     .update(contractors)
+  //     .set(cleanData as any)
+  //     .where(eq(contractors.id, id))
+  //     .returning();
 
-//   if (!updated) throw new Error("Contractor not found");
-//   return updated;
-// }
+  //   if (!updated) throw new Error("Contractor not found");
+  //   return updated;
+  // }
 
-async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
-  // Safe helper function to extract clean date string or fallback to null/undefined
-  const formatDbDate = (dateVal: any) => {
-    if (dateVal === undefined) return undefined;
-    if (!dateVal || dateVal === "") return null;
-    if (typeof dateVal === 'string') {
-      return dateVal.split('T')[0]; // Extracted explicitly to prevent downstream conversion crashes
+  async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+    // Safe helper function to extract clean date string or fallback to null/undefined
+    const formatDbDate = (dateVal: any) => {
+      if (dateVal === undefined) return undefined;
+      if (!dateVal || dateVal === "") return null;
+      if (typeof dateVal === 'string') {
+        return dateVal.split('T')[0]; // Extracted explicitly to prevent downstream conversion crashes
+      }
+      return null;
+    };
+
+    // 1. Sabse pehle empty strings ko trim karke format normalize kijiye
+    const cleanData = {
+      ...data,
+      contractorCode: typeof data.contractorCode === 'string' ? data.contractorCode.trim() : (data.contractorCode === null ? "" : undefined),
+      nameOfAgencyOwner: typeof data.nameOfAgencyOwner === 'string' ? data.nameOfAgencyOwner.trim() : (data.nameOfAgencyOwner === null ? "" : undefined),
+      nameOfTheAgency: typeof data.nameOfTheAgency === 'string' ? data.nameOfTheAgency.trim() : (data.nameOfTheAgency === null ? "" : undefined),
+      contactNoOwner: typeof data.contactNoOwner === 'string' ? data.contactNoOwner.trim() : (data.contactNoOwner === null ? "" : undefined),
+
+      // Optional fields trimming & clean up
+      aadhaarNumber: typeof data.aadhaarNumber === 'string' && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : (data.aadhaarNumber === "" || data.aadhaarNumber === null ? null : data.aadhaarNumber),
+      email: typeof data.email === 'string' && data.email.trim() !== "" ? data.email.trim() : (data.email === "" || data.email === null ? null : data.email),
+      biometricId: typeof data.biometricId === 'string' && data.biometricId.trim() !== "" ? data.biometricId.trim() : (data.biometricId === "" || data.biometricId === null ? null : data.biometricId),
+
+      // FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS
+      commencementDate: formatDbDate(data.commencementDate),
+      agreementFromDate: formatDbDate(data.agreementFromDate),
+      agreementValidUpto: formatDbDate(data.agreementValidUpto),
+      licenseValidity: formatDbDate(data.licenseValidity),
+    };
+
+    // 2. MANDATORY FIELDS VALIDATION (Agar ye fields payload mein hain, to khali nahi ho sakti)
+    if (cleanData.contractorCode === "") {
+      throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
     }
-    return null;
-  };
-
-  // 1. Sabse pehle empty strings ko trim karke format normalize kijiye
-  const cleanData = {
-    ...data,
-    contractorCode: typeof data.contractorCode === 'string' ? data.contractorCode.trim() : (data.contractorCode === null ? "" : undefined),
-    nameOfAgencyOwner: typeof data.nameOfAgencyOwner === 'string' ? data.nameOfAgencyOwner.trim() : (data.nameOfAgencyOwner === null ? "" : undefined),
-    nameOfTheAgency: typeof data.nameOfTheAgency === 'string' ? data.nameOfTheAgency.trim() : (data.nameOfTheAgency === null ? "" : undefined),
-    contactNoOwner: typeof data.contactNoOwner === 'string' ? data.contactNoOwner.trim() : (data.contactNoOwner === null ? "" : undefined),
-
-    // Optional fields trimming & clean up
-    aadhaarNumber: typeof data.aadhaarNumber === 'string' && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : (data.aadhaarNumber === "" || data.aadhaarNumber === null ? null : data.aadhaarNumber),
-    email: typeof data.email === 'string' && data.email.trim() !== "" ? data.email.trim() : (data.email === "" || data.email === null ? null : data.email),
-    biometricId: typeof data.biometricId === 'string' && data.biometricId.trim() !== "" ? data.biometricId.trim() : (data.biometricId === "" || data.biometricId === null ? null : data.biometricId),
-
-    // FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS
-    commencementDate: formatDbDate(data.commencementDate),
-    agreementFromDate: formatDbDate(data.agreementFromDate),
-    agreementValidUpto: formatDbDate(data.agreementValidUpto),
-    licenseValidity: formatDbDate(data.licenseValidity),
-  };
-
-  // 2. MANDATORY FIELDS VALIDATION (Agar ye fields payload mein hain, to khali nahi ho sakti)
-  if (cleanData.contractorCode === "") {
-    throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
-  }
-  if (cleanData.nameOfAgencyOwner === "") {
-    throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.");
-  }
-  if (cleanData.nameOfTheAgency === "") {
-    throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
-  }
-  if (cleanData.contactNoOwner === "") {
-    throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
-  }
-
-  // 3. STRICT MOBILE NUMBER VALIDATION (Exactly 10 digits & starts with 6,7,8,9)
-  if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
-    const mobileRegex = /^[6-9]\d{9}$/;
-    if (!mobileRegex.test(cleanData.contactNoOwner)) {
-      throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+    if (cleanData.nameOfAgencyOwner === "") {
+      throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.");
     }
-  }
-
-  // 4. STRICT EMAIL FORMAT VALIDATION (Checked only if present)
-  if (cleanData.email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(cleanData.email)) {
-      throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+    if (cleanData.nameOfTheAgency === "") {
+      throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
     }
-  }
-
-  // 5. LENGTH VALIDATION FOR OTHER OPTIONAL DETAILS
-  if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
-    throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
-  }
-
-  // 6. DUPLICATE CHECK
-  if (cleanData.contractorCode) {
-    const [existing] = await db
-      .select()
-      .from(contractors)
-      .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
-    if (existing) {
-      throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
+    if (cleanData.contactNoOwner === "") {
+      throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
     }
+
+    // 3. STRICT MOBILE NUMBER VALIDATION (Exactly 10 digits & starts with 6,7,8,9)
+    if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
+      const mobileRegex = /^[6-9]\d{9}$/;
+      if (!mobileRegex.test(cleanData.contactNoOwner)) {
+        throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+      }
+    }
+
+    // 4. STRICT EMAIL FORMAT VALIDATION (Checked only if present)
+    if (cleanData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanData.email)) {
+        throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+      }
+    }
+
+    // 5. LENGTH VALIDATION FOR OTHER OPTIONAL DETAILS
+    if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+      throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
+    }
+
+    // 6. DUPLICATE CHECK
+    if (cleanData.contractorCode) {
+      const [existing] = await db
+        .select()
+        .from(contractors)
+        .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+      if (existing) {
+        throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
+      }
+    }
+
+    // 7. UPDATE IN DATABASE
+    const [updated] = await db
+      .update(contractors)
+      .set(cleanData as any)
+      .where(eq(contractors.id, id))
+      .returning();
+
+    if (!updated) throw new Error("Contractor not found");
+    return updated;
   }
-
-  // 7. UPDATE IN DATABASE
-  const [updated] = await db
-    .update(contractors)
-    .set(cleanData as any)
-    .where(eq(contractors.id, id))
-    .returning();
-
-  if (!updated) throw new Error("Contractor not found");
-  return updated;
-}
 
   async deleteContractor(id: number): Promise<boolean> {
     const result = await db.delete(contractors).where(eq(contractors.id, id));
@@ -6881,12 +6903,71 @@ async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Con
     const [card] = await db.select().from(visitorCards).where(eq(visitorCards.id, id));
     return card;
   }
+  // async createVisitorCard(card: any) {
+  //   // 1. Postgres se 'id' alag karein taaki default identity sequence run ho
+  //   const { id, ...cardData } = card;
+
+  //   return await db.transaction(async (tx) => {
+  //     // 2. Postgres Insert (Sahi chal raha hai)
+  //     const [newCard] = await tx.insert(visitorCards).values(cardData).returning();
+
+  //     try {
+  //       // 3. MS SQL adapter se data format karein
+  //       const msSqlData = VisitorCardAdapter.toMsSql(cardData);
+
+  //       // 4. Object name 'undefined' error se bachne ke liye direct mssql pool input use karein
+  //       const request = mssqlPool.request();
+
+  //       // Request inputs parameters bind karein
+  //       request.input('Name', mssql.NVarChar, msSqlData.Name);
+  //       request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+  //       request.input('LocationId', mssql.Int, msSqlData.LocationId);
+  //       request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
+  //       request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
+
+  //       // Direct SSMS Table 'VisitorCards' par insert run karein
+  //       await request.query(`
+  //       INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
+  //       VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo)
+  //     `);
+
+  //     } catch (err) {
+  //       console.error("❌ MS SQL Sync Failed Error Details:", err);
+  //       tx.rollback(); // Postgres rollback karein agar MS SQL fail ho
+  //       throw new Error("MS SQL Sync Failed, Postgres transaction rolled back.");
+  //     }
+
+  //     return newCard;
+  //   });
+  // }
   async createVisitorCard(card: any) {
     // 1. Postgres se 'id' alag karein taaki default identity sequence run ho
     const { id, ...cardData } = card;
 
+    // :rocket: DUPLICATE CHECK: Pehle check karein ki card_number pehle se exist toh nahi karta
+    if (cardData.cardNumber) {
+      const existingCard = await db
+        .select()
+        .from(visitorCards)
+        .where(eq(visitorCards.cardNumber, cardData.cardNumber))
+        .limit(1);
+
+      if (existingCard.length > 0) {
+        throw new Error(`Duplicate card number not allowed: '${cardData.cardNumber}' already exists.`);
+      }
+    }
+
+    // SEQUENCE FIX: Transaction shuru hone se pehle sequence ko sync karlein
+    try {
+      await db.execute(sql`
+      SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
+    `);
+    } catch (seqErr) {
+      console.error(":warning: Warning: Failed to reset visitor_cards sequence:", seqErr);
+    }
+
     return await db.transaction(async (tx) => {
-      // 2. Postgres Insert (Sahi chal raha hai)
+      // 2. Postgres Insert (Ab ye safe chalega)
       const [newCard] = await tx.insert(visitorCards).values(cardData).returning();
 
       try {
@@ -6905,12 +6986,12 @@ async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Con
 
         // Direct SSMS Table 'VisitorCards' par insert run karein
         await request.query(`
-        INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
-        VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo)
-      `);
+        INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
+        VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo)
+      `);
 
       } catch (err) {
-        console.error("❌ MS SQL Sync Failed Error Details:", err);
+        console.error(":x: MS SQL Sync Failed Error Details:", err);
         tx.rollback(); // Postgres rollback karein agar MS SQL fail ho
         throw new Error("MS SQL Sync Failed, Postgres transaction rolled back.");
       }
