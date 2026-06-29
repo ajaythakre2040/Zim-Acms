@@ -121,7 +121,9 @@ export const VisitorCardAdapter = {
     toMsSql: (pg: any) => ({
         Name: pg.name,
         CardNumber: pg.cardNumber,
-        LocationId: pg.locationId
+        LocationId: pg.locationId || pg.location, // Dono case handle karne ke liye
+        ExpiryFrom: pg.expiryFrom ? new Date(pg.expiryFrom) : null,
+        ExpiryTo: pg.expiryTo ? new Date(pg.expiryTo) : null
     })
 };
 

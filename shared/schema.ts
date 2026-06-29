@@ -379,6 +379,7 @@ export const visitorCards = pgTable("visitor_cards", {
 
 export const visitorCardLogs = pgTable("visitor_card_logs", {
   id: serial("id").primaryKey(),
+  msId: integer("ms_id"),
   deviceId: integer("device_id").notNull(),
   visitorCardId: integer("visitor_card_id").notNull(),
   command: text("command").notNull(),    
@@ -889,7 +890,17 @@ export const insertLoginAttemptSchema = createInsertSchema(loginAttempts).omit({
   id: true,
   attemptedAt: true,
 });
+export const insertVisitorCardSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  cardNumber: z.string().min(1, "Card number is required"),
+  // Yahan .coerce.date() ka use karein
+  expiryFrom: z.coerce.date().optional(),
+  expiryTo: z.coerce.date().optional(),
+  location: z.coerce.number().optional(),
+});
 
+export type VisitorCard = typeof visitorCards.$inferSelect;
+export type InsertVisitorCard = z.infer<typeof insertVisitorCardSchema>;
 export type InsertLoginAttempt = z.infer<typeof insertLoginAttemptSchema>;
 export type Contractor = typeof contractors.$inferSelect;
 export type InsertContractor = z.infer<typeof insertContractorSchema>;

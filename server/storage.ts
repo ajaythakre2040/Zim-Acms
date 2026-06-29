@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import isBetween from "dayjs/plugin/isBetween";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import mssql from "mssql";
 dayjs.extend(utc);
 dayjs.extend(isBetween);
 dayjs.extend(customParseFormat);
@@ -12,12 +13,13 @@ import {
   sessions,
   InsertLoginAttempt,
   loginAttempts,
+  visitorCards,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not, } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
-import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter, } from "@shared/mssql_schema";
+import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter, VisitorCardAdapter, } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES, EMPLOYEE_STATUS, DEVICE_OFFLINE_THRESHOLD_MINUTES, } from "./constant";
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
@@ -226,6 +228,12 @@ export interface IStorage {
   createContractor(contractor: InsertContractor): Promise<Contractor>;
   updateContractor(id: number, contractor: Partial<InsertContractor>): Promise<Contractor>;
   deleteContractor(id: number): Promise<boolean>;
+
+  getVisitorCards(): Promise<any[]>;
+  createVisitorCard(card: any): Promise<any>;
+  updateVisitorCard(id: number, card: any): Promise<any>;
+  deleteVisitorCard(id: number): Promise<void>;
+  getVisitorCardById(id: number): Promise<any>;
 }
 export class DatabaseStorage implements IStorage {
   // async getDeviceLogsWithEmployee(filters?: {
@@ -2539,31 +2547,56 @@ export class DatabaseStorage implements IStorage {
   async getVisitors(): Promise<Visitor[]> {
     return await db.select().from(visitors);
   }
+
   async getVisitor(id: number): Promise<Visitor | undefined> {
-    const [visitor] = await db
-      .select()
-      .from(visitors)
-      .where(eq(visitors.id, id));
+    const [visitor] = await db.select().from(visitors).where(eq(visitors.id, id));
     return visitor;
   }
+
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
-    const [created] = await db.insert(visitors).values(data).returning();
-    return created;
+    return await db.transaction(async (tx) => {
+      const [created] = await tx.insert(visitors).values(data).returning();
+
+      try {
+        await dbMsSql.insert(visitors).values(data);
+      } catch (err) {
+        tx.rollback();
+        throw new Error("MS SQL Sync Failed during creation");
+      }
+      return created;
+    });
   }
-  async updateVisitor(
-    id: number,
-    data: Partial<InsertVisitor>,
-  ): Promise<Visitor> {
-    const [updated] = await db
-      .update(visitors)
-      .set({ ...data, updatedAt: new Date() })
-      .where(eq(visitors.id, id))
-      .returning();
-    return updated;
+
+  async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
+    return await db.transaction(async (tx) => {
+      const [updated] = await tx.update(visitors)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(visitors.id, id))
+        .returning();
+
+      try {
+        await dbMsSql.update(visitors).set({ ...data, updatedAt: new Date() }).where(id);
+      } catch (err) {
+        tx.rollback();
+        throw new Error("MS SQL Sync Failed during update");
+      }
+      return updated;
+    });
   }
+
   async deleteVisitor(id: number): Promise<void> {
-    await db.delete(visitors).where(eq(visitors.id, id));
+    return await db.transaction(async (tx) => {
+      await tx.delete(visitors).where(eq(visitors.id, id));
+
+      try {
+        await dbMsSql.delete(visitors).where(id);
+      } catch (err) {
+        tx.rollback();
+        throw new Error("MS SQL Sync Failed during deletion");
+      }
+    });
   }
+
   async getVisits(status?: string): Promise<Visit[]> {
     if (status) {
       return await db
@@ -6803,5 +6836,153 @@ async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Con
       }
     }
   }
+  async getVisitorCards(
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
+    try {
+      const searchText = search?.toLowerCase().trim();
+
+      // 1. BASE QUERY (Ordering by ID asc)
+      const baseQuery = db.select().from(visitorCards).orderBy(asc(visitorCards.id));
+
+      // 2. SEARCH FILTER LOGIC
+      const finalQuery = searchText
+        ? db
+          .select()
+          .from(visitorCards)
+          .where(
+            or(
+              ilike(visitorCards.name, `%${searchText}%`),
+              ilike(visitorCards.cardNumber, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(visitorCards.id))
+        : baseQuery;
+
+      // 3. WITH PAGINATION UTILITY HELP
+      // Yeh same helper use karega jo shifts page use kar raha hai
+      return await withPagination(db, visitorCards, finalQuery, page, pageSize);
+    } catch (error) {
+      console.error("getVisitorCards error:", error);
+
+      // Error safety structure format
+      return {
+        data: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 0,
+      };
+    }
+  }
+  async getVisitorCardById(id: number) {
+    const [card] = await db.select().from(visitorCards).where(eq(visitorCards.id, id));
+    return card;
+  }
+  async createVisitorCard(card: any) {
+    // 1. Postgres se 'id' alag karein taaki default identity sequence run ho
+    const { id, ...cardData } = card;
+
+    return await db.transaction(async (tx) => {
+      // 2. Postgres Insert (Sahi chal raha hai)
+      const [newCard] = await tx.insert(visitorCards).values(cardData).returning();
+
+      try {
+        // 3. MS SQL adapter se data format karein
+        const msSqlData = VisitorCardAdapter.toMsSql(cardData);
+
+        // 4. Object name 'undefined' error se bachne ke liye direct mssql pool input use karein
+        const request = mssqlPool.request();
+
+        // Request inputs parameters bind karein
+        request.input('Name', mssql.NVarChar, msSqlData.Name);
+        request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+        request.input('LocationId', mssql.Int, msSqlData.LocationId);
+        request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
+        request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
+
+        // Direct SSMS Table 'VisitorCards' par insert run karein
+        await request.query(`
+        INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
+        VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo)
+      `);
+
+      } catch (err) {
+        console.error("❌ MS SQL Sync Failed Error Details:", err);
+        tx.rollback(); // Postgres rollback karein agar MS SQL fail ho
+        throw new Error("MS SQL Sync Failed, Postgres transaction rolled back.");
+      }
+
+      return newCard;
+    });
+  }
+
+  async updateVisitorCard(id: number, card: any) {
+    const { id: _, ...cardData } = card;
+
+    return await db.transaction(async (tx) => {
+      // 1. Postgres Update
+      const [updatedCard] = await tx.update(visitorCards)
+        .set({ ...cardData, updatedAt: new Date() })
+        .where(eq(visitorCards.id, id))
+        .returning();
+
+      try {
+        // 2. MS SQL Update
+        const msSqlData = VisitorCardAdapter.toMsSql(cardData);
+        const request = mssqlPool.request();
+
+        request.input('TargetId', mssql.Int, id); // Assuming Postgres ID and MS SQL ID are kept in sync
+        request.input('Name', mssql.NVarChar, msSqlData.Name);
+        request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+        request.input('LocationId', mssql.Int, msSqlData.LocationId);
+        request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
+        request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
+
+        await request.query(`
+        UPDATE VisitorCards 
+        SET Name = @Name, CardNumber = @CardNumber, LocationId = @LocationId, ExpiryFrom = @ExpiryFrom, ExpiryTo = @ExpiryTo
+        WHERE Id = @TargetId
+      `);
+
+      } catch (err) {
+        console.error("❌ MS SQL Update Sync Failed Error Details:", err);
+        tx.rollback();
+        throw new Error("MS SQL Update Failed, changes rolled back.");
+      }
+
+      return updatedCard;
+    });
+  }
+
+  // DELETE function mein change
+  async deleteVisitorCard(id: number) {
+    return await db.transaction(async (tx) => {
+      try {
+        // 1. Pehle local main database se delete karein (using 'tx' context)
+        await tx.delete(visitorCards).where(eq(visitorCards.id, id));
+
+        // 2. Ab external MS SQL database se delete karne ki koshish karein
+        try {
+          await dbMsSql.delete(visitorCards).where(eq(visitorCards.id, id));
+        } catch (msSqlErr) {
+          console.error("MS SQL Sync Delete Failed:", msSqlErr);
+          // Agar MS SQL fail hota hai, toh local transaction ko abort/rollback karne ke liye error throw karein
+          throw new Error("MS SQL Sync Failed");
+        }
+
+      } catch (err: any) {
+        // Agar error MS SQL ka hai ya kisi aur cheez ka, transaction automatic rollback ho jayega
+        console.error("deleteVisitorCard transaction failed, rolling back:", err);
+
+        // Drizzle transaction rollback convention
+        tx.rollback();
+        throw new Error(err.message || "Delete operation failed and rolled back.");
+      }
+    });
+  }
+
 }
 export const storage = new DatabaseStorage();

@@ -12,6 +12,7 @@ import { cronMaster } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { startAttendanceCron } from "./cron/attendance-scheduler";
 import { initAutoSuspendScheduler } from "./cron/autoSuspendScheduler";
+import { initSyncVisitorLogsCron } from "./cron/syncVisitorLogs";
 const app = express();
 const httpServer = createServer(app);
 
@@ -82,7 +83,7 @@ app.use((req, res, next) => {
   try {
     // 1. Initialize Databases (Postgres + MS SQL)
     log("Initializing databases...", "startup");
-    await initDatabases();
+    // await initDatabases();
     await db.execute(sql`SET timezone TO 'Asia/Kolkata'`);
     log("Database Timezone set to Asia/Kolkata", "startup");
     // Isse aapka background task (30 sec wala) chalu ho jayega
@@ -97,13 +98,14 @@ app.use((req, res, next) => {
         })
         .where(eq(cronMaster.code, MAIN_GATE_SYNC.CODE));
 
-      await initCronSystem();
+      // await initCronSystem();
          
     } catch (e) {
       log("Cron reset failed: " + e, "error");
     }
-    startAttendanceCron();
-    initAutoSuspendScheduler();
+    // startAttendanceCron();
+    // initAutoSuspendScheduler();
+    initSyncVisitorLogsCron();
     // 2. Register API Routes
     await registerRoutes(httpServer, app);
 

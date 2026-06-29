@@ -24,10 +24,14 @@ import {
   insertMenuMasterSchema,
   userProfiles,
   insertContractorSchema,
+  visitorCards,
+  insertVisitorCardSchema,
+  visitorCardLogs,
+  visitors,
 } from "@shared/schema";
 import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC, TableNames, TABLES } from "./constant";
 import { logProfileAudit, withAudit } from "./utils/auditWrapper";
-import { eq } from "drizzle-orm";
+import { eq ,desc } from "drizzle-orm";
 import { db } from "./db";
 import { validateNoHtml } from "@/lib/validation";
 import { validatePasswordStrength } from "./utils/validators";
@@ -2068,5 +2072,88 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       message: `User ${id} is now ${newStatus ? 'Active' : 'Blocked'}`
     };
   }));
+
+  crudRoutes(
+    app,
+    "/api/visitor_cards",
+    insertVisitorCardSchema, // Aapke schema file se imported validation rule
+    (query: any) =>
+      storage.getVisitorCards(
+        query.page ? parseInt(query.page as string) : undefined,
+        query.pageSize ? parseInt(query.pageSize as string) : undefined,
+        query.search // 🔥 Yeh query parameters ko storage layer mein forward karega
+      ),
+    (d) => storage.createVisitorCard(d),
+    (id, d) => storage.updateVisitorCard(id, d),
+    (id) => storage.deleteVisitorCard(id),
+    undefined,
+    TABLES.VISITOR_CARDS // Aapke constant se card table mapper reference
+  );
+  app.get("/api/visitor_card_logs", async (req, res) => {
+    try {
+      const logs = await db
+        .select({
+          id: visitorCardLogs.id,
+          msId: visitorCardLogs.msId,
+          deviceId: visitorCardLogs.deviceId,
+          command: visitorCardLogs.command,
+          status: visitorCardLogs.status,
+          syncDate: visitorCardLogs.syncDate,
+          visitorCardCode: visitorCardLogs.visitorCardCode,
+          // Yahan se hum real name utha rahe hain
+          visitorName: visitors.nameOfVisitor,
+        })
+        .from(visitorCardLogs)
+        // JOIN logic: logs ka card code = visitors ka rfidCardNo
+        .leftJoin(visitors, eq(visitorCardLogs.visitorCardCode, visitors.rfidCardNo))
+        .orderBy(desc(visitorCardLogs.syncDate))
+        .limit(100);
+
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching logs with name:", error);
+      res.status(500).json({ message: "Failed to fetch logs" });
+    }
+  });
+  // 2. Specific ID ka log fetch karna
+  app.get("/api/visitor_card_logs/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+
+      const log = await db
+        .select()
+        .from(visitorCardLogs)
+        .where(eq(visitorCardLogs.id, id));
+
+      if (log.length === 0) {
+        return res.status(404).json({ message: "Log not found" });
+      }
+
+      res.json(log[0]);
+    } catch (error) {
+      console.error("Error fetching single visitor log:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  });
+
+  // 3. (Optional) Latest Log fetch karna
+  app.get("/api/visitor_card_logs/latest", async (req, res) => {
+    try {
+      const latest = await db
+        .select()
+        .from(visitorCardLogs)
+        .orderBy(desc(visitorCardLogs.syncDate))
+        .limit(1);
+
+      res.json(latest[0] || {});
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching latest log" });
+    }
+  });
+
    return httpServer;
 }

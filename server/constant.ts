@@ -212,7 +212,8 @@ export const TABLES = {
   VISITS: "visits",
   VISIT_ACCESS: "visit_access",
   ZONES: "zones",
-  CONTRACTORS: "contractors"
+  CONTRACTORS: "contractors",
+  VISITOR_CARDS: "visitor_cards",
 } as const;
 
 export const RFID_CARDS = [
