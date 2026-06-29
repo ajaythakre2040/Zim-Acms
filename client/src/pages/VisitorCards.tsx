@@ -167,8 +167,9 @@ export default function VisitorCardsPage() {
     });
 
     return (
-        <div className="p-4 md:p-6 max-w-7xl mx-auto">
-            <PageHeader
+    /* 🚀 Pehle wale code me humne ab [&_td]:py-2 aur [&_th]:py-2 inject kar diya hai jo rows ka gap kam kar dega */
+    <div className="p-4 md:p-6 max-w-7xl mx-auto [&_label.text-destructive]:text-foreground [&_input.border-destructive]:border-input [&_input.border-destructive]:focus-visible:ring-ring [&_td]:py-2 [&_th]:py-2">
+        <PageHeader
                 title="Visitor Cards"
                 description="Manage RFID/Visitor cards and their expiry"
                 action={
@@ -311,43 +312,53 @@ export default function VisitorCardsPage() {
             {/* CRUD dialog modal handle */}
             {(canAdd || canEdit) && (
                 <CrudDialog
-                    key={formKey}
-                    open={dialogOpen}
-                    errors={errors}
-                    onClose={() => {
-                        setDialogOpen(false);
-                        setEditing(null);
-                        setErrors({});
-                    }}
-                    title={editing ? "Edit Visitor Card" : "Add New Visitor Card"}
-                    fields={fields}
-                    initialData={editing || undefined}
-                    onSubmit={async (formData) => {
-                        if ((editing && !canEdit) || (!editing && !canAdd)) return;
-                        try {
-                            setErrors({});
-                            const payload = {
-                                ...formData,
-                                location: formData.location ? Number(formData.location) : 0,
-                                expiryFrom: formData.expiryFrom ? new Date(formData.expiryFrom) : null,
-                                expiryTo: formData.expiryTo ? new Date(formData.expiryTo) : null,
-                            };
+    key={formKey}
+    open={dialogOpen}
+    errors={errors}
+    onClose={() => {
+        setDialogOpen(false);
+        setEditing(null);
+        setErrors({});
+    }}
+    title={editing ? "Edit Visitor Card" : "Add New Visitor Card"}
+    fields={fields}
+    initialData={editing || undefined}
+    onSubmit={async (formData) => {
+        if ((editing && !canEdit) || (!editing && !canAdd)) return;
+        try {
+            setErrors({});
+            const payload = {
+                ...formData,
+                location: formData.location ? Number(formData.location) : 0,
+                expiryFrom: formData.expiryFrom ? new Date(formData.expiryFrom) : null,
+                expiryTo: formData.expiryTo ? new Date(formData.expiryTo) : null,
+            };
 
-                            if (editing) {
-                                await update({ id: editing.id, data: payload });
-                            } else {
-                                await create(payload);
-                            }
+            if (editing) {
+                await update({ id: editing.id, data: payload });
+            } else {
+                await create(payload);
+            }
 
-                            await fetchVisitorCards();
-                            setDialogOpen(false);
-                            setEditing(null);
-                        } catch (err: any) {
-                            setErrors({ general: "Operation failed" });
-                        }
-                    }}
-                    isPending={isCreating || isUpdating}
-                />
+            await fetchVisitorCards();
+            setDialogOpen(false);
+            setEditing(null);
+        } catch (err: any) {
+            console.error("Operation failed details:", err);
+            
+            // 🚀 Yeh check karega backend ka 'Duplicate card number' message
+            const errorMessage = err?.message || "";
+            if (errorMessage.includes("Duplicate card number")) {
+                setErrors({
+                    cardNumber: "This Card Number already exists. Duplicate not allowed."
+                });
+            } else {
+                setErrors({ general: errorMessage || "Operation failed" });
+            }
+        }
+    }}
+    isPending={isCreating || isUpdating}
+/>
             )}
         </div>
     );

@@ -3127,3 +3127,91 @@ export const exportRolePermissionMatrixCSV = (
   link.click();
   document.body.removeChild(link);
 };
+
+export function exportVisitorLogsCSV(data: any[]) {
+  try {
+    if (!Array.isArray(data) || !data.length) return;
+
+    // 1. Headers set karein
+    const headers = ["Visitor Code", "Device ID", "Command", "Status", "Log Date"];
+
+    // 2. Rows ka data extract aur format karein (comma separated)
+    const rows = data.map((log: any) => {
+      const visitorCode = log.visitorCardCode || "-";
+      const deviceId = log.deviceId || "-";
+      const command = log.command || "-";
+      const status = log.status || "-";
+      const logDate = log.syncDate ? new Date(log.syncDate).toLocaleString() : "-";
+
+      // Excel safe banane ke liye values ko quotes "" me wrap kar dete hain
+      return `"${visitorCode}","${deviceId}","${command}","${status}","${logDate}"`;
+    });
+
+    // Headers aur Rows ko merge karke full string banayein
+    const csvContent = [headers.join(","), ...rows].join("\n");
+
+    // 3. Blob create karke user ko file download karwayein
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    
+    link.href = url;
+    link.setAttribute("download", "Visitor_Access_Logs_Report.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (err) {
+    console.error("Visitor Logs CSV Export Error:", err);
+  }
+}
+
+export function exportVisitorLogsPDF(data: any[]) {
+  try {
+    if (!Array.isArray(data) || !data.length) return;
+
+    // 1. Headers Define Karein
+    const headers = ["Visitor Code", "Device ID", "Command", "Status", "Log Date"];
+
+    // 2. Rows me data map karein aur format karein
+    const rows = data.map((log: any) => [
+      log.visitorCardCode || "-",
+      log.deviceId || "-",
+      log.command || "-",
+      log.status || "-",
+      log.syncDate ? new Date(log.syncDate).toLocaleString() : "-",
+    ]);
+
+    // 3. jsPDF Initialize karein (Portrait, A4 size iske liye best hai)
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    // Title styling
+    doc.setFontSize(16);
+    doc.text("Visitor Access Logs Report", 14, 15);
+
+    // 4. AutoTable Configuration
+    autoTable(doc, {
+      startY: 23,
+      head: [headers],
+      body: rows,
+      styles: {
+        fontSize: 9, // Font size thoda clear rakha hai kyunki space kafi hai
+        cellPadding: 3,
+      },
+      headStyles: {
+        fillColor: [41, 128, 185], // Same Blue theme jo aapka OT Summary me tha
+        textColor: [255, 255, 255],
+        fontStyle: "bold",
+      },
+      theme: "grid",
+    });
+
+    // PDF Save karein
+    doc.save("Visitor_Access_Logs_Report.pdf");
+  } catch (err) {
+    console.error("Visitor Logs PDF Export Error:", err);
+  }
+}
