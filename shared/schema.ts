@@ -339,6 +339,7 @@ export const doorAccessLevels = pgTable("door_access_levels", {
 
 export const visitors = pgTable("visitors", {
   id: serial("id").primaryKey(),
+  msId: integer("ms_id"),
   nameOfVisitor: text("name_of_visitor").notNull(),
   rfidCardNo: text("rfid_card_no"),
   contactNo: text("contact_no").notNull(),
@@ -367,6 +368,7 @@ export const visitors = pgTable("visitors", {
 
 export const visitorCards = pgTable("visitor_cards", {
   id: serial("id").primaryKey(),
+  msId: integer("ms_id"),
   name: text("name").notNull(), // e.g., "RFID Card 1"
   expiryFrom: timestamp("expiry_from"), // ISO Date format (2000-01-01T00:00:00) ke liye timestamp best hai
   expiryTo: timestamp("expiry_to"),     // ISO Date format ke liye timestamp

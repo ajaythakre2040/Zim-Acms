@@ -2574,37 +2574,162 @@ export class DatabaseStorage implements IStorage {
     return visitor;
   }
 
+  // async createVisitor(data: InsertVisitor): Promise<Visitor> {
+  //   return await db.transaction(async (tx) => {
+  //     const [created] = await tx.insert(visitors).values(data).returning();
+  //     try {
+  //       await dbMsSql.insert(visitors).values(data);
+  //     } catch (err) {
+  //       console.error("MS SQL Sync Insert Error:", err);
+  //       tx.rollback();
+  //       throw new Error("MS SQL Sync Failed during creation");
+  //     }
+  //     return created;
+  //   });
+  // }
+
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
-    return await db.transaction(async (tx) => {
-      const [created] = await tx.insert(visitors).values(data).returning();
-      try {
-        await dbMsSql.insert(visitors).values(data);
-      } catch (err) {
-        console.error("MS SQL Sync Insert Error:", err);
-        tx.rollback();
-        throw new Error("MS SQL Sync Failed during creation");
-      }
-      return created;
-    });
+  let insertedMsSqlId: number | null = null;
+
+  // ==========================================
+  // STEP 1: PEHLE MS SQL (VisitorLogs) ME INSERT KAREIN
+  // ==========================================
+  try {
+    // 🌟 FIX 1: dbMsSql ki jagah mssqlPool ka request use kiya jo mssql package se aata h
+    if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+      await mssqlPool.connect();
+    }
+    const request = mssqlPool.request();
+
+    // 🌟 FIX 2: data.name ko badal kar data.nameOfVisitor kiya jo aapke schema me h
+    request.input('Name', mssql.NVarChar, data.nameOfVisitor);
+    
+    // Agar baki fields bhi MS SQL me bhejne ho toh aap is tarah bind kar sakte hain:
+    // request.input('ContactNo', mssql.NVarChar, data.contactNo);
+    // request.input('WhomToMeet', mssql.NVarChar, data.whomToMeet);
+
+    const msSqlResult = await request.query(`
+      INSERT INTO VisitorLogs (Name)
+      VALUES (@Name);
+      SELECT SCOPE_IDENTITY() AS id;
+    `);
+
+    if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
+      insertedMsSqlId = msSqlResult.recordset[0].id;
+    }
+
+    if (!insertedMsSqlId) {
+      throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
+    }
+  } catch (msSqlErr: any) {
+    throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
   }
 
+  // ==========================================
+  // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
+  // ==========================================
+  return await db.transaction(async (tx) => {
+    try {
+      const [created] = await tx
+        .insert(visitors)
+        .values({
+          ...data,
+          msId: insertedMsSqlId, // 🌟 MS SQL ki generated ID yahan save ho gayi
+        })
+        .returning();
+
+      return created;
+    } catch (pgErr: any) {
+      tx.rollback();
+      throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
+    }
+  });
+}
+
+  // async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
+  //   return await db.transaction(async (tx) => {
+  //     const [updated] = await tx.update(visitors)
+  //       .set({ ...data, updatedAt: new Date() })
+  //       .where(eq(visitors.id, id))
+  //       .returning();
+
+  //     try {
+  //       await dbMsSql.update(visitors).set({ ...data, updatedAt: new Date() }).where(eq(visitors.id, id));
+  //     } catch (err) {
+  //       console.error("MS SQL Sync Update Error:", err);
+  //       tx.rollback();
+  //       throw new Error("MS SQL Sync Failed during update");
+  //     }
+  //     return updated;
+  //   });
+  // }
+
   async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
-    return await db.transaction(async (tx) => {
-      const [updated] = await tx.update(visitors)
-        .set({ ...data, updatedAt: new Date() })
+  // 1. Postgres se purana visitor data nikaalo msId lene ke liye
+  const currentVisitor = await db
+    .select()
+    .from(visitors)
+    .where(eq(visitors.id, id))
+    .limit(1);
+
+  if (currentVisitor.length === 0) {
+    throw new Error(`Visitor update failed: Record with local ID '${id}' not found.`);
+  }
+
+  const targetMsId = currentVisitor[0].msId;
+
+  if (!targetMsId) {
+    throw new Error(`Visitor update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+  }
+
+  // ==========================================
+  // STEP 1: PEHLE MS SQL (VisitorLogs) ME UPDATE KAREIN
+  // ==========================================
+  try {
+    if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+      await mssqlPool.connect();
+    }
+    const request = mssqlPool.request();
+
+    // Agar data me nameOfVisitor bheja gaya hai toh use karo, nahi toh purana wala fallback rakho
+    const finalName = data.nameOfVisitor || currentVisitor[0].nameOfVisitor;
+
+    request.input('TargetMsId', mssql.Int, targetMsId);
+    request.input('Name', mssql.NVarChar, finalName);
+    
+    // Baaki fields jo update karne ho, unhe bhi is tarah bind kar sakte ho:
+    // request.input('ContactNo', mssql.NVarChar, data.contactNo || currentVisitor[0].contactNo);
+
+    await request.query(`
+      UPDATE VisitorLogs 
+      SET Name = @Name
+      WHERE Id = @TargetMsId
+    `);
+  } catch (msSqlErr: any) {
+    throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+  }
+
+  // ==========================================
+  // STEP 2: LOCAL POSTGRES ME UPDATE KAREIN
+  // ==========================================
+  return await db.transaction(async (tx) => {
+    try {
+      const [updated] = await tx
+        .update(visitors)
+        .set({ 
+          ...data, 
+          updatedAt: new Date() 
+        })
         .where(eq(visitors.id, id))
         .returning();
 
-      try {
-        await dbMsSql.update(visitors).set({ ...data, updatedAt: new Date() }).where(eq(visitors.id, id));
-      } catch (err) {
-        console.error("MS SQL Sync Update Error:", err);
-        tx.rollback();
-        throw new Error("MS SQL Sync Failed during update");
-      }
       return updated;
-    });
-  }
+    } catch (pgErr: any) {
+      tx.rollback();
+      throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+    }
+  });
+}
 
   async deleteVisitor(id: number): Promise<void> {
     return await db.transaction(async (tx) => {
@@ -6941,64 +7066,98 @@ ${fromDate} || ' to ' || ${toDate}
   //   });
   // }
   async createVisitorCard(card: any) {
-    // 1. Postgres se 'id' alag karein taaki default identity sequence run ho
-    const { id, ...cardData } = card;
+  // 1. Postgres ke purane 'id' ko hata dein taaki hum naya generate karein
+  const { id, ...cardData } = card;
 
-    // :rocket: DUPLICATE CHECK: Pehle check karein ki card_number pehle se exist toh nahi karta
-    if (cardData.cardNumber) {
-      const existingCard = await db
-        .select()
-        .from(visitorCards)
-        .where(eq(visitorCards.cardNumber, cardData.cardNumber))
-        .limit(1);
+  // 2. DUPLICATE CHECK: Pehle local DB me check karein ki cardNumber already hai ya nahi
+  if (cardData.cardNumber) {
+    const existingCard = await db
+      .select()
+      .from(visitorCards)
+      .where(eq(visitorCards.cardNumber, cardData.cardNumber))
+      .limit(1);
 
-      if (existingCard.length > 0) {
-        throw new Error(`Duplicate card number not allowed: '${cardData.cardNumber}' already exists.`);
-      }
+    if (existingCard.length > 0) {
+      throw new Error(`Duplicate card number not allowed: '${cardData.cardNumber}' already exists.`);
     }
+  }
 
-    // SEQUENCE FIX: Transaction shuru hone se pehle sequence ko sync karlein
+  // Postgres sequence sync setup
+  try {
+    await db.execute(sql`
+      SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
+    `);
+  } catch (seqErr) {
+    // Sequence fail safe ignore
+  }
+
+  let insertedMsSqlId: number | null = null;
+
+  // ==========================================
+  // STEP 1: PEHLE MS SQL ME INSERT KAREIN
+  // ==========================================
+  try {
+    if (mssqlPool) {
+      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        await mssqlPool.connect();
+      }
+
+      const msSqlData = VisitorCardAdapter.toMsSql(cardData);
+      const request = mssqlPool.request();
+
+      request.input('Name', mssql.NVarChar, msSqlData.Name);
+      request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+      request.input('LocationId', mssql.Int, msSqlData.LocationId);
+      request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
+      request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
+
+      const msSqlResult = await request.query(`
+        INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
+        VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo);
+        SELECT SCOPE_IDENTITY() AS id;
+      `);
+
+      if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
+        insertedMsSqlId = msSqlResult.recordset[0].id;
+      }
+
+      if (!insertedMsSqlId) {
+        throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
+      }
+    } else {
+      throw new Error("mssqlPool configuration is missing or undefined.");
+    }
+  } catch (msSqlErr: any) {
+    throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
+  }
+
+  // ==========================================
+  // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
+  // ==========================================
+  return await db.transaction(async (tx) => {
     try {
-      await db.execute(sql`
-      SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
-    `);
-    } catch (seqErr) {
-      console.error(":warning: Warning: Failed to reset visitor_cards sequence:", seqErr);
-    }
+      const postgresPayload = {
+        name: cardData.name,
+        cardNumber: cardData.cardNumber,
+        locationId: cardData.locationId,
+        location: cardData.location || null,
+        expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : null,
+        expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : null,
+        msId: insertedMsSqlId,
+      };
 
-    return await db.transaction(async (tx) => {
-      // 2. Postgres Insert (Ab ye safe chalega)
-      const [newCard] = await tx.insert(visitorCards).values(cardData).returning();
-
-      try {
-        // 3. MS SQL adapter se data format karein
-        const msSqlData = VisitorCardAdapter.toMsSql(cardData);
-
-        // 4. Object name 'undefined' error se bachne ke liye direct mssql pool input use karein
-        const request = mssqlPool.request();
-
-        // Request inputs parameters bind karein
-        request.input('Name', mssql.NVarChar, msSqlData.Name);
-        request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
-        request.input('LocationId', mssql.Int, msSqlData.LocationId);
-        request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
-        request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
-
-        // Direct SSMS Table 'VisitorCards' par insert run karein
-        await request.query(`
-        INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
-        VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo)
-      `);
-
-      } catch (err) {
-        console.error(":x: MS SQL Sync Failed Error Details:", err);
-        tx.rollback(); // Postgres rollback karein agar MS SQL fail ho
-        throw new Error("MS SQL Sync Failed, Postgres transaction rolled back.");
-      }
+      const [newCard] = await tx
+        .insert(visitorCards)
+        .values(postgresPayload)
+        .returning();
 
       return newCard;
-    });
-  }
+    } catch (pgErr: any) {
+      tx.rollback();
+      throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
+    }
+  });
+}
 
   // async updateVisitorCard(id: number, card: any) {
   //   const { id: _, ...cardData } = card;
@@ -7044,28 +7203,52 @@ ${fromDate} || ' to ' || ${toDate}
   // 1. Id ko destructure karo aur safe side check lagao
   const { id: _, ...cardData } = card;
 
-  return await db.transaction(async (tx) => {
-    // 2. Postgres Update
-    const [updatedCard] = await tx.update(visitorCards)
-      .set({ ...cardData, updatedAt: new Date() })
-      .where(eq(visitorCards.id, id))
-      .returning();
+  // 2. Postgres se purana card data nikaalo msId lene ke liye
+  const currentCard = await db
+    .select()
+    .from(visitorCards)
+    .where(eq(visitorCards.id, id))
+    .limit(1);
 
-    // Agar postgres update successfully card return kare aur cardData me cardNumber na ho,
-    // toh hum database se aayi hui original value payload me fetch kar lenge taaki MS SQL fail na ho.
-    const finalCardNumber = cardData.cardNumber || updatedCard?.cardNumber;
+  if (currentCard.length === 0) {
+    throw new Error(`Card update failed: Record with local ID '${id}' not found.`);
+  }
 
-    try {
-      // 3. MS SQL Update Mapping
+  const targetMsId = currentCard[0].msId;
+
+  if (!targetMsId) {
+    throw new Error(`Card update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+  }
+
+  // ==========================================
+  // STEP 1: PEHLE MS SQL ME UPDATE KAREIN
+  // ==========================================
+  try {
+    if (mssqlPool) {
+      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        await mssqlPool.connect();
+      }
+
+      // Final values ensure karne ke liye fallbacks
+      const finalCardNumber = cardData.cardNumber || currentCard[0].cardNumber;
+      const finalName = cardData.name || currentCard[0].name;
+      const finalLocationId = cardData.locationId !== undefined ? cardData.locationId : currentCard[0].locationId;
+      const finalExpiryFrom = cardData.expiryFrom !== undefined ? cardData.expiryFrom : currentCard[0].expiryFrom;
+      const finalExpiryTo = cardData.expiryTo !== undefined ? cardData.expiryTo : currentCard[0].expiryTo;
+
+      // Adapter ko full data bhejein taaki mapping accurate ho
       const msSqlData = VisitorCardAdapter.toMsSql({
-        ...cardData,
-        cardNumber: finalCardNumber // Ensuring value remains safe
+        name: finalName,
+        cardNumber: finalCardNumber,
+        locationId: finalLocationId,
+        expiryFrom: finalExpiryFrom,
+        expiryTo: finalExpiryTo
       });
       
       const request = mssqlPool.request();
 
-      request.input('TargetId', mssql.Int, id); 
-      request.input('Name', mssql.NVarChar, msSqlData.Name || updatedCard?.name);
+      request.input('TargetMsId', mssql.Int, targetMsId); 
+      request.input('Name', mssql.NVarChar, msSqlData.Name);
       request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
       request.input('LocationId', mssql.Int, msSqlData.LocationId || 0);
       request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom || null);
@@ -7078,45 +7261,108 @@ ${fromDate} || ' to ' || ${toDate}
             LocationId = @LocationId, 
             ExpiryFrom = @ExpiryFrom, 
             ExpiryTo = @ExpiryTo
-        WHERE Id = @TargetId
+        WHERE Id = @TargetMsId
       `);
-
-    } catch (err) {
-      console.error("❌ MS SQL Update Sync Failed Error Details:", err);
-      // Rollback current postgres transaction
-      tx.rollback();
-      throw new Error(`MS SQL Update Failed: ${err instanceof Error ? err.message : 'Unknown Sync Error'}`);
+    } else {
+      throw new Error("mssqlPool configuration is missing.");
     }
+  } catch (msSqlErr: any) {
+    throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+  }
 
-    return updatedCard;
+  // ==========================================
+  // STEP 2: LOCAL POSTGRES ME UPDATE KAREIN
+  // ==========================================
+  return await db.transaction(async (tx) => {
+    try {
+      const [updatedCard] = await tx
+        .update(visitorCards)
+        .set({ 
+          name: cardData.name,
+          cardNumber: cardData.cardNumber,
+          locationId: cardData.locationId,
+          location: cardData.location,
+          expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : undefined,
+          expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : undefined,
+          updatedAt: new Date() 
+        })
+        .where(eq(visitorCards.id, id))
+        .returning();
+
+      return updatedCard;
+    } catch (pgErr: any) {
+      tx.rollback();
+      throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+    }
   });
 }
   
+  // async deleteVisitorCard(id: number) {
+  //   return await db.transaction(async (tx) => {
+  //     try {
+  //       // 1. Pehle local main database se delete karein (using 'tx' context)
+  //       await tx.delete(visitorCards).where(eq(visitorCards.id, id));
+
+  //       // 2. Ab external MS SQL database se delete karne ki koshish karein
+  //       try {
+  //         await dbMsSql.delete(visitorCards).where(eq(visitorCards.id, id));
+  //       } catch (msSqlErr) {
+  //         console.error("MS SQL Sync Delete Failed:", msSqlErr);
+  //         // Agar MS SQL fail hota hai, toh local transaction ko abort/rollback karne ke liye error throw karein
+  //         throw new Error("MS SQL Sync Failed");
+  //       }
+
+  //     } catch (err: any) {
+  //       // Agar error MS SQL ka hai ya kisi aur cheez ka, transaction automatic rollback ho jayega
+  //       console.error("deleteVisitorCard transaction failed, rolling back:", err);
+
+  //       // Drizzle transaction rollback convention
+  //       tx.rollback();
+  //       throw new Error(err.message || "Delete operation failed and rolled back.");
+  //     }
+  //   });
+  // }
+
   async deleteVisitorCard(id: number) {
-    return await db.transaction(async (tx) => {
-      try {
-        // 1. Pehle local main database se delete karein (using 'tx' context)
-        await tx.delete(visitorCards).where(eq(visitorCards.id, id));
+  // 1. Postgres se card record uthao taaki MS SQL ki 'msId' mil sake
+  const currentCard = await db
+    .select()
+    .from(visitorCards)
+    .where(eq(visitorCards.id, id))
+    .limit(1);
 
-        // 2. Ab external MS SQL database se delete karne ki koshish karein
-        try {
-          await dbMsSql.delete(visitorCards).where(eq(visitorCards.id, id));
-        } catch (msSqlErr) {
-          console.error("MS SQL Sync Delete Failed:", msSqlErr);
-          // Agar MS SQL fail hota hai, toh local transaction ko abort/rollback karne ke liye error throw karein
-          throw new Error("MS SQL Sync Failed");
-        }
-
-      } catch (err: any) {
-        // Agar error MS SQL ka hai ya kisi aur cheez ka, transaction automatic rollback ho jayega
-        console.error("deleteVisitorCard transaction failed, rolling back:", err);
-
-        // Drizzle transaction rollback convention
-        tx.rollback();
-        throw new Error(err.message || "Delete operation failed and rolled back.");
-      }
-    });
+  if (currentCard.length === 0) {
+    throw new Error(`Delete failed: Local ID '${id}' not found.`);
   }
 
+  const targetMsId = currentCard[0].msId;
+
+  // 2. MS SQL se record delete karein
+  if (targetMsId && mssqlPool) {
+    try {
+      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        await mssqlPool.connect();
+      }
+
+      const request = mssqlPool.request();
+      request.input('TargetMsId', mssql.Int, targetMsId);
+      
+      await request.query(`DELETE FROM VisitorCards WHERE Id = @TargetMsId`);
+    } catch (msSqlErr) {
+      // MS SQL fail hone par process block nahi hogi, local cleanup chalta rahega
+      console.error("MS SQL Sync Delete Failed:", msSqlErr);
+    }
+  }
+
+  // 3. Local Postgres se delete karein
+  await db.transaction(async (tx) => {
+    try {
+      await tx.delete(visitorCards).where(eq(visitorCards.id, id));
+    } catch (err: any) {
+      tx.rollback();
+      throw err;
+    }
+  });
+}
 }
 export const storage = new DatabaseStorage();
