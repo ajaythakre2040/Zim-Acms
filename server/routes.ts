@@ -667,31 +667,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ==========================================
   // 1. ALL VISITORS DROPDOWN ROUTE
   // ==========================================
-  app.get("/api/visitors/all", async (req, res) => {
+  app.get("/api/visitors_details", async (req, res) => {
     try {
-      const allVisitors = await storage.getVisitors();
-      return res.json(allVisitors);
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message || "Failed to fetch dropdown visitors" });
-    }
-  });
-
-  // ==========================================
-  // 2. MAIN PAGINATED READ LIST FOR VISITORS
-  // ==========================================
-  app.get("/api/visitors", async (req, res) => {
-    try {
-      const page = req.query.page ? parseInt(req.query.page as string) : undefined;
-      const pageSize = req.query.pageSize ? parseInt(req.query.pageSize as string) : undefined;
+      // Frontend se aane wali values ko directly nikalen bina kisi fallback defaults ke
+      const page = req.query.page ? Number(req.query.page) : undefined;
+      const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
       const search = req.query.search ? String(req.query.search) : undefined;
-
+      console.log("Fetching visitors with params:", { page, pageSize, search });
+      // Direct dynamic values storage layer ko pass karein
       const result = await storage.getVisitors(page, pageSize, search);
       return res.json(result);
     } catch (error: any) {
-      return res.status(500).json({ error: error.message || "Failed to fetch paginated visitors" });
+      return res.status(500).json({
+        error: error.message || "Failed to fetch paginated visitors"
+      });
     }
   });
-
   // ==========================================
   // 3. GET SINGLE VISITOR
   // ==========================================
