@@ -24,7 +24,7 @@ export default function VisitorsPage() {
   const fetchVisitors = async () => {
     try {
       const res = await fetch(
-        `/api/visitors?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`
+        `/api/visitors_details/?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}` 
       );
       const data = await res.json();
       setPagedResponse(data);

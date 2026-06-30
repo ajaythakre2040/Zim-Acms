@@ -2547,13 +2547,18 @@ export class DatabaseStorage implements IStorage {
   async deletePersonAccess(id: number): Promise<void> {
     await db.delete(personAccess).where(eq(personAccess.id, id));
   }
-  async getVisitors(page?: number, pageSize?: number, search?: string): Promise<{ data: Visitor[]; totalCount: number; totalPages: number } | Visitor[]> {
-    // Base Query taiyar karein
-    let query = db.select().from(visitors).orderBy(desc(visitors.id));
+  async getVisitors(
+    page?: number,
+    pageSize?: number,
+    search?: string
+  ): Promise<{ data: Visitor[]; totalCount: number; totalPages: number }> {
 
-    // Search Filter Conditions build karein
+    // 1. Base query taiyar karein
+    let query = db.select().from(visitors).$dynamic();
+
+    // 2. Safe search check
     let whereClause: any = undefined;
-    if (search) {
+    if (search && search.trim() !== "" && search !== "undefined") {
       whereClause = or(
         ilike(visitors.nameOfVisitor, `%${search}%`),
         ilike(visitors.visitorsCompanyName, `%${search}%`),
@@ -2561,12 +2566,16 @@ export class DatabaseStorage implements IStorage {
         ilike(visitors.contactNo, `%${search}%`)
       );
 
-      // Agar search parameters hain to base query par apply karein
-      query = query.where(whereClause) as any;
+      query = query.where(whereClause);
     }
 
-    // Aapke pagination helper ko execute karein
-    return await withPagination(db, visitors, query, page, pageSize, whereClause);
+    // 3. Sorting apply karein
+    query = query.orderBy(desc(visitors.id));
+
+    // 4. Bilkul zero-hardcoding ke sath parameters ko aage bhejien
+    const result = await withPagination(db, visitors, query, page, pageSize, whereClause);
+
+    return result;
   }
 
   async getVisitor(id: number): Promise<Visitor | undefined> {
@@ -6961,7 +6970,7 @@ ${fromDate} || ' to ' || ${toDate}
     try {
       await db.execute(sql`
 SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
-   `);
+`);
     } catch (seqErr) {
       console.error(":warning: Warning: Failed to reset visitor_cards sequence:", seqErr);
     }
