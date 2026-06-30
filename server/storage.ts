@@ -7000,45 +7000,98 @@ ${fromDate} || ' to ' || ${toDate}
     });
   }
 
+  // async updateVisitorCard(id: number, card: any) {
+  //   const { id: _, ...cardData } = card;
+
+  //   return await db.transaction(async (tx) => {
+  //     // 1. Postgres Update
+  //     const [updatedCard] = await tx.update(visitorCards)
+  //       .set({ ...cardData, updatedAt: new Date() })
+  //       .where(eq(visitorCards.id, id))
+  //       .returning();
+
+  //     try {
+  //       // 2. MS SQL Update
+  //       const msSqlData = VisitorCardAdapter.toMsSql(cardData);
+  //       const request = mssqlPool.request();
+
+  //       request.input('TargetId', mssql.Int, id); // Assuming Postgres ID and MS SQL ID are kept in sync
+  //       request.input('Name', mssql.NVarChar, msSqlData.Name);
+  //       request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+  //       request.input('LocationId', mssql.Int, msSqlData.LocationId);
+  //       request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
+  //       request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
+
+  //       await request.query(`
+  //       UPDATE VisitorCards 
+  //       SET Name = @Name, CardNumber = @CardNumber, LocationId = @LocationId, ExpiryFrom = @ExpiryFrom, ExpiryTo = @ExpiryTo
+  //       WHERE Id = @TargetId
+  //     `);
+
+  //     } catch (err) {
+  //       console.error("❌ MS SQL Update Sync Failed Error Details:", err);
+  //       tx.rollback();
+  //       throw new Error("MS SQL Update Failed, changes rolled back.");
+  //     }
+
+  //     return updatedCard;
+  //   });
+  // }
+
+  // DELETE function mein change
+  
   async updateVisitorCard(id: number, card: any) {
-    const { id: _, ...cardData } = card;
+  // 1. Id ko destructure karo aur safe side check lagao
+  const { id: _, ...cardData } = card;
 
-    return await db.transaction(async (tx) => {
-      // 1. Postgres Update
-      const [updatedCard] = await tx.update(visitorCards)
-        .set({ ...cardData, updatedAt: new Date() })
-        .where(eq(visitorCards.id, id))
-        .returning();
+  return await db.transaction(async (tx) => {
+    // 2. Postgres Update
+    const [updatedCard] = await tx.update(visitorCards)
+      .set({ ...cardData, updatedAt: new Date() })
+      .where(eq(visitorCards.id, id))
+      .returning();
 
-      try {
-        // 2. MS SQL Update
-        const msSqlData = VisitorCardAdapter.toMsSql(cardData);
-        const request = mssqlPool.request();
+    // Agar postgres update successfully card return kare aur cardData me cardNumber na ho,
+    // toh hum database se aayi hui original value payload me fetch kar lenge taaki MS SQL fail na ho.
+    const finalCardNumber = cardData.cardNumber || updatedCard?.cardNumber;
 
-        request.input('TargetId', mssql.Int, id); // Assuming Postgres ID and MS SQL ID are kept in sync
-        request.input('Name', mssql.NVarChar, msSqlData.Name);
-        request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
-        request.input('LocationId', mssql.Int, msSqlData.LocationId);
-        request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
-        request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
+    try {
+      // 3. MS SQL Update Mapping
+      const msSqlData = VisitorCardAdapter.toMsSql({
+        ...cardData,
+        cardNumber: finalCardNumber // Ensuring value remains safe
+      });
+      
+      const request = mssqlPool.request();
 
-        await request.query(`
+      request.input('TargetId', mssql.Int, id); 
+      request.input('Name', mssql.NVarChar, msSqlData.Name || updatedCard?.name);
+      request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+      request.input('LocationId', mssql.Int, msSqlData.LocationId || 0);
+      request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom || null);
+      request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo || null);
+
+      await request.query(`
         UPDATE VisitorCards 
-        SET Name = @Name, CardNumber = @CardNumber, LocationId = @LocationId, ExpiryFrom = @ExpiryFrom, ExpiryTo = @ExpiryTo
+        SET Name = @Name, 
+            CardNumber = @CardNumber, 
+            LocationId = @LocationId, 
+            ExpiryFrom = @ExpiryFrom, 
+            ExpiryTo = @ExpiryTo
         WHERE Id = @TargetId
       `);
 
-      } catch (err) {
-        console.error("❌ MS SQL Update Sync Failed Error Details:", err);
-        tx.rollback();
-        throw new Error("MS SQL Update Failed, changes rolled back.");
-      }
+    } catch (err) {
+      console.error("❌ MS SQL Update Sync Failed Error Details:", err);
+      // Rollback current postgres transaction
+      tx.rollback();
+      throw new Error(`MS SQL Update Failed: ${err instanceof Error ? err.message : 'Unknown Sync Error'}`);
+    }
 
-      return updatedCard;
-    });
-  }
-
-  // DELETE function mein change
+    return updatedCard;
+  });
+}
+  
   async deleteVisitorCard(id: number) {
     return await db.transaction(async (tx) => {
       try {

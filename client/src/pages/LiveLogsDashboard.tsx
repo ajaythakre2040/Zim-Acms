@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import React from "react";
 import { Button } from "@/components/ui/button";
@@ -8,8 +9,11 @@ import {
   Activity,
   Monitor,
   FileSpreadsheet,
-  Download,
   FileText,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -18,15 +22,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PaginationSize } from "@/components/ui/pagination";
 
-// Shadcn Dialog Imports
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
 import {
@@ -37,6 +34,27 @@ import {
 
 export default function LiveLogsDashboard() {
   const { canExport, canView } = usePermission(MENU_CONFIG.LIVE_LOGS.code);
+  const [, setLocation] = useLocation();
+
+  // 1. Pagination States
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const REFRESH_MS = 2000;
+
+  // React Query with dynamic parameters
+  const { data: queryResponse, isLoading } = useQuery({
+    queryKey: ["/api/dashboard/attendance/machine-logs", page, pageSize],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/dashboard/attendance/machine-logs?page=${page}&pageSize=${pageSize}`
+      );
+      return await res.json();
+    },
+    refetchInterval: REFRESH_MS,
+    enabled: !!canView, // Dynamic query triggers only if user can view
+  });
+
   if (!canView) {
     return (
       <div className="p-10 text-center">
@@ -47,61 +65,25 @@ export default function LiveLogsDashboard() {
       </div>
     );
   }
-  const [, setLocation] = useLocation();
-  const REFRESH_MS = 2000;
 
-  const { data = [], isLoading } = useQuery({
-    queryKey: ["/api/dashboard/attendance/machine-logs"],
-    queryFn: async () => {
-      const res = await fetch("/api/dashboard/attendance/machine-logs");
-      const json = await res.json();
-      return json.machineFeed || [];
-    },
-    refetchInterval: REFRESH_MS,
-  });
+  // Smart Parsing: Raw data fallback extraction
+  const rawLogs = Array.isArray(queryResponse)
+    ? queryResponse
+    : queryResponse?.machineFeed || queryResponse?.data || [];
 
-  const exportToCSV = () => {
-    if (!data.length) return;
-    const headers = [
-      "Employee Name",
-      "Employee Code",
-      "Door Name",
-      "Device Name",
-      "Direction",
-      "Log Date",
-      // "Status",
-      // "Remarks",
-    ];
-    const rows = data.map((log: any) => {
-      const dateObj = new Date(log.logDate);
-      const cleanDate = dateObj.toISOString().replace("T", " ").split(".")[0];
-      return [
-        log.employeeName,
-        log.employeeCode,
-        log.doorName,
-        log.deviceName,
-        log.direction,
-        cleanDate,
-        // log.status,
-        // log.remarks || "",
-      ];
-    });
-    let csvContent =
-      "data:text/csv;charset=utf-8," +
-      [headers, ...rows]
-        .map((row) => row.map((cell: any) => `"${cell}"`).join(","))
-        .join("\n");
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "machine_logs.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+  // 🌟 FIX: Client-Side Guard
+  // Agar backend pageSize handle nahi kar rha aur saare records bhej rha h, 
+  // toh hum khud unhe slice (filter) kar denge standard pagination layout me.
+  const displayLogs = rawLogs.length > pageSize && !queryResponse?.totalPages
+    ? rawLogs.slice((page - 1) * pageSize, page * pageSize)
+    : rawLogs;
+
+  const totalCount = queryResponse?.totalCount || rawLogs.length || 0;
+  const totalPages =
+    queryResponse?.totalPages || Math.ceil(totalCount / pageSize) || 1;
 
   return (
-    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto [&_td]:py-2 [&_th]:py-2">
       {/* Header Section */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-lg text-white">
@@ -125,7 +107,6 @@ export default function LiveLogsDashboard() {
           </CardTitle>
 
           <div className="flex items-center gap-2">
-            {/* View Details - Blue Theme */}
             <button
               onClick={() => setLocation("/reports?tab=access-logs")}
               className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm font-medium flex items-center gap-1.5"
@@ -134,7 +115,6 @@ export default function LiveLogsDashboard() {
               View Details
             </button>
 
-            {/* Export CSV - Green Theme */}
             {canExport && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -142,7 +122,6 @@ export default function LiveLogsDashboard() {
                     size="sm"
                     className="text-xs px-3 py-1.5 bg-emerald-600 text-white hover:bg-emerald-700 flex items-center gap-1.5"
                   >
-                    {/* same icon (download arrow style) */}
                     <svg
                       className="w-3.5 h-3.5"
                       fill="none"
@@ -161,14 +140,11 @@ export default function LiveLogsDashboard() {
                 </DropdownMenuTrigger>
 
                 <DropdownMenuContent align="end">
-                  {/* CSV */}
-                  <DropdownMenuItem onClick={() => exportMachineLogsCSV(data)}>
+                  <DropdownMenuItem onClick={() => exportMachineLogsCSV(rawLogs)}>
                     <FileSpreadsheet className="w-4 h-4 mr-2" />
                     Export CSV
                   </DropdownMenuItem>
-
-                  {/* PDF */}
-                  <DropdownMenuItem onClick={() => exportMachineLogsPDF(data)}>
+                  <DropdownMenuItem onClick={() => exportMachineLogsPDF(rawLogs)}>
                     <FileText className="w-4 h-4 mr-2" />
                     Export PDF
                   </DropdownMenuItem>
@@ -191,9 +167,6 @@ export default function LiveLogsDashboard() {
                   <th className="px-4 py-3 font-semibold">Device Name</th>
                   <th className="px-4 py-3 font-semibold">Direction</th>
                   <th className="px-4 py-3 font-semibold">Log Date</th>
-                  {/* <th className="px-4 py-3 font-semibold">Status</th>
-                                    <th className="px-4 py-3 font-semibold">Remarks</th>
-                                    <th className="px-4 py-3 font-semibold">View Photo</th> */}
                 </tr>
               </thead>
 
@@ -201,12 +174,12 @@ export default function LiveLogsDashboard() {
                 {isLoading
                   ? Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i}>
-                        <td colSpan={9} className="p-2">
+                        <td colSpan={6} className="p-2">
                           <Skeleton className="h-12 w-full" />
                         </td>
                       </tr>
                     ))
-                  : data.map((log: any, i: number) => (
+                  : displayLogs.map((log: any, i: number) => (
                       <tr
                         key={i}
                         className="hover:bg-muted/30 text-center transition-colors"
@@ -221,76 +194,115 @@ export default function LiveLogsDashboard() {
                         <td className="px-4 py-3">{log.deviceName}</td>
                         <td className="px-4 py-3">
                           <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${log.direction === "IN" ? "bg-blue-100 text-blue-700" : "bg-orange-100 text-orange-700"}`}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              log.direction === "IN"
+                                ? "bg-blue-100 text-blue-700"
+                                : "bg-orange-100 text-orange-700"
+                            }`}
                           >
                             {log.direction}
                           </span>
                         </td>
-
                         <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
                           {log.logDate ? formatDateTime(log.logDate) : "-"}
                         </td>
-                        {/* <td className="px-4 py-3">
-                                                <span
-                                                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${log.status?.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-red-50 text-red-700 border-red-200"}`}
-                                                >
-                                                    {log.status || "Unknown"}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3 text-[11px] text-muted-foreground italic min-w-[150px]">
-                                                {log.remarks || "-"}
-                                            </td> */}
-
-                        {/* Updated Photo Column with Proper Modal */}
-                        {/* <td className="px-4 py-3">
-                                                {log.photo ? (
-                                                    <Dialog>
-                                                        <DialogTrigger asChild>
-                                                            <button
-                                                                className="inline-flex items-center justify-center p-2 rounded-full hover:bg-primary/10 text-primary transition-all active:scale-90"
-                                                                title="View Captured Photo"
-                                                            >
-                                                                <Eye size={18} />
-                                                            </button>
-                                                        </DialogTrigger>
-                                                        <DialogContent className="sm:max-w-[450px] p-0 border-none bg-white shadow-2xl overflow-hidden">
-                                                            <DialogHeader className="p-4 border-b">
-                                                                <DialogTitle className="text-sm font-bold flex justify-between items-center">
-                                                                    <span>{log.employeeName}</span>
-                                                                    <span className="text-[10px] bg-muted px-2 py-0.5 rounded-md">
-                                                                        ID: {log.employeeCode}
-                                                                    </span>
-                                                                </DialogTitle>
-                                                            </DialogHeader>
-                                                            <div className="bg-black flex items-center justify-center min-h-[300px]">
-                                                                <img
-                                                                    src={log.photo}
-                                                                    alt="Log capture"
-                                                                    className="max-w-full h-auto max-h-[60vh] object-contain"
-                                                                />
-                                                            </div>
-                                                            <div className="p-3 bg-muted/20 flex justify-between items-center text-[10px] text-muted-foreground">
-                                                                <span>Device: {log.deviceName}</span>
-                                                                <span>
-                                                                    {
-                                                                        log.logDate
-                                                                            ?.replace("T", " ")
-                                                                            .split(".")[0]
-                                                                    }
-                                                                </span>
-                                                            </div>
-                                                        </DialogContent>
-                                                    </Dialog>
-                                                ) : (
-                                                    <span className="text-muted-foreground text-[10px] italic">
-                                                        No Image
-                                                    </span>
-                                                )}
-                                            </td> */}
                       </tr>
                     ))}
               </tbody>
             </table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 rounded-b-lg">
+            <div className="text-sm text-muted-foreground order-2 md:order-1">
+              Showing{" "}
+              <span className="font-semibold text-foreground">
+                {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}
+              </span>{" "}
+              to{" "}
+              <span className="font-semibold text-foreground">
+                {Math.min(page * pageSize, totalCount)}
+              </span>{" "}
+              of{" "}
+              <span className="font-semibold text-foreground">
+                {totalCount}
+              </span>{" "}
+              logs
+            </div>
+
+            <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+              <div className="flex items-center gap-2">
+                <PaginationSize
+                  pageSize={pageSize}
+                  setPageSize={(val) => {
+                    setPageSize(val);
+                    setPage(1); 
+                  }}
+                />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Go to Page
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={totalPages}
+                  value={page}
+                  onChange={(e) => {
+                    const val = Number(e.target.value);
+                    if (val >= 1 && val <= totalPages) setPage(val);
+                  }}
+                  className="w-12 h-8 text-center text-sm border rounded-md outline-none bg-background"
+                />
+              </div>
+
+              <div className="flex items-center space-x-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setPage(1)}
+                  disabled={page === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs font-medium gap-1"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Prev
+                </Button>
+
+                <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
+                  {page} / {totalPages}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 px-3 text-xs font-medium gap-1"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setPage(totalPages)}
+                  disabled={page === totalPages}
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
