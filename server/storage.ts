@@ -6960,8 +6960,8 @@ ${fromDate} || ' to ' || ${toDate}
     // SEQUENCE FIX: Transaction shuru hone se pehle sequence ko sync karlein
     try {
       await db.execute(sql`
-      SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
-    `);
+SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
+   `);
     } catch (seqErr) {
       console.error(":warning: Warning: Failed to reset visitor_cards sequence:", seqErr);
     }
@@ -6986,9 +6986,7 @@ ${fromDate} || ' to ' || ${toDate}
 
         // Direct SSMS Table 'VisitorCards' par insert run karein
         await request.query(`
-        INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
-        VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo)
-      `);
+        INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo)`);
 
       } catch (err) {
         console.error(":x: MS SQL Sync Failed Error Details:", err);
