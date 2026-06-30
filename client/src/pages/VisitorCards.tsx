@@ -51,7 +51,7 @@ export default function VisitorCardsPage() {
         isCreating,
         isUpdating,
     } = useCrud<any>(
-        `/api/visitor_cards?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
+        `/api/visitor_cards`,
         "Visitor Card"
     ) as any;
 
@@ -85,7 +85,7 @@ export default function VisitorCardsPage() {
     // 2. Form Fields Schema
     const fields: FieldConfig[] = [
         { key: "name", label: "Card Name", required: true },
-        { key: "cardNumber", label: "Card Number", required: true },
+        { key: "cardNumber", label: "Card Number", required: true, disabled: !!editing },
         { key: "expiryFrom", label: "Expiry From", type: "date" },
         { key: "expiryTo", label: "Expiry To", type: "date" },
         { key: "location", label: "Location ID", type: "number" },
@@ -189,16 +189,18 @@ export default function VisitorCardsPage() {
 
             {/* Real-time Search Box */}
             <div className="relative max-w-sm mb-4">
-                <input
-                    placeholder="Search cards..."
-                    value={search}
-                    onChange={(e) => {
-                        setSearch(e.target.value);
-                        setPage(1); // Search par first page par reset karein
-                    }}
-                    className="w-full h-9 border rounded-md pl-3 bg-background text-sm outline-none"
-                />
-            </div>
+    <input
+        placeholder="Search cards..."
+        value={search}
+        onChange={(e) => {
+            // 🚀 Agar user galti se leading slash '/' type kare toh use remove kar do
+            const cleanValue = e.target.value.replace(/^\/+/, "");
+            setSearch(cleanValue);
+            setPage(1); 
+        }}
+        className="w-full h-9 border rounded-md pl-3 bg-background text-sm outline-none"
+    />
+</div>
 
             <DataTable
                 columns={columns}
