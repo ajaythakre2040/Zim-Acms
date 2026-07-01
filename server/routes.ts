@@ -667,7 +667,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // ==========================================
   // 1. ALL VISITORS DROPDOWN ROUTE
   // ==========================================
-  app.get("/api/visitors_details", async (req, res) => {
+  app.get("/api/visitors", async (req, res) => {
     try {
       // Frontend se aane wali values ko directly nikalen bina kisi fallback defaults ke
       const page = req.query.page ? Number(req.query.page) : undefined;

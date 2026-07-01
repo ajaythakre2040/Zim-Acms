@@ -31,6 +31,7 @@ export default function VisitorsPage() {
   const fetchVisitors = async () => {
     try {
       const res = await fetch(
+        
         `/api/visitors?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
       );
       const data = await res.json();
@@ -225,7 +226,7 @@ export default function VisitorsPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
       <PageHeader
-        title="Visitor Registry"
+        title="Visitor Details"
         description="Manage visitor data, company profiles, and custom permissions"
       />
 
