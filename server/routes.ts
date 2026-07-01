@@ -31,7 +31,7 @@ import {
 } from "@shared/schema";
 import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC, TableNames, TABLES } from "./constant";
 import { logProfileAudit, withAudit } from "./utils/auditWrapper";
-import { eq ,desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { db } from "./db";
 import { validateNoHtml } from "@/lib/validation";
 import { validatePasswordStrength } from "./utils/validators";
@@ -2100,17 +2100,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   }));
 
   app.post("/api/contractors/bulk-upload", requireAuth, withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
-  return await processContractorBulkUploadOnly(req.body.data);
-}));
+    return await processContractorBulkUploadOnly(req.body.data);
+  }));
 
-
-  // --- Error Log Download Route (Authenticated) ---
-  // Is route par 'requireAuth' hona compulsory hai taaki koi unauthorized user error logs na dekh sake
-  // Is route ko apni server/routes.ts file mein add karein
   app.get("/api/download/:type/:category/:folder/:filename", requireAuth, (req, res) => {
     const { type, category, folder, filename } = req.params;
 
-    // Path: media/uploads/employee_details/errors/filename.csv
     const filePath = path.join(process.cwd(), 'media', type, category, folder, filename);
 
     if (fs.existsSync(filePath)) {
@@ -2146,22 +2141,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     };
   }));
 
- crudRoutes(
-  app,
-  "/api/visitor_cards",
-  insertVisitorCardSchema, // Aapke schema file se imported validation rule
-  (query: any) =>
-    storage.getVisitorCards(
-      query.page ? parseInt(query.page as string) : undefined,
-      query.pageSize ? parseInt(query.pageSize as string) : undefined,
-      query.search // 🔥 Yeh query parameters ko storage layer mein forward karega
-    ),
-  (d) => storage.createVisitorCard(d),
-  (id, d) => storage.updateVisitorCard(id, d),
-  (id) => storage.deleteVisitorCard(id),
-  undefined,
-  TABLES.VISITOR_CARDS // Aapke constant se card table mapper reference
-);
+  crudRoutes(
+    app,
+    "/api/visitor_cards",
+    insertVisitorCardSchema, // Aapke schema file se imported validation rule
+    (query: any) =>
+      storage.getVisitorCards(
+        query.page ? parseInt(query.page as string) : undefined,
+        query.pageSize ? parseInt(query.pageSize as string) : undefined,
+        query.search // 🔥 Yeh query parameters ko storage layer mein forward karega
+      ),
+    (d) => storage.createVisitorCard(d),
+    (id, d) => storage.updateVisitorCard(id, d),
+    (id) => storage.deleteVisitorCard(id),
+    undefined,
+    TABLES.VISITOR_CARDS // Aapke constant se card table mapper reference
+  );
   app.get("/api/visitor_card_logs", async (req, res) => {
     try {
       const logs = await db
@@ -2228,5 +2223,5 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-   return httpServer;
+  return httpServer;
 }

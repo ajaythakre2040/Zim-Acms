@@ -27,6 +27,42 @@ export function BulkUploadDialog({ open, onClose, type }: Props) {
         }
     }, [open]);
 
+    // const handleUpload = async () => {
+    //     if (!file) return;
+    //     setIsUploading(true);
+    //     setFiles(null);
+
+    //     Papa.parse(file, {
+    //         header: true,
+    //         skipEmptyLines: true,
+    //         complete: async (results: ParseResult<any>) => {
+    //             const endpoint = type === 'details' ? '/api/people/bulk-update' : '/api/doors/bulk-assign';
+
+    //             try {
+    //                 const res = await apiRequest("POST", endpoint, { data: results.data });
+    //                 const result = await res.json();
+
+    //                 if (result.files) {
+    //                     setFiles(result.files);
+    //                     toast({
+    //                         title: result.files.error ? "Upload completed with warnings" : "Success",
+    //                         description: result.files.error ? "Some records failed." : "Bulk upload successful!",
+    //                         variant: result.files.error ? "destructive" : "default"
+    //                     });
+    //                 } else {
+    //                     toast({ title: "Success", description: "Bulk upload successful!" });
+    //                     onClose();
+    //                 }
+    //             } catch (err) {
+    //                 toast({ title: "Error", description: "Failed to process file.", variant: "destructive" });
+    //             } finally {
+    //                 setIsUploading(false);
+    //             }
+    //         }
+    //     });
+    // };
+
+
     const handleUpload = async () => {
         if (!file) return;
         setIsUploading(true);
@@ -42,26 +78,39 @@ export function BulkUploadDialog({ open, onClose, type }: Props) {
                     const res = await apiRequest("POST", endpoint, { data: results.data });
                     const result = await res.json();
 
+                    // Agar backend ne success: false bheja hai (like header error)
+                    if (result.success === false) {
+                        toast({
+                            title: "Upload Failed",
+                            description: result.error || "Something went wrong.",
+                            variant: "destructive"
+                        });
+                        setIsUploading(false);
+                        return;
+                    }
+
                     if (result.files) {
                         setFiles(result.files);
                         toast({
-                            title: result.files.error ? "Upload completed with warnings" : "Success",
+                            title: result.files.error ? "Partial success" : "Success",
                             description: result.files.error ? "Some records failed." : "Bulk upload successful!",
                             variant: result.files.error ? "destructive" : "default"
                         });
-                    } else {
-                        toast({ title: "Success", description: "Bulk upload successful!" });
-                        onClose();
                     }
-                } catch (err) {
-                    toast({ title: "Error", description: "Failed to process file.", variant: "destructive" });
+                } catch (err: any) {
+                    // Yahan aapko actual error mil jayega
+                    const errorMsg = err.message || "Failed to process file.";
+                    toast({
+                        title: "System Error",
+                        description: errorMsg,
+                        variant: "destructive"
+                    });
                 } finally {
                     setIsUploading(false);
                 }
             }
         });
     };
-
     const resetDialog = () => {
         setFiles(null);
         setFile(null);
