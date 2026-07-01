@@ -3215,3 +3215,100 @@ export function exportVisitorLogsPDF(data: any[]) {
     console.error("Visitor Logs PDF Export Error:", err);
   }
 }
+
+export async function exportContractorsCSV(currentAppliedFilters: any) {
+  try {
+    const params = new URLSearchParams();
+
+    // 1. Saare active filters (jaise search parameter) ko append karo
+    Object.entries(currentAppliedFilters || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== "" && k !== "_refresh") {
+        params.append(k, String(v));
+      }
+    });
+
+    // 🌟 MAGIC LOGIC: Page ko hamesha 1 rakho taaki shuruat se data mile,
+    // Aur pageSize ko itna bada kar do taaki filter hone ke baad jitne bhi records hain (jaise 30 ya 40),
+    // Woh sab ke sab ek hi page ke andar fetch ho jayein, agle pages par break na ho!
+    params.set("page", "1");
+    params.set("pageSize", "100000"); 
+
+    const res = await fetch(`/api/contractors?${params.toString()}`);
+
+    if (!res.ok) {
+      throw new Error("Contractor CSV export fetch failed");
+    }
+
+    const apiResponse = await res.json();
+
+    // 🌟 Safe Array Extraction: Check karo agar backend pagination wrapper me data bhej raha hai
+    // Jaise { data: [...] } ya { rows: [...] } ya direct array
+    let reportData = [];
+    if (Array.isArray(apiResponse)) {
+      reportData = apiResponse;
+    } else if (apiResponse?.data && Array.isArray(apiResponse.data)) {
+      reportData = apiResponse.data;
+    } else if (apiResponse?.contractors && Array.isArray(apiResponse.contractors)) {
+      reportData = apiResponse.contractors;
+    } else {
+      reportData = apiResponse || [];
+    }
+
+    if (!reportData.length) {
+      console.warn("No data available to export for current filters");
+      return;
+    }
+
+    // 2. DYNAMIC COLUMN DETECTION (id aur createdAt ko skip karna hai)
+    const sampleRecord = reportData[0];
+    const excludedFields = ["id", "createdAt", "created_at"];
+    
+    const dynamicHeaders = Object.keys(sampleRecord).filter(
+      (key) => !excludedFields.includes(key)
+    );
+
+    // CSV Headers Setup
+    const csvHeaders = dynamicHeaders.map((header) => {
+      const cleanTitle = header
+        .replace(/([A-Z])/g, " $1")
+        .replace(/_/g, " ")
+        .replace(/^\w/, (c) => c.toUpperCase())
+        .trim();
+      return `"${cleanTitle.replace(/"/g, '""')}"`;
+    });
+
+    // 3. Row data mapping
+    const csvRows = reportData.map((record: any) => {
+      return dynamicHeaders.map((header) => {
+        let val = record[header];
+        if (val === undefined || val === null || val === "") return '""';
+        
+        if (typeof val === "string" && (header.toLowerCase().includes("date") || header.toLowerCase().includes("upto"))) {
+          val = val.split("T")[0];
+        }
+
+        const escapedVal = String(val).replace(/"/g, '""');
+        return `"${escapedVal}"`;
+      }).join(",");
+    });
+
+    // 4. Combine and Download
+    const csvContent = [csvHeaders.join(","), ...csvRows].join("\n");
+    const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
+    
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Contractors_Filtered_Report_${Date.now()}.csv`);
+    link.style.visibility = "hidden";
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Contractor CSV Export Error:", err);
+  }
+}
+

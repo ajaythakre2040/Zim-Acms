@@ -83,7 +83,7 @@ app.use((req, res, next) => {
   try {
     // 1. Initialize Databases (Postgres + MS SQL)
     log("Initializing databases...", "startup");
-    // await initDatabases();
+    await initDatabases();
     await db.execute(sql`SET timezone TO 'Asia/Kolkata'`);
     log("Database Timezone set to Asia/Kolkata", "startup");
     // Isse aapka background task (30 sec wala) chalu ho jayega

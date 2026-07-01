@@ -38,6 +38,7 @@ import { validatePasswordStrength } from "./utils/validators";
 import bcrypt from "bcryptjs";
 import { appendErrors } from "react-hook-form";
 import { processDoorUpdate, processEmployeeBulkUpdateOnly } from "./services/uploadService";
+import { processContractorBulkUploadOnly } from "./services/contractors_bulk_upload";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
   next();
@@ -2097,6 +2098,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/doors/bulk-assign", requireAuth, withAudit("employee_door_assignments", "BULK_DOOR_ASIGNMENT", async (req: any) => {
     return await processDoorUpdate(req.body.data);
   }));
+
+  app.post("/api/contractors/bulk-upload", requireAuth, withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
+  return await processContractorBulkUploadOnly(req.body.data);
+}));
+
 
   // --- Error Log Download Route (Authenticated) ---
   // Is route par 'requireAuth' hona compulsory hai taaki koi unauthorized user error logs na dekh sake

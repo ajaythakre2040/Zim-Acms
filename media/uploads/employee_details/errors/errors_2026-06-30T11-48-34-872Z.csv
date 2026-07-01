@@ -1,2 +1,0 @@
-employee_code,employee_name,email,phone,department_name,location_name,designation_name,status,gender,date_of_birth,date_of_joining,blood_group,aadhaar_number,pan_number,bank_account_no,bank_ifsc,bank_name,pf_number,esi_number,qualification,permanent_address,error
-12,ajay,ajay@example.com,9876543211,dept,Branch 1,manager,active,Male,1992-05-15,2023-02-15,B+,987654321098,FGHIJ5678K,200200200,HDFC000456,HDFC Bank,PF5544,ESI3322,Post Graduate,456 Park Ave,Employee Code not found

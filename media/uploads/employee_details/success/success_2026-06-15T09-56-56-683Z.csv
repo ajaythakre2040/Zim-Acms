@@ -1,3 +1,0 @@
-employee_code,employee_name,email,phone,department_name,location_name,designation_name,status,gender,date_of_birth,date_of_joining,blood_group,aadhaar_number,pan_number,bank_account_no,bank_ifsc,bank_name,pf_number,esi_number,qualification,permanent_address
-786,Vikrant,vikrant@example.com,9876543210,ACCOUNT,Main Office,accountants,active,Male,1990-01-01,2023-01-01,O+,123456789012,ABCDE1234F,100100100,SBIN000123,State Bank,PF9988,ESI7766,Graduate,123 Main St
-1,vishal,vishal@example.com,9876543212,ACCOUNT,Main Office,accountants,active,Male,1995-03-10,2023-03-01,A+,112233445566,KLMNO9012P,300300300,ICIC000789,ICICI Bank,PF1122,ESI9988,Graduate,789 Street

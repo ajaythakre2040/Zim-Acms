@@ -48,6 +48,7 @@ import CategoriesPage from "./pages/category";
 import RoleFormPage from "./pages/role_form";
 import RolePermissionViewPage from "./pages/RolePermissionViewPage";
 import EmployeeView from "./pages/EmployeeView";
+import ContractorView from "./pages/ContractorView";
 import Contractors from "./pages/contractors";
 import AuditTrailPage from "./pages/audit-trail";
 import { useToast } from "./hooks/use-toast";
@@ -105,6 +106,7 @@ function StandardRouter() {
       {/* <Route path="/visitor-cards" component={VisitorCards} /> */}
       <Route path="/visitor-logs" component={VisitorLogs} />
       <Route path="/visitor-cards" component={VisitorCards} />
+      <Route path="/contractors/view/:id" component={ContractorView} />
 
       <Route component={NotFound} />
     </Switch>

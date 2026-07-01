@@ -6430,6 +6430,60 @@ ${fromDate} || ' to ' || ${toDate}
     }
   }
 
+  // async getContractors(
+  //   page?: number,
+  //   pageSize?: number,
+  //   search?: string,
+  // ): Promise<any> {
+  //   try {
+  //     const conditions = [];
+
+  //     if (search && search.trim() !== "") {
+  //       conditions.push(
+  //         or(
+  //           ilike(contractors.nameOfAgencyOwner, `%${search}%`),
+  //           ilike(contractors.contractorCode, `%${search}%`),
+  //           ilike(contractors.nameOfTheAgency, `%${search}%`)
+  //         )
+  //       );
+  //     }
+
+  //     const whereClause = conditions.length ? and(...conditions) : undefined;
+
+  //     const baseQuery = db
+  //       .select({
+  //         id: contractors.id,
+  //         contractorName: contractors.nameOfAgencyOwner,
+  //         contractorCode: contractors.contractorCode,
+  //         // gender: contractors.gender,
+  //         // aadhaarNumber: contractors.aadhaarNumber,
+  //         contactNumber: contractors.contactNoOwner,
+  //         email: contractors.emailAddress,
+  //         address: contractors.address1,
+  //         companyName: contractors.nameOfTheAgency,
+  //         startDate: contractors.agreementFromDate,
+  //         expiryDate: contractors.agreementValidUpto,
+  //         // biometricId: contractors.biometricId,
+  //         status: contractors.status,
+  //         createdAt: contractors.createdAt,
+  //       })
+  //       .from(contractors)
+  //       .where(whereClause)
+  //       .orderBy(asc(contractors.id));
+
+  //     if (search && search.trim() !== "") {
+  //       const filteredArrayData = await baseQuery;
+  //       return await withPagination(db, contractors, filteredArrayData, page, pageSize);
+  //     }
+
+  //     return await withPagination(db, contractors, baseQuery, page, pageSize);
+
+  //   } catch (dbError: any) {
+  //     console.error("Error in getContractors storage method:", dbError);
+  //     throw dbError;
+  //   }
+  // }
+
   async getContractors(
     page?: number,
     pageSize?: number,
@@ -6450,33 +6504,40 @@ ${fromDate} || ' to ' || ${toDate}
 
       const whereClause = conditions.length ? and(...conditions) : undefined;
 
+      // 🌟 db.select() bina kisi argument ke select * ka kaam karega
       const baseQuery = db
-        .select({
-          id: contractors.id,
-          contractorName: contractors.nameOfAgencyOwner,
-          contractorCode: contractors.contractorCode,
-          // gender: contractors.gender,
-          // aadhaarNumber: contractors.aadhaarNumber,
-          contactNumber: contractors.contactNoOwner,
-          email: contractors.emailAddress,
-          address: contractors.address1,
-          companyName: contractors.nameOfTheAgency,
-          startDate: contractors.agreementFromDate,
-          expiryDate: contractors.agreementValidUpto,
-          // biometricId: contractors.biometricId,
-          status: contractors.status,
-          createdAt: contractors.createdAt,
-        })
+        .select()
         .from(contractors)
         .where(whereClause)
         .orderBy(asc(contractors.id));
 
-      if (search && search.trim() !== "") {
-        const filteredArrayData = await baseQuery;
-        return await withPagination(db, contractors, filteredArrayData, page, pageSize);
+      // Data fetch karein
+      const rawData = await baseQuery;
+
+      // 🌟 Frontend Compatibility Layer:
+      // Saare original columns (...c) bhi bhej rahe hain, aur frontend waali keys bhi map kar rahe hain
+      const formattedData = rawData.map((c: any) => ({
+        ...c, // Isse saare columns (biometricId, aadhaarNumber, bank details, etc.) automatic aa jayenge
+        contractorName: c.nameOfAgencyOwner,
+        contractorCode: c.contractorCode,
+        contactNumber: c.contactNoOwner,
+        email: c.emailAddress,
+        address: c.address1,
+        companyName: c.nameOfTheAgency,
+        startDate: c.agreementFromDate,
+        expiryDate: c.agreementValidUpto,
+      }));
+
+      // Export Extraction Bypass: Agar pagination filters nahi hain toh poora data bhejo
+      if (page === undefined && pageSize === undefined) {
+        return formattedData;
       }
 
-      return await withPagination(db, contractors, baseQuery, page, pageSize);
+      if (search && search.trim() !== "") {
+        return await withPagination(db, contractors, formattedData, page, pageSize);
+      }
+
+      return await withPagination(db, contractors, formattedData, page, pageSize);
 
     } catch (dbError: any) {
       console.error("Error in getContractors storage method:", dbError);
@@ -6615,6 +6676,7 @@ ${fromDate} || ' to ' || ${toDate}
     const [created] = await db.insert(contractors).values(cleanData as any).returning();
     return created;
   }
+
 
   //   async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
   //   const formatDbDate = (dateVal: any) => {
