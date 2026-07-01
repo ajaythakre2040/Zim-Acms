@@ -221,6 +221,47 @@ export const people = pgTable("people", {
     .$defaultFn(() => new Date())
     .notNull(),
 });
+export const peopleAdditionalDetails = pgTable("people_additional_details", {
+  id: serial("id").primaryKey(),
+  peopleId: integer("people_id").references(() => people.id, { onDelete: "cascade" }).notNull(),
+
+  cardNo: text("card_no"),
+  companyUnit: text("company_unit"),
+  guardianName: text("guardian_name"),
+  serviceCategory: text("service_category"),
+  section: text("section"),
+  employment: text("employment"),
+  employerName: text("employer_name"),
+  maritalStatus: text("marital_status"),
+  reportingManager: text("reporting_manager"),
+  leavingReason: text("leaving_reason"),
+
+  // Address Fields Breakdown
+  presentAddress1: text("present_address_1"),
+  presentAddress2: text("present_address_2"),
+  presentDistrict: text("present_district"),
+  presentPincode: text("present_pincode"),
+  presentState: text("present_state"),
+
+  permanentAddress1: text("permanent_address_1"),
+  permanentAddress2: text("permanent_address_2"),
+  permanentDistrict: text("permanent_district"),
+  permanentPincode: text("permanent_pincode"),
+  permanentState: text("permanent_state"),
+
+  stream: text("stream"), // Stream (Commerce, Science, etc.) yahan rahega
+  perDayRate: real("per_day_rate"),
+  perHourRate: real("per_hour_rate"),
+
+  uanNumber: text("uan_number"),
+  selfDeclaration: text("self_declaration"),
+  policeVerification: text("police_verification"),
+  authorizedDevice: text("authorized_device"),
+
+  createdAt: timestamp("created_at", { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).$defaultFn(() => new Date()).notNull(),
+});
+
 export const credentials = pgTable("credentials", {
   id: serial("id").primaryKey(),
   personId: integer("person_id").notNull(),
@@ -696,6 +737,8 @@ export const employeeActivityLogs = pgTable("employee_activity_logs", {
 }, (table) => ({
   empDateIdx: index("idx_logs_emp_date").on(table.employeeCode, table.onlyDate),
 }));
+
+
 export const dailyAttendanceSummary = pgTable("daily_attendance_summary", {
   id: bigserial("id", { mode: "number" }).primaryKey(),
   workDate: date("work_date").notNull(),

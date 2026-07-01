@@ -89,6 +89,7 @@ export const dbMsSql = {
   select: () => ({
     from: (table: any) => ({
       where: async (conditions: Record<string, any>) => {
+        await ensureConnection();
         const request = mssqlPool.request();
         const keys = Object.keys(conditions);
         let query = `SELECT * FROM ${getTableName(table)}`;
@@ -241,5 +242,15 @@ export async function initDatabases() {
   } catch (err) {
     console.error("❌ Database Initialization Failed:", err);
     throw err;
+  }
+}
+async function ensureConnection() {
+  if (!mssqlPool.connected) {
+    try {
+      await mssqlPool.connect();
+    } catch (err) {
+      console.error("Failed to reconnect to MS SQL:", err);
+      throw err;
+    }
   }
 }
