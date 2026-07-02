@@ -51,25 +51,23 @@ export const processEmployeeBulkUpdateOnly = async (data: any[]) => {
     const errors: any[] = [];
     const success: any[] = [];
 
-    // 1. STRICT 49 HEADER VALIDATION
     const REQUIRED_HEADERS = [
-        "Active", "Emp. ID", "Employee Name", "Guardian Name", "Date of Birth\n(dd-mmm-yyyy)",
-        "Date of Join\n(dd-mmm-yyyy)", "Card No.", "Company Unit", "Service Category", "Department",
-        "Section", "Designation", "Employment", "Employer Name", "Gender", "Marital Status",
-        "Per Day Rate", "Per Hour Rate", "Educational Qualification", "Stream",
-        "Professional Qualification", "Experience in Years", "Present Address-1",
-        "Present Address-2", "Present District", "Present Pincode", "Present State",
-        "Mobile Number", "Emergency Contact No.", "E-Mail ID", "Permanent Address-1",
-        "Permanent Address-2", "Permanent District", "Permanent Pincode", "Permanent State",
-        "Blood Group", "Self Declaration", "Police Verification", "UAN No.", "ESIC No.",
-        "Authorized Device", "Reporting Manager", "Aadhaar No.", "PAN No.", "Bank Account No.",
-        "Bank Name", "IFC Code", "Leaving Date\n(dd-mmm-yyyy)", "Leaving Reason"
+        "Active", "Emp_ID", "Emp_Name", "Guardian_Name", "DOB", "DOJ", "Card_No",
+        "Company_Unit", "Service_Category", "Department", "Section", "Designation",
+        "Employment_Type", "Employer_Name", "Gender", "Marital_Status", "Per_Day_Rate",
+        "Per_Hour_Rate", "Edu_Qual", "Stream", "Prof_Qual", "Exp_Years", "Present_Address1",
+        "Present_Address2", "Present_District", "Present_Pincode", "Present_State",
+        "Mobile_Number", "Emergency_Number", "Email_ID", "Permanent_Addr1",
+        "Permanent_Addr2", "Permanent_District", "Permanent_PinPincode", "Permanent_State",
+        "Blood_Group", "Self_Declaration", "Police_Verification", "UAN_No", "ESIC_No",
+        "Authorized_Device", "Report_Manager", "Aadhaar_No", "PAN_No", "Bank_Acc_No",
+        "Bank_Name", "IFSC_Code", "Leaving_Date", "Leaving_Reason"
     ];
 
     if (data.length > 0) {
         const actualHeaders = Object.keys(data[0]);
-        const missing = REQUIRED_HEADERS.filter(h => !actualHeaders.includes(h));
-        if (missing.length > 0) return { success: false, error: `HEADER ERROR: Missing columns: ${missing.join(", ")}` };
+        const missing = REQUIRED_HEADERS.filter(h => !actualHeaders.includes(h.trim()));
+        if (missing.length > 0) return { success: false, error: `Missing columns: ${missing.join(", ")}` };
     }
 
     saveToFile(DIRS.EMP_ORIGINAL, 'original', data);
@@ -79,116 +77,85 @@ export const processEmployeeBulkUpdateOnly = async (data: any[]) => {
     const desigMap = new Map(desigList.map(d => [d.name.toLowerCase().trim(), d.id]));
 
     for (const row of data) {
-        const empCode = row["Emp. ID"]?.toString();
-        if (!empCode) { errors.push({ ...row, error: "Missing Emp. ID" }); continue; }
+        const empCode = row["Emp_ID"]?.toString();
+        if (!empCode) { errors.push({ ...row, error: "Missing Emp_ID" }); continue; }
 
         try {
-            const deptId = depMap.get(row["Department"]?.toLowerCase().trim());
-            const desigId = desigMap.get(row["Designation"]?.toLowerCase().trim());
-
-            let updatedPerson: any = null;
             await db.transaction(async (tx) => {
                 const res = await tx.update(people)
                     .set({
-                        employeeName: row["Employee Name"],
-                        email: row["E-Mail ID"],
-                        phone: row["Mobile Number"],
-                        departmentId: deptId,
-                        designationId: desigId,
+                        employeeName: row["Emp_Name"],
+                        email: row["Email_ID"],
+                        phone: row["Mobile_Number"],
+                        departmentId: depMap.get(row["Department"]?.toLowerCase().trim()),
+                        designationId: desigMap.get(row["Designation"]?.toLowerCase().trim()),
                         status: row["Active"]?.toLowerCase() === "yes" ? "active" : "inactive",
                         gender: row["Gender"],
-                        dateOfBirth: parseSheetDate(row["Date of Birth\n(dd-mmm-yyyy)"]),
-                        dateOfJoining: parseSheetDate(row["Date of Join\n(dd-mmm-yyyy)"]),
-                        dateOfResignation: parseSheetDate(row["Leaving Date\n(dd-mmm-yyyy)"]),
-                        bloodGroup: row["Blood Group"],
-                        aadhaarNumber: row["Aadhaar No."],
-                        panNumber: row["PAN No."],
-                        bankAccountNo: row["Bank Account No."],
-                        bankIfsc: row["IFC Code"],
-                        bankName: row["Bank Name"],
-                        pfNumber: row["UAN No."],
-                        esiNumber: row["ESIC No."],
-                        qualification: [row["Educational Qualification"], row["Professional Qualification"]].filter(Boolean).join(" + ") || null,
-                        permanentAddress: row["Permanent Address-1"],
+                        dateOfBirth: parseSheetDate(row["DOB"]),
+                        dateOfJoining: parseSheetDate(row["DOJ"]),
+                        dateOfResignation: parseSheetDate(row["Leaving_Date"]),
+                        bloodGroup: row["Blood_Group"],
+                        aadhaarNumber: row["Aadhaar_No"],
+                        panNumber: row["PAN_No"],
+                        bankAccountNo: row["Bank_Acc_No"],
+                        bankIfsc: row["IFSC_Code"],
+                        bankName: row["Bank_Name"],
+                        pfNumber: row["UAN_No"],
+                        esiNumber: row["ESIC_No"],
+                        qualification: [row["Edu_Qual"], row["Prof_Qual"]].filter(Boolean).join(" + ") || null,
+                        permanentAddress: row["Permanent_Addr1"],
                         updatedAt: new Date()
                     })
                     .where(eq(people.employeeCode, empCode))
                     .returning();
 
-                if (res.length === 0) throw new Error("Employee not found in Database");
-                updatedPerson = res[0];
+                if (res.length === 0) throw new Error("Employee not found");
+
+                const updateOnlyData = {
+                    cardNo: row["Card_No"]?.toString(),
+                    companyUnit: row["Company_Unit"],
+                    guardianName: row["Guardian_Name"],
+                    serviceCategory: row["Service_Category"],
+                    section: row["Section"],
+                    employment: row["Employment_Type"],
+                    employerName: row["Employer_Name"],
+                    maritalStatus: row["Marital_Status"],
+                    reportingManager: row["Report_Manager"],
+                    leavingReason: row["Leaving_Reason"],
+                    presentAddress1: row["Present_Address1"],
+                    presentAddress2: row["Present_Address2"],
+                    presentDistrict: row["Present_District"],
+                    presentPincode: row["Present_Pincode"]?.toString(),
+                    presentState: row["Present_State"],
+                    permanentAddress1: row["Permanent_Addr1"],
+                    permanentAddress2: row["Permanent_Addr2"],
+                    permanentDistrict: row["Permanent_District"],
+                    permanentPincode: row["Permanent_PinPincode"]?.toString(),
+                    permanentState: row["Permanent_State"],
+                    stream: row["Stream"],
+                    perDayRate: row["Per_Day_Rate"] ? parseFloat(row["Per_Day_Rate"]) : null,
+                    perHourRate: row["Per_Hour_Rate"] ? parseFloat(row["Per_Hour_Rate"]) : null,
+                    uanNumber: row["UAN_No"]?.toString(),
+                    selfDeclaration: row["Self_Declaration"],
+                    policeVerification: row["Police_Verification"],
+                    authorizedDevice: row["Authorized_Device"],
+                    updatedAt: new Date()
+                };
 
                 await tx.insert(peopleAdditionalDetails)
                     .values({
-                        peopleId: updatedPerson.id,
-                        cardNo: row["Card No."]?.toString(),
-                        companyUnit: row["Company Unit"],
-                        guardianName: row["Guardian Name"],
-                        serviceCategory: row["Service Category"],
-                        section: row["Section"],
-                        employment: row["Employment"],
-                        employerName: row["Employer Name"],
-                        maritalStatus: row["Marital Status"],
-                        reportingManager: row["Reporting Manager"],
-                        leavingReason: row["Leaving Reason"],
-                        presentAddress1: row["Present Address-1"],
-                        presentAddress2: row["Present Address-2"],
-                        presentDistrict: row["Present District"],
-                        presentPincode: row["Present Pincode"]?.toString(),
-                        presentState: row["Present State"],
-                        permanentAddress1: row["Permanent Address-1"],
-                        permanentAddress2: row["Permanent Address-2"],
-                        permanentDistrict: row["Permanent District"],
-                        permanentPincode: row["Permanent Pincode"]?.toString(),
-                        permanentState: row["Permanent State"],
-                        stream: row["Stream"],
-                        perDayRate: row["Per Day Rate"] ? parseFloat(row["Per Day Rate"]) : null,
-                        perHourRate: row["Per Hour Rate"] ? parseFloat(row["Per Hour Rate"]) : null,
-                        uanNumber: row["UAN No."]?.toString(),
-                        selfDeclaration: row["Self Declaration"],
-                        policeVerification: row["Police Verification"],
-                        authorizedDevice: row["Authorized Device"],
-                        updatedAt: new Date()
+                        employeeCode: empCode,
+                        ...updateOnlyData
                     })
                     .onConflictDoUpdate({
-                        target: peopleAdditionalDetails.peopleId,
-                        set: {
-                            cardNo: row["Card No."]?.toString(),
-                            companyUnit: row["Company Unit"],
-                            guardianName: row["Guardian Name"],
-                            serviceCategory: row["Service Category"],
-                            section: row["Section"],
-                            employment: row["Employment"],
-                            employerName: row["Employer Name"],
-                            maritalStatus: row["Marital Status"],
-                            reportingManager: row["Reporting Manager"],
-                            leavingReason: row["Leaving Reason"],
-                            presentAddress1: row["Present Address-1"],
-                            presentAddress2: row["Present Address-2"],
-                            presentDistrict: row["Present District"],
-                            presentPincode: row["Present Pincode"]?.toString(),
-                            presentState: row["Present State"],
-                            permanentAddress1: row["Permanent Address-1"],
-                            permanentAddress2: row["Permanent Address-2"],
-                            permanentDistrict: row["Permanent District"],
-                            permanentPincode: row["Permanent Pincode"]?.toString(),
-                            permanentState: row["Permanent State"],
-                            stream: row["Stream"],
-                            perDayRate: row["Per Day Rate"] ? parseFloat(row["Per Day Rate"]) : null,
-                            perHourRate: row["Per Hour Rate"] ? parseFloat(row["Per Hour Rate"]) : null,
-                            uanNumber: row["UAN No."]?.toString(),
-                            selfDeclaration: row["Self Declaration"],
-                            policeVerification: row["Police Verification"],
-                            authorizedDevice: row["Authorized Device"],
-                            updatedAt: new Date()
-                        }
+                        target: peopleAdditionalDetails.employeeCode,
+                        set: updateOnlyData
                     });
+
+                await dbMsSql.update({ dbName: "Employees", pk: "EmployeeCode" })
+                    .set(PersonAdapter.toMsSql(res[0]))
+                    .where({ value: empCode });
             });
-
-            await dbMsSql.update({ dbName: "Employees", pk: "EmployeeCode" })
-                .set(PersonAdapter.toMsSql(updatedPerson))
-                .where({ value: empCode });
-
             success.push(row);
         } catch (e: any) {
             errors.push({ ...row, error: e.message });
@@ -203,7 +170,6 @@ export const processEmployeeBulkUpdateOnly = async (data: any[]) => {
         }
     };
 };
-
 // --- Door Assignment Service ---
 export const processDoorUpdate = async (data: any[]) => {
     const errors: any[] = [];
