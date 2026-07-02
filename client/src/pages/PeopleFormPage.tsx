@@ -28,6 +28,9 @@ export default function PeopleFormPage() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
+  // Tabs Array Configuration
+  const tabsList = ["personal", "job", "compliance", "address"];
+
   // Exact mapping matching the schema columns
   const [formData, setFormData] = useState({
     // --- PEOPLE MASTER TABLE ---
@@ -128,7 +131,6 @@ export default function PeopleFormPage() {
             return dateStr.split("T")[0];
           };
 
-          // Merging data arriving from both endpoints or a joined record
           setFormData((prev) => ({
             ...prev,
             ...data,
@@ -165,7 +167,6 @@ export default function PeopleFormPage() {
       }
     }
 
-    // Number rates valid structures check
     if (formData.overtimeRate && isNaN(Number(formData.overtimeRate))) newErrors.overtimeRate = "Must be a valid amount";
     if (formData.perDayRate && isNaN(Number(formData.perDayRate))) newErrors.perDayRate = "Must be a valid amount";
     if (formData.perHourRate && isNaN(Number(formData.perHourRate))) newErrors.perHourRate = "Must be a valid amount";
@@ -190,7 +191,6 @@ export default function PeopleFormPage() {
       return;
     }
 
-    // Number constraints rules
     if (["phone", "emergencyContact", "presentPincode", "permanentPincode"].includes(name)) {
       if (value !== "" && !/^\d+$/.test(value)) return;
     }
@@ -199,6 +199,33 @@ export default function PeopleFormPage() {
 
     if (errors[name as keyof FormErrors]) {
       setErrors((prev) => ({ ...prev, [name]: undefined }));
+    }
+  };
+
+  // Function to handle moving to the next tab with validation
+  const handleNextTab = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!validateForm()) {
+      toast({
+        title: "Validation Error",
+        description: "Please fix form errors before moving to the next step.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const currentIndex = tabsList.indexOf(activeTab);
+    if (currentIndex < tabsList.length - 1) {
+      setActiveTab(tabsList[currentIndex + 1]);
+    }
+  };
+
+  // Function to handle moving back to previous tab
+  const handlePrevTab = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const currentIndex = tabsList.indexOf(activeTab);
+    if (currentIndex > 0) {
+      setActiveTab(tabsList[currentIndex - 1]);
     }
   };
 
@@ -224,7 +251,6 @@ export default function PeopleFormPage() {
     const { createdAt, updatedAt, id: empId, ...restFormData } = formData as any;
     const payload: Record<string, any> = {};
 
-    // Converting emptystrings to null and numbers parsing accurately
     Object.keys(restFormData).forEach((key) => {
       const val = restFormData[key];
       if (val === "") {
@@ -296,7 +322,7 @@ export default function PeopleFormPage() {
         <h1 className="text-2xl font-black text-[#0f172a] tracking-tight">
           {isEditMode ? "Modify Employee Record" : "Register New Personnel"}
         </h1>
-        <Button variant="outline" onClick={() => setLocation("/employees")}>
+        <Button variant="outline" type="button" onClick={() => setLocation("/employees")}>
           Cancel
         </Button>
       </div>
@@ -304,7 +330,7 @@ export default function PeopleFormPage() {
       <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 border rounded-lg shadow-sm">
         {/* Navigation Tabs Setup */}
         <div className="flex border-b mb-6 overflow-x-auto whitespace-nowrap">
-          {["personal", "job", "compliance", "address"].map((tab) => (
+          {tabsList.map((tab) => (
             <button
               key={tab}
               type="button"
@@ -647,14 +673,35 @@ export default function PeopleFormPage() {
           </div>
         )}
 
-        {/* Form Action Buttons Container */}
-        <div className="flex justify-end space-x-3 pt-4 border-t">
-          <Button type="button" variant="outline" onClick={() => setLocation("/employees")}>
-            Cancel
-          </Button>
-          <Button type="submit" className="bg-[#5c54d5] hover:bg-[#4a43b8] text-white font-bold px-6">
-            {isEditMode ? "Update Profile" : "Save Record"}
-          </Button>
+        {/* --- DYNAMIC BOTTOM WIZARD ACTIONS FOOTER --- */}
+        <div className="flex justify-between items-center border-t pt-4 mt-6">
+          <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">
+            Step: {activeTab} ({tabsList.indexOf(activeTab) + 1} / {tabsList.length})
+          </div>
+
+          <div className="flex items-center gap-3">
+            {/* Previous Button: Pehle tab par hidden rahega */}
+            {activeTab !== tabsList[0] && (
+              <Button type="button" variant="outline" onClick={handlePrevTab}>
+                Previous
+              </Button>
+            )}
+
+            {/* Next Button / Final Save Action Selector */}
+            {activeTab !== tabsList[tabsList.length - 1] ? (
+              <Button type="button" onClick={handleNextTab}>
+                Next
+              </Button>
+            ) : (
+              <Button 
+                type="submit" 
+                disabled={loading}
+                className="bg-[#5c54d5] hover:bg-[#4b43bc]"
+              >
+                {loading ? "Processing..." : isEditMode ? "Update People" : "Save People"}
+              </Button>
+            )}
+          </div>
         </div>
       </form>
     </div>
