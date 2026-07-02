@@ -2099,9 +2099,54 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return await processDoorUpdate(req.body.data);
   }));
 
-  app.post("/api/contractors/bulk-upload", requireAuth, withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
-    return await processContractorBulkUploadOnly(req.body.data);
-  }));
+  // app.post("/api/contractors/bulk-upload", requireAuth, withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
+  //   return await processContractorBulkUploadOnly(req.body.data);
+  // }));
+  app.post("/api/contractors/bulk-upload", requireAuth, async (req: any, res: any) => {
+    const result = await processContractorBulkUploadOnly(req.body.data);
+
+    // Agar function ne success: false bheja hai, to yahan se error status 400 bhej do
+    if (result.success === false) {
+      return res.status(400).json(result);
+    }
+
+    // Agar success hai, to withAudit chalao (jaise pehle tha)
+    const auditHandler = withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
+      return result;
+    });
+
+    await auditHandler(req, res);
+  });
+  // app.post("/api/contractors/bulk-upload", requireAuth, async (req: any, res: any) => {
+  //   // 1. Audit ke sath wrap kiya hua function execute karein
+  //   // Hum withAudit ko yahan call kar rahe hain aur res ko control kar rahe hain
+  //   const auditWrapper = withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
+  //     return await processContractorBulkUploadOnly(req.body.data);
+  //   });
+
+  //   // 2. Custom response interceptor
+  //   // Hum ek "mock" res object banayenge taaki hum status code catch kar sakein
+  //   let capturedStatus = 200;
+  //   const mockRes = {
+  //     status: (code: number) => {
+  //       capturedStatus = code;
+  //       return {
+  //         json: (data: any) => {
+  //           // Agar status 400 hai, to hum error bhejenge
+  //           if (capturedStatus === 400) {
+  //             return res.status(400).json(data);
+  //           }
+  //           return res.json(data);
+  //         }
+  //       };
+  //     },
+  //     json: (data: any) => res.json(data),
+  //     sendStatus: (code: number) => res.sendStatus(code)
+  //   };
+
+  //   // 3. Execution
+  //   await auditWrapper(req, mockRes);
+  // });
 
   app.get("/api/download/:type/:category/:folder/:filename", requireAuth, (req, res) => {
     const { type, category, folder, filename } = req.params;
@@ -2123,6 +2168,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(404).send("File not found");
     }
   });
+  
   app.patch("/api/users/:id/toggle-status", withAudit("users", "UPDATE", async (req: any) => {
     const { id } = req.params;
 

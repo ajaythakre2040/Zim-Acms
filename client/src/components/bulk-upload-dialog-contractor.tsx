@@ -27,6 +27,43 @@ export function BulkUploadDialog({ open, onClose }: Props) {
         }
     }, [open]);
 
+    // const handleUpload = async () => {
+    //     if (!file) return;
+    //     setIsUploading(true);
+    //     setFiles(null);
+
+    //     Papa.parse(file, {
+    //         header: true,
+    //         skipEmptyLines: true,
+    //         complete: async (results: ParseResult<any>) => {
+    //             // Contractor API endpoint
+    //             const endpoint = '/api/contractors/bulk-upload';
+
+    //             try {
+    //                 const res = await apiRequest("POST", endpoint, { data: results.data });
+    //                 const result = await res.json();
+
+    //                 if (result.files) {
+    //                     setFiles(result.files);
+    //                     toast({
+    //                         title: result.files.error ? "Upload completed with warnings" : "Success",
+    //                         description: result.files.error ? "Some contractor records failed." : "Contractors bulk upload successful!",
+    //                         variant: result.files.error ? "destructive" : "default"
+    //                     });
+    //                 } else {
+    //                     toast({ title: "Success", description: "Contractors bulk upload successful!" });
+    //                     onClose();
+    //                 }
+    //             } catch (err) {
+    //                 toast({ title: "Error", description: "Failed to process contractor file.", variant: "destructive" });
+    //             } finally {
+    //                 setIsUploading(false);
+    //             }
+    //         }
+    //     });
+    // };
+
+
     const handleUpload = async () => {
         if (!file) return;
         setIsUploading(true);
@@ -36,33 +73,47 @@ export function BulkUploadDialog({ open, onClose }: Props) {
             header: true,
             skipEmptyLines: true,
             complete: async (results: ParseResult<any>) => {
-                // Contractor API endpoint
+                // Contractor endpoint
                 const endpoint = '/api/contractors/bulk-upload';
-
                 try {
                     const res = await apiRequest("POST", endpoint, { data: results.data });
+
+                    // Agar status 400 hai (validation error), to error handle karein
+                    if (!res.ok) {
+                        const errData = await res.json();
+                        toast({
+                            title: "Upload Failed",
+                            description: errData.error || "Header mismatch",
+                            variant: "destructive"
+                        });
+                        return; // Yahan ruk jayega
+                    }
+
                     const result = await res.json();
 
                     if (result.files) {
                         setFiles(result.files);
                         toast({
-                            title: result.files.error ? "Upload completed with warnings" : "Success",
-                            description: result.files.error ? "Some contractor records failed." : "Contractors bulk upload successful!",
+                            title: result.files.error ? "Partial success" : "Success",
+                            description: result.files.error ? "Some records failed." : "Bulk upload successful!",
                             variant: result.files.error ? "destructive" : "default"
                         });
                     } else {
-                        toast({ title: "Success", description: "Contractors bulk upload successful!" });
+                        toast({ title: "Success", description: "Bulk upload successful!" });
                         onClose();
                     }
-                } catch (err) {
-                    toast({ title: "Error", description: "Failed to process contractor file.", variant: "destructive" });
+                } catch (err: any) {
+                    toast({
+                        title: "Upload Failed",
+                        description: err.message,
+                        variant: "destructive"
+                    });
                 } finally {
                     setIsUploading(false);
                 }
             }
         });
     };
-
     const resetDialog = () => {
         setFiles(null);
         setFile(null);
