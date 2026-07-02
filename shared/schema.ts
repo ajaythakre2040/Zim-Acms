@@ -223,8 +223,10 @@ export const people = pgTable("people", {
 });
 export const peopleAdditionalDetails = pgTable("people_additional_details", {
   id: serial("id").primaryKey(),
-  peopleId: integer("people_id").references(() => people.id, { onDelete: "cascade" }).notNull(),
-
+  employeeCode: text("employee_code")
+    .references(() => people.employeeCode, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
   cardNo: text("card_no"),
   companyUnit: text("company_unit"),
   guardianName: text("guardian_name"),
