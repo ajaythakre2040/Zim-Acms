@@ -1724,7 +1724,7 @@ export class DatabaseStorage implements IStorage {
               msId: mapped.msId,
               employeeCode: mapped.employeeCode,
               employeeName: mapped.employeeName ?? "Unknown",
-              address: mapped.address ?? null,
+              // address: mapped.address ?? null,
               ruleid: mapped.ruleid ?? null,
               locationId: mapped.locationId ?? null,
               externalId: mapped.externalId ?? null,
@@ -1775,7 +1775,7 @@ export class DatabaseStorage implements IStorage {
               .set({
                 employeeName: mapped.employeeName ?? "Unknown",
                 employeeCode: mapped.employeeCode,
-                address: mapped.address ?? null,
+                // address: mapped.address ?? null,
                 updatedAt: new Date(),
               })
               .where(eq(people.msId, mapped.msId))

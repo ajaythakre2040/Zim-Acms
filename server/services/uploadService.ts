@@ -103,7 +103,7 @@ export const processEmployeeBulkUpdateOnly = async (data: any[]) => {
                         pfNumber: row["UAN_No"],
                         esiNumber: row["ESIC_No"],
                         qualification: [row["Edu_Qual"], row["Prof_Qual"]].filter(Boolean).join(" + ") || null,
-                        permanentAddress: row["Permanent_Addr1"],
+                        // permanentAddress: row["Permanent_Addr1"],
                         updatedAt: new Date()
                     })
                     .where(eq(people.employeeCode, empCode))
