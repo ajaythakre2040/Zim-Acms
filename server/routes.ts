@@ -551,8 +551,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   //   }
   // });
   app.post("/api/people", requireAuth, withAudit(TABLES.PEOPLE, "ADD/UPDATE", async (req) => await storage.createPerson(insertPersonSchema.parse(req.body)), 201));
-  app.put("/api/people/:id", requireAuth, withAudit(TABLES.PEOPLE, "UPDATE", async (req) => await storage.updatePerson(parseInt(req.params.id), insertPersonSchema.partial().parse(req.body)), 200));
-  app.delete("/api/people/:id", requireAuth, withAudit(TABLES.PEOPLE, "DELETE", async (req) => { await storage.deletePerson(parseInt(req.params.id)); return null; }, 204));
+  app.patch(
+    "/api/people/:id",
+    requireAuth,
+    withAudit(TABLES.PEOPLE, "UPDATE", async (req) => {
+      const personId = parseInt(req.params.id);
+      if (isNaN(personId)) {
+        throw new Error("Invalid Person ID");
+      }
+
+      // Direct pura payload storage layer ko bhej dete hain
+      const updatedPerson = await storage.updatePerson(personId, req.body);
+
+      // withAudit wrapper ke liye data return kiya
+      return updatedPerson;
+    }, 200)
+  );
+    app.delete("/api/people/:id", requireAuth, withAudit(TABLES.PEOPLE, "DELETE", async (req) => { await storage.deletePerson(parseInt(req.params.id)); return null; }, 204));
   // app.put("/api/people/:id", requireAuth, async (req, res) => {
   //   try {
   //     const input = insertPersonSchema.partial().parse(req.body);

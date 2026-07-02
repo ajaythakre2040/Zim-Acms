@@ -2128,13 +2128,107 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return created;
   }
-  async updatePerson(id: number, data: Partial<InsertPerson>): Promise<Person> {
+  // async updatePerson(id: number, data: Partial<InsertPerson>): Promise<Person> {
+  //   const existing = await db.select().from(people).where(eq(people.id, id));
+  //   console.log("Existing Person Record:", existing);
+  //   const [updated] = await db
+  //     .update(people)
+  //     .set({ ...data, updatedAt: new Date() })
+  //     .where(eq(people.id, id))
+  //     .returning();
+  //   if (!updated) throw new Error("Person not found");
+  //   if (updated.msId) {
+  //     try {
+  //       await dbMsSql
+  //         .update({ dbName: "Employees", pk: "EmployeeId" })
+  //         .set(PersonAdapter.toMsSql(data))
+  //         .where({ value: updated.msId });
+  //     } catch (e) {
+  //       console.error("MS SQL Person Update Error:", e);
+  //     }
+  //   }
+  //   return updated;
+  // }
+  async updatePerson(id: number, data: any): Promise<Person> {
+    // --- :rotating_light: CRITICAL FIX FOR DRIZZLE TIMESTAMP ERROR :rotating_light: ---
+    // Agar lastSeenTime ya koi aur date field string ke roop me aa rahi hai,
+    // toh use proper JS Date object me badal dete hain taaki Drizzle ka mapToDriverValue crash na ho
+    if (data.lastSeenTime && typeof data.lastSeenTime === 'string') {
+      data.lastSeenTime = new Date(data.lastSeenTime);
+    }
+    // Agar activeShiftDate ya koi aur timestamp check ho toh use bhi safe kar sakte hain
+    // -----------------------------------------------------
+
+    // 1. Ab baaki ka purana destructuring chalne do
+    const {
+      cardNo, companyUnit, guardianName, serviceCategory, section, employment,
+      employerName, maritalStatus, reportingManager, leavingReason,
+      presentAddress1, presentAddress2, presentDistrict, presentPincode, presentState,
+      permanentAddress1, permanentAddress2, permanentDistrict, permanentPincode, permanentState,
+      stream, perDayRate, perHourRate, uanNumber, selfDeclaration, policeVerification, authorizedDevice,
+      ...mainPersonData
+    } = data;
+
+    const additionalData = {
+      cardNo, companyUnit, guardianName, serviceCategory, section, employment,
+      employerName, maritalStatus, reportingManager, leavingReason,
+      presentAddress1, presentAddress2, presentDistrict, presentPincode, presentState,
+      permanentAddress1, permanentAddress2, permanentDistrict, permanentPincode, permanentState,
+      stream, perDayRate, perHourRate, uanNumber, selfDeclaration, policeVerification, authorizedDevice
+    };
+
+    const currentIsoDate = new Date();
+
+    // 2. Main 'people' table ko update karte hain (Ab Drizzle crash nahi karega)
     const [updated] = await db
       .update(people)
-      .set({ ...data, updatedAt: new Date() })
+      .set({
+        ...mainPersonData,
+        updatedAt: currentIsoDate
+      })
       .where(eq(people.id, id))
       .returning();
-    if (!updated) throw new Error("Person not found");
+
+    if (!updated) throw new Error("Person not found in primary table");
+
+    // 3. 'people_additional_details' table ko update/insert karte hain
+    if (updated.employeeCode) {
+      try {
+        const existingDetails = await db
+          .select()
+          .from(peopleAdditionalDetails)
+          .where(eq(peopleAdditionalDetails.employeeCode, updated.employeeCode));
+
+        const cleanAdditionalData = Object.fromEntries(
+          Object.entries(additionalData).filter(([_, v]) => v !== undefined && v !== null)
+        );
+
+        if (Object.keys(cleanAdditionalData).length > 0) {
+          if (existingDetails.length > 0) {
+            await db
+              .update(peopleAdditionalDetails)
+              .set({
+                ...cleanAdditionalData,
+                updatedAt: currentIsoDate
+              })
+              .where(eq(peopleAdditionalDetails.employeeCode, updated.employeeCode));
+          } else {
+            await db
+              .insert(peopleAdditionalDetails)
+              .values({
+                employeeCode: updated.employeeCode,
+                ...cleanAdditionalData,
+                createdAt: currentIsoDate,
+                updatedAt: currentIsoDate
+              });
+          }
+        }
+      } catch (err) {
+        console.error("PostgreSQL Additional Details Sync Error:", err);
+      }
+    }
+
+    // 4. MS SQL Sync Logic
     if (updated.msId) {
       try {
         await dbMsSql
@@ -2145,9 +2239,9 @@ export class DatabaseStorage implements IStorage {
         console.error("MS SQL Person Update Error:", e);
       }
     }
+
     return updated;
   }
-
 
   async deletePerson(id: number): Promise<void> {
     const [record] = await db.select().from(people).where(eq(people.id, id));
