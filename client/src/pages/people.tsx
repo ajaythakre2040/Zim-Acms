@@ -94,6 +94,7 @@ export default function PeoplePage() {
   const { canAdd, canEdit, canDelete, canExport, canView } = usePermission(
     MENU_CONFIG.EMPLOYEES.code,
   );
+
   if (!canView) {
     return (
       <div className="p-6 text-center text-muted-foreground">
@@ -599,10 +600,10 @@ export default function PeoplePage() {
                       size="icon"
                       variant="ghost"
                       onClick={(e) => {
-                        e.stopPropagation();
-                        setEditing(p);
-                        setFieldErrors({});
-                        setDialogOpen(true);
+                        e.stopPropagation(); // Card ya row click ko trigger hone se rokne ke liye
+
+                        // Yeh line user ko seedhe edit page pr le jayegi row id ke sath
+                        navigate(`/employees/edit/${p.id}`);
                       }}
                     >
                       <Pencil className="w-4 h-4 text-blue-500" />

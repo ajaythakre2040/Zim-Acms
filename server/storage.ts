@@ -14,6 +14,7 @@ import {
   InsertLoginAttempt,
   loginAttempts,
   visitorCards,
+  peopleAdditionalDetails,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
@@ -2031,32 +2032,71 @@ export class DatabaseStorage implements IStorage {
   //   ) as Person[];
   // }
 
+  // async getPerson(id: number): Promise<any> {
+  //   const [result] = await db
+  //     .select({
+  //       person: people,
+  //       departmentName: departments.name,
+  //       designationName: designations.name,
+  //     })
+  //     .from(people)
+  //     .leftJoin(
+  //       departments,
+  //       eq(people.departmentId, departments.id)
+  //     )
+  //     .leftJoin(
+  //       designations,
+  //       eq(people.designationId, designations.id)
+  //     )
+  //     .leftJoin(
+  //     schema.peopleAdditionalDetails,
+  //     eq(people.employeeCode, schema.peopleAdditionalDetails.employeeCode) // employee_code ke basis par join
+  //   )
+  //     .where(eq(people.id, id));
+
+  //   if (!result) return undefined;
+
+  //   return {
+  //     ...result.person,
+  //     departmentName: result.departmentName,
+  //     designationName: result.designationName,
+  //   };
+  // }
+
   async getPerson(id: number): Promise<any> {
-    const [result] = await db
-      .select({
-        person: people,
-        departmentName: departments.name,
-        designationName: designations.name,
-      })
-      .from(people)
-      .leftJoin(
-        departments,
-        eq(people.departmentId, departments.id)
-      )
-      .leftJoin(
-        designations,
-        eq(people.designationId, designations.id)
-      )
-      .where(eq(people.id, id));
+  const [result] = await db
+    .select({
+      person: people,
+      departmentName: departments.name,
+      designationName: designations.name,
+      // Yahan se additional details ke saare columns select ho jayenge
+      additionalDetails: peopleAdditionalDetails, 
+    })
+    .from(people)
+    .leftJoin(
+      departments,
+      eq(people.departmentId, departments.id)
+    )
+    .leftJoin(
+      designations,
+      eq(people.designationId, designations.id)
+    )
+    .leftJoin(
+      schema.peopleAdditionalDetails,
+      eq(people.employeeCode, peopleAdditionalDetails.employeeCode) // employee_code ke basis par join
+    )
+    .where(eq(people.id, id));
 
-    if (!result) return undefined;
+  if (!result) return undefined;
 
-    return {
-      ...result.person,
-      departmentName: result.departmentName,
-      designationName: result.designationName,
-    };
-  }
+  return {
+    ...result.person,
+    departmentName: result.departmentName,
+    designationName: result.designationName,
+    // Agar additional details mili hain toh unhe bhi root object me spread kar denge
+    ...(result.additionalDetails || {}), 
+  };
+}
   // async getPerson(id: number): Promise<Person | undefined> {
   //   const [person] = await db.select().from(people).where(eq(people.id, id));
   //   return person;
@@ -2107,6 +2147,8 @@ export class DatabaseStorage implements IStorage {
     }
     return updated;
   }
+
+
   async deletePerson(id: number): Promise<void> {
     const [record] = await db.select().from(people).where(eq(people.id, id));
     if (record) {

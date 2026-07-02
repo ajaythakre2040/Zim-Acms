@@ -19,6 +19,7 @@ import { useState } from "react";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import PeoplePage from "@/pages/people";
+import PeopleFormPage from "@/pages/PeopleFormPage";
 import AttendancePage from "@/pages/attendance";
 import AccessLogsPage from "@/pages/access-logs";
 import AccessRulesPage from "@/pages/access-rules";
@@ -67,6 +68,8 @@ function StandardRouter() {
       <Route path="/" component={Dashboard} />
       <Route path="/attendance-summary" component={Dashboard} />
       <Route path="/employees" component={PeoplePage} />
+      <Route path="/employees/new" component={PeopleFormPage} />
+      <Route path="/employees/edit/:id" component={PeopleFormPage} />
       <Route path="/attendance" component={AttendancePage} />
       <Route path="/access-logs" component={AccessLogsPage} />
       <Route path="/access-rules" component={AccessRulesPage} />
