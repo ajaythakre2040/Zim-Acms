@@ -72,31 +72,41 @@ export const processContractorBulkUploadOnly = async (data: any[]) => {
     const errors: any[] = [];
     const success: any[] = [];
     // 🌟 1. CONTRACTOR HEADER VALIDATION
+    // 🌟 1. CONTRACTOR HEADER VALIDATION
     const REQUIRED_CONTRACTOR_HEADERS = [
-        "Name_of_the_Agency", "Job_Summary", "Address-1", "Address-2", "District", 
-        "Pincode", "State", "Experience_in_Similar_Field", "Commencement_Date", 
-        "Associated_with_ZIM_(In Years)", "Reference_By", "Manpower/Service_Available_in_ZIM", 
-        "Total_Manpower/Service_available_with_Vendor", "%age_Utilized_in_ZIM", 
-        "Working_with_Other_Vendors", "Name_of_Agency_Owner", "Contact_of_Owner", 
-        "Name_of_the_Representative", "Contact_of_Representative", "E-mail", 
-        "Agreement_From_Date", "Agreement_Valid_Upto", "License_No", 
-        "Licensed_Quantity", "License_Validity", "GST_No", "PF_Code_No", 
+        "Name_of_the_Agency", "Job_Summary", "Address-1", "Address-2", "District",
+        "Pincode", "State", "Experience_in_Similar_Field", "Commencement_Date",
+        "Associated_with_ZIM_(In Years)", "Reference_By", "Manpower/Service_Available_in_ZIM",
+        "Total_Manpower/Service_available_with_Vendor", "%age_Utilized_in_ZIM",
+        "Working_with_Other_Vendors", "Name_of_Agency_Owner", "Contact_of_Owner",
+        "Name_of_the_Representative", "Contact_of_Representative", "E-mail",
+        "Agreement_From_Date", "Agreement_Valid_Upto", "License_No",
+        "Licensed_Quantity", "License_Validity", "GST_No", "PF_Code_No",
         "ESIC_Code_No", "Bank_Account_No", "Bank_Name", "IFC_Code"
     ];
 
     if (data.length > 0) {
-        // Actual keys ko trim kar rahe hain taaki space checking safe rahe
         const actualHeaders = Object.keys(data[0]).map(h => h.trim());
-        
-        // Missing columns check karega (without trailing/leading spaces issues)
-        const missing = REQUIRED_CONTRACTOR_HEADERS.filter(
-            h => !actualHeaders.includes(h.trim())
-        );
+        const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+        // Debugging ke liye check karein
+        console.log("Required (Normalized):", REQUIRED_CONTRACTOR_HEADERS.map(normalize));
+        console.log("Actual (Normalized):", actualHeaders.map(normalize));
+
+        const missing = REQUIRED_CONTRACTOR_HEADERS.filter(reqHeader => {
+            const normalizedReq = normalize(reqHeader);
+            // Is line ko debug karein: kya koi match mil raha hai?
+            const isMatch = actualHeaders.some(actHeader => normalize(actHeader) === normalizedReq);
+            return !isMatch;
+        });
 
         if (missing.length > 0) {
-            return { 
-                success: false, 
-                error: `Missing columns in Contractor Template: ${missing.join(", ")}` 
+            // Yeh line trigger honi chahiye!
+            console.log("Validation Failed! Missing list:", missing);
+
+            return {
+                success: false,
+                error: `Header Error! Required columns missing: ${missing.join(", ")}`
             };
         }
     }
