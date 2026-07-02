@@ -33,10 +33,13 @@ const parseInteger = (val: any) => {
     return isNaN(parsed) ? null : parsed;
 };
 
+// Updated Helper: Database me numeric column ke liye % sign strip karne ke liye
 const parseNumeric = (val: any) => {
     if (val === undefined || val === null || val.toString().trim() === "") return null;
-    const parsed = parseFloat(val.toString().trim());
-    return isNaN(parsed) ? null : val.toString().trim();
+    // Agar string me '%' ka sign hai to use hata do taaki numeric parse ho sake
+    const cleanVal = val.toString().replace(/%/g, '').trim();
+    const parsed = parseFloat(cleanVal);
+    return isNaN(parsed) ? null : cleanVal;
 };
 
 // Helper: Auto-generate Contractor Code
@@ -68,42 +71,70 @@ const generateContractorCode = async (): Promise<string> => {
 export const processContractorBulkUploadOnly = async (data: any[]) => {
     const errors: any[] = [];
     const success: any[] = [];
+    // 🌟 1. CONTRACTOR HEADER VALIDATION
+    const REQUIRED_CONTRACTOR_HEADERS = [
+        "Name_of_the_Agency", "Job_Summary", "Address-1", "Address-2", "District", 
+        "Pincode", "State", "Experience_in_Similar_Field", "Commencement_Date", 
+        "Associated_with_ZIM_(In Years)", "Reference_By", "Manpower/Service_Available_in_ZIM", 
+        "Total_Manpower/Service_available_with_Vendor", "%age_Utilized_in_ZIM", 
+        "Working_with_Other_Vendors", "Name_of_Agency_Owner", "Contact_of_Owner", 
+        "Name_of_the_Representative", "Contact_of_Representative", "E-mail", 
+        "Agreement_From_Date", "Agreement_Valid_Upto", "License_No", 
+        "Licensed_Quantity", "License_Validity", "GST_No", "PF_Code_No", 
+        "ESIC_Code_No", "Bank_Account_No", "Bank_Name", "IFC_Code"
+    ];
 
+    if (data.length > 0) {
+        // Actual keys ko trim kar rahe hain taaki space checking safe rahe
+        const actualHeaders = Object.keys(data[0]).map(h => h.trim());
+        
+        // Missing columns check karega (without trailing/leading spaces issues)
+        const missing = REQUIRED_CONTRACTOR_HEADERS.filter(
+            h => !actualHeaders.includes(h.trim())
+        );
+
+        if (missing.length > 0) {
+            return { 
+                success: false, 
+                error: `Missing columns in Contractor Template: ${missing.join(", ")}` 
+            };
+        }
+    }
     // Save Original Backup
     saveToFile(DIRS.CON_ORIGINAL, 'original', data);
 
     for (const rawRow of data) {
         // 🌟 STEP 1: Exact Excel Headers Mapping Layer
-        // Agar user column me extra space bhi de dega to trim() use handle kar lega
+        // Handles any extra spaces in header keys gracefully
         const row: any = {};
         Object.keys(rawRow).forEach((key) => {
             row[key.trim()] = rawRow[key];
         });
 
-        // 🌟 STEP 2: Extraction using exact columns shared by you
-        const agencyNameRaw = row["Name of the Agency"];
-        const emailRaw = row["E-mail Adress"]; // Excel terminology maintained
-        const mobileRaw = row["Contact No."];  
+        // 🌟 STEP 2: Extraction using updated template columns
+        const agencyNameRaw = row["Name_of_the_Agency"];
+        const emailRaw = row["E-mail"]; 
+        const mobileOwnerRaw = row["Contact_of_Owner"];  
 
         // Mandatory Validations
         if (!agencyNameRaw || agencyNameRaw.toString().trim() === "") {
-            errors.push({ ...rawRow, error: "Missing mandatory field: Name of the Agency" });
+            errors.push({ ...rawRow, error: "Missing mandatory field: Name_of_the_Agency" });
             continue;
         }
 
         if (!emailRaw || emailRaw.toString().trim() === "") {
-            errors.push({ ...rawRow, error: "Missing mandatory field: E-mail Adress" });
+            errors.push({ ...rawRow, error: "Missing mandatory field: E-mail" });
             continue;
         }
 
-        if (!mobileRaw || mobileRaw.toString().trim() === "") {
-            errors.push({ ...rawRow, error: "Missing mandatory field: Contact No." });
+        if (!mobileOwnerRaw || mobileOwnerRaw.toString().trim() === "") {
+            errors.push({ ...rawRow, error: "Missing mandatory field: Contact_of_Owner" });
             continue;
         }
 
         const agencyNameClean = agencyNameRaw.toString().trim();
         const emailClean = emailRaw.toString().trim();
-        const mobileClean = mobileRaw.toString().trim();
+        const mobileOwnerClean = mobileOwnerRaw.toString().trim();
 
         try {
             let existingContractor = [];
@@ -120,45 +151,48 @@ export const processContractorBulkUploadOnly = async (data: any[]) => {
                 )
                 .limit(1);
 
-            // 🌟 STEP 3: Pure 31 Columns Exact Mapping According to Excel Template
+            // 🌟 STEP 3: Pure Columns Exact Mapping According to NEW Template
             const commonPayload = {
-                jobSummary: row["Job Summary"] || null,
+                jobSummary: row["Job_Summary"] || null,
                 address1: row["Address-1"] || null,
                 address2: row["Address-2"] || null,
                 district: row["District"] || null,
                 pincode: row["Pincode"] ? row["Pincode"].toString().trim() : null,
                 state: row["State"] || null,
                 
-                // Numbers & Percentages parsing safely
-                experienceInSimilarField: row["Experience in Similar Field"] ? row["Experience in Similar Field"].toString().trim() : null,
-                commencementDate: row["Commencement Date(dd-mmm-yyyy)"] || null,
-                associatedWithZimInYears: parseInteger(row["Associated with ZIM (In Years)"]),
-                referenceBy: row["Reference By (Mr./Ms./Dr.)"] || null,
+                // Numbers & Percentages parsing safely with new headers
+                experienceInSimilarField: row["Experience_in_Similar_Field"] ? row["Experience_in_Similar_Field"].toString().trim() : null,
+                commencementDate: row["Commencement_Date"] || null,
+                associatedWithZimInYears: parseInteger(row["Associated_with_ZIM_(In Years)"]),
+                referenceBy: row["Reference_By"] || null,
                 
-                manpowerServiceAvailableInZim: parseInteger(row["Manpower/Service Available in ZIM (As on date)"]),
-                totalManpowerServiceAvailableWithTheVendor: parseInteger(row["Total Manpower/Service available with the Vendor "]),
-                percentageUtilizedInZim: parseNumeric(row["%age Utilized in ZIM"]),
-                workingWithOtherVendors: row["Working with Other Vendors"] || null,
+                manpowerServiceAvailableInZim: parseInteger(row["Manpower/Service_Available_in_ZIM"]),
+                // Schema match mapping for totalManpowerServiceAvailableWithTheVendor
+                totalManpowerServiceAvailableWithTheVendor: parseInteger(row["Total_Manpower/Service_available_with_Vendor"]),
+                // Fixed percentage parsing
+                percentageUtilizedInZim: parseNumeric(row["%age_Utilized_in_ZIM"]),
+                workingWithOtherVendors: row["Working_with_Other_Vendors"] || null,
                 
-                nameOfAgencyOwner: row["Name of Agency Owner"] || null,
-                contactNoOwner: mobileClean, 
-                nameOfTheRepresentative: row["Name of the Representative"] || null,
-                contactNoRepresentative: row["Contact No."] || null, // Shared column mapping
+                nameOfAgencyOwner: row["Name_of_Agency_Owner"] || null,
+                contactNoOwner: mobileOwnerClean, 
+                nameOfTheRepresentative: row["Name_of_the_Representative"] || null,
+                contactNoRepresentative: row["Contact_of_Representative"] || null, 
                 emailAddress: emailClean, 
                 
-                agreementFromDate: row["Agreement From Date(dd-mmm-yyyy)"] || null,
-                agreementValidUpto: row["Agreement Valid Upto(dd-mmm-yyyy)"] || null,
-                licenseNo: row["License No."] || null,
-                licensedQuantity: parseInteger(row["Licensed Quantity"]),
-                licenseValidity: row["License Validity(dd-mmm-yyyy)"] || null,
+                agreementFromDate: row["Agreement_From_Date"] || null,
+                agreementValidUpto: row["Agreement_Valid_Upto"] || null,
+                licenseNo: row["License_No"] || null,
+                licensedQuantity: parseInteger(row["Licensed_Quantity"]),
+                licenseValidity: row["License_Validity"] || null,
                 
-                gstNo: row["GST No."] || null,
-                pfCodeNo: row["PF Code No."] || null,
-                esicCodeNo: row["ESIC Code No."] || null,
+                gstNo: row["GST_No"] || null,
+                pfCodeNo: row["PF_Code_No"] || null,
+                esicCodeNo: row["ESIC_Code_No"] || null,
                 
-                bankAccountNo: row["Bank Account No."] ? row["Bank Account No."].toString().trim() : null,
-                bankName: row["Bank Name"] || null,
-                ifcCode: row["IFC Code"] || null,
+                bankAccountNo: row["Bank_Account_No"] ? row["Bank_Account_No"].toString().trim() : null,
+                bankName: row["Bank_Name"] || null,
+                ifcCode: row["IFC_Code"] || null,
+                // Fallback for status field since it's removed from new template headers
                 status: row["Status"] ? row["Status"].toLowerCase().trim() : 'active',
             };
 
