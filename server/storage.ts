@@ -7844,5 +7844,38 @@ ${fromDate} || ' to ' || ${toDate}
     }
   });
 }
+  async upsertDeviceVisitorCard(data: {
+    deviceId: number;
+    visitorCardId: number;
+    command: "ADD" | "DELETE" | "UPDATE"; // Command ab dynamic hai
+  }) {
+    return await db.transaction(async (tx) => {
+      // Unique VisitorCardCode generate karna
+      const visitorCardCode = `Visitor${data.visitorCardId}`;
+
+      const [result] = await tx
+        .insert(schema.visitorCardLogs)
+        .values({
+          deviceId: data.deviceId,
+          visitorCardId: data.visitorCardId,
+          visitorCardCode: visitorCardCode,
+          command: data.command, // Yahan se command pass hogi
+          status: "PENDING",     // Sync engine ke liye status
+          isDirtyDateTime: new Date(),
+          syncDate: null,
+        })
+        .onConflictDoUpdate({
+          target: [schema.visitorCardLogs.deviceId, schema.visitorCardLogs.visitorCardId],
+          set: {
+            command: data.command, // Update karte waqt nayi command set hogi
+            isDirtyDateTime: new Date(), // Sync trigger update
+            status: "PENDING",
+          },
+        })
+        .returning();
+
+      return result;
+    });
+  }
 }
 export const storage = new DatabaseStorage();
