@@ -3110,19 +3110,58 @@ export class DatabaseStorage implements IStorage {
   });
 }
 
-  async deleteVisitor(id: number): Promise<void> {
-    return await db.transaction(async (tx) => {
-      await tx.delete(visitors).where(eq(visitors.id, id));
-      try {
-        await dbMsSql.delete(visitors).where(eq(visitors.id, id));
-      } catch (err) {
-        console.error("MS SQL Sync Delete Error:", err);
-        tx.rollback();
-        throw new Error("MS SQL Sync Failed during deletion");
-      }
-    });
+async deleteVisitor(id: number): Promise<void> {
+  // 1. Pehle Postgres se purana data nikaalo taaki 'msId' mil sake
+  const currentVisitor = await db
+    .select()
+    .from(visitors)
+    .where(eq(visitors.id, id))
+    .limit(1);
+
+  if (currentVisitor.length === 0) {
+    throw new Error(`Visitor deletion failed: Record with local ID '${id}' not found.`);
   }
 
+  const targetMsId = currentVisitor[0].msId;
+
+  if (!targetMsId) {
+    throw new Error(`Visitor deletion failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+  }
+
+  // 2. Ab Master Transaction shuru karein
+  return await db.transaction(async (tx) => {
+    
+    // STEP A: Local Postgres se delete karein
+    try {
+      await tx.delete(visitors).where(eq(visitors.id, id));
+    } catch (pgErr: any) {
+      tx.rollback();
+      throw new Error(`Postgres Deletion Failed: ${pgErr.message}`);
+    }
+
+    // STEP B: Ab MS SQL se sahi 'targetMsId' use karke delete karein
+    try {
+      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        await mssqlPool.connect();
+      }
+      const request = mssqlPool.request();
+      
+      // YAHA PE DHAYAN DEIN: Hum targetMsId pass kar rahe hain, local id nahi!
+      request.input('TargetMsId', mssql.Int, targetMsId);
+
+      await request.query(`
+        DELETE FROM VisitorLogs 
+        WHERE Id = @TargetMsId
+      `);
+
+    } catch (msSqlErr: any) {
+      console.error("MS SQL Sync Delete Error inside transaction:", msSqlErr);
+      // Agar MS SQL fail hua, toh Postgres ka delete bhi rollback
+      tx.rollback();
+      throw new Error(`Sync Failed: MS SQL failed to delete. Postgres changes rolled back. Reason: ${msSqlErr.message}`);
+    }
+  });
+}
   async getVisits(status?: string): Promise<Visit[]> {
     if (status) {
       return await db
