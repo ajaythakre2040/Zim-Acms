@@ -1654,40 +1654,293 @@ export class DatabaseStorage implements IStorage {
   // STORAGE
   // ==========================
 
+  // async getPeople(
+  //   search?: string,
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  // ): Promise<any> {
+  //   const [pgDataRaw, msDataRaw] = await Promise.all([
+  //     db
+  //       .select({
+  //         person: {
+  //           ...people,
+  //           lastSeenTime: sql<string>`
+  //           TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')
+  //         `,
+  //         },
+  //         departmentName: departments.name,
+  //         designationName: designations.name,
+  //         lastPunchDoorName: doors.name,
+  //       })
+  //       .from(people)
+  //       .leftJoin(departments, eq(people.departmentId, departments.id))
+  //       .leftJoin(designations, eq(people.designationId, designations.id))
+  //       .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
+
+  //     dbMsSql.select().from({ dbName: "Employees" }).execute(),
+  //   ]);
+
+  //   const msIds = new Set();
+
+  //   const ruleIdToName = Object.fromEntries(
+  //     Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
+  //   );
+
+  //   const currentPgData = pgDataRaw.map((row) => ({
+  //     ...row.person,
+  //     departmentName: row.departmentName || "N/A",
+  //     designationName: row.designationName || "N/A",
+  //     lastPunchDoorName: row.lastPunchDoorName || "No Door",
+  //     ruleName:
+  //       row.person.ruleid !== null
+  //         ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
+  //         : "NO_RULE",
+  //   }));
+
+  //   // ==========================
+  //   // MSSQL SYNC
+  //   // ==========================
+
+  //   for (const msRow of msDataRaw || []) {
+  //     const mapped = PersonAdapter.toPostgres(msRow);
+
+  //     if (!mapped.msId) continue;
+
+  //     msIds.add(mapped.msId);
+
+  //     const existingIndex = currentPgData.findIndex(
+  //       (p) => p.msId === mapped.msId,
+  //     );
+
+  //     // ==========================
+  //     // INSERT
+  //     // ==========================
+
+  //     if (existingIndex === -1) {
+  //       try {
+  //         const [newRec] = await db
+  //           .insert(people)
+  //           .values({
+  //             msId: mapped.msId,
+  //             employeeCode: mapped.employeeCode,
+  //             employeeName: mapped.employeeName ?? "Unknown",
+  //             // address: mapped.address ?? null,
+  //             ruleid: mapped.ruleid ?? null,
+  //             locationId: mapped.locationId ?? null,
+  //             externalId: mapped.externalId ?? null,
+  //             overtimeEligible: mapped.overtimeEligible ?? false,
+  //             personType: "employee",
+  //             status: "active",
+  //             sourceSystem: "mssql_bio",
+  //             updatedAt: new Date(),
+  //             createdAt: new Date(),
+  //           })
+  //           .returning();
+
+  //         if (newRec?.employeeCode) {
+  //           // await this.executeHardwareSync(newRec.employeeCode, null, true);
+  //           this.executeHardwareSyncBackground(newRec.employeeCode);
+  //         }
+
+  //         currentPgData.push({
+  //           ...newRec,
+  //           departmentName: "N/A",
+  //           designationName: "N/A",
+  //           lastPunchDoorName: "No Door",
+  //           ruleName:
+  //             newRec.ruleid !== null
+  //               ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
+  //               : "NO_ROLE",
+  //         });
+  //       } catch (e) {
+  //         console.error("New employee sync error:", e);
+  //       }
+  //     }
+
+  //     // ==========================
+  //     // UPDATE
+  //     // ==========================
+  //     else {
+  //       const existing = currentPgData[existingIndex];
+
+  //       const hasChanged =
+  //         existing.employeeName !== mapped.employeeName ||
+  //         existing.employeeCode !== mapped.employeeCode ||
+  //         existing.ruleid !== mapped.ruleid;
+
+  //       if (hasChanged) {
+  //         try {
+  //           const [updatedRec] = await db
+  //             .update(people)
+  //             .set({
+  //               employeeName: mapped.employeeName ?? "Unknown",
+  //               employeeCode: mapped.employeeCode,
+  //               // address: mapped.address ?? null,
+  //               updatedAt: new Date(),
+  //             })
+  //             .where(eq(people.msId, mapped.msId))
+  //             .returning();
+
+  //           currentPgData[existingIndex] = {
+  //             ...existing,
+  //             ...updatedRec,
+  //             ruleName:
+  //               updatedRec.ruleid !== null
+  //                 ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
+  //                 : "NO_ROLE",
+  //           };
+  //         } catch (e) {
+  //           console.error("Employee update sync error:", e);
+  //         }
+  //       }
+  //     }
+  //   }
+
+  //   // ==========================
+  //   // DELETE REMOVED MSSQL USERS
+  //   // ==========================
+
+  //   for (const pgRow of currentPgData) {
+  //     if (pgRow.msId && !msIds.has(pgRow.msId)) {
+  //       try {
+  //         await db.delete(people).where(eq(people.msId, pgRow.msId));
+  //       } catch (e) { }
+  //     }
+  //   }
+
+  //   // ==========================
+  //   // SEARCH
+  //   // ==========================
+
+  //   let results = currentPgData;
+
+  //   if (search?.trim()) {
+  //     const term = search.toLowerCase();
+
+  //     results = results.filter(
+  //       (p) =>
+  //         p.employeeName?.toLowerCase().includes(term) ||
+  //         p.employeeCode?.toLowerCase().includes(term) ||
+  //         p.departmentName?.toLowerCase().includes(term) ||
+  //         p.ruleName?.toLowerCase().includes(term),
+  //     );
+  //   }
+
+  //   // ==========================
+  //   // SORT
+  //   // ==========================
+
+  //   results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+
+  //   // ==========================
+  //   // UNIQUE
+  //   // ==========================
+
+  //   const uniquePeople = Array.from(
+  //     new Map(
+  //       results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
+  //     ).values(),
+  //   );
+
+  //   // ==========================
+  //   // OLD FORMAT
+  //   // ==========================
+
+  //   if (!pageSize) {
+  //     return uniquePeople as Person[];
+  //   }
+
+  //   // ==========================
+  //   // ALL RECORDS
+  //   // ==========================
+
+  //   if (pageSize === -1 || pageSize === "-1") {
+  //     return {
+  //       data: uniquePeople,
+  //       totalCount: uniquePeople.length,
+  //       totalPages: 1,
+  //       currentPage: 1,
+  //       pageSize: uniquePeople.length,
+  //     };
+  //   }
+
+  //   // ==========================
+  //   // PAGINATION
+  //   // ==========================
+
+  //   const p = page && Number(page) > 0 ? Number(page) : 1;
+
+  //   const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+
+  //   const start = (p - 1) * size;
+
+  //   const end = start + size;
+
+  //   const paginatedData = uniquePeople.slice(start, end);
+
+  //   return {
+  //     data: paginatedData,
+  //     totalCount: uniquePeople.length,
+  //     totalPages: Math.ceil(uniquePeople.length / size),
+  //     currentPage: p,
+  //     pageSize: size,
+  //   };
+  // }
+
   async getPeople(
-    search?: string,
-    page?: number | string,
-    pageSize?: number | string,
-  ): Promise<any> {
-    const [pgDataRaw, msDataRaw] = await Promise.all([
-      db
-        .select({
-          person: {
-            ...people,
-            lastSeenTime: sql<string>`
+  search?: string,
+  page?: number | string,
+  pageSize?: number | string,
+): Promise<any> {
+  // ==========================
+  // 1. FETCH RAW DATA FROM POSTGRES & MSSQL
+  // ==========================
+  const [pgDataRaw, msDataRaw] = await Promise.all([
+    db
+      .select({
+        person: {
+          ...people,
+          lastSeenTime: sql<string>`
             TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')
           `,
-          },
-          departmentName: departments.name,
-          designationName: designations.name,
-          lastPunchDoorName: doors.name,
-        })
-        .from(people)
-        .leftJoin(departments, eq(people.departmentId, departments.id))
-        .leftJoin(designations, eq(people.designationId, designations.id))
-        .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
+        },
+        departmentName: departments.name,
+        designationName: designations.name,
+        lastPunchDoorName: doors.name,
+        additionalDetails: peopleAdditionalDetails, 
+      })
+      .from(people)
+      .leftJoin(departments, eq(people.departmentId, departments.id))
+      .leftJoin(designations, eq(people.designationId, designations.id))
+      .leftJoin(doors, eq(people.lastPunchDoorId, doors.id))
+      .leftJoin(peopleAdditionalDetails, eq(people.employeeCode, peopleAdditionalDetails.employeeCode)),
 
-      dbMsSql.select().from({ dbName: "Employees" }).execute(),
-    ]);
+    dbMsSql.select().from({ dbName: "Employees" }).execute(),
+  ]);
 
-    const msIds = new Set();
+  const msIds = new Set();
 
-    const ruleIdToName = Object.fromEntries(
-      Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
-    );
+  const ruleIdToName = Object.fromEntries(
+    Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
+  );
 
-    const currentPgData = pgDataRaw.map((row) => ({
-      ...row.person,
+  // ==========================
+  // FLAT MAPPING (Sare Columns Ek Sath)
+  // ==========================
+  const currentPgData = pgDataRaw.map((row) => {
+    // logo ke additional details ke id aur timestamps ko destructure kar rahe hain 
+    // taaki wo main people table ke id, createdAt, updatedAt ko overwrite na karein.
+    const { 
+      id: _detailId, 
+      employeeCode: _detailCode,
+      createdAt: _detailCreated, 
+      updatedAt: _detailUpdated, 
+      ...restOfAdditionalDetails 
+    } = row.additionalDetails || {};
+
+    return {
+      ...row.person,                  // Main people data
+      ...restOfAdditionalDetails,     // Flat additional details (cardNo, companyUnit, etc.)
       departmentName: row.departmentName || "N/A",
       designationName: row.designationName || "N/A",
       lastPunchDoorName: row.lastPunchDoorName || "No Door",
@@ -1695,197 +1948,178 @@ export class DatabaseStorage implements IStorage {
         row.person.ruleid !== null
           ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
           : "NO_RULE",
-    }));
+    };
+  });
 
-    // ==========================
-    // MSSQL SYNC
-    // ==========================
+  // ==========================
+  // 2. MSSQL SYNC (INSERT & UPDATE)
+  // ==========================
+  for (const msRow of msDataRaw || []) {
+    const mapped = PersonAdapter.toPostgres(msRow);
 
-    for (const msRow of msDataRaw || []) {
-      const mapped = PersonAdapter.toPostgres(msRow);
+    if (!mapped.msId) continue;
 
-      if (!mapped.msId) continue;
+    msIds.add(mapped.msId);
 
-      msIds.add(mapped.msId);
-
-      const existingIndex = currentPgData.findIndex(
-        (p) => p.msId === mapped.msId,
-      );
-
-      // ==========================
-      // INSERT
-      // ==========================
-
-      if (existingIndex === -1) {
-        try {
-          const [newRec] = await db
-            .insert(people)
-            .values({
-              msId: mapped.msId,
-              employeeCode: mapped.employeeCode,
-              employeeName: mapped.employeeName ?? "Unknown",
-              // address: mapped.address ?? null,
-              ruleid: mapped.ruleid ?? null,
-              locationId: mapped.locationId ?? null,
-              externalId: mapped.externalId ?? null,
-              overtimeEligible: mapped.overtimeEligible ?? false,
-              personType: "employee",
-              status: "active",
-              sourceSystem: "mssql_bio",
-              updatedAt: new Date(),
-              createdAt: new Date(),
-            })
-            .returning();
-
-          if (newRec?.employeeCode) {
-            // await this.executeHardwareSync(newRec.employeeCode, null, true);
-            this.executeHardwareSyncBackground(newRec.employeeCode);
-          }
-
-          currentPgData.push({
-            ...newRec,
-            departmentName: "N/A",
-            designationName: "N/A",
-            lastPunchDoorName: "No Door",
-            ruleName:
-              newRec.ruleid !== null
-                ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
-                : "NO_ROLE",
-          });
-        } catch (e) {
-          console.error("New employee sync error:", e);
-        }
-      }
-
-      // ==========================
-      // UPDATE
-      // ==========================
-      else {
-        const existing = currentPgData[existingIndex];
-
-        const hasChanged =
-          existing.employeeName !== mapped.employeeName ||
-          existing.employeeCode !== mapped.employeeCode ||
-          existing.ruleid !== mapped.ruleid;
-
-        if (hasChanged) {
-          try {
-            const [updatedRec] = await db
-              .update(people)
-              .set({
-                employeeName: mapped.employeeName ?? "Unknown",
-                employeeCode: mapped.employeeCode,
-                // address: mapped.address ?? null,
-                updatedAt: new Date(),
-              })
-              .where(eq(people.msId, mapped.msId))
-              .returning();
-
-            currentPgData[existingIndex] = {
-              ...existing,
-              ...updatedRec,
-              ruleName:
-                updatedRec.ruleid !== null
-                  ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
-                  : "NO_ROLE",
-            };
-          } catch (e) {
-            console.error("Employee update sync error:", e);
-          }
-        }
-      }
-    }
-
-    // ==========================
-    // DELETE REMOVED MSSQL USERS
-    // ==========================
-
-    for (const pgRow of currentPgData) {
-      if (pgRow.msId && !msIds.has(pgRow.msId)) {
-        try {
-          await db.delete(people).where(eq(people.msId, pgRow.msId));
-        } catch (e) { }
-      }
-    }
-
-    // ==========================
-    // SEARCH
-    // ==========================
-
-    let results = currentPgData;
-
-    if (search?.trim()) {
-      const term = search.toLowerCase();
-
-      results = results.filter(
-        (p) =>
-          p.employeeName?.toLowerCase().includes(term) ||
-          p.employeeCode?.toLowerCase().includes(term) ||
-          p.departmentName?.toLowerCase().includes(term) ||
-          p.ruleName?.toLowerCase().includes(term),
-      );
-    }
-
-    // ==========================
-    // SORT
-    // ==========================
-
-    results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
-
-    // ==========================
-    // UNIQUE
-    // ==========================
-
-    const uniquePeople = Array.from(
-      new Map(
-        results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
-      ).values(),
+    const existingIndex = currentPgData.findIndex(
+      (p) => p.msId === mapped.msId,
     );
 
-    // ==========================
-    // OLD FORMAT
-    // ==========================
+    // --------------------------
+    // INSERT NEW EMPLOYEE
+    // --------------------------
+    if (existingIndex === -1) {
+      try {
+        const [newRec] = await db
+          .insert(people)
+          .values({
+            msId: mapped.msId,
+            employeeCode: mapped.employeeCode,
+            employeeName: mapped.employeeName ?? "Unknown",
+            ruleid: mapped.ruleid ?? null,
+            locationId: mapped.locationId ?? null,
+            externalId: mapped.externalId ?? null,
+            overtimeEligible: mapped.overtimeEligible ?? false,
+            personType: "employee",
+            status: "active",
+            sourceSystem: "mssql_bio",
+            updatedAt: new Date(),
+            createdAt: new Date(),
+          })
+          .returning();
 
-    if (!pageSize) {
-      return uniquePeople as Person[];
+        if (newRec?.employeeCode) {
+          this.executeHardwareSyncBackground(newRec.employeeCode);
+        }
+
+        currentPgData.push({
+          ...newRec,
+          departmentName: "N/A",
+          designationName: "N/A",
+          lastPunchDoorName: "No Door",
+          ruleName:
+            newRec.ruleid !== null
+              ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
+              : "NO_ROLE",
+        });
+      } catch (e) {
+        console.error("New employee sync error:", e);
+      }
     }
+    // --------------------------
+    // UPDATE EXISTING EMPLOYEE
+    // --------------------------
+    else {
+      const existing = currentPgData[existingIndex];
 
-    // ==========================
-    // ALL RECORDS
-    // ==========================
+      const hasChanged =
+        existing.employeeName !== mapped.employeeName ||
+        existing.employeeCode !== mapped.employeeCode ||
+        existing.ruleid !== mapped.ruleid;
 
-    if (pageSize === -1 || pageSize === "-1") {
-      return {
-        data: uniquePeople,
-        totalCount: uniquePeople.length,
-        totalPages: 1,
-        currentPage: 1,
-        pageSize: uniquePeople.length,
-      };
+      if (hasChanged) {
+        try {
+          const [updatedRec] = await db
+            .update(people)
+            .set({
+              employeeName: mapped.employeeName ?? "Unknown",
+              employeeCode: mapped.employeeCode,
+              updatedAt: new Date(),
+            })
+            .where(eq(people.msId, mapped.msId))
+            .returning();
+
+          currentPgData[existingIndex] = {
+            ...existing,
+            ...updatedRec,
+            ruleName:
+              updatedRec.ruleid !== null
+                ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
+                : "NO_ROLE",
+          };
+        } catch (e) {
+          console.error("Employee update sync error:", e);
+        }
+      }
     }
+  }
 
-    // ==========================
-    // PAGINATION
-    // ==========================
+  // ==========================
+  // 3. DELETE REMOVED MSSQL USERS
+  // ==========================
+  for (const pgRow of currentPgData) {
+    if (pgRow.msId && !msIds.has(pgRow.msId)) {
+      try {
+        await db.delete(people).where(eq(people.msId, pgRow.msId));
+      } catch (e) {
+        console.error("Delete sync error:", e);
+      }
+    }
+  }
 
-    const p = page && Number(page) > 0 ? Number(page) : 1;
+  // ==========================
+  // 4. SEARCH
+  // ==========================
+  let results = currentPgData;
 
-    const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+  if (search?.trim()) {
+    const term = search.toLowerCase();
 
-    const start = (p - 1) * size;
+    results = results.filter(
+      (p) =>
+        p.employeeName?.toLowerCase().includes(term) ||
+        p.employeeCode?.toLowerCase().includes(term) ||
+        p.departmentName?.toLowerCase().includes(term) ||
+        p.ruleName?.toLowerCase().includes(term),
+    );
+  }
 
-    const end = start + size;
+  // ==========================
+  // 5. SORT BY ID DESCENDING
+  // ==========================
+  results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
 
-    const paginatedData = uniquePeople.slice(start, end);
+  // ==========================
+  // 6. UNIQUE RECORDS FILTER
+  // ==========================
+  const uniquePeople = Array.from(
+    new Map(
+      results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
+    ).values(),
+  );
 
+  // ==========================
+  // 7. PAGINATION & RETURN FORMATS
+  // ==========================
+  if (!pageSize) {
+    return uniquePeople;
+  }
+
+  if (pageSize === -1 || pageSize === "-1") {
     return {
-      data: paginatedData,
+      data: uniquePeople,
       totalCount: uniquePeople.length,
-      totalPages: Math.ceil(uniquePeople.length / size),
-      currentPage: p,
-      pageSize: size,
+      totalPages: 1,
+      currentPage: 1,
+      pageSize: uniquePeople.length,
     };
   }
+
+  const p = page && Number(page) > 0 ? Number(page) : 1;
+  const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+  const start = (p - 1) * size;
+  const end = start + size;
+  const paginatedData = uniquePeople.slice(start, end);
+
+  return {
+    data: paginatedData,
+    totalCount: uniquePeople.length,
+    totalPages: Math.ceil(uniquePeople.length / size),
+    currentPage: p,
+    pageSize: size,
+  };
+}
+
   // 🛠️ Helper function to trigger sync in the background without locking the main thread
   private async executeHardwareSyncBackground(employeeCode: string) {
     // Thoda sa delay taaki biometric database user ko fully process karle
