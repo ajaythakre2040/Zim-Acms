@@ -1374,6 +1374,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");
     return { status: "success", message: "Access privileges updated successfully.", data: await storage.upsertEmployeeDoorAssignment({ employeeCode, doorIds }) };
   }, 200));
+  
   app.post("/api/device-visitor-cards", withAudit(TABLES.DEVICE_VISITOR_CARDS, "ADD/UPDATE", async (req) => {
     const { deviceId, visitorCardId, command } = req.body;
 

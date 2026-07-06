@@ -2505,7 +2505,9 @@ export async function exportDepartmentWiseManpowerPDF(
 }
 
 export function exportEmployeeCSV(data: any[]) {
-  try {
+  console.log("Employee Data data");
+  console.log("Employee Data:", data);
+    try {
     if (!Array.isArray(data) || !data.length) return;
 
     const ruleNames: Record<number, string> = {
@@ -2516,41 +2518,113 @@ export function exportEmployeeCSV(data: any[]) {
       4: "Lockout Active",
       5: "Main Gate Out",
     };
+      const formatNumber = (val: any) => {
+        if (val === null || val === undefined) return "";
+        const num = Number(val);
+        if (!isNaN(num) && String(val).toUpperCase().includes("E")) {
+          // Agar floating point notation hai to complete number string banayein
+          return num.toFixed(0);
+        }
+        return String(val);
+      };
 
-    const rows = data.map((p: any) => ({
-      Name: p.employeeName || "-",
+      // Helper function to format dates to DD-MMM-YYYY (jaise template me hai: 15-Aug-1990)
+      const formatDate = (dateStr: string | null) => {
+        if (!dateStr) return "";
+        const date = new Date(dateStr);
+        if (isNaN(date.getTime())) return dateStr; // Fallback agar date invalid ho
 
-      "Emp Code": p.employeeCode || "-",
+        const day = String(date.getDate()).padStart(2, '0');
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const month = months[date.getMonth()];
+        const year = date.getFullYear();
 
-      "Cabin Lockout": p.is_lockout_enabled ? "ACTIVE" : "INACTIVE",
+        return `${day}-${month}-${year}`;
+      };
+    // const rows = data.map((p: any) => ({
+    //   Name: p.employeeName || "-",
 
-      "Current Rule": ruleNames[p.ruleid ?? 0] || "Unknown",
+    //   "Emp Code": p.employeeCode || "-",
 
-      "Last Door Access": p.lastPunchDoorId
-        ? p.lastPunchDoorName || "-"
-        : "Never",
+    //   "Cabin Lockout": p.is_lockout_enabled ? "ACTIVE" : "INACTIVE",
 
-      "Last Seen": p?.lastSeenTime ? formatDateTime(p.lastSeenTime) : "-",
+    //   "Current Rule": ruleNames[p.ruleid ?? 0] || "Unknown",
 
-      Status: p.status || "-",
+    //   "Last Door Access": p.lastPunchDoorId
+    //     ? p.lastPunchDoorName || "-"
+    //     : "Never",
 
-      Email: p.email || "-",
+    //   "Last Seen": p?.lastSeenTime ? formatDateTime(p.lastSeenTime) : "-",
 
-      Phone: p.phone || "-",
+    //   Status: p.status || "-",
 
-      Type: p.personType || "-",
+    //   Email: p.email || "-",
 
-      Gender: p.gender || "-",
+    //   Phone: p.phone || "-",
 
-      Department: p.departmentName || "-",
+    //   Type: p.personType || "-",
 
-      Designation: p.designationName || "-",
+    //   Gender: p.gender || "-",
 
-      "Date Of Joining": p.dateOfJoining
-        ? new Date(p.dateOfJoining).toLocaleDateString("en-GB")
-        : "-",
-    }));
+    //   Department: p.departmentName || "-",
 
+    //   Designation: p.designationName || "-",
+
+    //   "Date Of Joining": p.dateOfJoining
+    //     ? new Date(p.dateOfJoining).toLocaleDateString("en-GB")
+    //     : "-",
+    // }));
+      const rows = data.map((p: any) => ({
+        "Active": p.status && p.status.toLowerCase() === "active" ? "Yes" : "No",
+        "Emp_ID": p.employeeCode || "",
+        "Emp_Name": p.employeeName || "",
+        "Guardian_Name": p.guardianName || "",
+        "DOB": formatDate(p.dateOfBirth),
+        "DOJ": formatDate(p.dateOfJoining),
+        "Card_No": p.cardNo || "",
+        "Company_Unit": p.companyUnit || "",
+        "Service_Category": p.serviceCategory || "",
+        "Department": p.departmentName || "",
+        "Section": p.section || "",
+        "Designation": p.designationName || "",
+        "Employment_Type": p.employment || "",
+        "Employer_Name": p.employerName || "",
+        "Gender": p.gender || "",
+        "Marital_Status": p.maritalStatus || "",
+        "Per_Day_Rate": p.perDayRate || "",
+        "Per_Hour_Rate": p.perHourRate || "",
+        "Edu_Qual": p.qualification || "", // API me "qualification" hai
+        "Stream": p.stream || "",
+        "Prof_Qual": "", // Agar data me bad me aaye to p.prof_qualify lagayein, abhi khali rakha hai
+        "Exp_Years": p.experience || "",
+        "Present_Address1": p.presentAddress1 || "",
+        "Present_Address2": p.presentAddress2 || "",
+        "Present_District": p.presentDistrict || "",
+        "Present_Pincode": p.presentPincode || "",
+        "Present_State": p.presentState || "",
+        "Mobile_Number": p.phone || "",
+        "Emergency_Number": p.emergencyContact || "",
+        "Email_ID": p.email || "",
+        "Permanent_Addr1": p.permanentAddress1 || "",
+        "Permanent_Addr2": p.permanentAddress2 || "",
+        "Permanent_District": p.permanentDistrict || "",
+        "Permanent_PinPincode": p.permanentPincode || "",
+        "Permanent_State": p.permanentState || "",
+        "Blood_Group": p.bloodGroup || "",
+        "Self_Declaration": p.selfDeclaration || "",
+        "Police_Verification": p.policeVerification || "",
+        "UAN_No": formatNumber(p.uanNumber),
+        "ESIC_No": p.esiNumber || "",
+        "Authorized_Device": p.authorizedDevice || "",
+        "Report_Manager": p.reportingManager || "",
+        "Aadhaar_No": p.aadhaarNumber || "",
+        "PAN_No": p.panNumber || "",
+        "Bank_Acc_No": formatNumber(p.bankAccountNo),
+        "Bank_Name": p.bankName || "",
+        "IFSC_Code": p.bankIfsc || "",
+        "Leaving_Date": formatDate(p.dateOfResignation),
+        "Leaving_Reason": p.leavingReason || ""
+      }));
     const headers = Object.keys(rows[0]);
 
     const escapeCSV = (val: any) =>
