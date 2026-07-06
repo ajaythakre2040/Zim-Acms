@@ -44,10 +44,10 @@ export default function LiveVisitorLogsDashboard() {
 
   // React Query with dynamic parameters
   const { data: queryResponse, isLoading } = useQuery({
-    queryKey: ["/api/dashboard/attendance/machine-logs", page, pageSize],
+    queryKey: ["/api/dashboard/visitor/visitor-machine-logs", page, pageSize],
     queryFn: async () => {
       const res = await fetch(
-        `/api/dashboard/attendance/machine-logs?page=${page}&pageSize=${pageSize}`
+        `/api/dashboard/visitor/visitor-machine-logs?page=${page}&pageSize=${pageSize}`
       );
       return await res.json();
     },
@@ -185,10 +185,10 @@ export default function LiveVisitorLogsDashboard() {
                         className="hover:bg-muted/30 text-center transition-colors"
                       >
                         <td className="px-4 py-3 font-medium text-left">
-                          {log.employeeName}
+                        {log.visitorName}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">
-                          {log.employeeCode}
+                        {log.visitorCode}
                         </td>
                         <td className="px-4 py-3">{log.doorName}</td>
                         <td className="px-4 py-3">{log.deviceName}</td>

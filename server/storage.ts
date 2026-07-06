@@ -4293,7 +4293,7 @@ export class DatabaseStorage implements IStorage {
     const msSqlData = await mssqlPool.request().input("filterDate", date)
       .query(`
       SELECT 
-        l.EmployeeCode, -- contains something like 'visitor45'
+        l.EmployeeCode, 
         l.DeviceId, 
         d.DeviceName,
         l.Direction, 
@@ -4301,22 +4301,27 @@ export class DatabaseStorage implements IStorage {
       FROM DeviceLogs l
       LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
       WHERE CAST(l.LogDate AS DATE) = @filterDate
-        AND l.EmployeeCode LIKE 'visitor%' -- Only visitor logs
+        AND LOWER(l.EmployeeCode) LIKE 'visitor%'
       ORDER BY l.LogDate DESC
     `);
 
     const logs = msSqlData.recordset;
 
-    // Optimize Name Resolution: Pure logs me se visitor IDs nikal kar Postgres se real names fetch karna
+    // Extract plain IDs safely (e.g. 'Visitor270' -> 270)
     const visitorIds = logs.map(l => {
-      const matched = l.EmployeeCode.match(/\d+/);
+      if (!l.EmployeeCode) return null;
+      const matched = String(l.EmployeeCode).match(/\d+/);
       return matched ? Number(matched[0]) : null;
     }).filter((id): id is number => id !== null);
 
+    // Fetch true visitor profiles from Postgres
     let visitorDetails: any[] = [];
     if (visitorIds.length > 0) {
       visitorDetails = await db
-        .select({ id: schema.visitors.id, name: schema.visitors.nameOfVisitor }) // standard name/firstName column
+        .select({
+          id: schema.visitors.id,
+          name: schema.visitors.nameOfVisitor// Agar aapka schema name alag hai (jaise firstName), toh yahan update karein
+        })
         .from(schema.visitors)
         .where(inArray(schema.visitors.id, [...new Set(visitorIds)]));
     }
@@ -4328,14 +4333,18 @@ export class DatabaseStorage implements IStorage {
           (m.outIds || []).includes(log.DeviceId),
       );
 
-      // Extract raw ID from string 'visitor45' -> 45
-      const idMatch = log.EmployeeCode.match(/\d+/);
+      const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
       const numericVisitorId = idMatch ? Number(idMatch[0]) : null;
-      const dbVisitor = visitorDetails.find(v => v.id === numericVisitorId);
+
+      // Strict type casting fix: Number aur String dono scenarios check karenge
+      const dbVisitor = visitorDetails.find(v =>
+        Number(v.id) === Number(numericVisitorId)
+      );
 
       return {
-        visitorName: dbVisitor ? dbVisitor.name : "Unknown Visitor",
+        visitorName: dbVisitor ? dbVisitor.name : `Visitor ${numericVisitorId}`, // Fallback if record not synced yet
         visitorId: numericVisitorId,
+        visitorCode: log.EmployeeCode,
         deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
         direction: log.Direction,
         logDate: log.LogDate,
