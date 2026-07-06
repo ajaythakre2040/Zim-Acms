@@ -39,7 +39,7 @@ import SettingsPage from "@/pages/settings";
 import ReportsPage from "@/pages/reports";
 import CronMasterPage from "@/pages/cronMasterPage";
 import ShiftDashboard from "./pages/ShiftDashboard";
-import LiveLogsDashboard from "./pages/LiveLogsDashboard";
+import LiveLogsDashboard from "./pages/VisitorLiveLogs";
 import DesignationPage from "./pages/designations";
 import DepartmentsPage from "./pages/departments";
 import RolesPage from "./pages/role";
@@ -60,6 +60,7 @@ import { MENU_CONFIG } from "../../server/constant";
 import ContractorFormPage from "./pages/ContractorFormPage"; // Aapka form page file path
 import visitors from "./pages/visitor-details";
 import VisitorLogs from "./pages/VisitorLogs";
+import LiveVisitorLogsDashboard from "./pages/VisitorLiveLogs";
 import VisitorCards from "./pages/VisitorCards";
 
 function StandardRouter() {
@@ -107,7 +108,7 @@ function StandardRouter() {
       <Route path="/visitor-details" component={visitors} />
       {/* <Route path="/visitors" component={visitors} /> */}
       {/* <Route path="/visitor-cards" component={VisitorCards} /> */}
-      <Route path="/visitor-logs" component={VisitorLogs} />
+      <Route path="/visitor-logs" component={LiveVisitorLogsDashboard} />
       <Route path="/visitor-cards" component={VisitorCards} />
       <Route path="/contractors/view/:id" component={ContractorView} />
 

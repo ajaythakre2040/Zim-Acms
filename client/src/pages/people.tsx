@@ -728,10 +728,10 @@ export default function PeoplePage() {
                   CSV
                 </DropdownMenuItem>
 
-                <DropdownMenuItem onClick={() => exportEmployeePDF(people)}>
+                {/* <DropdownMenuItem onClick={() => exportEmployeePDF(people)}>
                   <FileText className="w-4 h-4 mr-2" />
                   PDF
-                </DropdownMenuItem>
+                </DropdownMenuItem> */}
               </DropdownMenuContent>
             </DropdownMenu>
           )}

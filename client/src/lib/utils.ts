@@ -2510,14 +2510,6 @@ export function exportEmployeeCSV(data: any[]) {
     try {
     if (!Array.isArray(data) || !data.length) return;
 
-    const ruleNames: Record<number, string> = {
-      0: "No Rule Assigned",
-      1: "Main Gate In",
-      2: "Cabin In",
-      3: "Cabin Out",
-      4: "Lockout Active",
-      5: "Main Gate Out",
-    };
       const formatNumber = (val: any) => {
         if (val === null || val === undefined) return "";
         const num = Number(val);
@@ -2541,39 +2533,7 @@ export function exportEmployeeCSV(data: any[]) {
 
         return `${day}-${month}-${year}`;
       };
-    // const rows = data.map((p: any) => ({
-    //   Name: p.employeeName || "-",
 
-    //   "Emp Code": p.employeeCode || "-",
-
-    //   "Cabin Lockout": p.is_lockout_enabled ? "ACTIVE" : "INACTIVE",
-
-    //   "Current Rule": ruleNames[p.ruleid ?? 0] || "Unknown",
-
-    //   "Last Door Access": p.lastPunchDoorId
-    //     ? p.lastPunchDoorName || "-"
-    //     : "Never",
-
-    //   "Last Seen": p?.lastSeenTime ? formatDateTime(p.lastSeenTime) : "-",
-
-    //   Status: p.status || "-",
-
-    //   Email: p.email || "-",
-
-    //   Phone: p.phone || "-",
-
-    //   Type: p.personType || "-",
-
-    //   Gender: p.gender || "-",
-
-    //   Department: p.departmentName || "-",
-
-    //   Designation: p.designationName || "-",
-
-    //   "Date Of Joining": p.dateOfJoining
-    //     ? new Date(p.dateOfJoining).toLocaleDateString("en-GB")
-    //     : "-",
-    // }));
       const rows = data.map((p: any) => ({
         "Active": p.status && p.status.toLowerCase() === "active" ? "Yes" : "No",
         "Emp_ID": p.employeeCode || "",
@@ -2666,14 +2626,14 @@ export function exportEmployeePDF(data: any[]) {
   try {
     if (!Array.isArray(data) || !data.length) return;
 
-    const ruleNames: Record<number, string> = {
-      0: "No Rule Assigned",
-      1: "Main Gate In",
-      2: "Cabin In",
-      3: "Cabin Out",
-      4: "Lockout Active",
-      5: "Main Gate Out",
-    };
+    // const ruleNames: Record<number, string> = {
+    //   0: "No Rule Assigned",
+    //   1: "Main Gate In",
+    //   2: "Cabin In",
+    //   3: "Cabin Out",
+    //   4: "Lockout Active",
+    //   5: "Main Gate Out",
+    // };
 
     const rows = data.map((p: any) => [
       p.employeeName || "-",
@@ -2682,7 +2642,7 @@ export function exportEmployeePDF(data: any[]) {
 
       p.is_lockout_enabled ? "ACTIVE" : "INACTIVE",
 
-      ruleNames[p.ruleid ?? 0] || "Unknown",
+      // ruleNames[p.ruleid ?? 0] || "Unknown",
 
       p.lastPunchDoorId ? p.lastPunchDoorName || "-" : "Never",
 

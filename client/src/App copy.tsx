@@ -37,7 +37,7 @@ import SettingsPage from "@/pages/settings";
 import ReportsPage from "@/pages/reports";
 import CronMasterPage from "@/pages/cronMasterPage";
 import ShiftDashboard from "./pages/ShiftDashboard";
-import LiveLogsDashboard from "./pages/LiveLogsDashboard";
+import LiveLogsDashboard from "./pages/VisitorLiveLogs";
 
 function Router() {
   return (

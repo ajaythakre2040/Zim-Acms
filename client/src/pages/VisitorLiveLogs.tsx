@@ -32,7 +32,7 @@ import {
   formatDateTime,
 } from "@/lib/utils";
 
-export default function LiveLogsDashboard() {
+export default function LiveVisitorLogsDashboard() {
   const { canExport, canView } = usePermission(MENU_CONFIG.LIVE_LOGS.code);
   const [, setLocation] = useLocation();
 
@@ -91,7 +91,7 @@ export default function LiveLogsDashboard() {
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Device Access Logs
+            Visitor Access Logs
           </h1>
           <p className="text-xs text-muted-foreground">
             Real-time machine interaction and security events.
@@ -107,15 +107,15 @@ export default function LiveLogsDashboard() {
           </CardTitle>
 
           <div className="flex items-center gap-2">
-            <button
+            {/* <button
               onClick={() => setLocation("/reports?tab=access-logs")}
               className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors shadow-sm font-medium flex items-center gap-1.5"
             >
               <Eye className="w-3.5 h-3.5" />
               View Details
-            </button>
+            </button> */}
 
-            {canExport && (
+            {/* {canExport && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -150,7 +150,7 @@ export default function LiveLogsDashboard() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
+            )} */}
           </div>
         </CardHeader>
 
@@ -160,9 +160,9 @@ export default function LiveLogsDashboard() {
               <thead className="bg-muted/90 border-b sticky top-0 z-10 backdrop-blur-sm text-center">
                 <tr>
                   <th className="px-4 py-3 font-semibold text-left">
-                    Employee Name
+                    Visitor Name
                   </th>
-                  <th className="px-4 py-3 font-semibold">Employee Code</th>
+                  <th className="px-4 py-3 font-semibold">Visitor Code</th>
                   <th className="px-4 py-3 font-semibold">Door Name</th>
                   <th className="px-4 py-3 font-semibold">Device Name</th>
                   <th className="px-4 py-3 font-semibold">Direction</th>

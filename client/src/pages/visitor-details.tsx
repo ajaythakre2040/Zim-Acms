@@ -75,13 +75,6 @@ export default function VisitorsPage() {
     },
   });
 
-  const { data: departments = [] } = useQuery({
-    queryKey: ["/api/departments"],
-    queryFn: async () => {
-      const res = await fetch("/api/departments");
-      return res.json();
-    },
-  });
 
   const { data: visitorCards = [] } = useQuery({
     queryKey: ["/api/visitor_cards_dropdown"],
@@ -183,8 +176,6 @@ export default function VisitorsPage() {
   {
     key: "designation",
     label: "Designation",
-    type: "select",
-    options: designations.map((d: any) => ({ label: d.name, value: d.name })),
   },
   {
     key: "rfidCardNo",
@@ -207,12 +198,12 @@ export default function VisitorsPage() {
       })
       .filter((o: any) => o.label !== ""),
   },
-  {
-    key: "department",
-    label: "Department",
-    type: "select",
-    options: departments.map((d: any) => ({ label: d.name, value: d.name })),
-  },
+  // {
+  //   key: "department",
+  //   label: "Department",
+  //   type: "select",
+  //   options: departments.map((d: any) => ({ label: d.name, value: d.name })),
+  // },
   { key: "purpose", label: "Purpose of Visit" },
   
   // ✅ HERE: Added missing Permission Validity Dates
@@ -435,7 +426,7 @@ export default function VisitorsPage() {
               <div>
                 <h2 className="text-xl font-bold leading-none">Assign Door</h2>
                 <p className="text-blue-100 text-xs mt-1">
-                  Assign doors to employee ({roleassign?.name})
+                  Assign doors to visitor ({roleassign?.name})
                 </p>
               </div>
             </div>
@@ -626,12 +617,12 @@ export default function VisitorsPage() {
                     <div>
                       <span className="text-muted-foreground block text-xs">Whom To Meet</span>
                       <span className="font-medium text-foreground">{viewingVisitor.whomToMeet || "-"}</span>
-                    </div>
+                    {/* </div>
                     <div>
                       <span className="text-muted-foreground block text-xs">Department</span>
                       <span className="font-medium text-foreground">{viewingVisitor.department || "-"}</span>
                     </div>
-                    <div>
+                    <div> */}
                       <span className="text-muted-foreground block text-xs">Purpose of Visit</span>
                       <span className="font-medium text-foreground">{viewingVisitor.purpose || "-"}</span>
                     </div>
