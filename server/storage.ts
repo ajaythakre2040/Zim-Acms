@@ -7844,38 +7844,101 @@ ${fromDate} || ' to ' || ${toDate}
     }
   });
 }
-  async upsertDeviceVisitorCard(data: {
-    deviceId: number;
+  async upsertVisitorDoorAssignment(data: {
+    visitorId: number;
     visitorCardId: number;
-    command: "ADD" | "DELETE" | "UPDATE"; // Command ab dynamic hai
+    doorIds: number[];
   }) {
-    return await db.transaction(async (tx) => {
-      // Unique VisitorCardCode generate karna
-      const visitorCardCode = `Visitor${data.visitorCardId}`;
+    const uniqueDoorIds = [...new Set(data.doorIds.map(Number))];
 
-      const [result] = await tx
-        .insert(schema.visitorCardLogs)
-        .values({
-          deviceId: data.deviceId,
-          visitorCardId: data.visitorCardId,
-          visitorCardCode: visitorCardCode,
-          command: data.command, // Yahan se command pass hogi
-          status: "PENDING",     // Sync engine ke liye status
-          isDirtyDateTime: new Date(),
-          syncDate: null,
-        })
-        .onConflictDoUpdate({
-          target: [schema.visitorCardLogs.deviceId, schema.visitorCardLogs.visitorCardId],
-          set: {
-            command: data.command, // Update karte waqt nayi command set hogi
-            isDirtyDateTime: new Date(), // Sync trigger update
-            status: "PENDING",
-          },
-        })
-        .returning();
+    if (uniqueDoorIds.length === 0) {
+      throw new Error("Door IDs array cannot be empty.");
+    }
 
-      return result;
+    // Check using rfid/rfidCardNo text column with string conversion
+    const [existingVisitor] = await db
+      .select()
+      .from(schema.visitors)
+      .where(
+        and(
+          eq(schema.visitors.id, Number(data.visitorId)),
+          eq(schema.visitors.rfidCardNo, data.visitorCardId.toString()) // Matches your string rfid column
+        )
+      )
+      .limit(1);
+
+    if (!existingVisitor) {
+      throw new Error("No matching record found for the provided Visitor ID and Visitor Card ID.");
+    }
+
+    const generatedCardCode = `visitor${data.visitorId}`;
+    const currentTimestamp = new Date();
+
+    const mappings = await db
+      .select({
+        inDeviceIds: schema.doorDevices.inDeviceIds,
+        outDeviceIds: schema.doorDevices.outDeviceIds
+      })
+      .from(schema.doorDevices)
+      .where(inArray(schema.doorDevices.doorId, uniqueDoorIds));
+
+    if (!mappings || mappings.length === 0) {
+      throw new Error("No matching devices found for the provided Door IDs in door_devices.");
+    }
+
+    const allDeviceIds = new Set<number>();
+    mappings.forEach((row) => {
+      if (Array.isArray(row.inDeviceIds)) {
+        row.inDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
+      }
+      if (Array.isArray(row.outDeviceIds)) {
+        row.outDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
+      }
     });
+
+    const deviceIds = [...allDeviceIds];
+
+    if (deviceIds.length === 0) {
+      throw new Error("No valid Device IDs found assigned to the selected doors.");
+    }
+
+    const pgResult = await db.transaction(async (tx) => {
+      const pgEntries = deviceIds.map((deviceId) => ({
+        deviceId: deviceId,
+        visitorCardId: Number(data.visitorCardId),
+        visitorCardCode: generatedCardCode,
+        command: 'ADD',
+        status: 'PENDING',
+        syncDate: null,
+        isDirtyDateTime: currentTimestamp,
+      }));
+
+      return await tx
+        .insert(schema.visitorCardLogs)
+        .values(pgEntries)
+        .returning();
+    });
+
+    try {
+      const msSqlPromises = deviceIds.map((deviceId) =>
+        dbMsSql.insert({ dbName: 'DeviceVisitorCards' }).values({
+          DeviceId: deviceId,
+          VisitorCardId: Number(data.visitorCardId),
+          VisitorCardCode: generatedCardCode,
+          Command: 'ADD',
+          Status: 'PENDING',
+          SyncDate: null,
+          IsDirtyDateTime: currentTimestamp,
+        })
+      );
+
+      await Promise.all(msSqlPromises);
+    } catch (msSqlError) {
+      console.error("MS SQL Sync Failed:", msSqlError);
+      throw new Error("Data saved to Postgres but failed to sync with MS SQL.");
+    }
+
+    return pgResult;
   }
 }
 export const storage = new DatabaseStorage();
