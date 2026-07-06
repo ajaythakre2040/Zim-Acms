@@ -1374,34 +1374,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");
     return { status: "success", message: "Access privileges updated successfully.", data: await storage.upsertEmployeeDoorAssignment({ employeeCode, doorIds }) };
   }, 200));
+ 
   
-  app.post("/api/device-visitor-cards", withAudit(TABLES.DEVICE_VISITOR_CARDS, "ADD/UPDATE", async (req) => {
-    const { deviceId, visitorCardId, command } = req.body;
 
-    // 1. Validation: Zaroori fields check karein
-    if (!deviceId || !visitorCardId || !command) {
-      throw new Error("Required data missing: deviceId (number), visitorCardId (number), and command (string) are mandatory.");
+
+
+  app.post("/api/visitor-door-assignments", withAudit(TABLES.DEVICE_VISITOR_CARDS, "ADD", async (req) => {
+    const { visitorId, visitorCardId, doorIds } = req.body;
+
+    if (!visitorId || !visitorCardId || !Array.isArray(doorIds)) {
+      throw new Error("Required data missing: visitorId (number), visitorCardId (number), and doorIds (array) are mandatory.");
     }
-
-    // 2. Business Logic Validation: Command valid honi chahiye
-    const validCommands = ["ADD", "DELETE", "UPDATE"];
-    if (!validCommands.includes(command)) {
-      throw new Error("Invalid command. Use ADD, DELETE, or UPDATE.");
-    }
-
-    // 3. Storage Call
-    const result = await storage.upsertDeviceVisitorCard({
-      deviceId: Number(deviceId),
-      visitorCardId: Number(visitorCardId),
-      command: command as "ADD" | "DELETE" | "UPDATE"
-    });
 
     return {
       status: "success",
-      message: `Visitor card sync command '${command}' queued successfully.`,
-      data: result
+      message: "Visitor door privileges updated successfully.",
+      data: await storage.upsertVisitorDoorAssignment({ visitorId, visitorCardId, doorIds })
     };
-  }, 200));
+  }, 200));;
+
+
+
+
   // app.delete("/api/employee-door-assignments/:id", async (req, res) => {
   //   try {
   //     await storage.deleteEmployeeDoorAssignment(Number(req.params.id));
