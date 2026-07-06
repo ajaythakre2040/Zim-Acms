@@ -114,17 +114,7 @@ export default function VisitorsPage() {
   // Mutations
   const createVisitor = useMutation({
     mutationFn: async (d: any) => {
-      const matchingCard = visitorCards.find(
-        (c: any) => String(c.cardNumber).trim() === String(d.rfidCardNo).trim(),
-      );
-
-      const payload = {
-        ...d,
-        // ✅ DB Schema ke hisab se 'visitorCardId' (CamelCase) bhejenge
-        visitorCardId: matchingCard ? Number(matchingCard.id) : null,
-      };
-
-      const r = await apiRequest("POST", "/api/visitors", payload);
+      const r = await apiRequest("POST", "/api/visitors", d);
       return r.json();
     },
     onSuccess: () => {
@@ -142,18 +132,7 @@ export default function VisitorsPage() {
 
   const updateVisitor = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const matchingCard = visitorCards.find(
-        (c: any) =>
-          String(c.cardNumber).trim() === String(data.rfidCardNo).trim(),
-      );
-
-      const payload = {
-        ...data,
-        // ✅ Edit case me bhi 'visitorCardId' use hoga
-        visitorCardId: matchingCard ? Number(matchingCard.id) : null,
-      };
-
-      const r = await apiRequest("PUT", `/api/visitors/${id}`, payload);
+      const r = await apiRequest("PUT", `/api/visitors/${id}`, data);
       return r.json();
     },
     onSuccess: () => {
@@ -461,15 +440,7 @@ export default function VisitorsPage() {
           editingVisitor ? "Modify Visitor Profile" : "Register New Visitor"
         }
         fields={visitorFields}
-        initialData={
-          editingVisitor 
-            ? {
-                ...editingVisitor,
-                // ✅ Agar backend se visitorCardId aa raha hai toh use dropdown selection ke rfidCardNo me map karenge
-                rfidCardNo: editingVisitor.rfidCardNo || visitorCards.find((c: any) => Number(c.id) === Number(editingVisitor.visitorCardId))?.cardNumber
-              }
-            : undefined
-        }
+        initialData={editingVisitor || undefined}
         onSubmit={(data) => {
           if (editingVisitor) {
             updateVisitor.mutate({ id: editingVisitor.id, data });
