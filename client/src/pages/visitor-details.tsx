@@ -21,10 +21,7 @@ import {
 import { PaginationSize } from "@/components/ui/pagination";
 
 // Shadcn UI Components
-import {
-  Dialog,
-  DialogContent,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export default function VisitorsPage() {
@@ -75,7 +72,6 @@ export default function VisitorsPage() {
     },
   });
 
-
   const { data: visitorCards = [] } = useQuery({
     queryKey: ["/api/visitor_cards_dropdown"],
     queryFn: async () => {
@@ -108,9 +104,12 @@ export default function VisitorsPage() {
   });
 
   // Data Fallback Parsers
-  const visitorsData = Array.isArray(pagedResponse) ? pagedResponse : pagedResponse?.data || [];
+  const visitorsData = Array.isArray(pagedResponse)
+    ? pagedResponse
+    : pagedResponse?.data || [];
   const totalCount = pagedResponse?.totalCount || visitorsData.length || 0;
-  const totalPages = pagedResponse?.totalPages || Math.ceil(totalCount / pageSize) || 1;
+  const totalPages =
+    pagedResponse?.totalPages || Math.ceil(totalCount / pageSize) || 1;
 
   // Mutations
   const createVisitor = useMutation({
@@ -169,54 +168,54 @@ export default function VisitorsPage() {
 
   // Dynamic Schema Fields Layout
   const visitorFields: FieldConfig[] = [
-  { key: "nameOfVisitor", label: "Visitor Name", required: true },
-  { key: "contactNo", label: "Contact Number", required: true },
-  { key: "emailAddress", label: "Email Address", type: "email" },
-  { key: "visitorsCompanyName", label: "Company Name" },
-  {
-    key: "designation",
-    label: "Designation",
-  },
-  {
-    key: "rfidCardNo",
-    label: "RFID Card No",
-    type: "select",
-    options: visitorCards.map((c: any) => ({
-      label: c.name || c.cardNumber,
-      value: c.cardNumber,
-    })),
-  },
-  {
-    key: "whomToMeet",
-    label: "Whom To Meet (ZIM Employee)",
-    required: true,
-    type: "select",
-    options: employees
-      .map((e: any) => {
-        const name = e.employee_name || e.employeeName || "";
-        return { label: name, value: name };
-      })
-      .filter((o: any) => o.label !== ""),
-  },
-  // {
-  //   key: "department",
-  //   label: "Department",
-  //   type: "select",
-  //   options: departments.map((d: any) => ({ label: d.name, value: d.name })),
-  // },
-  { key: "purpose", label: "Purpose of Visit" },
-  
-  // ✅ HERE: Added missing Permission Validity Dates
-  { key: "permissionDateFrom", label: "Permission Valid From", type: "date" },
-  { key: "permissionDateTo", label: "Permission Valid To", type: "date" },
+    { key: "nameOfVisitor", label: "Visitor Name", required: true },
+    { key: "contactNo", label: "Contact Number", required: true },
+    { key: "emailAddress", label: "Email Address", type: "email" },
+    { key: "visitorsCompanyName", label: "Company Name" },
+    {
+      key: "designation",
+      label: "Designation",
+    },
+    {
+      key: "rfidCardNo",
+      label: "RFID Card No",
+      type: "select",
+      options: visitorCards.map((c: any) => ({
+        label: c.name || c.cardNumber,
+        value: c.cardNumber,
+      })),
+    },
+    {
+      key: "whomToMeet",
+      label: "Whom To Meet (ZIM Employee)",
+      required: true,
+      type: "select",
+      options: employees
+        .map((e: any) => {
+          const name = e.employee_name || e.employeeName || "";
+          return { label: name, value: name };
+        })
+        .filter((o: any) => o.label !== ""),
+    },
+    // {
+    //   key: "department",
+    //   label: "Department",
+    //   type: "select",
+    //   options: departments.map((d: any) => ({ label: d.name, value: d.name })),
+    // },
+    { key: "purpose", label: "Purpose of Visit" },
 
-  { key: "district", label: "District" },
-  { key: "state", label: "State" },
-  { key: "pincode", label: "Pincode" },
-  { key: "address1", label: "Address Line 1" },
-  { key: "address2", label: "Address Line 2" },
-  { key: "remark", label: "Remark", type: "textarea" },
-];
+    // ✅ HERE: Added missing Permission Validity Dates
+    { key: "permissionDateFrom", label: "Permission Valid From", type: "date" },
+    { key: "permissionDateTo", label: "Permission Valid To", type: "date" },
+
+    { key: "district", label: "District" },
+    { key: "state", label: "State" },
+    { key: "pincode", label: "Pincode" },
+    { key: "address1", label: "Address Line 1" },
+    { key: "address2", label: "Address Line 2" },
+    { key: "remark", label: "Remark", type: "textarea" },
+  ];
 
   // Grid Table Layout Columns
   const columns = [
@@ -236,15 +235,15 @@ export default function VisitorsPage() {
       label: "RFID Card",
       render: (v: any) => v.rfidCardNo || "-",
     },
-    { 
-      key: "permissionDates", 
-      label: "Validity Period", 
+    {
+      key: "permissionDates",
+      label: "Validity Period",
       render: (v: any) => (
         <span className="text-xs text-muted-foreground font-medium">
           {v.permissionDateFrom || "-"} to {v.permissionDateTo || "-"}
         </span>
       ),
-      hideOnMobile: true 
+      hideOnMobile: true,
     },
     {
       key: "actions",
@@ -273,10 +272,11 @@ export default function VisitorsPage() {
             onClick={(e) => {
               e.stopPropagation();
               setRoleAssign({
-                employeeCode: v.contactNo || v.id?.toString(), // Mapping tracking property dynamically
+                id: v.id, // 👈 visitorId ke liye
+                rfidCardNo: v.rfidCardNo, // 👈 visitorCardId find karne ke liye
                 name: v.nameOfVisitor,
               });
-              setSelectedDoorIds(v.doorIds || []); // Baseline checked values sync
+              setSelectedDoorIds(v.doorIds || []);
               setDoorSearch("");
               setRoleDialogOpen(true);
             }}
@@ -305,7 +305,9 @@ export default function VisitorsPage() {
             title="Delete Visitor"
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Are you sure you want to delete ${v.nameOfVisitor}?`)) {
+              if (
+                confirm(`Are you sure you want to delete ${v.nameOfVisitor}?`)
+              ) {
                 deleteVisitor.mutate(v.id);
               }
             }}
@@ -363,9 +365,16 @@ export default function VisitorsPage() {
       {/* Pagination Footer Component */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 rounded-b-lg">
         <div className="text-sm text-muted-foreground">
-          Showing <span className="font-semibold text-foreground">{totalCount === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{" "}
-          <span className="font-semibold text-foreground">{Math.min(page * pageSize, totalCount)}</span> of{" "}
-          <span className="font-semibold text-foreground">{totalCount}</span> entries
+          Showing{" "}
+          <span className="font-semibold text-foreground">
+            {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}
+          </span>{" "}
+          to{" "}
+          <span className="font-semibold text-foreground">
+            {Math.min(page * pageSize, totalCount)}
+          </span>{" "}
+          of <span className="font-semibold text-foreground">{totalCount}</span>{" "}
+          entries
         </div>
 
         <div className="flex flex-wrap items-center gap-4">
@@ -377,19 +386,43 @@ export default function VisitorsPage() {
             }}
           />
           <div className="flex items-center space-x-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPage(1)} disabled={page === 1}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+            >
               <ChevronsLeft className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+            >
               <ChevronLeft className="h-4 w-4" /> Prev
             </Button>
             <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold">
               {page} / {totalPages}
             </div>
-            <Button variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-3 text-xs"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+            >
               Next <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPage(totalPages)} disabled={page === totalPages}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setPage(totalPages)}
+              disabled={page === totalPages}
+            >
               <ChevronsRight className="h-4 w-4" />
             </Button>
           </div>
@@ -403,7 +436,9 @@ export default function VisitorsPage() {
           setVisitorDialog(false);
           setEditingVisitor(null);
         }}
-        title={editingVisitor ? "Modify Visitor Profile" : "Register New Visitor"}
+        title={
+          editingVisitor ? "Modify Visitor Profile" : "Register New Visitor"
+        }
         fields={visitorFields}
         initialData={editingVisitor || undefined}
         onSubmit={(data) => {
@@ -529,20 +564,35 @@ export default function VisitorsPage() {
               className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
               onClick={async () => {
                 try {
+                  // Dropdown records se matching card ki system ID extract kar rhe hain
+                  const matchingCard = visitorCards.find(
+                    (c: any) => c.cardNumber === roleassign?.rfidCardNo,
+                  );
+
+                  const payload = {
+                    visitorId: Number(roleassign?.id),
+                    visitorCardId: matchingCard
+                      ? Number(matchingCard.id)
+                      : null, // Ya fir direct roleassign?.rfidCardNo use karein database structure ke hisab se
+                    doorIds: selectedDoorIds.map(Number),
+                  };
+
                   const response = await apiRequest(
                     "POST",
-                    "/api/employee-door-assignments",
-                    {
-                      employeeCode: roleassign?.employeeCode,
-                      doorIds: selectedDoorIds,
-                    },
+                    "/api/visitor-door-assignments", // 👈 New API endpoint
+                    payload, // 👈 Updated Body
                   );
+
                   if (response) {
                     toast({
                       title: "Success",
-                      description: "Doors assigned successfully!",
+                      description: "Doors assigned to visitor successfully!",
                       variant: "default",
                     });
+
+                    // Data refresh pipeline (Optional: visitor list reload karne ke liye)
+                    fetchVisitors();
+
                     setRoleDialogOpen(false);
                     setRoleAssign(null);
                   }
@@ -550,7 +600,8 @@ export default function VisitorsPage() {
                   console.error("Assignment Error:", error);
                   toast({
                     title: "Error",
-                    description: "Failed to assign doors. Please try again.",
+                    description:
+                      "Failed to assign doors to visitor. Please try again.",
                     variant: "destructive",
                   });
                 }
@@ -570,9 +621,12 @@ export default function VisitorsPage() {
             <div className="flex items-center gap-3">
               <Eye className="w-6 h-6 text-blue-400" />
               <div>
-                <h2 className="text-xl font-bold leading-none">Visitor Profile</h2>
+                <h2 className="text-xl font-bold leading-none">
+                  Visitor Profile
+                </h2>
                 <p className="text-slate-400 text-xs mt-1">
-                  Detailed registry information for {viewingVisitor?.nameOfVisitor}
+                  Detailed registry information for{" "}
+                  {viewingVisitor?.nameOfVisitor}
                 </p>
               </div>
             </div>
@@ -582,100 +636,158 @@ export default function VisitorsPage() {
           <div className="p-6 max-h-[70vh] overflow-y-auto space-y-6 bg-background">
             {viewingVisitor ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                
                 {/* Personal & Contact Info */}
                 <div className="space-y-3 md:col-span-2 border-b pb-3">
-                  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">Primary Information</h3>
+                  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">
+                    Primary Information
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <span className="text-muted-foreground block text-xs">Visitor Name</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.nameOfVisitor || "-"}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Visitor Name
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.nameOfVisitor || "-"}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-xs">Contact Number</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.contactNo || "-"}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Contact Number
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.contactNo || "-"}
+                      </span>
                     </div>
                     <div className="md:col-span-2">
-                      <span className="text-muted-foreground block text-xs">Email Address</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.emailAddress || "-"}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Email Address
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.emailAddress || "-"}
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Visit Information */}
                 <div className="space-y-3 md:col-span-2 border-b pb-3">
-                  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">Visit & Corporate Details</h3>
+                  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">
+                    Visit & Corporate Details
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <span className="text-muted-foreground block text-xs">Company Name</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.visitorsCompanyName || "-"}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Company Name
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.visitorsCompanyName || "-"}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-xs">Designation</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.designation || "-"}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Designation
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.designation || "-"}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-xs">Whom To Meet</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.whomToMeet || "-"}</span>
-                    {/* </div>
+                      <span className="text-muted-foreground block text-xs">
+                        Whom To Meet
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.whomToMeet || "-"}
+                      </span>
+                      {/* </div>
                     <div>
                       <span className="text-muted-foreground block text-xs">Department</span>
                       <span className="font-medium text-foreground">{viewingVisitor.department || "-"}</span>
                     </div>
                     <div> */}
-                      <span className="text-muted-foreground block text-xs">Purpose of Visit</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.purpose || "-"}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Purpose of Visit
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.purpose || "-"}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-xs">RFID Card No</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.rfidCardNo || "-"}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        RFID Card No
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.rfidCardNo || "-"}
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Address Info */}
                 <div className="space-y-3 md:col-span-2 border-b pb-3">
-                  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">Address Details</h3>
+                  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">
+                    Address Details
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="md:col-span-2">
-                      <span className="text-muted-foreground block text-xs">Address</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Address
+                      </span>
                       <span className="font-medium text-foreground">
-                        {[viewingVisitor.address1, viewingVisitor.address2].filter(Boolean).join(", ") || "-"}
+                        {[viewingVisitor.address1, viewingVisitor.address2]
+                          .filter(Boolean)
+                          .join(", ") || "-"}
                       </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-xs">District & State</span>
+                      <span className="text-muted-foreground block text-xs">
+                        District & State
+                      </span>
                       <span className="font-medium text-foreground">
-                        {viewingVisitor.district || "-"}, {viewingVisitor.state || "-"}
+                        {viewingVisitor.district || "-"},{" "}
+                        {viewingVisitor.state || "-"}
                       </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-xs">Pincode</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.pincode || "-"}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Pincode
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.pincode || "-"}
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* System / Additional Info */}
                 <div className="space-y-3 md:col-span-2">
-                  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">Additional Meta</h3>
+                  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">
+                    Additional Meta
+                  </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <span className="text-muted-foreground block text-xs">Permission Date</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Permission Date
+                      </span>
                       <span className="font-medium text-foreground text-xs">
-                        {viewingVisitor.permissionDateFrom || "-"} to {viewingVisitor.permissionDateTo || "-"}
+                        {viewingVisitor.permissionDateFrom || "-"} to{" "}
+                        {viewingVisitor.permissionDateTo || "-"}
                       </span>
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-xs">Remark</span>
-                      <span className="font-medium text-foreground">{viewingVisitor.remark || "-"}</span>
+                      <span className="text-muted-foreground block text-xs">
+                        Remark
+                      </span>
+                      <span className="font-medium text-foreground">
+                        {viewingVisitor.remark || "-"}
+                      </span>
                     </div>
                   </div>
                 </div>
-
               </div>
             ) : (
-              <p className="text-center text-sm text-muted-foreground py-4">No visitor data loaded.</p>
+              <p className="text-center text-sm text-muted-foreground py-4">
+                No visitor data loaded.
+              </p>
             )}
           </div>
 

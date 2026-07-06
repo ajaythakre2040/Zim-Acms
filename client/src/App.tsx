@@ -39,7 +39,7 @@ import SettingsPage from "@/pages/settings";
 import ReportsPage from "@/pages/reports";
 import CronMasterPage from "@/pages/cronMasterPage";
 import ShiftDashboard from "./pages/ShiftDashboard";
-import LiveLogsDashboard from "./pages/VisitorLiveLogs";
+import LiveLogsDashboard from "./pages/LiveLogsDashboard";
 import DesignationPage from "./pages/designations";
 import DepartmentsPage from "./pages/departments";
 import RolesPage from "./pages/role";
