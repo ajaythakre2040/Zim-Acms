@@ -1888,237 +1888,237 @@ export class DatabaseStorage implements IStorage {
   // }
 
   async getPeople(
-  search?: string,
-  page?: number | string,
-  pageSize?: number | string,
-): Promise<any> {
-  // ==========================
-  // 1. FETCH RAW DATA FROM POSTGRES & MSSQL
-  // ==========================
-  const [pgDataRaw, msDataRaw] = await Promise.all([
-    db
-      .select({
-        person: {
-          ...people,
-          lastSeenTime: sql<string>`
+    search?: string,
+    page?: number | string,
+    pageSize?: number | string,
+  ): Promise<any> {
+    // ==========================
+    // 1. FETCH RAW DATA FROM POSTGRES & MSSQL
+    // ==========================
+    const [pgDataRaw, msDataRaw] = await Promise.all([
+      db
+        .select({
+          person: {
+            ...people,
+            lastSeenTime: sql<string>`
             TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')
           `,
-        },
-        departmentName: departments.name,
-        designationName: designations.name,
-        lastPunchDoorName: doors.name,
-        additionalDetails: peopleAdditionalDetails, 
-      })
-      .from(people)
-      .leftJoin(departments, eq(people.departmentId, departments.id))
-      .leftJoin(designations, eq(people.designationId, designations.id))
-      .leftJoin(doors, eq(people.lastPunchDoorId, doors.id))
-      .leftJoin(peopleAdditionalDetails, eq(people.employeeCode, peopleAdditionalDetails.employeeCode)),
+          },
+          departmentName: departments.name,
+          designationName: designations.name,
+          lastPunchDoorName: doors.name,
+          additionalDetails: peopleAdditionalDetails,
+        })
+        .from(people)
+        .leftJoin(departments, eq(people.departmentId, departments.id))
+        .leftJoin(designations, eq(people.designationId, designations.id))
+        .leftJoin(doors, eq(people.lastPunchDoorId, doors.id))
+        .leftJoin(peopleAdditionalDetails, eq(people.employeeCode, peopleAdditionalDetails.employeeCode)),
 
-    dbMsSql.select().from({ dbName: "Employees" }).execute(),
-  ]);
+      dbMsSql.select().from({ dbName: "Employees" }).execute(),
+    ]);
 
-  const msIds = new Set();
+    const msIds = new Set();
 
-  const ruleIdToName = Object.fromEntries(
-    Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
-  );
-
-  // ==========================
-  // FLAT MAPPING (Sare Columns Ek Sath)
-  // ==========================
-  const currentPgData = pgDataRaw.map((row) => {
-    // logo ke additional details ke id aur timestamps ko destructure kar rahe hain 
-    // taaki wo main people table ke id, createdAt, updatedAt ko overwrite na karein.
-    const { 
-      id: _detailId, 
-      employeeCode: _detailCode,
-      createdAt: _detailCreated, 
-      updatedAt: _detailUpdated, 
-      ...restOfAdditionalDetails 
-    } = row.additionalDetails || {};
-
-    return {
-      ...row.person,                  // Main people data
-      ...restOfAdditionalDetails,     // Flat additional details (cardNo, companyUnit, etc.)
-      departmentName: row.departmentName || "N/A",
-      designationName: row.designationName || "N/A",
-      lastPunchDoorName: row.lastPunchDoorName || "No Door",
-      ruleName:
-        row.person.ruleid !== null
-          ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
-          : "NO_RULE",
-    };
-  });
-
-  // ==========================
-  // 2. MSSQL SYNC (INSERT & UPDATE)
-  // ==========================
-  for (const msRow of msDataRaw || []) {
-    const mapped = PersonAdapter.toPostgres(msRow);
-
-    if (!mapped.msId) continue;
-
-    msIds.add(mapped.msId);
-
-    const existingIndex = currentPgData.findIndex(
-      (p) => p.msId === mapped.msId,
+    const ruleIdToName = Object.fromEntries(
+      Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
     );
 
-    // --------------------------
-    // INSERT NEW EMPLOYEE
-    // --------------------------
-    if (existingIndex === -1) {
-      try {
-        const [newRec] = await db
-          .insert(people)
-          .values({
-            msId: mapped.msId,
-            employeeCode: mapped.employeeCode,
-            employeeName: mapped.employeeName ?? "Unknown",
-            ruleid: mapped.ruleid ?? null,
-            locationId: mapped.locationId ?? null,
-            externalId: mapped.externalId ?? null,
-            overtimeEligible: mapped.overtimeEligible ?? false,
-            personType: "employee",
-            status: "active",
-            sourceSystem: "mssql_bio",
-            updatedAt: new Date(),
-            createdAt: new Date(),
-          })
-          .returning();
+    // ==========================
+    // FLAT MAPPING (Sare Columns Ek Sath)
+    // ==========================
+    const currentPgData = pgDataRaw.map((row) => {
+      // logo ke additional details ke id aur timestamps ko destructure kar rahe hain 
+      // taaki wo main people table ke id, createdAt, updatedAt ko overwrite na karein.
+      const {
+        id: _detailId,
+        employeeCode: _detailCode,
+        createdAt: _detailCreated,
+        updatedAt: _detailUpdated,
+        ...restOfAdditionalDetails
+      } = row.additionalDetails || {};
 
-        if (newRec?.employeeCode) {
-          this.executeHardwareSyncBackground(newRec.employeeCode);
-        }
+      return {
+        ...row.person,                  // Main people data
+        ...restOfAdditionalDetails,     // Flat additional details (cardNo, companyUnit, etc.)
+        departmentName: row.departmentName || "N/A",
+        designationName: row.designationName || "N/A",
+        lastPunchDoorName: row.lastPunchDoorName || "No Door",
+        ruleName:
+          row.person.ruleid !== null
+            ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
+            : "NO_RULE",
+      };
+    });
 
-        currentPgData.push({
-          ...newRec,
-          departmentName: "N/A",
-          designationName: "N/A",
-          lastPunchDoorName: "No Door",
-          ruleName:
-            newRec.ruleid !== null
-              ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
-              : "NO_ROLE",
-        });
-      } catch (e) {
-        console.error("New employee sync error:", e);
-      }
-    }
-    // --------------------------
-    // UPDATE EXISTING EMPLOYEE
-    // --------------------------
-    else {
-      const existing = currentPgData[existingIndex];
+    // ==========================
+    // 2. MSSQL SYNC (INSERT & UPDATE)
+    // ==========================
+    for (const msRow of msDataRaw || []) {
+      const mapped = PersonAdapter.toPostgres(msRow);
 
-      const hasChanged =
-        existing.employeeName !== mapped.employeeName ||
-        existing.employeeCode !== mapped.employeeCode ||
-        existing.ruleid !== mapped.ruleid;
+      if (!mapped.msId) continue;
 
-      if (hasChanged) {
+      msIds.add(mapped.msId);
+
+      const existingIndex = currentPgData.findIndex(
+        (p) => p.msId === mapped.msId,
+      );
+
+      // --------------------------
+      // INSERT NEW EMPLOYEE
+      // --------------------------
+      if (existingIndex === -1) {
         try {
-          const [updatedRec] = await db
-            .update(people)
-            .set({
-              employeeName: mapped.employeeName ?? "Unknown",
+          const [newRec] = await db
+            .insert(people)
+            .values({
+              msId: mapped.msId,
               employeeCode: mapped.employeeCode,
+              employeeName: mapped.employeeName ?? "Unknown",
+              ruleid: mapped.ruleid ?? null,
+              locationId: mapped.locationId ?? null,
+              externalId: mapped.externalId ?? null,
+              overtimeEligible: mapped.overtimeEligible ?? false,
+              personType: "employee",
+              status: "active",
+              sourceSystem: "mssql_bio",
               updatedAt: new Date(),
+              createdAt: new Date(),
             })
-            .where(eq(people.msId, mapped.msId))
             .returning();
 
-          currentPgData[existingIndex] = {
-            ...existing,
-            ...updatedRec,
+          if (newRec?.employeeCode) {
+            this.executeHardwareSyncBackground(newRec.employeeCode);
+          }
+
+          currentPgData.push({
+            ...newRec,
+            departmentName: "N/A",
+            designationName: "N/A",
+            lastPunchDoorName: "No Door",
             ruleName:
-              updatedRec.ruleid !== null
-                ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
+              newRec.ruleid !== null
+                ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
                 : "NO_ROLE",
-          };
+          });
         } catch (e) {
-          console.error("Employee update sync error:", e);
+          console.error("New employee sync error:", e);
+        }
+      }
+      // --------------------------
+      // UPDATE EXISTING EMPLOYEE
+      // --------------------------
+      else {
+        const existing = currentPgData[existingIndex];
+
+        const hasChanged =
+          existing.employeeName !== mapped.employeeName ||
+          existing.employeeCode !== mapped.employeeCode ||
+          existing.ruleid !== mapped.ruleid;
+
+        if (hasChanged) {
+          try {
+            const [updatedRec] = await db
+              .update(people)
+              .set({
+                employeeName: mapped.employeeName ?? "Unknown",
+                employeeCode: mapped.employeeCode,
+                updatedAt: new Date(),
+              })
+              .where(eq(people.msId, mapped.msId))
+              .returning();
+
+            currentPgData[existingIndex] = {
+              ...existing,
+              ...updatedRec,
+              ruleName:
+                updatedRec.ruleid !== null
+                  ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
+                  : "NO_ROLE",
+            };
+          } catch (e) {
+            console.error("Employee update sync error:", e);
+          }
         }
       }
     }
-  }
 
-  // ==========================
-  // 3. DELETE REMOVED MSSQL USERS
-  // ==========================
-  for (const pgRow of currentPgData) {
-    if (pgRow.msId && !msIds.has(pgRow.msId)) {
-      try {
-        await db.delete(people).where(eq(people.msId, pgRow.msId));
-      } catch (e) {
-        console.error("Delete sync error:", e);
+    // ==========================
+    // 3. DELETE REMOVED MSSQL USERS
+    // ==========================
+    for (const pgRow of currentPgData) {
+      if (pgRow.msId && !msIds.has(pgRow.msId)) {
+        try {
+          await db.delete(people).where(eq(people.msId, pgRow.msId));
+        } catch (e) {
+          console.error("Delete sync error:", e);
+        }
       }
     }
-  }
 
-  // ==========================
-  // 4. SEARCH
-  // ==========================
-  let results = currentPgData;
+    // ==========================
+    // 4. SEARCH
+    // ==========================
+    let results = currentPgData;
 
-  if (search?.trim()) {
-    const term = search.toLowerCase();
+    if (search?.trim()) {
+      const term = search.toLowerCase();
 
-    results = results.filter(
-      (p) =>
-        p.employeeName?.toLowerCase().includes(term) ||
-        p.employeeCode?.toLowerCase().includes(term) ||
-        p.departmentName?.toLowerCase().includes(term) ||
-        p.ruleName?.toLowerCase().includes(term),
+      results = results.filter(
+        (p) =>
+          p.employeeName?.toLowerCase().includes(term) ||
+          p.employeeCode?.toLowerCase().includes(term) ||
+          p.departmentName?.toLowerCase().includes(term) ||
+          p.ruleName?.toLowerCase().includes(term),
+      );
+    }
+
+    // ==========================
+    // 5. SORT BY ID DESCENDING
+    // ==========================
+    results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+
+    // ==========================
+    // 6. UNIQUE RECORDS FILTER
+    // ==========================
+    const uniquePeople = Array.from(
+      new Map(
+        results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
+      ).values(),
     );
-  }
 
-  // ==========================
-  // 5. SORT BY ID DESCENDING
-  // ==========================
-  results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+    // ==========================
+    // 7. PAGINATION & RETURN FORMATS
+    // ==========================
+    if (!pageSize) {
+      return uniquePeople;
+    }
 
-  // ==========================
-  // 6. UNIQUE RECORDS FILTER
-  // ==========================
-  const uniquePeople = Array.from(
-    new Map(
-      results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
-    ).values(),
-  );
+    if (pageSize === -1 || pageSize === "-1") {
+      return {
+        data: uniquePeople,
+        totalCount: uniquePeople.length,
+        totalPages: 1,
+        currentPage: 1,
+        pageSize: uniquePeople.length,
+      };
+    }
 
-  // ==========================
-  // 7. PAGINATION & RETURN FORMATS
-  // ==========================
-  if (!pageSize) {
-    return uniquePeople;
-  }
+    const p = page && Number(page) > 0 ? Number(page) : 1;
+    const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+    const start = (p - 1) * size;
+    const end = start + size;
+    const paginatedData = uniquePeople.slice(start, end);
 
-  if (pageSize === -1 || pageSize === "-1") {
     return {
-      data: uniquePeople,
+      data: paginatedData,
       totalCount: uniquePeople.length,
-      totalPages: 1,
-      currentPage: 1,
-      pageSize: uniquePeople.length,
+      totalPages: Math.ceil(uniquePeople.length / size),
+      currentPage: p,
+      pageSize: size,
     };
   }
-
-  const p = page && Number(page) > 0 ? Number(page) : 1;
-  const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
-  const start = (p - 1) * size;
-  const end = start + size;
-  const paginatedData = uniquePeople.slice(start, end);
-
-  return {
-    data: paginatedData,
-    totalCount: uniquePeople.length,
-    totalPages: Math.ceil(uniquePeople.length / size),
-    currentPage: p,
-    pageSize: size,
-  };
-}
 
   // 🛠️ Helper function to trigger sync in the background without locking the main thread
   private async executeHardwareSyncBackground(employeeCode: string) {
@@ -2298,39 +2298,39 @@ export class DatabaseStorage implements IStorage {
   // }
 
   async getPerson(id: number): Promise<any> {
-  const [result] = await db
-    .select({
-      person: people,
-      departmentName: departments.name,
-      designationName: designations.name,
-      // Yahan se additional details ke saare columns select ho jayenge
-      additionalDetails: peopleAdditionalDetails, 
-    })
-    .from(people)
-    .leftJoin(
-      departments,
-      eq(people.departmentId, departments.id)
-    )
-    .leftJoin(
-      designations,
-      eq(people.designationId, designations.id)
-    )
-    .leftJoin(
-      schema.peopleAdditionalDetails,
-      eq(people.employeeCode, peopleAdditionalDetails.employeeCode) // employee_code ke basis par join
-    )
-    .where(eq(people.id, id));
+    const [result] = await db
+      .select({
+        person: people,
+        departmentName: departments.name,
+        designationName: designations.name,
+        // Yahan se additional details ke saare columns select ho jayenge
+        additionalDetails: peopleAdditionalDetails,
+      })
+      .from(people)
+      .leftJoin(
+        departments,
+        eq(people.departmentId, departments.id)
+      )
+      .leftJoin(
+        designations,
+        eq(people.designationId, designations.id)
+      )
+      .leftJoin(
+        schema.peopleAdditionalDetails,
+        eq(people.employeeCode, peopleAdditionalDetails.employeeCode) // employee_code ke basis par join
+      )
+      .where(eq(people.id, id));
 
-  if (!result) return undefined;
+    if (!result) return undefined;
 
-  return {
-    ...result.person,
-    departmentName: result.departmentName,
-    designationName: result.designationName,
-    // Agar additional details mili hain toh unhe bhi root object me spread kar denge
-    ...(result.additionalDetails || {}), 
-  };
-}
+    return {
+      ...result.person,
+      departmentName: result.departmentName,
+      designationName: result.designationName,
+      // Agar additional details mili hain toh unhe bhi root object me spread kar denge
+      ...(result.additionalDetails || {}),
+    };
+  }
   // async getPerson(id: number): Promise<Person | undefined> {
   //   const [person] = await db.select().from(people).where(eq(people.id, id));
   //   return person;
@@ -2968,62 +2968,62 @@ export class DatabaseStorage implements IStorage {
   // }
 
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
-  let insertedMsSqlId: number | null = null;
+    let insertedMsSqlId: number | null = null;
 
-  // ==========================================
-  // STEP 1: PEHLE MS SQL (VisitorLogs) ME INSERT KAREIN
-  // ==========================================
-  try {
-    // 🌟 FIX 1: dbMsSql ki jagah mssqlPool ka request use kiya jo mssql package se aata h
-    if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
-      await mssqlPool.connect();
-    }
-    const request = mssqlPool.request();
+    // ==========================================
+    // STEP 1: PEHLE MS SQL (VisitorLogs) ME INSERT KAREIN
+    // ==========================================
+    try {
+      // 🌟 FIX 1: dbMsSql ki jagah mssqlPool ka request use kiya jo mssql package se aata h
+      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        await mssqlPool.connect();
+      }
+      const request = mssqlPool.request();
 
-    // 🌟 FIX 2: data.name ko badal kar data.nameOfVisitor kiya jo aapke schema me h
-    request.input('Name', mssql.NVarChar, data.nameOfVisitor);
-    
-    // Agar baki fields bhi MS SQL me bhejne ho toh aap is tarah bind kar sakte hain:
-    // request.input('ContactNo', mssql.NVarChar, data.contactNo);
-    // request.input('WhomToMeet', mssql.NVarChar, data.whomToMeet);
+      // 🌟 FIX 2: data.name ko badal kar data.nameOfVisitor kiya jo aapke schema me h
+      request.input('Name', mssql.NVarChar, data.nameOfVisitor);
 
-    const msSqlResult = await request.query(`
+      // Agar baki fields bhi MS SQL me bhejne ho toh aap is tarah bind kar sakte hain:
+      // request.input('ContactNo', mssql.NVarChar, data.contactNo);
+      // request.input('WhomToMeet', mssql.NVarChar, data.whomToMeet);
+
+      const msSqlResult = await request.query(`
       INSERT INTO VisitorLogs (Name)
       VALUES (@Name);
       SELECT SCOPE_IDENTITY() AS id;
     `);
 
-    if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
-      insertedMsSqlId = msSqlResult.recordset[0].id;
+      if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
+        insertedMsSqlId = msSqlResult.recordset[0].id;
+      }
+
+      if (!insertedMsSqlId) {
+        throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
+      }
+    } catch (msSqlErr: any) {
+      throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
     }
 
-    if (!insertedMsSqlId) {
-      throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
-    }
-  } catch (msSqlErr: any) {
-    throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
+    // ==========================================
+    // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
+    // ==========================================
+    return await db.transaction(async (tx) => {
+      try {
+        const [created] = await tx
+          .insert(visitors)
+          .values({
+            ...data,
+            msId: insertedMsSqlId, // 🌟 MS SQL ki generated ID yahan save ho gayi
+          })
+          .returning();
+
+        return created;
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
+      }
+    });
   }
-
-  // ==========================================
-  // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
-  // ==========================================
-  return await db.transaction(async (tx) => {
-    try {
-      const [created] = await tx
-        .insert(visitors)
-        .values({
-          ...data,
-          msId: insertedMsSqlId, // 🌟 MS SQL ki generated ID yahan save ho gayi
-        })
-        .returning();
-
-      return created;
-    } catch (pgErr: any) {
-      tx.rollback();
-      throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
-    }
-  });
-}
 
   // async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
   //   return await db.transaction(async (tx) => {
@@ -3044,124 +3044,124 @@ export class DatabaseStorage implements IStorage {
   // }
 
   async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
-  // 1. Postgres se purana visitor data nikaalo msId lene ke liye
-  const currentVisitor = await db
-    .select()
-    .from(visitors)
-    .where(eq(visitors.id, id))
-    .limit(1);
+    // 1. Postgres se purana visitor data nikaalo msId lene ke liye
+    const currentVisitor = await db
+      .select()
+      .from(visitors)
+      .where(eq(visitors.id, id))
+      .limit(1);
 
-  if (currentVisitor.length === 0) {
-    throw new Error(`Visitor update failed: Record with local ID '${id}' not found.`);
-  }
-
-  const targetMsId = currentVisitor[0].msId;
-
-  if (!targetMsId) {
-    throw new Error(`Visitor update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
-  }
-
-  // ==========================================
-  // STEP 1: PEHLE MS SQL (VisitorLogs) ME UPDATE KAREIN
-  // ==========================================
-  try {
-    if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
-      await mssqlPool.connect();
-    }
-    const request = mssqlPool.request();
-
-    // Agar data me nameOfVisitor bheja gaya hai toh use karo, nahi toh purana wala fallback rakho
-    const finalName = data.nameOfVisitor || currentVisitor[0].nameOfVisitor;
-
-    request.input('TargetMsId', mssql.Int, targetMsId);
-    request.input('Name', mssql.NVarChar, finalName);
-    
-    // Baaki fields jo update karne ho, unhe bhi is tarah bind kar sakte ho:
-    // request.input('ContactNo', mssql.NVarChar, data.contactNo || currentVisitor[0].contactNo);
-
-    await request.query(`
-      UPDATE VisitorLogs 
-      SET Name = @Name
-      WHERE Id = @TargetMsId
-    `);
-  } catch (msSqlErr: any) {
-    throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
-  }
-
-  // ==========================================
-  // STEP 2: LOCAL POSTGRES ME UPDATE KAREIN
-  // ==========================================
-  return await db.transaction(async (tx) => {
-    try {
-      const [updated] = await tx
-        .update(visitors)
-        .set({ 
-          ...data, 
-          updatedAt: new Date() 
-        })
-        .where(eq(visitors.id, id))
-        .returning();
-
-      return updated;
-    } catch (pgErr: any) {
-      tx.rollback();
-      throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
-    }
-  });
-}
-
-async deleteVisitor(id: number): Promise<void> {
-  // 1. Pehle Postgres se purana data nikaalo taaki 'msId' mil sake
-  const currentVisitor = await db
-    .select()
-    .from(visitors)
-    .where(eq(visitors.id, id))
-    .limit(1);
-
-  if (currentVisitor.length === 0) {
-    throw new Error(`Visitor deletion failed: Record with local ID '${id}' not found.`);
-  }
-
-  const targetMsId = currentVisitor[0].msId;
-
-  if (!targetMsId) {
-    throw new Error(`Visitor deletion failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
-  }
-
-  // 2. Ab Master Transaction shuru karein
-  return await db.transaction(async (tx) => {
-    
-    // STEP A: Local Postgres se delete karein
-    try {
-      await tx.delete(visitors).where(eq(visitors.id, id));
-    } catch (pgErr: any) {
-      tx.rollback();
-      throw new Error(`Postgres Deletion Failed: ${pgErr.message}`);
+    if (currentVisitor.length === 0) {
+      throw new Error(`Visitor update failed: Record with local ID '${id}' not found.`);
     }
 
-    // STEP B: Ab MS SQL se sahi 'targetMsId' use karke delete karein
+    const targetMsId = currentVisitor[0].msId;
+
+    if (!targetMsId) {
+      throw new Error(`Visitor update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+    }
+
+    // ==========================================
+    // STEP 1: PEHLE MS SQL (VisitorLogs) ME UPDATE KAREIN
+    // ==========================================
     try {
       if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
         await mssqlPool.connect();
       }
       const request = mssqlPool.request();
-      
-      // YAHA PE DHAYAN DEIN: Hum targetMsId pass kar rahe hain, local id nahi!
+
+      // Agar data me nameOfVisitor bheja gaya hai toh use karo, nahi toh purana wala fallback rakho
+      const finalName = data.nameOfVisitor || currentVisitor[0].nameOfVisitor;
+
       request.input('TargetMsId', mssql.Int, targetMsId);
+      request.input('Name', mssql.NVarChar, finalName);
+
+      // Baaki fields jo update karne ho, unhe bhi is tarah bind kar sakte ho:
+      // request.input('ContactNo', mssql.NVarChar, data.contactNo || currentVisitor[0].contactNo);
 
       await request.query(`
+      UPDATE VisitorLogs 
+      SET Name = @Name
+      WHERE Id = @TargetMsId
+    `);
+    } catch (msSqlErr: any) {
+      throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+    }
+
+    // ==========================================
+    // STEP 2: LOCAL POSTGRES ME UPDATE KAREIN
+    // ==========================================
+    return await db.transaction(async (tx) => {
+      try {
+        const [updated] = await tx
+          .update(visitors)
+          .set({
+            ...data,
+            updatedAt: new Date()
+          })
+          .where(eq(visitors.id, id))
+          .returning();
+
+        return updated;
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+      }
+    });
+  }
+
+  async deleteVisitor(id: number): Promise<void> {
+    // 1. Pehle Postgres se purana data nikaalo taaki 'msId' mil sake
+    const currentVisitor = await db
+      .select()
+      .from(visitors)
+      .where(eq(visitors.id, id))
+      .limit(1);
+
+    if (currentVisitor.length === 0) {
+      throw new Error(`Visitor deletion failed: Record with local ID '${id}' not found.`);
+    }
+
+    const targetMsId = currentVisitor[0].msId;
+
+    if (!targetMsId) {
+      throw new Error(`Visitor deletion failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+    }
+
+    // 2. Ab Master Transaction shuru karein
+    return await db.transaction(async (tx) => {
+
+      // STEP A: Local Postgres se delete karein
+      try {
+        await tx.delete(visitors).where(eq(visitors.id, id));
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres Deletion Failed: ${pgErr.message}`);
+      }
+
+      // STEP B: Ab MS SQL se sahi 'targetMsId' use karke delete karein
+      try {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+          await mssqlPool.connect();
+        }
+        const request = mssqlPool.request();
+
+        // YAHA PE DHAYAN DEIN: Hum targetMsId pass kar rahe hain, local id nahi!
+        request.input('TargetMsId', mssql.Int, targetMsId);
+
+        await request.query(`
         DELETE FROM VisitorLogs 
         WHERE Id = @TargetMsId
       `);
 
-    } catch (msSqlErr: any) {
-      console.error("MS SQL Sync Delete Error inside transaction:", msSqlErr);
-      // Agar MS SQL fail hua, toh Postgres ka delete bhi rollback
-      tx.rollback();
-      throw new Error(`Sync Failed: MS SQL failed to delete. Postgres changes rolled back. Reason: ${msSqlErr.message}`);
-    }
-  });
-}
+      } catch (msSqlErr: any) {
+        console.error("MS SQL Sync Delete Error inside transaction:", msSqlErr);
+        // Agar MS SQL fail hua, toh Postgres ka delete bhi rollback
+        tx.rollback();
+        throw new Error(`Sync Failed: MS SQL failed to delete. Postgres changes rolled back. Reason: ${msSqlErr.message}`);
+      }
+    });
+  }
   async getVisits(status?: string): Promise<Visit[]> {
     if (status) {
       return await db
@@ -7546,98 +7546,98 @@ ${fromDate} || ' to ' || ${toDate}
   //   });
   // }
   async createVisitorCard(card: any) {
-  // 1. Postgres ke purane 'id' ko hata dein taaki hum naya generate karein
-  const { id, ...cardData } = card;
+    // 1. Postgres ke purane 'id' ko hata dein taaki hum naya generate karein
+    const { id, ...cardData } = card;
 
-  // 2. DUPLICATE CHECK: Pehle local DB me check karein ki cardNumber already hai ya nahi
-  if (cardData.cardNumber) {
-    const existingCard = await db
-      .select()
-      .from(visitorCards)
-      .where(eq(visitorCards.cardNumber, cardData.cardNumber))
-      .limit(1);
+    // 2. DUPLICATE CHECK: Pehle local DB me check karein ki cardNumber already hai ya nahi
+    if (cardData.cardNumber) {
+      const existingCard = await db
+        .select()
+        .from(visitorCards)
+        .where(eq(visitorCards.cardNumber, cardData.cardNumber))
+        .limit(1);
 
-    if (existingCard.length > 0) {
-      throw new Error(`Duplicate card number not allowed: '${cardData.cardNumber}' already exists.`);
+      if (existingCard.length > 0) {
+        throw new Error(`Duplicate card number not allowed: '${cardData.cardNumber}' already exists.`);
+      }
     }
-  }
 
-  // Postgres sequence sync setup
-  try {
-    await db.execute(sql`
+    // Postgres sequence sync setup
+    try {
+      await db.execute(sql`
       SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
     `);
-  } catch (seqErr) {
-    // Sequence fail safe ignore
-  }
+    } catch (seqErr) {
+      // Sequence fail safe ignore
+    }
 
-  let insertedMsSqlId: number | null = null;
+    let insertedMsSqlId: number | null = null;
 
-  // ==========================================
-  // STEP 1: PEHLE MS SQL ME INSERT KAREIN
-  // ==========================================
-  try {
-    if (mssqlPool) {
-      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
-        await mssqlPool.connect();
-      }
+    // ==========================================
+    // STEP 1: PEHLE MS SQL ME INSERT KAREIN
+    // ==========================================
+    try {
+      if (mssqlPool) {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+          await mssqlPool.connect();
+        }
 
-      const msSqlData = VisitorCardAdapter.toMsSql(cardData);
-      const request = mssqlPool.request();
+        const msSqlData = VisitorCardAdapter.toMsSql(cardData);
+        const request = mssqlPool.request();
 
-      request.input('Name', mssql.NVarChar, msSqlData.Name);
-      request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
-      request.input('LocationId', mssql.Int, msSqlData.LocationId);
-      request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
-      request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
+        request.input('Name', mssql.NVarChar, msSqlData.Name);
+        request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+        request.input('LocationId', mssql.Int, msSqlData.LocationId);
+        request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
+        request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
 
-      const msSqlResult = await request.query(`
+        const msSqlResult = await request.query(`
         INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
         VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo);
         SELECT SCOPE_IDENTITY() AS id;
       `);
 
-      if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
-        insertedMsSqlId = msSqlResult.recordset[0].id;
-      }
+        if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
+          insertedMsSqlId = msSqlResult.recordset[0].id;
+        }
 
-      if (!insertedMsSqlId) {
-        throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
+        if (!insertedMsSqlId) {
+          throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
+        }
+      } else {
+        throw new Error("mssqlPool configuration is missing or undefined.");
       }
-    } else {
-      throw new Error("mssqlPool configuration is missing or undefined.");
+    } catch (msSqlErr: any) {
+      throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
     }
-  } catch (msSqlErr: any) {
-    throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
+
+    // ==========================================
+    // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
+    // ==========================================
+    return await db.transaction(async (tx) => {
+      try {
+        const postgresPayload = {
+          name: cardData.name,
+          cardNumber: cardData.cardNumber,
+          locationId: cardData.locationId,
+          location: cardData.location || null,
+          expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : null,
+          expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : null,
+          msId: insertedMsSqlId,
+        };
+
+        const [newCard] = await tx
+          .insert(visitorCards)
+          .values(postgresPayload)
+          .returning();
+
+        return newCard;
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
+      }
+    });
   }
-
-  // ==========================================
-  // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
-  // ==========================================
-  return await db.transaction(async (tx) => {
-    try {
-      const postgresPayload = {
-        name: cardData.name,
-        cardNumber: cardData.cardNumber,
-        locationId: cardData.locationId,
-        location: cardData.location || null,
-        expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : null,
-        expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : null,
-        msId: insertedMsSqlId,
-      };
-
-      const [newCard] = await tx
-        .insert(visitorCards)
-        .values(postgresPayload)
-        .returning();
-
-      return newCard;
-    } catch (pgErr: any) {
-      tx.rollback();
-      throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
-    }
-  });
-}
 
   // async updateVisitorCard(id: number, card: any) {
   //   const { id: _, ...cardData } = card;
@@ -7678,63 +7678,63 @@ ${fromDate} || ' to ' || ${toDate}
   // }
 
   // DELETE function mein change
-  
+
   async updateVisitorCard(id: number, card: any) {
-  // 1. Id ko destructure karo aur safe side check lagao
-  const { id: _, ...cardData } = card;
+    // 1. Id ko destructure karo aur safe side check lagao
+    const { id: _, ...cardData } = card;
 
-  // 2. Postgres se purana card data nikaalo msId lene ke liye
-  const currentCard = await db
-    .select()
-    .from(visitorCards)
-    .where(eq(visitorCards.id, id))
-    .limit(1);
+    // 2. Postgres se purana card data nikaalo msId lene ke liye
+    const currentCard = await db
+      .select()
+      .from(visitorCards)
+      .where(eq(visitorCards.id, id))
+      .limit(1);
 
-  if (currentCard.length === 0) {
-    throw new Error(`Card update failed: Record with local ID '${id}' not found.`);
-  }
+    if (currentCard.length === 0) {
+      throw new Error(`Card update failed: Record with local ID '${id}' not found.`);
+    }
 
-  const targetMsId = currentCard[0].msId;
+    const targetMsId = currentCard[0].msId;
 
-  if (!targetMsId) {
-    throw new Error(`Card update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
-  }
+    if (!targetMsId) {
+      throw new Error(`Card update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+    }
 
-  // ==========================================
-  // STEP 1: PEHLE MS SQL ME UPDATE KAREIN
-  // ==========================================
-  try {
-    if (mssqlPool) {
-      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
-        await mssqlPool.connect();
-      }
+    // ==========================================
+    // STEP 1: PEHLE MS SQL ME UPDATE KAREIN
+    // ==========================================
+    try {
+      if (mssqlPool) {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+          await mssqlPool.connect();
+        }
 
-      // Final values ensure karne ke liye fallbacks
-      const finalCardNumber = cardData.cardNumber || currentCard[0].cardNumber;
-      const finalName = cardData.name || currentCard[0].name;
-      const finalLocationId = cardData.locationId !== undefined ? cardData.locationId : currentCard[0].locationId;
-      const finalExpiryFrom = cardData.expiryFrom !== undefined ? cardData.expiryFrom : currentCard[0].expiryFrom;
-      const finalExpiryTo = cardData.expiryTo !== undefined ? cardData.expiryTo : currentCard[0].expiryTo;
+        // Final values ensure karne ke liye fallbacks
+        const finalCardNumber = cardData.cardNumber || currentCard[0].cardNumber;
+        const finalName = cardData.name || currentCard[0].name;
+        const finalLocationId = cardData.locationId !== undefined ? cardData.locationId : currentCard[0].locationId;
+        const finalExpiryFrom = cardData.expiryFrom !== undefined ? cardData.expiryFrom : currentCard[0].expiryFrom;
+        const finalExpiryTo = cardData.expiryTo !== undefined ? cardData.expiryTo : currentCard[0].expiryTo;
 
-      // Adapter ko full data bhejein taaki mapping accurate ho
-      const msSqlData = VisitorCardAdapter.toMsSql({
-        name: finalName,
-        cardNumber: finalCardNumber,
-        locationId: finalLocationId,
-        expiryFrom: finalExpiryFrom,
-        expiryTo: finalExpiryTo
-      });
-      
-      const request = mssqlPool.request();
+        // Adapter ko full data bhejein taaki mapping accurate ho
+        const msSqlData = VisitorCardAdapter.toMsSql({
+          name: finalName,
+          cardNumber: finalCardNumber,
+          locationId: finalLocationId,
+          expiryFrom: finalExpiryFrom,
+          expiryTo: finalExpiryTo
+        });
 
-      request.input('TargetMsId', mssql.Int, targetMsId); 
-      request.input('Name', mssql.NVarChar, msSqlData.Name);
-      request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
-      request.input('LocationId', mssql.Int, msSqlData.LocationId || 0);
-      request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom || null);
-      request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo || null);
+        const request = mssqlPool.request();
 
-      await request.query(`
+        request.input('TargetMsId', mssql.Int, targetMsId);
+        request.input('Name', mssql.NVarChar, msSqlData.Name);
+        request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+        request.input('LocationId', mssql.Int, msSqlData.LocationId || 0);
+        request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom || null);
+        request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo || null);
+
+        await request.query(`
         UPDATE VisitorCards 
         SET Name = @Name, 
             CardNumber = @CardNumber, 
@@ -7743,40 +7743,40 @@ ${fromDate} || ' to ' || ${toDate}
             ExpiryTo = @ExpiryTo
         WHERE Id = @TargetMsId
       `);
-    } else {
-      throw new Error("mssqlPool configuration is missing.");
+      } else {
+        throw new Error("mssqlPool configuration is missing.");
+      }
+    } catch (msSqlErr: any) {
+      throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
     }
-  } catch (msSqlErr: any) {
-    throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+
+    // ==========================================
+    // STEP 2: LOCAL POSTGRES ME UPDATE KAREIN
+    // ==========================================
+    return await db.transaction(async (tx) => {
+      try {
+        const [updatedCard] = await tx
+          .update(visitorCards)
+          .set({
+            name: cardData.name,
+            cardNumber: cardData.cardNumber,
+            locationId: cardData.locationId,
+            location: cardData.location,
+            expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : undefined,
+            expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : undefined,
+            updatedAt: new Date()
+          })
+          .where(eq(visitorCards.id, id))
+          .returning();
+
+        return updatedCard;
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+      }
+    });
   }
 
-  // ==========================================
-  // STEP 2: LOCAL POSTGRES ME UPDATE KAREIN
-  // ==========================================
-  return await db.transaction(async (tx) => {
-    try {
-      const [updatedCard] = await tx
-        .update(visitorCards)
-        .set({ 
-          name: cardData.name,
-          cardNumber: cardData.cardNumber,
-          locationId: cardData.locationId,
-          location: cardData.location,
-          expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : undefined,
-          expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : undefined,
-          updatedAt: new Date() 
-        })
-        .where(eq(visitorCards.id, id))
-        .returning();
-
-      return updatedCard;
-    } catch (pgErr: any) {
-      tx.rollback();
-      throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
-    }
-  });
-}
-  
   // async deleteVisitorCard(id: number) {
   //   return await db.transaction(async (tx) => {
   //     try {
@@ -7804,46 +7804,46 @@ ${fromDate} || ' to ' || ${toDate}
   // }
 
   async deleteVisitorCard(id: number) {
-  // 1. Postgres se card record uthao taaki MS SQL ki 'msId' mil sake
-  const currentCard = await db
-    .select()
-    .from(visitorCards)
-    .where(eq(visitorCards.id, id))
-    .limit(1);
+    // 1. Postgres se card record uthao taaki MS SQL ki 'msId' mil sake
+    const currentCard = await db
+      .select()
+      .from(visitorCards)
+      .where(eq(visitorCards.id, id))
+      .limit(1);
 
-  if (currentCard.length === 0) {
-    throw new Error(`Delete failed: Local ID '${id}' not found.`);
-  }
+    if (currentCard.length === 0) {
+      throw new Error(`Delete failed: Local ID '${id}' not found.`);
+    }
 
-  const targetMsId = currentCard[0].msId;
+    const targetMsId = currentCard[0].msId;
 
-  // 2. MS SQL se record delete karein
-  if (targetMsId && mssqlPool) {
-    try {
-      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
-        await mssqlPool.connect();
+    // 2. MS SQL se record delete karein
+    if (targetMsId && mssqlPool) {
+      try {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+          await mssqlPool.connect();
+        }
+
+        const request = mssqlPool.request();
+        request.input('TargetMsId', mssql.Int, targetMsId);
+
+        await request.query(`DELETE FROM VisitorCards WHERE Id = @TargetMsId`);
+      } catch (msSqlErr) {
+        // MS SQL fail hone par process block nahi hogi, local cleanup chalta rahega
+        console.error("MS SQL Sync Delete Failed:", msSqlErr);
       }
-
-      const request = mssqlPool.request();
-      request.input('TargetMsId', mssql.Int, targetMsId);
-      
-      await request.query(`DELETE FROM VisitorCards WHERE Id = @TargetMsId`);
-    } catch (msSqlErr) {
-      // MS SQL fail hone par process block nahi hogi, local cleanup chalta rahega
-      console.error("MS SQL Sync Delete Failed:", msSqlErr);
     }
+
+    // 3. Local Postgres se delete karein
+    await db.transaction(async (tx) => {
+      try {
+        await tx.delete(visitorCards).where(eq(visitorCards.id, id));
+      } catch (err: any) {
+        tx.rollback();
+        throw err;
+      }
+    });
   }
-
-  // 3. Local Postgres se delete karein
-  await db.transaction(async (tx) => {
-    try {
-      await tx.delete(visitorCards).where(eq(visitorCards.id, id));
-    } catch (err: any) {
-      tx.rollback();
-      throw err;
-    }
-  });
-}
   async upsertVisitorDoorAssignment(data: {
     visitorId: number;
     visitorCardId: number;
@@ -7862,7 +7862,7 @@ ${fromDate} || ' to ' || ${toDate}
       .where(
         and(
           eq(schema.visitors.id, Number(data.visitorId)),
-          eq(schema.visitors.rfidCardNo, data.visitorCardId.toString()) // Matches your string rfid column
+          eq(schema.visitors.visitorCardId, Number(data.visitorCardId))// Matches your string rfid column
         )
       )
       .limit(1);
