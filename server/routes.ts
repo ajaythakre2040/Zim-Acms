@@ -197,16 +197,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
   // 2. Visitor Machine Logs Route (ONLY Visitors)
-  // app.get("/api/dashboard/attendance/visitor-machine-logs", async (req, res) => {
-  //   try {
-  //     const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-  //     const logs = await storage.getVisitorMachineAccessLogs(date);
-  //     res.json(logs);
-  //   } catch (e: any) {
-  //     console.error("Visitor Machine Logs Error:", e.message);
-  //     res.status(500).json({ message: "Failed to fetch visitor machine logs" });
-  //   }
-  // });
+  app.get("/api/dashboard/visitor/visitor-machine-logs", async (req, res) => {
+    try {
+      const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+      const logs = await storage.getVisitorMachineAccessLogs(date);
+      res.json(logs);
+    } catch (e: any) {
+      console.error("Visitor Machine Logs Error:", e.message);
+      res.status(500).json({ message: "Failed to fetch visitor machine logs" });
+    }
+  });
   app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
     try {
       const date = (req.query.date as string) || new Date().toISOString().split('T')[0];

@@ -4277,6 +4277,75 @@ export class DatabaseStorage implements IStorage {
   //   });
   //   return { machineFeed };
   // }
+
+  async getVisitorMachineAccessLogs(date: string) {
+    // Fetch door mappings from Postgres
+    const doorMappings = await db
+      .select({
+        doorName: doors.name,
+        inIds: doorDevices.inDeviceIds,
+        outIds: doorDevices.outDeviceIds,
+      })
+      .from(doors)
+      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
+    // Fetch only visitor records from MS SQL
+    const msSqlData = await mssqlPool.request().input("filterDate", date)
+      .query(`
+      SELECT 
+        l.EmployeeCode, -- contains something like 'visitor45'
+        l.DeviceId, 
+        d.DeviceName,
+        l.Direction, 
+        l.LogDate 
+      FROM DeviceLogs l
+      LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+      WHERE CAST(l.LogDate AS DATE) = @filterDate
+        AND l.EmployeeCode LIKE 'visitor%' -- Only visitor logs
+      ORDER BY l.LogDate DESC
+    `);
+
+    const logs = msSqlData.recordset;
+
+    // Optimize Name Resolution: Pure logs me se visitor IDs nikal kar Postgres se real names fetch karna
+    const visitorIds = logs.map(l => {
+      const matched = l.EmployeeCode.match(/\d+/);
+      return matched ? Number(matched[0]) : null;
+    }).filter((id): id is number => id !== null);
+
+    let visitorDetails: any[] = [];
+    if (visitorIds.length > 0) {
+      visitorDetails = await db
+        .select({ id: schema.visitors.id, name: schema.visitors.nameOfVisitor }) // standard name/firstName column
+        .from(schema.visitors)
+        .where(inArray(schema.visitors.id, [...new Set(visitorIds)]));
+    }
+
+    const machineFeed = logs.map((log) => {
+      const door = doorMappings.find(
+        (m) =>
+          (m.inIds || []).includes(log.DeviceId) ||
+          (m.outIds || []).includes(log.DeviceId),
+      );
+
+      // Extract raw ID from string 'visitor45' -> 45
+      const idMatch = log.EmployeeCode.match(/\d+/);
+      const numericVisitorId = idMatch ? Number(idMatch[0]) : null;
+      const dbVisitor = visitorDetails.find(v => v.id === numericVisitorId);
+
+      return {
+        visitorName: dbVisitor ? dbVisitor.name : "Unknown Visitor",
+        visitorId: numericVisitorId,
+        deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+        direction: log.Direction,
+        logDate: log.LogDate,
+        doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+      };
+    });
+
+    return { machineFeed };
+  }
+
   async getMachineAccessLogs(date: string) {
     const doorMappings = await db
       .select({
@@ -4286,6 +4355,21 @@ export class DatabaseStorage implements IStorage {
       })
       .from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+    // const msSqlData = await mssqlPool.request().input("filterDate", date)
+    //   .query(`
+    //   SELECT 
+    //     e.EmployeeName, 
+    //     l.EmployeeCode, 
+    //     l.DeviceId, 
+    //     d.DeviceName,
+    //     l.Direction, 
+    //     l.LogDate 
+    //   FROM DeviceLogs l
+    //   LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
+    //   LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+    //   WHERE CAST(l.LogDate AS DATE) = @filterDate
+    //   ORDER BY l.LogDate DESC
+    // `);
     const msSqlData = await mssqlPool.request().input("filterDate", date)
       .query(`
       SELECT 
@@ -4299,6 +4383,7 @@ export class DatabaseStorage implements IStorage {
       LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
       LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
       WHERE CAST(l.LogDate AS DATE) = @filterDate
+        AND l.EmployeeCode NOT LIKE 'visitor%' -- Filter out visitors
       ORDER BY l.LogDate DESC
     `);
     const logs = msSqlData.recordset;
@@ -4321,6 +4406,9 @@ export class DatabaseStorage implements IStorage {
       machineFeed,
     };
   }
+
+
+
   async getRoleEligibleDevices(): Promise<any[]> {
     try {
       const msDataRaw = await dbMsSql
