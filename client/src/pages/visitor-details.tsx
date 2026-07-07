@@ -75,7 +75,7 @@ export default function VisitorsPage() {
   const { data: visitorCards = [] } = useQuery({
     queryKey: ["/api/visitor_cards_dropdown"],
     queryFn: async () => {
-      const res = await fetch("/api/visitor_cards?pageSize=1000");
+      const res = await fetch("/api/visitor_cards/dropdown");
       const resData = await res.json();
       return Array.isArray(resData) ? resData : resData?.data || [];
     },

@@ -13,21 +13,19 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronsLeft,
-  RotateCw, // 🌟 Sync icon ke liye import kiya
+  RotateCw,
 } from "lucide-react";
 import { MENU_CONFIG } from "../../../server/constant";
 import { PaginationSize } from "@/components/ui/pagination";
 
-// HELPER FUNCTION: Timestamp ko YYYY-MM-DD format me convert karne ke liye taaki input autofill ho sake
 const formatDateForInput = (dateString: string | null | undefined) => {
   if (!dateString) return "";
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return "";
-  return date.toISOString().split("T")[0]; // returns "YYYY-MM-DD"
+  return date.toISOString().split("T")[0];
 };
 
 export default function VisitorCardsPage() {
-  // 1. Permission handles
   const { canEdit, canDelete, canView } = usePermission(
     MENU_CONFIG.VISITOR_CARDS.code,
   );
@@ -49,8 +47,6 @@ export default function VisitorCardsPage() {
   const [editing, setEditing] = useState<any>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formKey, setFormKey] = useState(0);
-  
-  // 🌟 NEW STATE: Syncing status handle karne ke liye
   const [isSyncing, setIsSyncing] = useState(false);
 
   const { isLoading, update, remove, isUpdating } =
@@ -65,7 +61,6 @@ export default function VisitorCardsPage() {
       );
       const resData = await res.json();
       setPagedResponse(resData);
-      
     } catch (error) {
       console.error("Fetcher execution broke:", error);
     }
@@ -76,20 +71,15 @@ export default function VisitorCardsPage() {
     handleSync();
   }, [page, search, pageSize]);
 
-  // 🌟 NEW FUNCTION: Sync handler (MSSQL to PG API ko hit karega)
   const handleSync = async () => {
     try {
       setIsSyncing(true);
-      // Apne backend route ke mutabik endpoint badal sakte hain (e.g., /api/visitor_cards/sync)
       const res = await fetch("/api/visitor_cards/sync", {
         method: "POST",
       });
-      
       if (!res.ok) {
         throw new Error("Sync operation failed");
       }
-
-      // Sync hone ke baad table data ko fresh fetch karega
       await fetchVisitorCards();
     } catch (error) {
       console.error("Sync error:", error);
@@ -107,7 +97,6 @@ export default function VisitorCardsPage() {
   const totalPages =
     pagedResponse?.totalPages || Math.ceil(totalCount / pageSize) || 1;
 
-  // 2. Form Fields Schema
   const fields: FieldConfig[] = [
     { key: "name", label: "Card Name", required: true },
     {
@@ -140,6 +129,22 @@ export default function VisitorCardsPage() {
       label: "Valid To",
       render: (s: any) =>
         s.expiryTo ? new Date(s.expiryTo).toLocaleDateString() : "-",
+    },
+    /* 🌟 NEW COLUMN: Status (Actions se theek pahle) */
+    {
+      key: "status",
+      label: "Status",
+      render: (s: any) => (
+        <span
+          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+            s.isAssigned
+              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+          }`}
+        >
+          {s.isAssigned ? "Assign" : "Not Assign"}
+        </span>
+      ),
     },
     {
       key: "actions",
@@ -179,7 +184,6 @@ export default function VisitorCardsPage() {
 
                 try {
                   await remove(s.id);
-
                   setPagedResponse((prev: any) => {
                     if (!prev) return prev;
                     if (Array.isArray(prev)) {
@@ -193,7 +197,6 @@ export default function VisitorCardsPage() {
                       totalCount: prev.totalCount ? prev.totalCount - 1 : 0,
                     };
                   });
-
                   await fetchVisitorCards();
                 } catch (err) {
                   // Silent fail safe
@@ -228,7 +231,6 @@ export default function VisitorCardsPage() {
         title="Visitor Cards"
         description="Manage RFID/Visitor cards and their expiry"
         action={
-          /* 🌟 FIX: Add Card hata kar Sync button lagaya aur loading state integrate kiya */
           <Button 
             onClick={handleSync} 
             disabled={isSyncing || isLoading}
@@ -256,7 +258,7 @@ export default function VisitorCardsPage() {
       <DataTable
         columns={columns}
         data={cardsData}
-        isLoading={isLoading || isSyncing} // 🌟 Loading screen trigger hogi jab sync ho rha hoga
+        isLoading={isLoading || isSyncing}
         searchable={false}
         pageSize={pageSize}
         emptyMessage="No visitor cards found."
@@ -352,7 +354,7 @@ export default function VisitorCardsPage() {
         </div>
       </div>
 
-      {/* Edit Dialog (Keep only for editing now) */}
+      {/* Edit Dialog */}
       {canEdit && (
         <CrudDialog
           key={formKey}
