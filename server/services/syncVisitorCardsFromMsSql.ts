@@ -30,7 +30,6 @@ export async function syncVisitorCardsFromMsSql() {
             return parsed;
         };
 
-        // Active MS SQL IDs track karne ke liye array
         const activeMsIds: number[] = [];
 
         for (const msRow of msCards) {
@@ -47,16 +46,7 @@ export async function syncVisitorCardsFromMsSql() {
                 continue;
             }
 
-            // Current ID ko list mein push karein
             activeMsIds.push(Number(msId));
-
-            const [visitorMapping] = await db
-                .select()
-                .from(schema.visitors)
-                .where(eq(schema.visitors.visitorCardId, Number(msId)))
-                .limit(1);
-
-            const assignedStatus = !!visitorMapping;
 
             const [existingCard] = await db
                 .select()
@@ -74,11 +64,18 @@ export async function syncVisitorCardsFromMsSql() {
                         location: location ? Number(location) : null,
                         expiryFrom: expiryFrom,
                         expiryTo: expiryTo,
-                        isAssigned: assignedStatus,
                         updatedAt: new Date()
                     })
                     .where(eq(visitorCards.msId, Number(msId)));
             } else {
+                const [visitorMapping] = await db
+                    .select()
+                    .from(schema.visitors)
+                    .where(eq(schema.visitors.visitorCardId, Number(msId)))
+                    .limit(1);
+
+                const assignedStatus = !!visitorMapping;
+
                 await db
                     .insert(visitorCards)
                     .values({
@@ -96,7 +93,6 @@ export async function syncVisitorCardsFromMsSql() {
             }
         }
 
-        // Jo IDs incoming array mein nahi hain, unhe Postgres se wipe-out karein
         if (activeMsIds.length > 0) {
             await db
                 .delete(visitorCards)

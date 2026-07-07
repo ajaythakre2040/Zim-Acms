@@ -65,6 +65,7 @@ export default function VisitorCardsPage() {
       );
       const resData = await res.json();
       setPagedResponse(resData);
+      
     } catch (error) {
       console.error("Fetcher execution broke:", error);
     }
@@ -72,6 +73,7 @@ export default function VisitorCardsPage() {
 
   useEffect(() => {
     fetchVisitorCards();
+    handleSync();
   }, [page, search, pageSize]);
 
   // 🌟 NEW FUNCTION: Sync handler (MSSQL to PG API ko hit karega)

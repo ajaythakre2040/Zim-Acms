@@ -7842,180 +7842,195 @@ ${fromDate} || ' to ' || ${toDate}
     });
   }
  
-  async upsertVisitorDoorAssignment(data: {
-    visitorId: number;
-    visitorCardId: number;
-    doorIds: number[];
-  }) {
-    const uniqueDoorIds = [...new Set(data.doorIds.map(Number))];
+  // async upsertVisitorDoorAssignment(data: {
+  //   visitorId: number;
+  //   visitorCardId: number;
+  //   doorIds: number[];
+  // }) {
+  //   const uniqueDoorIds = [...new Set(data.doorIds.map(Number))];
 
-    if (uniqueDoorIds.length === 0) {
-      throw new Error("Door IDs array cannot be empty.");
-    }
+  //   if (uniqueDoorIds.length === 0) {
+  //     throw new Error("Door IDs array cannot be empty.");
+  //   }
 
-    // 1. Check existing visitor in Postgres
-    const [existingVisitor] = await db
-      .select()
-      .from(schema.visitors)
-      .where(
-        and(
-          eq(schema.visitors.id, Number(data.visitorId)),
-          eq(schema.visitors.visitorCardId, Number(data.visitorCardId))
-        )
-      )
-      .limit(1);
+  //   // 1. Check existing visitor in Postgres
+  //   const [existingVisitor] = await db
+  //     .select()
+  //     .from(schema.visitors)
+  //     .where(
+  //       and(
+  //         eq(schema.visitors.id, Number(data.visitorId)),
+  //         eq(schema.visitors.visitorCardId, Number(data.visitorCardId))
+  //       )
+  //     )
+  //     .limit(1);
 
-    if (!existingVisitor) {
-      throw new Error("No matching record found for the provided Visitor ID and Visitor Card ID.");
-    }
+  //   if (!existingVisitor) {
+  //     throw new Error("No matching record found for the provided Visitor ID and Visitor Card ID.");
+  //   }
 
-    const generatedCardCode = `visitor${data.visitorId}`;
-    const currentTimestamp = new Date();
+  //   const generatedCardCode = `visitor${data.visitorId}`;
+  //   const currentTimestamp = new Date();
 
-    // 2. Fetch device mappings AND locationId from doors
-    const mappings = await db
+  //   // 2. Fetch device mappings AND locationId from doors
+  //   const mappings = await db
+  //     .select({
+  //       inDeviceIds: schema.doorDevices.inDeviceIds,
+  //       outDeviceIds: schema.doorDevices.outDeviceIds,
+  //       locationId: schema.doors.locationId
+  //     })
+  //     .from(schema.doorDevices)
+  //     .innerJoin(schema.doors, eq(schema.doorDevices.doorId, schema.doors.id))
+  //     .where(inArray(schema.doorDevices.doorId, uniqueDoorIds));
+
+  //   if (!mappings || mappings.length === 0) {
+  //     throw new Error("No matching devices found for the provided Door IDs.");
+  //   }
+
+  //   const allDeviceIds = new Set<number>();
+  //   const backupLocationIds = new Set<number>();
+
+  //   mappings.forEach((row) => {
+  //     if (Array.isArray(row.inDeviceIds)) {
+  //       row.inDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
+  //     }
+  //     if (Array.isArray(row.outDeviceIds)) {
+  //       row.outDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
+  //     }
+  //     if (row.locationId) {
+  //       backupLocationIds.add(Number(row.locationId));
+  //     }
+  //   });
+
+  //   const deviceIds = [...allDeviceIds];
+  //   let targetLocationIds = [...backupLocationIds];
+
+  //   if (deviceIds.length === 0) {
+  //     throw new Error("No valid Device IDs found assigned to the selected doors.");
+  //   }
+
+  //   // --- SAFE CARD TABLE SE LOCATION ID FETCH ---
+  //   try {
+  //     const cardQuery = await mssqlPool.request()
+  //       .input('visitorCardId', Number(data.visitorCardId))
+  //       .query(`
+  //       SELECT LocationId FROM VisitorCards WHERE VisitorCardId = @visitorCardId
+  //     `);
+
+  //     const cardRecord = cardQuery.recordset[0];
+  //     if (cardRecord && cardRecord.LocationId) {
+  //       targetLocationIds = [Number(cardRecord.LocationId)];
+  //     }
+  //   } catch (cardTableError) {
+  //     // Logs mein jo warning aa rahi thi wo yahan capture ho rahi hai
+  //     console.warn("⚠️ VisitorCards column mismatch, relying on doors/devices map.");
+  //   }
+
+  //   // 🔥 CRITICAL FIX: Agar dono jagah se location na mile, toh direct MS SQL ki Devices table se dynamic location uthao
+  //   if (targetLocationIds.length === 0 && deviceIds.length > 0) {
+  //     try {
+  //       console.log(`🔍 Location blank hai, direct Devices (${deviceIds.join(',')}) se LocationId dhoondh rahe hain...`);
+  //       const deviceLocationQuery = await mssqlPool.request()
+  //         .query(`SELECT DISTINCT LocationId FROM Devices WHERE DeviceId IN (${deviceIds.join(',')}) AND LocationId IS NOT NULL`);
+
+  //       if (deviceLocationQuery.recordset.length > 0) {
+  //         targetLocationIds = deviceLocationQuery.recordset.map(row => Number(row.LocationId));
+  //         console.log(`🎯 Devices se successfully extracted Location IDs: ${targetLocationIds.join(', ')}`);
+  //       }
+  //     } catch (devLocErr) {
+  //       console.error("❌ Failed to fetch location via Devices table:", devLocErr);
+  //     }
+  //   }
+
+  //   // Ultimate safe fallback check
+  //   if (targetLocationIds.length === 0) {
+  //     console.log("⚠️ Ultimate Fallback applied: Forcing Default LocationId = 1");
+  //     targetLocationIds = [1];
+  //   }
+  //   // -----------------------------------------------------
+
+  //   // 3. PostgreSQL Transaction (visitorCardLogs)
+  //   const pgResult = await db.transaction(async (tx) => {
+  //     const pgEntries = deviceIds.map((deviceId) => ({
+  //       deviceId: deviceId,
+  //       visitorCardId: Number(data.visitorCardId),
+  //       visitorCardCode: generatedCardCode,
+  //       command: 'ADD',
+  //       status: 'PENDING',
+  //       syncDate: null,
+  //       isDirtyDateTime: currentTimestamp,
+  //     }));
+
+  //     return await tx
+  //       .insert(schema.visitorCardLogs)
+  //       .values(pgEntries)
+  //       .returning();
+  //   });
+
+  //   // 4. MS SQL Native Sync Execution
+  //   try {
+  //     // A. Device Visitor Cards Insertion
+  //     for (const deviceId of deviceIds) {
+  //       await mssqlPool.request()
+  //         .input('deviceId', deviceId)
+  //         .input('visitorCardId', Number(data.visitorCardId))
+  //         .input('visitorCardCode', generatedCardCode)
+  //         .input('currentTimestamp', currentTimestamp)
+  //         .query(`
+  //         INSERT INTO DeviceVisitorCards (DeviceId, VisitorCardId, VisitorCardCode, Command, Status, SyncDate, IsDirtyDateTime)
+  //         VALUES (@deviceId, @visitorCardId, @visitorCardCode, 'ADD', 'PENDING', NULL, @currentTimestamp)
+  //       `);
+  //     }
+
+  //     // B. Location Visitor Cards Insertion
+  //     for (const locationId of targetLocationIds) {
+  //       try {
+  //         const checkDuplicate = await mssqlPool.request()
+  //           .input('locationId', locationId)
+  //           .input('visitorCardId', Number(data.visitorCardId))
+  //           .query(`
+  //           SELECT 1 FROM LocationVisitorCards WHERE LocationId = @locationId AND VisitorCardId = @visitorCardId
+  //         `);
+
+  //         if (checkDuplicate.recordset.length === 0) {
+  //           await mssqlPool.request()
+  //             .input('locationId', locationId)
+  //             .input('visitorCardId', Number(data.visitorCardId))
+  //             .query(`
+  //             INSERT INTO LocationVisitorCards (LocationId, VisitorCardId)
+  //             VALUES (@locationId, @visitorCardId)
+  //           `);
+  //           console.log(`✅ SUCCESSFULLY INSERTED into LocationVisitorCards: Location ${locationId}, Card ${data.visitorCardId}`);
+  //         } else {
+  //           console.log(`ℹ️ Entry already exists in LocationVisitorCards for Location ${locationId}, skipping...`);
+  //         }
+  //       } catch (locErr) {
+  //         const errorMessage = locErr instanceof Error ? locErr.message : String(locErr);
+  //         console.error(`❌ Could not write to LocationVisitorCards for Location ${locationId}:`, errorMessage);
+  //       }
+  //     }
+
+  //   } catch (msSqlError) {
+  //     console.error("❌ MS SQL Main Write Engine Failed:", msSqlError);
+  //     throw new Error("Data saved to Postgres but failed to sync with MS SQL target tables.");
+  //   }
+
+  //   return pgResult;
+  // }
+  
+
+  async getAllCardsForDropdown() {
+    return await db
       .select({
-        inDeviceIds: schema.doorDevices.inDeviceIds,
-        outDeviceIds: schema.doorDevices.outDeviceIds,
-        locationId: schema.doors.locationId
+        id: visitorCards.id,
+        msId: visitorCards.msId,
+        cardNumber: visitorCards.cardNumber,
+        name: visitorCards.name,
+        isAssigned: visitorCards.isAssigned
       })
-      .from(schema.doorDevices)
-      .innerJoin(schema.doors, eq(schema.doorDevices.doorId, schema.doors.id))
-      .where(inArray(schema.doorDevices.doorId, uniqueDoorIds));
-
-    if (!mappings || mappings.length === 0) {
-      throw new Error("No matching devices found for the provided Door IDs.");
-    }
-
-    const allDeviceIds = new Set<number>();
-    const backupLocationIds = new Set<number>();
-
-    mappings.forEach((row) => {
-      if (Array.isArray(row.inDeviceIds)) {
-        row.inDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
-      }
-      if (Array.isArray(row.outDeviceIds)) {
-        row.outDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
-      }
-      if (row.locationId) {
-        backupLocationIds.add(Number(row.locationId));
-      }
-    });
-
-    const deviceIds = [...allDeviceIds];
-    let targetLocationIds = [...backupLocationIds];
-
-    if (deviceIds.length === 0) {
-      throw new Error("No valid Device IDs found assigned to the selected doors.");
-    }
-
-    // --- SAFE CARD TABLE SE LOCATION ID FETCH ---
-    try {
-      const cardQuery = await mssqlPool.request()
-        .input('visitorCardId', Number(data.visitorCardId))
-        .query(`
-        SELECT LocationId FROM VisitorCards WHERE VisitorCardId = @visitorCardId
-      `);
-
-      const cardRecord = cardQuery.recordset[0];
-      if (cardRecord && cardRecord.LocationId) {
-        targetLocationIds = [Number(cardRecord.LocationId)];
-      }
-    } catch (cardTableError) {
-      // Logs mein jo warning aa rahi thi wo yahan capture ho rahi hai
-      console.warn("⚠️ VisitorCards column mismatch, relying on doors/devices map.");
-    }
-
-    // 🔥 CRITICAL FIX: Agar dono jagah se location na mile, toh direct MS SQL ki Devices table se dynamic location uthao
-    if (targetLocationIds.length === 0 && deviceIds.length > 0) {
-      try {
-        console.log(`🔍 Location blank hai, direct Devices (${deviceIds.join(',')}) se LocationId dhoondh rahe hain...`);
-        const deviceLocationQuery = await mssqlPool.request()
-          .query(`SELECT DISTINCT LocationId FROM Devices WHERE DeviceId IN (${deviceIds.join(',')}) AND LocationId IS NOT NULL`);
-
-        if (deviceLocationQuery.recordset.length > 0) {
-          targetLocationIds = deviceLocationQuery.recordset.map(row => Number(row.LocationId));
-          console.log(`🎯 Devices se successfully extracted Location IDs: ${targetLocationIds.join(', ')}`);
-        }
-      } catch (devLocErr) {
-        console.error("❌ Failed to fetch location via Devices table:", devLocErr);
-      }
-    }
-
-    // Ultimate safe fallback check
-    if (targetLocationIds.length === 0) {
-      console.log("⚠️ Ultimate Fallback applied: Forcing Default LocationId = 1");
-      targetLocationIds = [1];
-    }
-    // -----------------------------------------------------
-
-    // 3. PostgreSQL Transaction (visitorCardLogs)
-    const pgResult = await db.transaction(async (tx) => {
-      const pgEntries = deviceIds.map((deviceId) => ({
-        deviceId: deviceId,
-        visitorCardId: Number(data.visitorCardId),
-        visitorCardCode: generatedCardCode,
-        command: 'ADD',
-        status: 'PENDING',
-        syncDate: null,
-        isDirtyDateTime: currentTimestamp,
-      }));
-
-      return await tx
-        .insert(schema.visitorCardLogs)
-        .values(pgEntries)
-        .returning();
-    });
-
-    // 4. MS SQL Native Sync Execution
-    try {
-      // A. Device Visitor Cards Insertion
-      for (const deviceId of deviceIds) {
-        await mssqlPool.request()
-          .input('deviceId', deviceId)
-          .input('visitorCardId', Number(data.visitorCardId))
-          .input('visitorCardCode', generatedCardCode)
-          .input('currentTimestamp', currentTimestamp)
-          .query(`
-          INSERT INTO DeviceVisitorCards (DeviceId, VisitorCardId, VisitorCardCode, Command, Status, SyncDate, IsDirtyDateTime)
-          VALUES (@deviceId, @visitorCardId, @visitorCardCode, 'ADD', 'PENDING', NULL, @currentTimestamp)
-        `);
-      }
-
-      // B. Location Visitor Cards Insertion
-      for (const locationId of targetLocationIds) {
-        try {
-          const checkDuplicate = await mssqlPool.request()
-            .input('locationId', locationId)
-            .input('visitorCardId', Number(data.visitorCardId))
-            .query(`
-            SELECT 1 FROM LocationVisitorCards WHERE LocationId = @locationId AND VisitorCardId = @visitorCardId
-          `);
-
-          if (checkDuplicate.recordset.length === 0) {
-            await mssqlPool.request()
-              .input('locationId', locationId)
-              .input('visitorCardId', Number(data.visitorCardId))
-              .query(`
-              INSERT INTO LocationVisitorCards (LocationId, VisitorCardId)
-              VALUES (@locationId, @visitorCardId)
-            `);
-            console.log(`✅ SUCCESSFULLY INSERTED into LocationVisitorCards: Location ${locationId}, Card ${data.visitorCardId}`);
-          } else {
-            console.log(`ℹ️ Entry already exists in LocationVisitorCards for Location ${locationId}, skipping...`);
-          }
-        } catch (locErr) {
-          const errorMessage = locErr instanceof Error ? locErr.message : String(locErr);
-          console.error(`❌ Could not write to LocationVisitorCards for Location ${locationId}:`, errorMessage);
-        }
-      }
-
-    } catch (msSqlError) {
-      console.error("❌ MS SQL Main Write Engine Failed:", msSqlError);
-      throw new Error("Data saved to Postgres but failed to sync with MS SQL target tables.");
-    }
-
-    return pgResult;
+      .from(visitorCards)
+      .where(eq(visitorCards.isAssigned, false))
+      .orderBy(asc(visitorCards.name));
   }
 }
 export const storage = new DatabaseStorage();

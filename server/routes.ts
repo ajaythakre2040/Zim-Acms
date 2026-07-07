@@ -1391,19 +1391,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
 
 
-  app.post("/api/visitor-door-assignments", withAudit(TABLES.DEVICE_VISITOR_CARDS, "ADD", async (req) => {
-    const { visitorId, visitorCardId, doorIds } = req.body;
+  // app.post("/api/visitor-door-assignments", withAudit(TABLES.DEVICE_VISITOR_CARDS, "ADD", async (req) => {
+  //   const { visitorId, visitorCardId, doorIds } = req.body;
 
-    if (!visitorId || !visitorCardId || !Array.isArray(doorIds)) {
-      throw new Error("Required data missing: visitorId (number), visitorCardId (number), and doorIds (array) are mandatory.");
-    }
+  //   if (!visitorId || !visitorCardId || !Array.isArray(doorIds)) {
+  //     throw new Error("Required data missing: visitorId (number), visitorCardId (number), and doorIds (array) are mandatory.");
+  //   }
 
-    return {
-      status: "success",
-      message: "Visitor door privileges updated successfully.",
-      data: await storage.upsertVisitorDoorAssignment({ visitorId, visitorCardId, doorIds })
-    };
-  }, 200));;
+  //   return {
+  //     status: "success",
+  //     message: "Visitor door privileges updated successfully.",
+  //     data: await storage.upsertVisitorDoorAssignment({ visitorId, visitorCardId, doorIds })
+  //   };
+  // }, 200));;
 
 
 
@@ -2354,6 +2354,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Error fetching latest log" });
     }
   });
-
+  app.get("/api/visitor_cards/dropdown", async (req: any, res: any) => {
+    try {
+      const data = await storage.getAllCardsForDropdown();
+      res.status(200).json({
+        success: true,
+        data
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  });
   return httpServer;
 }
