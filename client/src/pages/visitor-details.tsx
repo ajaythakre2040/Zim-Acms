@@ -286,7 +286,7 @@ export default function VisitorsPage() {
           </Button>
 
           {/* 2. NEW ASSIGN DOOR BUTTON */}
-          <Button
+          {/* <Button
             size="icon"
             variant="ghost"
             title="Assign Door"
@@ -303,7 +303,7 @@ export default function VisitorsPage() {
             }}
           >
             <DoorOpen className="w-4 h-4 text-teal-600" />
-          </Button>
+          </Button> */}
 
           {/* 3. EDIT BUTTON */}
           <Button
@@ -481,9 +481,8 @@ export default function VisitorsPage() {
       />
 
       {/* 2. ASSIGN DOOR DIALOG BLOCK */}
-      <Dialog open={roledialogOpen} onOpenChange={setRoleDialogOpen}>
+      {/* <Dialog open={roledialogOpen} onOpenChange={setRoleDialogOpen}>
         <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
-          {/* HEADER */}
           <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
             <div className="flex items-center gap-3">
               <UserPlus className="w-6 h-6" />
@@ -495,9 +494,7 @@ export default function VisitorsPage() {
               </div>
             </div>
           </div>
-          {/* BODY */}
           <div className="p-6 space-y-4">
-            {/* SEARCH */}
             <div className="relative">
               <input
                 placeholder="Search door..."
@@ -525,7 +522,6 @@ export default function VisitorsPage() {
                 </button>
               </div>
             </div>
-            {/* ROLE LIST */}
             <div className="h-[300px] overflow-y-auto rounded-xl border bg-slate-50 p-2">
               {isLoadingDoors ? (
                 <p className="text-center text-sm text-muted-foreground">
@@ -553,7 +549,6 @@ export default function VisitorsPage() {
                         })
                       }
                     >
-                      {/* ✅ CHECKBOX */}
                       <Checkbox
                         checked={
                           Array.isArray(selectedDoorIds) &&
@@ -561,7 +556,6 @@ export default function VisitorsPage() {
                         }
                         className="pointer-events-none"
                       />
-                      {/* DOOR NAME */}
                       <span
                         className={`text-sm ${
                           selectedDoorIds.includes(door.id)
@@ -576,7 +570,6 @@ export default function VisitorsPage() {
               )}
             </div>
           </div>
-          {/* FOOTER */}
           <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
             <Button
               variant="outline"
@@ -593,7 +586,6 @@ export default function VisitorsPage() {
               className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
               onClick={async () => {
                 try {
-                  // Dropdown records se matching card ki system ID extract kar rhe hain
                   const matchingCard = visitorCards.find(
                     (c: any) => c.cardNumber === roleassign?.rfidCardNo,
                   );
@@ -602,7 +594,7 @@ export default function VisitorsPage() {
                     visitorId: Number(roleassign?.id),
                     visitorCardId: matchingCard
                       ? Number(matchingCard.id)
-                      : null, // Ya fir direct roleassign?.rfidCardNo use karein database structure ke hisab se
+                      : null, 
                     doorIds: selectedDoorIds.map(Number),
                   };
 
@@ -619,7 +611,6 @@ export default function VisitorsPage() {
                       variant: "default",
                     });
 
-                    // Data refresh pipeline (Optional: visitor list reload karne ke liye)
                     fetchVisitors();
 
                     setRoleDialogOpen(false);
@@ -640,7 +631,7 @@ export default function VisitorsPage() {
             </Button>
           </div>
         </DialogContent>
-      </Dialog>
+      </Dialog> */}
 
       {/* 3. VIEW VISITOR DETAILS DIALOG BLOCK */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>

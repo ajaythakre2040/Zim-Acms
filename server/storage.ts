@@ -234,7 +234,7 @@ export interface IStorage {
   deleteContractor(id: number): Promise<boolean>;
 
   getVisitorCards(): Promise<any[]>;
-  createVisitorCard(card: any): Promise<any>;
+  // createVisitorCard(card: any): Promise<any>;
   updateVisitorCard(id: number, card: any): Promise<any>;
   deleteVisitorCard(id: number): Promise<void>;
   getVisitorCardById(id: number): Promise<any>;
@@ -7605,177 +7605,102 @@ ${fromDate} || ' to ' || ${toDate}
     const [card] = await db.select().from(visitorCards).where(eq(visitorCards.id, id));
     return card;
   }
+  
   // async createVisitorCard(card: any) {
-  //   // 1. Postgres se 'id' alag karein taaki default identity sequence run ho
+  //   // 1. Postgres ke purane 'id' ko hata dein taaki hum naya generate karein
   //   const { id, ...cardData } = card;
 
-  //   return await db.transaction(async (tx) => {
-  //     // 2. Postgres Insert (Sahi chal raha hai)
-  //     const [newCard] = await tx.insert(visitorCards).values(cardData).returning();
+  //   // 2. DUPLICATE CHECK: Pehle local DB me check karein ki cardNumber already hai ya nahi
+  //   if (cardData.cardNumber) {
+  //     const existingCard = await db
+  //       .select()
+  //       .from(visitorCards)
+  //       .where(eq(visitorCards.cardNumber, cardData.cardNumber))
+  //       .limit(1);
 
-  //     try {
-  //       // 3. MS SQL adapter se data format karein
+  //     if (existingCard.length > 0) {
+  //       throw new Error(`Duplicate card number not allowed: '${cardData.cardNumber}' already exists.`);
+  //     }
+  //   }
+
+  //   // Postgres sequence sync setup
+  //   try {
+  //     await db.execute(sql`
+  //     SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
+  //   `);
+  //   } catch (seqErr) {
+  //     // Sequence fail safe ignore
+  //   }
+
+  //   let insertedMsSqlId: number | null = null;
+
+  //   // ==========================================
+  //   // STEP 1: PEHLE MS SQL ME INSERT KAREIN
+  //   // ==========================================
+  //   try {
+  //     if (mssqlPool) {
+  //       if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+  //         await mssqlPool.connect();
+  //       }
+
   //       const msSqlData = VisitorCardAdapter.toMsSql(cardData);
-
-  //       // 4. Object name 'undefined' error se bachne ke liye direct mssql pool input use karein
   //       const request = mssqlPool.request();
 
-  //       // Request inputs parameters bind karein
   //       request.input('Name', mssql.NVarChar, msSqlData.Name);
   //       request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
   //       request.input('LocationId', mssql.Int, msSqlData.LocationId);
   //       request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
   //       request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
 
-  //       // Direct SSMS Table 'VisitorCards' par insert run karein
-  //       await request.query(`
+  //       const msSqlResult = await request.query(`
   //       INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
-  //       VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo)
+  //       VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo);
+  //       SELECT SCOPE_IDENTITY() AS id;
   //     `);
 
-  //     } catch (err) {
-  //       console.error("❌ MS SQL Sync Failed Error Details:", err);
-  //       tx.rollback(); // Postgres rollback karein agar MS SQL fail ho
-  //       throw new Error("MS SQL Sync Failed, Postgres transaction rolled back.");
+  //       if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
+  //         insertedMsSqlId = msSqlResult.recordset[0].id;
+  //       }
+
+  //       if (!insertedMsSqlId) {
+  //         throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
+  //       }
+  //     } else {
+  //       throw new Error("mssqlPool configuration is missing or undefined.");
   //     }
+  //   } catch (msSqlErr: any) {
+  //     throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
+  //   }
 
-  //     return newCard;
-  //   });
-  // }
-  async createVisitorCard(card: any) {
-    // 1. Postgres ke purane 'id' ko hata dein taaki hum naya generate karein
-    const { id, ...cardData } = card;
-
-    // 2. DUPLICATE CHECK: Pehle local DB me check karein ki cardNumber already hai ya nahi
-    if (cardData.cardNumber) {
-      const existingCard = await db
-        .select()
-        .from(visitorCards)
-        .where(eq(visitorCards.cardNumber, cardData.cardNumber))
-        .limit(1);
-
-      if (existingCard.length > 0) {
-        throw new Error(`Duplicate card number not allowed: '${cardData.cardNumber}' already exists.`);
-      }
-    }
-
-    // Postgres sequence sync setup
-    try {
-      await db.execute(sql`
-      SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
-    `);
-    } catch (seqErr) {
-      // Sequence fail safe ignore
-    }
-
-    let insertedMsSqlId: number | null = null;
-
-    // ==========================================
-    // STEP 1: PEHLE MS SQL ME INSERT KAREIN
-    // ==========================================
-    try {
-      if (mssqlPool) {
-        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
-          await mssqlPool.connect();
-        }
-
-        const msSqlData = VisitorCardAdapter.toMsSql(cardData);
-        const request = mssqlPool.request();
-
-        request.input('Name', mssql.NVarChar, msSqlData.Name);
-        request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
-        request.input('LocationId', mssql.Int, msSqlData.LocationId);
-        request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
-        request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
-
-        const msSqlResult = await request.query(`
-        INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
-        VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo);
-        SELECT SCOPE_IDENTITY() AS id;
-      `);
-
-        if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
-          insertedMsSqlId = msSqlResult.recordset[0].id;
-        }
-
-        if (!insertedMsSqlId) {
-          throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
-        }
-      } else {
-        throw new Error("mssqlPool configuration is missing or undefined.");
-      }
-    } catch (msSqlErr: any) {
-      throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
-    }
-
-    // ==========================================
-    // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
-    // ==========================================
-    return await db.transaction(async (tx) => {
-      try {
-        const postgresPayload = {
-          name: cardData.name,
-          cardNumber: cardData.cardNumber,
-          locationId: cardData.locationId,
-          location: cardData.location || null,
-          expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : null,
-          expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : null,
-          msId: insertedMsSqlId,
-        };
-
-        const [newCard] = await tx
-          .insert(visitorCards)
-          .values(postgresPayload)
-          .returning();
-
-        return newCard;
-      } catch (pgErr: any) {
-        tx.rollback();
-        throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
-      }
-    });
-  }
-
-  // async updateVisitorCard(id: number, card: any) {
-  //   const { id: _, ...cardData } = card;
-
+  //   // ==========================================
+  //   // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
+  //   // ==========================================
   //   return await db.transaction(async (tx) => {
-  //     // 1. Postgres Update
-  //     const [updatedCard] = await tx.update(visitorCards)
-  //       .set({ ...cardData, updatedAt: new Date() })
-  //       .where(eq(visitorCards.id, id))
-  //       .returning();
-
   //     try {
-  //       // 2. MS SQL Update
-  //       const msSqlData = VisitorCardAdapter.toMsSql(cardData);
-  //       const request = mssqlPool.request();
+  //       const postgresPayload = {
+  //         name: cardData.name,
+  //         cardNumber: cardData.cardNumber,
+  //         locationId: cardData.locationId,
+  //         location: cardData.location || null,
+  //         expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : null,
+  //         expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : null,
+  //         msId: insertedMsSqlId,
+  //       };
 
-  //       request.input('TargetId', mssql.Int, id); // Assuming Postgres ID and MS SQL ID are kept in sync
-  //       request.input('Name', mssql.NVarChar, msSqlData.Name);
-  //       request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
-  //       request.input('LocationId', mssql.Int, msSqlData.LocationId);
-  //       request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
-  //       request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
+  //       const [newCard] = await tx
+  //         .insert(visitorCards)
+  //         .values(postgresPayload)
+  //         .returning();
 
-  //       await request.query(`
-  //       UPDATE VisitorCards 
-  //       SET Name = @Name, CardNumber = @CardNumber, LocationId = @LocationId, ExpiryFrom = @ExpiryFrom, ExpiryTo = @ExpiryTo
-  //       WHERE Id = @TargetId
-  //     `);
-
-  //     } catch (err) {
-  //       console.error("❌ MS SQL Update Sync Failed Error Details:", err);
+  //       return newCard;
+  //     } catch (pgErr: any) {
   //       tx.rollback();
-  //       throw new Error("MS SQL Update Failed, changes rolled back.");
+  //       throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
   //     }
-
-  //     return updatedCard;
   //   });
   // }
 
-  // DELETE function mein change
-
+  
   async updateVisitorCard(id: number, card: any) {
     // 1. Id ko destructure karo aur safe side check lagao
     const { id: _, ...cardData } = card;
@@ -7874,32 +7799,7 @@ ${fromDate} || ' to ' || ${toDate}
     });
   }
 
-  // async deleteVisitorCard(id: number) {
-  //   return await db.transaction(async (tx) => {
-  //     try {
-  //       // 1. Pehle local main database se delete karein (using 'tx' context)
-  //       await tx.delete(visitorCards).where(eq(visitorCards.id, id));
-
-  //       // 2. Ab external MS SQL database se delete karne ki koshish karein
-  //       try {
-  //         await dbMsSql.delete(visitorCards).where(eq(visitorCards.id, id));
-  //       } catch (msSqlErr) {
-  //         console.error("MS SQL Sync Delete Failed:", msSqlErr);
-  //         // Agar MS SQL fail hota hai, toh local transaction ko abort/rollback karne ke liye error throw karein
-  //         throw new Error("MS SQL Sync Failed");
-  //       }
-
-  //     } catch (err: any) {
-  //       // Agar error MS SQL ka hai ya kisi aur cheez ka, transaction automatic rollback ho jayega
-  //       console.error("deleteVisitorCard transaction failed, rolling back:", err);
-
-  //       // Drizzle transaction rollback convention
-  //       tx.rollback();
-  //       throw new Error(err.message || "Delete operation failed and rolled back.");
-  //     }
-  //   });
-  // }
-
+  
   async deleteVisitorCard(id: number) {
     // 1. Postgres se card record uthao taaki MS SQL ki 'msId' mil sake
     const currentCard = await db
@@ -7941,6 +7841,7 @@ ${fromDate} || ' to ' || ${toDate}
       }
     });
   }
+ 
   async upsertVisitorDoorAssignment(data: {
     visitorId: number;
     visitorCardId: number;
@@ -7952,14 +7853,14 @@ ${fromDate} || ' to ' || ${toDate}
       throw new Error("Door IDs array cannot be empty.");
     }
 
-    // Check using rfid/rfidCardNo text column with string conversion
+    // 1. Check existing visitor in Postgres
     const [existingVisitor] = await db
       .select()
       .from(schema.visitors)
       .where(
         and(
           eq(schema.visitors.id, Number(data.visitorId)),
-          eq(schema.visitors.visitorCardId, Number(data.visitorCardId))// Matches your string rfid column
+          eq(schema.visitors.visitorCardId, Number(data.visitorCardId))
         )
       )
       .limit(1);
@@ -7971,19 +7872,24 @@ ${fromDate} || ' to ' || ${toDate}
     const generatedCardCode = `visitor${data.visitorId}`;
     const currentTimestamp = new Date();
 
+    // 2. Fetch device mappings AND locationId from doors
     const mappings = await db
       .select({
         inDeviceIds: schema.doorDevices.inDeviceIds,
-        outDeviceIds: schema.doorDevices.outDeviceIds
+        outDeviceIds: schema.doorDevices.outDeviceIds,
+        locationId: schema.doors.locationId
       })
       .from(schema.doorDevices)
+      .innerJoin(schema.doors, eq(schema.doorDevices.doorId, schema.doors.id))
       .where(inArray(schema.doorDevices.doorId, uniqueDoorIds));
 
     if (!mappings || mappings.length === 0) {
-      throw new Error("No matching devices found for the provided Door IDs in door_devices.");
+      throw new Error("No matching devices found for the provided Door IDs.");
     }
 
     const allDeviceIds = new Set<number>();
+    const backupLocationIds = new Set<number>();
+
     mappings.forEach((row) => {
       if (Array.isArray(row.inDeviceIds)) {
         row.inDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
@@ -7991,14 +7897,59 @@ ${fromDate} || ' to ' || ${toDate}
       if (Array.isArray(row.outDeviceIds)) {
         row.outDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
       }
+      if (row.locationId) {
+        backupLocationIds.add(Number(row.locationId));
+      }
     });
 
     const deviceIds = [...allDeviceIds];
+    let targetLocationIds = [...backupLocationIds];
 
     if (deviceIds.length === 0) {
       throw new Error("No valid Device IDs found assigned to the selected doors.");
     }
 
+    // --- SAFE CARD TABLE SE LOCATION ID FETCH ---
+    try {
+      const cardQuery = await mssqlPool.request()
+        .input('visitorCardId', Number(data.visitorCardId))
+        .query(`
+        SELECT LocationId FROM VisitorCards WHERE VisitorCardId = @visitorCardId
+      `);
+
+      const cardRecord = cardQuery.recordset[0];
+      if (cardRecord && cardRecord.LocationId) {
+        targetLocationIds = [Number(cardRecord.LocationId)];
+      }
+    } catch (cardTableError) {
+      // Logs mein jo warning aa rahi thi wo yahan capture ho rahi hai
+      console.warn("⚠️ VisitorCards column mismatch, relying on doors/devices map.");
+    }
+
+    // 🔥 CRITICAL FIX: Agar dono jagah se location na mile, toh direct MS SQL ki Devices table se dynamic location uthao
+    if (targetLocationIds.length === 0 && deviceIds.length > 0) {
+      try {
+        console.log(`🔍 Location blank hai, direct Devices (${deviceIds.join(',')}) se LocationId dhoondh rahe hain...`);
+        const deviceLocationQuery = await mssqlPool.request()
+          .query(`SELECT DISTINCT LocationId FROM Devices WHERE DeviceId IN (${deviceIds.join(',')}) AND LocationId IS NOT NULL`);
+
+        if (deviceLocationQuery.recordset.length > 0) {
+          targetLocationIds = deviceLocationQuery.recordset.map(row => Number(row.LocationId));
+          console.log(`🎯 Devices se successfully extracted Location IDs: ${targetLocationIds.join(', ')}`);
+        }
+      } catch (devLocErr) {
+        console.error("❌ Failed to fetch location via Devices table:", devLocErr);
+      }
+    }
+
+    // Ultimate safe fallback check
+    if (targetLocationIds.length === 0) {
+      console.log("⚠️ Ultimate Fallback applied: Forcing Default LocationId = 1");
+      targetLocationIds = [1];
+    }
+    // -----------------------------------------------------
+
+    // 3. PostgreSQL Transaction (visitorCardLogs)
     const pgResult = await db.transaction(async (tx) => {
       const pgEntries = deviceIds.map((deviceId) => ({
         deviceId: deviceId,
@@ -8016,23 +7967,52 @@ ${fromDate} || ' to ' || ${toDate}
         .returning();
     });
 
+    // 4. MS SQL Native Sync Execution
     try {
-      const msSqlPromises = deviceIds.map((deviceId) =>
-        dbMsSql.insert({ dbName: 'DeviceVisitorCards' }).values({
-          DeviceId: deviceId,
-          VisitorCardId: Number(data.visitorCardId),
-          VisitorCardCode: generatedCardCode,
-          Command: 'ADD',
-          Status: 'PENDING',
-          SyncDate: null,
-          IsDirtyDateTime: currentTimestamp,
-        })
-      );
+      // A. Device Visitor Cards Insertion
+      for (const deviceId of deviceIds) {
+        await mssqlPool.request()
+          .input('deviceId', deviceId)
+          .input('visitorCardId', Number(data.visitorCardId))
+          .input('visitorCardCode', generatedCardCode)
+          .input('currentTimestamp', currentTimestamp)
+          .query(`
+          INSERT INTO DeviceVisitorCards (DeviceId, VisitorCardId, VisitorCardCode, Command, Status, SyncDate, IsDirtyDateTime)
+          VALUES (@deviceId, @visitorCardId, @visitorCardCode, 'ADD', 'PENDING', NULL, @currentTimestamp)
+        `);
+      }
 
-      await Promise.all(msSqlPromises);
+      // B. Location Visitor Cards Insertion
+      for (const locationId of targetLocationIds) {
+        try {
+          const checkDuplicate = await mssqlPool.request()
+            .input('locationId', locationId)
+            .input('visitorCardId', Number(data.visitorCardId))
+            .query(`
+            SELECT 1 FROM LocationVisitorCards WHERE LocationId = @locationId AND VisitorCardId = @visitorCardId
+          `);
+
+          if (checkDuplicate.recordset.length === 0) {
+            await mssqlPool.request()
+              .input('locationId', locationId)
+              .input('visitorCardId', Number(data.visitorCardId))
+              .query(`
+              INSERT INTO LocationVisitorCards (LocationId, VisitorCardId)
+              VALUES (@locationId, @visitorCardId)
+            `);
+            console.log(`✅ SUCCESSFULLY INSERTED into LocationVisitorCards: Location ${locationId}, Card ${data.visitorCardId}`);
+          } else {
+            console.log(`ℹ️ Entry already exists in LocationVisitorCards for Location ${locationId}, skipping...`);
+          }
+        } catch (locErr) {
+          const errorMessage = locErr instanceof Error ? locErr.message : String(locErr);
+          console.error(`❌ Could not write to LocationVisitorCards for Location ${locationId}:`, errorMessage);
+        }
+      }
+
     } catch (msSqlError) {
-      console.error("MS SQL Sync Failed:", msSqlError);
-      throw new Error("Data saved to Postgres but failed to sync with MS SQL.");
+      console.error("❌ MS SQL Main Write Engine Failed:", msSqlError);
+      throw new Error("Data saved to Postgres but failed to sync with MS SQL target tables.");
     }
 
     return pgResult;

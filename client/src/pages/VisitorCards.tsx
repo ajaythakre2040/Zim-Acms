@@ -7,18 +7,18 @@ import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/hooks/use-confirm";
 import {
-  Plus,
   Pencil,
   Trash2,
   ChevronsRight,
   ChevronRight,
   ChevronLeft,
   ChevronsLeft,
+  RotateCw, // 🌟 Sync icon ke liye import kiya
 } from "lucide-react";
 import { MENU_CONFIG } from "../../../server/constant";
 import { PaginationSize } from "@/components/ui/pagination";
 
-// 🌟 HELPER FUNCTION: Timestamp ko YYYY-MM-DD format me convert karne ke liye taaki input autofill ho sake
+// HELPER FUNCTION: Timestamp ko YYYY-MM-DD format me convert karne ke liye taaki input autofill ho sake
 const formatDateForInput = (dateString: string | null | undefined) => {
   if (!dateString) return "";
   const date = new Date(dateString);
@@ -28,7 +28,7 @@ const formatDateForInput = (dateString: string | null | undefined) => {
 
 export default function VisitorCardsPage() {
   // 1. Permission handles
-  const { canAdd, canEdit, canDelete, canView } = usePermission(
+  const { canEdit, canDelete, canView } = usePermission(
     MENU_CONFIG.VISITOR_CARDS.code,
   );
 
@@ -49,8 +49,11 @@ export default function VisitorCardsPage() {
   const [editing, setEditing] = useState<any>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formKey, setFormKey] = useState(0);
+  
+  // 🌟 NEW STATE: Syncing status handle karne ke liye
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  const { isLoading, create, update, remove, isCreating, isUpdating } =
+  const { isLoading, update, remove, isUpdating } =
     useCrud<any>(`/api/visitor_cards`, "Visitor Card") as any;
 
   const [pagedResponse, setPagedResponse] = useState<any>(null);
@@ -70,6 +73,29 @@ export default function VisitorCardsPage() {
   useEffect(() => {
     fetchVisitorCards();
   }, [page, search, pageSize]);
+
+  // 🌟 NEW FUNCTION: Sync handler (MSSQL to PG API ko hit karega)
+  const handleSync = async () => {
+    try {
+      setIsSyncing(true);
+      // Apne backend route ke mutabik endpoint badal sakte hain (e.g., /api/visitor_cards/sync)
+      const res = await fetch("/api/visitor_cards/sync", {
+        method: "POST",
+      });
+      
+      if (!res.ok) {
+        throw new Error("Sync operation failed");
+      }
+
+      // Sync hone ke baad table data ko fresh fetch karega
+      await fetchVisitorCards();
+    } catch (error) {
+      console.error("Sync error:", error);
+      alert("Failed to sync cards from MSSQL");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const cardsData = Array.isArray(pagedResponse)
     ? pagedResponse
@@ -152,7 +178,6 @@ export default function VisitorCardsPage() {
                 try {
                   await remove(s.id);
 
-                  // 🔥 UI ko instant bina refresh update karne ke liye state se pehle hi filter kar do
                   setPagedResponse((prev: any) => {
                     if (!prev) return prev;
                     if (Array.isArray(prev)) {
@@ -169,7 +194,7 @@ export default function VisitorCardsPage() {
 
                   await fetchVisitorCards();
                 } catch (err) {
-                  // Silent fail safe ya user notification handler (Agar use karna ho)
+                  // Silent fail safe
                 }
               }}
             >
@@ -186,7 +211,6 @@ export default function VisitorCardsPage() {
     return true;
   });
 
-  // 🌟 FIX: Data formats map kar rahe hain dialog me bhejne se pehle taaki HTML Input Date handle ho sake
   const getPreparedInitialData = () => {
     if (!editing) return undefined;
     return {
@@ -202,17 +226,15 @@ export default function VisitorCardsPage() {
         title="Visitor Cards"
         description="Manage RFID/Visitor cards and their expiry"
         action={
-          canAdd && (
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setFormKey((prev) => prev + 1);
-                setDialogOpen(true);
-              }}
-            >
-              <Plus className="w-4 h-4 mr-1" /> Add Card
-            </Button>
-          )
+          /* 🌟 FIX: Add Card hata kar Sync button lagaya aur loading state integrate kiya */
+          <Button 
+            onClick={handleSync} 
+            disabled={isSyncing || isLoading}
+            variant="default"
+          >
+            <RotateCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+            {isSyncing ? "Syncing..." : "Sync Cards"}
+          </Button>
         }
       />
 
@@ -232,12 +254,13 @@ export default function VisitorCardsPage() {
       <DataTable
         columns={columns}
         data={cardsData}
-        isLoading={isLoading}
+        isLoading={isLoading || isSyncing} // 🌟 Loading screen trigger hogi jab sync ho rha hoga
         searchable={false}
         pageSize={pageSize}
         emptyMessage="No visitor cards found."
       />
 
+      {/* Pagination Controls */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
         <div className="text-sm text-muted-foreground order-2 md:order-1">
           Showing{" "}
@@ -327,7 +350,8 @@ export default function VisitorCardsPage() {
         </div>
       </div>
 
-      {(canAdd || canEdit) && (
+      {/* Edit Dialog (Keep only for editing now) */}
+      {canEdit && (
         <CrudDialog
           key={formKey}
           open={dialogOpen}
@@ -337,11 +361,11 @@ export default function VisitorCardsPage() {
             setEditing(null);
             setErrors({});
           }}
-          title={editing ? "Edit Visitor Card" : "Add New Visitor Card"}
+          title="Edit Visitor Card"
           fields={fields}
-          initialData={getPreparedInitialData()} // 🌟 FIX: Ab formatting ke sath date pass hogi
+          initialData={getPreparedInitialData()}
           onSubmit={async (formData) => {
-            if ((editing && !canEdit) || (!editing && !canAdd)) return;
+            if (!canEdit) return;
             try {
               setErrors({});
               const payload = {
@@ -355,12 +379,7 @@ export default function VisitorCardsPage() {
                   : null,
               };
 
-              if (editing) {
-                await update({ id: editing.id, data: payload });
-              } else {
-                await create(payload);
-              }
-
+              await update({ id: editing.id, data: payload });
               await fetchVisitorCards();
               setDialogOpen(false);
               setEditing(null);
@@ -377,7 +396,7 @@ export default function VisitorCardsPage() {
               }
             }
           }}
-          isPending={isCreating || isUpdating}
+          isPending={isUpdating}
         />
       )}
     </div>

@@ -30,8 +30,8 @@ async function runAllSeeds() {
         console.log("6/8: Seeding Cabin Lockout...");
         await seedCabinLockout();
 
-        console.log("7/8: Seeding RFID Cards (MS SQL & PG)...");
-        await seedRfidCards();
+        // console.log("7/8: Seeding RFID Cards (MS SQL & PG)...");
+        // await seedRfidCards();
 
         console.log("7/8: Seeding Admin User Profile...");
         await seedAdminUser();

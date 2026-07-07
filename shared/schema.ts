@@ -417,6 +417,7 @@ export const visitorCards = pgTable("visitor_cards", {
   expiryTo: timestamp("expiry_to"),     // ISO Date format ke liye timestamp
   locationId: integer("location_id"),
   cardNumber: text("card_number").notNull(), // Card number ko text rakha hai leading zeros ya bade numbers ke liye
+  isAssigned: boolean("is_assigned").default(false).notNull(),
   location: integer("location"), // Image me 'Location' column alag se hai (ho sakta hai ye location code ya id ho)
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

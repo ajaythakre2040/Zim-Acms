@@ -39,6 +39,7 @@ import bcrypt from "bcryptjs";
 import { appendErrors } from "react-hook-form";
 import { processDoorUpdate, processEmployeeBulkUpdateOnly } from "./services/uploadService";
 import { processContractorBulkUploadOnly } from "./services/contractors_bulk_upload";
+import { syncVisitorCardsFromMsSql } from "./services/syncVisitorCardsFromMsSql";
 function requireAuth(req: any, res: any, next: any) {
   if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
   next();
@@ -2235,22 +2236,59 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     };
   }));
 
+  // crudRoutes(
+  //   app,
+  //   "/api/visitor_cards",
+  //   insertVisitorCardSchema, // Aapke schema file se imported validation rule
+  //   (query: any) =>
+  //     storage.getVisitorCards(
+  //       query.page ? parseInt(query.page as string) : undefined,
+  //       query.pageSize ? parseInt(query.pageSize as string) : undefined,
+  //       query.search // 🔥 Yeh query parameters ko storage layer mein forward karega
+  //     ),
+  //   (d) => storage.createVisitorCard(d),
+  //   (id, d) => storage.updateVisitorCard(id, d),
+  //   (id) => storage.deleteVisitorCard(id),
+  //   undefined,
+  //   TABLES.VISITOR_CARDS // Aapke constant se card table mapper reference
+  // );
   crudRoutes(
     app,
     "/api/visitor_cards",
-    insertVisitorCardSchema, // Aapke schema file se imported validation rule
+    insertVisitorCardSchema,
     (query: any) =>
       storage.getVisitorCards(
         query.page ? parseInt(query.page as string) : undefined,
         query.pageSize ? parseInt(query.pageSize as string) : undefined,
-        query.search // 🔥 Yeh query parameters ko storage layer mein forward karega
+        query.search ? String(query.search) : undefined
       ),
-    (d) => storage.createVisitorCard(d),
-    (id, d) => storage.updateVisitorCard(id, d),
-    (id) => storage.deleteVisitorCard(id),
+    async (d: any) => {
+      await syncVisitorCardsFromMsSql();
+      return {
+        success: true,
+        message: "Sync completed"
+      };
+    },
+    (id: number, d: any) => storage.updateVisitorCard(id, d),
+    (id: number) => storage.deleteVisitorCard(id),
     undefined,
-    TABLES.VISITOR_CARDS // Aapke constant se card table mapper reference
+    TABLES.VISITOR_CARDS
   );
+
+  app.post("/api/visitor_cards/sync", async (req: any, res: any) => {
+    try {
+      await syncVisitorCardsFromMsSql();
+      res.status(200).json({
+        success: true,
+        message: "Sync completed"
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Sync failed"
+      });
+    }
+  });
   app.get("/api/visitor_card_logs", async (req, res) => {
     try {
       const logs = await db

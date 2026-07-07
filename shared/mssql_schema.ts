@@ -112,16 +112,19 @@ export const SiteAdapter = {
 };
 export const VisitorCardAdapter = {
     toPostgres: (row: any) => ({
-        msId: row.Id || null,
+        msId: row.VisitorCardId || row.Id || null, // Aapki MS SQL table ka main PK
         name: row.CardName || row.Name || "Unnamed Card",
         cardNumber: row.CardNumber || null,
         locationId: row.LocationId || null,
+        location: row.Location || null,
+        expiryFrom: row.ExpiryFrom ? new Date(row.ExpiryFrom) : null,
+        expiryTo: row.ExpiryTo ? new Date(row.ExpiryTo) : null,
         updatedAt: new Date()
     }),
     toMsSql: (pg: any) => ({
         Name: pg.name,
         CardNumber: pg.cardNumber,
-        LocationId: pg.locationId || pg.location, // Dono case handle karne ke liye
+        LocationId: pg.locationId || pg.location,
         ExpiryFrom: pg.expiryFrom ? new Date(pg.expiryFrom) : null,
         ExpiryTo: pg.expiryTo ? new Date(pg.expiryTo) : null
     })
