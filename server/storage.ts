@@ -2970,22 +2970,12 @@ export class DatabaseStorage implements IStorage {
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
     let insertedMsSqlId: number | null = null;
 
-    // ==========================================
-    // STEP 1: PEHLE MS SQL (VisitorLogs) ME INSERT KAREIN
-    // ==========================================
     try {
-      // 🌟 FIX 1: dbMsSql ki jagah mssqlPool ka request use kiya jo mssql package se aata h
       if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
         await mssqlPool.connect();
       }
       const request = mssqlPool.request();
-
-      // 🌟 FIX 2: data.name ko badal kar data.nameOfVisitor kiya jo aapke schema me h
       request.input('Name', mssql.NVarChar, data.nameOfVisitor);
-
-      // Agar baki fields bhi MS SQL me bhejne ho toh aap is tarah bind kar sakte hain:
-      // request.input('ContactNo', mssql.NVarChar, data.contactNo);
-      // request.input('WhomToMeet', mssql.NVarChar, data.whomToMeet);
 
       const msSqlResult = await request.query(`
       INSERT INTO VisitorLogs (Name)
@@ -3004,18 +2994,32 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
     }
 
-    // ==========================================
-    // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
-    // ==========================================
     return await db.transaction(async (tx) => {
       try {
         const [created] = await tx
           .insert(visitors)
           .values({
             ...data,
-            msId: insertedMsSqlId, // 🌟 MS SQL ki generated ID yahan save ho gayi
+            msId: insertedMsSqlId,
           })
           .returning();
+
+        if (data.visitorCardId) {
+          const targetCardId = Number(data.visitorCardId);
+
+          await tx
+            .update(visitorCards)
+            .set({
+              isAssigned: true,
+              updatedAt: new Date()
+            })
+            .where(
+              or(
+                eq(visitorCards.id, targetCardId),
+                eq(visitorCards.msId, targetCardId)
+              )
+            );
+        }
 
         return created;
       } catch (pgErr: any) {
@@ -3024,7 +3028,6 @@ export class DatabaseStorage implements IStorage {
       }
     });
   }
-
   // async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
   //   return await db.transaction(async (tx) => {
   //     const [updated] = await tx.update(visitors)
@@ -3044,7 +3047,6 @@ export class DatabaseStorage implements IStorage {
   // }
 
   async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
-    // 1. Postgres se purana visitor data nikaalo msId lene ke liye
     const currentVisitor = await db
       .select()
       .from(visitors)
@@ -3056,28 +3058,21 @@ export class DatabaseStorage implements IStorage {
     }
 
     const targetMsId = currentVisitor[0].msId;
+    const oldCardId = currentVisitor[0].visitorCardId;
 
     if (!targetMsId) {
       throw new Error(`Visitor update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
     }
 
-    // ==========================================
-    // STEP 1: PEHLE MS SQL (VisitorLogs) ME UPDATE KAREIN
-    // ==========================================
     try {
       if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
         await mssqlPool.connect();
       }
       const request = mssqlPool.request();
-
-      // Agar data me nameOfVisitor bheja gaya hai toh use karo, nahi toh purana wala fallback rakho
       const finalName = data.nameOfVisitor || currentVisitor[0].nameOfVisitor;
 
       request.input('TargetMsId', mssql.Int, targetMsId);
       request.input('Name', mssql.NVarChar, finalName);
-
-      // Baaki fields jo update karne ho, unhe bhi is tarah bind kar sakte ho:
-      // request.input('ContactNo', mssql.NVarChar, data.contactNo || currentVisitor[0].contactNo);
 
       await request.query(`
       UPDATE VisitorLogs 
@@ -3088,9 +3083,6 @@ export class DatabaseStorage implements IStorage {
       throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
     }
 
-    // ==========================================
-    // STEP 2: LOCAL POSTGRES ME UPDATE KAREIN
-    // ==========================================
     return await db.transaction(async (tx) => {
       try {
         const [updated] = await tx
@@ -3101,6 +3093,32 @@ export class DatabaseStorage implements IStorage {
           })
           .where(eq(visitors.id, id))
           .returning();
+
+        if (data.visitorCardId !== undefined && oldCardId !== data.visitorCardId) {
+          if (oldCardId) {
+            await tx
+              .update(visitorCards)
+              .set({ isAssigned: false, updatedAt: new Date() })
+              .where(
+                or(
+                  eq(visitorCards.id, Number(oldCardId)),
+                  eq(visitorCards.msId, Number(oldCardId))
+                )
+              );
+          }
+
+          if (data.visitorCardId) {
+            await tx
+              .update(visitorCards)
+              .set({ isAssigned: true, updatedAt: new Date() })
+              .where(
+                or(
+                  eq(visitorCards.id, Number(data.visitorCardId)),
+                  eq(visitorCards.msId, Number(data.visitorCardId))
+                )
+              );
+          }
+        }
 
         return updated;
       } catch (pgErr: any) {
