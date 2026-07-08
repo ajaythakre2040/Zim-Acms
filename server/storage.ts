@@ -2971,18 +2971,19 @@ export class DatabaseStorage implements IStorage {
     let insertedMsSqlId: number | null = null;
 
     try {
+      // 🌟 db.ts ke pool se connect check kiya bina use chhede
       if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
         await mssqlPool.connect();
       }
       const request = mssqlPool.request();
 
-      // MS SQL Table Column Mapping according to your grid image
+      // Strict types explicitly specified to satisfy TypeScript
       request.input('Name', mssql.NVarChar, data.nameOfVisitor || null);
       request.input('ContactNumber', mssql.NVarChar, data.contactNo || null);
       request.input('Email', mssql.NVarChar, data.emailAddress || null);
       request.input('LocationId', mssql.Int, data.locationId ? Number(data.locationId) : null);
       request.input('Purpose', mssql.NVarChar, data.purpose || null);
-      request.input('ToMeetId', mssql.NVarChar, data.whomToMeet || null); // Map to your employee field
+      request.input('ToMeetId', mssql.NVarChar, data.whomToMeet || null);
       request.input('VisitorDeskId', mssql.Int, data.visitorDeskId ? Number(data.visitorDeskId) : null);
       request.input('VisitorCardId', mssql.Int, data.visitorCardId ? Number(data.visitorCardId) : null);
       request.input('Company', mssql.NVarChar, data.visitorsCompanyName || null);
@@ -3051,23 +3052,7 @@ export class DatabaseStorage implements IStorage {
       }
     });
   }
-  // async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
-  //   return await db.transaction(async (tx) => {
-  //     const [updated] = await tx.update(visitors)
-  //       .set({ ...data, updatedAt: new Date() })
-  //       .where(eq(visitors.id, id))
-  //       .returning();
-
-  //     try {
-  //       await dbMsSql.update(visitors).set({ ...data, updatedAt: new Date() }).where(eq(visitors.id, id));
-  //     } catch (err) {
-  //       console.error("MS SQL Sync Update Error:", err);
-  //       tx.rollback();
-  //       throw new Error("MS SQL Sync Failed during update");
-  //     }
-  //     return updated;
-  //   });
-  // }
+ 
 
   async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
     const currentVisitor = await db
@@ -3092,14 +3077,48 @@ export class DatabaseStorage implements IStorage {
         await mssqlPool.connect();
       }
       const request = mssqlPool.request();
-      const finalName = data.nameOfVisitor || currentVisitor[0].nameOfVisitor;
 
+      // Agar incoming data mein field undefined hai, toh current database value ko retain karo
+      const finalName = data.nameOfVisitor !== undefined ? data.nameOfVisitor : currentVisitor[0].nameOfVisitor;
+      const finalContact = data.contactNo !== undefined ? data.contactNo : currentVisitor[0].contactNo;
+      const finalEmail = data.emailAddress !== undefined ? data.emailAddress : currentVisitor[0].emailAddress;
+      const finalLocationId = data.locationId !== undefined ? data.locationId : currentVisitor[0].locationId;
+      const finalPurpose = data.purpose !== undefined ? data.purpose : currentVisitor[0].purpose;
+      const finalToMeetId = data.whomToMeet !== undefined ? data.whomToMeet : currentVisitor[0].whomToMeet;
+      const finalDeskId = data.visitorDeskId !== undefined ? data.visitorDeskId : currentVisitor[0].visitorDeskId;
+      const finalCardId = data.visitorCardId !== undefined ? data.visitorCardId : currentVisitor[0].visitorCardId;
+      const finalCompany = data.visitorsCompanyName !== undefined ? data.visitorsCompanyName : currentVisitor[0].visitorsCompanyName;
+      const finalDesignation = data.designation !== undefined ? data.designation : currentVisitor[0].designation;
+      const finalRemarks = data.remark !== undefined ? data.remark : currentVisitor[0].remark;
+
+      // Set MS SQL input parameters
       request.input('TargetMsId', mssql.Int, targetMsId);
-      request.input('Name', mssql.NVarChar, finalName);
+      request.input('Name', mssql.NVarChar, finalName || null);
+      request.input('ContactNumber', mssql.NVarChar, finalContact || null);
+      request.input('Email', mssql.NVarChar, finalEmail || null);
+      request.input('LocationId', mssql.Int, finalLocationId ? Number(finalLocationId) : null);
+      request.input('Purpose', mssql.NVarChar, finalPurpose || null);
+      request.input('ToMeetId', mssql.NVarChar, finalToMeetId || null);
+      request.input('VisitorDeskId', mssql.Int, finalDeskId ? Number(finalDeskId) : null);
+      request.input('VisitorCardId', mssql.Int, finalCardId ? Number(finalCardId) : null);
+      request.input('Company', mssql.NVarChar, finalCompany || null);
+      request.input('Designation', mssql.NVarChar, finalDesignation || null);
+      request.input('Remarks', mssql.NVarChar, finalRemarks || null);
 
+      // Update Query matching all columns
       await request.query(`
       UPDATE VisitorLogs 
-      SET Name = @Name
+      SET Name = @Name,
+          ContactNumber = @ContactNumber,
+          Email = @Email,
+          LocationId = @LocationId,
+          Purpose = @Purpose,
+          ToMeetId = @ToMeetId,
+          VisitorDeskId = @VisitorDeskId,
+          VisitorCardId = @VisitorCardId,
+          Company = @Company,
+          Designation = @Designation,
+          Remarks = @Remarks
       WHERE Id = @TargetMsId
     `);
     } catch (msSqlErr: any) {
@@ -3117,6 +3136,7 @@ export class DatabaseStorage implements IStorage {
           .where(eq(visitors.id, id))
           .returning();
 
+        // Card assignment change code (Purana card release karna aur naya occupy karna)
         if (data.visitorCardId !== undefined && oldCardId !== data.visitorCardId) {
           if (oldCardId) {
             await tx
@@ -3203,6 +3223,76 @@ export class DatabaseStorage implements IStorage {
       }
     });
   }
+  async outVisitor(id: number): Promise<Visitor> {
+    const currentVisitor = await db
+      .select()
+      .from(visitors)
+      .where(eq(visitors.id, id))
+      .limit(1);
+
+    if (currentVisitor.length === 0) {
+      throw new Error(`Visitor checkout failed: Record with local ID '${id}' not found.`);
+    }
+
+    const targetMsId = currentVisitor[0].msId;
+    const cardIdToFree = currentVisitor[0].visitorCardId;
+    const currentIsoDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+    if (targetMsId) {
+      try {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+          await mssqlPool.connect();
+        }
+        const request = mssqlPool.request();
+
+        request.input('TargetMsId', mssql.Int, targetMsId);
+        request.input('OutDate', mssql.DateTime, currentIsoDate);
+
+        await request.query(`
+        UPDATE VisitorLogs 
+        SET OutDate = @OutDate
+        WHERE Id = @TargetMsId
+      `);
+      } catch (msSqlErr: any) {
+        throw new Error(`MS SQL OutDate Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+      }
+    }
+
+    return await db.transaction(async (tx) => {
+      try {
+        const [updated] = await tx
+          .update(visitors)
+          .set({
+            permissionDateTo: currentIsoDate, // Using your schema's column
+            updatedAt: new Date()
+          })
+          .where(eq(visitors.id, id))
+          .returning();
+
+        if (cardIdToFree) {
+          const targetCardId = Number(cardIdToFree);
+          await tx
+            .update(visitorCards)
+            .set({
+              isAssigned: false,
+              updatedAt: new Date()
+            })
+            .where(
+              or(
+                eq(visitorCards.id, targetCardId),
+                eq(visitorCards.msId, targetCardId)
+              )
+            );
+        }
+
+        return updated;
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+      }
+    });
+  }
+
   async getVisits(status?: string): Promise<Visit[]> {
     if (status) {
       return await db

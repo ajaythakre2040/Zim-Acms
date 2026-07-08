@@ -763,6 +763,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ error: error.message });
     }
   });
+  app.post(
+    "/api/visitors/:id/checkout",
+    requireAuth,
+    withAudit(
+      "visitors",
+      "UPDATE",
+      async (req) => {
+        const visitorId = Number(req.params.id);
+        if (isNaN(visitorId)) {
+          throw new Error("Invalid or missing visitor ID for checkout.");
+        }
+        return await storage.outVisitor(visitorId);
+      },
+      200
+    )
+  );
   app.get("/api/visits", async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
