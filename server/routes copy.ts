@@ -6,6 +6,7 @@ import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integra
 import { storage } from "./storage";
 import { z } from "zod";
 import dayjs from "dayjs";
+// import { withAudit } from "../auditWrapper"; // sahi file path de dena
 import {
   insertCompanySchema, insertDepartmentSchema, insertDesignationSchema,
   insertCategorySchema, insertVendorSchema, insertSiteSchema, insertBuildingSchema,
@@ -46,6 +47,7 @@ function requireAuth(req: any, res: any, next: any) {
 function crudRoutes<T>(
   app: Express,
   basePath: string,
+  // tableName: TableNames,
   schema: z.AnyZodObject,
   getAll: (...args: any[]) => Promise<any[]>,
   create: (data: any) => Promise<any>,
@@ -100,6 +102,40 @@ function crudRoutes<T>(
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
   }
+  // app.post(basePath, requireAuth, async (req, res) => {
+  //   try {
+  //     const input = schema.parse(req.body);
+  //     const item = await create(input);
+  //     res.status(201).json(item);
+  //   } catch (e: any) {
+  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //     handleDbError(e, res);
+  //   }
+  // });
+  // if (update) {
+  //   app.put(`${basePath}/:id`, requireAuth, async (req, res) => {
+  //     try {
+  //       const id = parseInt(req.params.id);
+  //       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  //       const input = schema.partial().parse(req.body);
+  //       const item = await update(id, input);
+  //       res.json(item);
+  //     } catch (e: any) {
+  //       if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //       handleDbError(e, res);
+  //     }
+  //   });
+  // }
+  // if (remove) {
+  //   app.delete(`${basePath}/:id`, requireAuth, async (req, res) => {
+  //     try {
+  //       const id = parseInt(req.params.id);
+  //       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
+  //       await remove(id);
+  //       res.sendStatus(204);
+  //     } catch (e: any) { handleDbError(e, res); }
+  //   });
+  // }
   app.post(basePath, requireAuth, (req: any, res: any) => {
     return withAudit(tableName, "ADD", async (innerReq) => {
       const input = schema.parse(innerReq.body);
@@ -161,6 +197,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch machine logs" });
     }
   });
+  // 2. Visitor Machine Logs Route (ONLY Visitors)
   app.get("/api/dashboard/visitor/visitor-machine-logs", async (req, res) => {
     try {
       const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
@@ -190,6 +227,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  // app.get("/api/user-profiles", requireAuth, async (_req, res) => {
+  //   try { res.json(await storage.getUserProfiles()); }
+  //   catch (e: any) { res.status(500).json({ message: e.message }); }
+  // });
   app.get("/api/user-profiles/me", requireAuth, async (req, res) => {
     try {
       const userId = (req.session as any)?.userId;
@@ -198,6 +239,51 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(profile || null);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+  // app.delete("/api/user-profiles/:id", requireAuth, async (req, res) => {
+  //   try {
+  //     const id = parseInt(req.params.id);
+  //     await storage.deleteUser(id); // Ye storage function upar wala call hoga
+  //     res.sendStatus(204);
+  //   } catch (e: any) {
+  //     res.status(500).json({ message: e.message || "Failed to delete user" });
+  //   }
+  // });
+  // app.post("/api/user-profiles", requireAuth, async (req, res) => {
+  //   try {
+  //     const input = insertUserProfileSchema.parse(req.body);
+  //     const profile = await storage.createUserProfile(input);
+  //     res.status(201).json(profile);
+  //   } catch (e: any) {
+  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
+  // app.post("/api/user-profiles", requireAuth, withAudit(TABLES.USERS, "ADD", async (req) => await storage.upsertUser(req.body), 201));
+  // app.delete("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "DELETE", async (req) => {
+  //   const targetUserId = req.params.id;
+  //   await storage.deleteUser(targetUserId);
+  //   return { id: targetUserId };
+  // }, 200));
+  // 
+  // app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
+  //   try {
+  //     const input = insertUserProfileSchema.partial().parse(req.body);
+  //     const profile = await storage.updateUserProfile(parseInt(req.params.id), input);
+  //     res.json(profile);
+  //   } catch (e: any) {
+  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
+  // app.post("/api/user-profiles", requireAuth, async (req, res) => {
+  //   try {
+  //     const result = await storage.upsertUser(req.body);
+  //     res.status(201).json(result);
+  //   } catch (e: any) {
+  //     res.status(500).json({ message: e.message || "Failed to save" });
+  //   }
+  // });
+  // app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "UPDATE", async (req) => await storage.upsertUser({ ...req.body, id: req.params.id }), 200));
   app.post("/api/user-profiles", requireAuth, withAudit(TABLES.USERS, "ADD", async (req) => {
     const newUser = await storage.upsertUser(req.body);
     await logProfileAudit(req, "ADD", newUser.id);
@@ -217,6 +303,35 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     await storage.deleteUser(targetUserId);
     return { id: targetUserId };
   }, 200));
+  // app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "UPDATE", async (req) => {
+  //   const userIdFromParams = req.params.id;
+  //   return await storage.upsertUser({
+  //     ...req.body,
+  //     id: userIdFromParams // Ensure kar rahe hain ki id sahi se string ya type format me backend tak jaye
+  //   });
+  // }, 200));
+  // app.put("/api/user-profiles/:id", requireAuth, async (req, res) => {
+  //   try {
+  //     const result = await storage.upsertUser({
+  //       ...req.body,
+  //       id: req.params.id
+  //     });
+  //     res.json(result);
+  //   } catch (e: any) {
+  //     res.status(500).json({ message: e.message || "Failed to update" });
+  //   }
+  // });
+  // crudRoutes(
+  //   app,
+  //   "/api/companies",
+  //   insertCompanySchema,
+  //   (query: any) => storage.getCompanies(query.page, query.pageSize),
+  //   (d) => storage.createCompany(d),
+  //   (id, d) => storage.updateCompany(id, d),
+  //   (id) => storage.deleteCompany(id),
+  //   undefined,
+  //   TABLES.COMPANIES
+  // );
   crudRoutes(
     app,
     "/api/companies",
@@ -225,7 +340,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       storage.getCompanies(
         query.page,
         query.pageSize,
-        query.search   
+        query.search   // 🔥 ADD THIS
       ),
     (d) => storage.createCompany(d),
     (id, d) => storage.updateCompany(id, d),
@@ -233,10 +348,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.COMPANIES
   );
+  // crudRoutes(
+  //   app,
+  //   "/api/departments",
+  //   insertDepartmentSchema,
+  //   (query: any) => storage.getDepartments(query.page, query.pageSize),
+  //   (d) => storage.createDepartment(d),
+  //   (id, d) => storage.updateDepartment(id, d),
+  //   (id) => storage.deleteDepartment(id),
+  //   undefined,
+  //   TABLES.DEPARTMENTS
+  // );
   crudRoutes(
     app,
     "/api/departments",
     insertDepartmentSchema,
+    // 👇 Yahan query.search add karna zaroori hai
     (query: any) => storage.getDepartments(query.page, query.pageSize, query.search),
     (d) => storage.createDepartment(d),
     (id, d) => storage.updateDepartment(id, d),
@@ -244,6 +371,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.DEPARTMENTS
   );
+  // crudRoutes(
+  //   app,
+  //   "/api/designations",
+  //   insertDesignationSchema,
+  //   (query: any) => storage.getDesignations(query.page, query.pageSize),
+  //   (d) => storage.createDesignation(d),
+  //   (id, d) => storage.updateDesignation(id, d),
+  //   (id) => storage.deleteDesignation(id),
+  //   undefined,
+  //   TABLES.DESIGNATIONS
+  // );
   crudRoutes(
     app,
     "/api/designations",
@@ -320,10 +458,32 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/zones", insertZoneSchema,
     () => storage.getZones(), (d) => storage.createZone(d),
     (id, d) => storage.updateZone(id, d), (id) => storage.deleteZone(id), undefined, TABLES.ZONES);
+  //   crudRoutes(
+  //   app,
+  //   "/api/doors",
+  //   insertDoorSchema,
+  //   (query: any) => storage.getDoors(query.page, query.pageSize),
+  //   (d) => storage.createDoor(d),
+  //   (id, d) => storage.updateDoor(id, d),
+  //   (id) => storage.deleteDoor(id), undefined, TABLES.DOORS
+  // );
+  // crudRoutes(app, "/api/doors", insertDoorSchema,
+  //     () => storage.getDoors(), (d) => storage.createDoor(d),
+  //     (id, d) => storage.updateDoor(id, d), (id) => storage.deleteDoor(id));
+  // crudRoutes(
+  //   app,
+  //   "/api/devices",
+  //   insertDeviceSchema,
+  //   (query: any) => storage.getDevices(query.page, query.pageSize),
+  //   (d) => storage.createDevice(d),
+  //   (id, d) => storage.updateDevice(id, d),
+  //   (id) => storage.deleteDevice(id), undefined, TABLES.DEVICES
+  // );
   crudRoutes(
     app,
     "/api/doors",
     insertDoorSchema,
+    // GET (page + pageSize + search support)
     async (query: any) => {
       return await storage.getDoors(
         query.page,
@@ -331,12 +491,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         query.search
       );
     },
+    // CREATE
     async (data: any) => {
       return await storage.createDoor(data);
     },
+    // UPDATE
     async (id, data) => {
       return await storage.updateDoor(id, data);
     },
+    // DELETE
     async (id) => {
       return await storage.deleteDoor(id);
     },
@@ -351,7 +514,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       storage.getDevices(
         query.page,
         query.pageSize,
-        query.search   
+        query.search   // 🔥 IMPORTANT ADD
       ),
     (d) => storage.createDevice(d),
     (id, d) => storage.updateDevice(id, d),
@@ -359,6 +522,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.DEVICES
   );
+  // app.get("/api/people", async (req, res) => {
+  //   try {
+  //     const search = req.query.search as string | undefined;
+  //     res.json(await storage.getPeople(search));
+  //   } catch (e: any) { res.status(500).json({ message: e.message }); }
+  // });
   app.get("/api/people", async (req, res) => {
     try {
       const search = req.query.search as string | undefined;
@@ -384,6 +553,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  // app.post("/api/people", requireAuth, async (req, res) => {
+  //   try {
+  //     const input = insertPersonSchema.parse(req.body);
+  //     res.status(201).json(await storage.createPerson(input));
+  //   } catch (e: any) {
+  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
   app.post("/api/people", requireAuth, withAudit(TABLES.PEOPLE, "ADD/UPDATE", async (req) => await storage.createPerson(insertPersonSchema.parse(req.body)), 201));
   app.patch(
     "/api/people/:id",
@@ -393,11 +571,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (isNaN(personId)) {
         throw new Error("Invalid Person ID");
       }
+
+      // Direct pura payload storage layer ko bhej dete hain
       const updatedPerson = await storage.updatePerson(personId, req.body);
+
+      // withAudit wrapper ke liye data return kiya
       return updatedPerson;
     }, 200)
   );
     app.delete("/api/people/:id", requireAuth, withAudit(TABLES.PEOPLE, "DELETE", async (req) => { await storage.deletePerson(parseInt(req.params.id)); return null; }, 204));
+  // app.put("/api/people/:id", requireAuth, async (req, res) => {
+  //   try {
+  //     const input = insertPersonSchema.partial().parse(req.body);
+  //     res.json(await storage.updatePerson(parseInt(req.params.id), input));
+  //   } catch (e: any) {
+  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
+  // app.delete("/api/people/:id", requireAuth, async (req, res) => {
+  //   try { await storage.deletePerson(parseInt(req.params.id)); res.sendStatus(204); }
+  //   catch (e: any) { res.status(500).json({ message: e.message }); }
+  // });
   app.get("/api/credentials", async (req, res) => {
     try {
       const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
@@ -410,10 +605,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/access-cards", insertAccessCardSchema,
     () => storage.getAccessCards(), (d) => storage.createAccessCard(d),
     (id, d) => storage.updateAccessCard(id, d), (id) => storage.deleteAccessCard(id), undefined, TABLES.ACCESS_CARDS);
+  // crudRoutes(app, "/api/shifts", insertShiftSchema,
+  //   () => storage.getShifts(), (d) => storage.createShift(d),
+  //   (id, d) => storage.updateShift(id, d), (id) => storage.deleteShift(id));
+  // crudRoutes(app, "/api/shifts", insertShiftSchema,
+  //   (query: any) => storage.getShifts(query.page, query.pageSize),
+  //   (d) => storage.createShift(d),
+  //   (id, d) => storage.updateShift(id, d),
+  //   (id) => storage.deleteShift(id), undefined, TABLES.SHIFTS
+  // );
   crudRoutes(
     app,
     "/api/shifts",
     insertShiftSchema,
+    // GET (page + pageSize + search)
     async (query: any) => {
       return await storage.getShifts(
         query.page,
@@ -421,8 +626,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         query.search
       );
     },
+    // CREATE
     (d) => storage.createShift(d),
+    // UPDATE
     (id, d) => storage.updateShift(id, d),
+    // DELETE
     (id) => storage.deleteShift(id),
     undefined,
     TABLES.SHIFTS
@@ -436,6 +644,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/shift-assignments", insertShiftAssignmentSchema,
     () => storage.getShiftAssignments(), (d) => storage.createShiftAssignment(d),
     (id, d) => storage.updateShiftAssignment(id, d), (id) => storage.deleteShiftAssignment(id), undefined, TABLES.SHIFT_ASSIGNMENTS);
+  // crudRoutes(
+  //   app,
+  //   "/api/holidays",
+  //   insertHolidaySchema,
+  //   (query: any) => storage.getHolidays(query.page, query.pageSize),
+  //   (d) => storage.createHoliday(d),
+  //   (id, d) => storage.updateHoliday(id, d),
+  //   (id) => storage.deleteHoliday(id), undefined, TABLES.HOLIDAYS
+  // );
   crudRoutes(
     app,
     "/api/holidays",
@@ -475,12 +692,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.post("/api/person-access", requireAuth, withAudit(TABLES.PERSON_ACCESS, "ADD", async (req) => await storage.createPersonAccess(insertPersonAccessSchema.parse(req.body)), 201));
   app.delete("/api/person-access/:id", requireAuth, withAudit(TABLES.PERSON_ACCESS, "DELETE", async (req) => { await storage.deletePersonAccess(parseInt(req.params.id)); return null; }, 204));
+  // ==========================================
+  // 1. ALL VISITORS DROPDOWN ROUTE
+  // ==========================================
   app.get("/api/visitors", async (req, res) => {
     try {
+      // Frontend se aane wali values ko directly nikalen bina kisi fallback defaults ke
       const page = req.query.page ? Number(req.query.page) : undefined;
       const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
       const search = req.query.search ? String(req.query.search) : undefined;
       console.log("Fetching visitors with params:", { page, pageSize, search });
+      // Direct dynamic values storage layer ko pass karein
       const result = await storage.getVisitors(page, pageSize, search);
       return res.json(result);
     } catch (error: any) {
@@ -489,6 +711,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+  // ==========================================
+  // 3. GET SINGLE VISITOR
+  // ==========================================
   app.get("/api/visitors/:id", async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -499,6 +724,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ error: error.message });
     }
   });
+
+  // ==========================================
+  // 4. CREATE VISITOR
+  // ==========================================
   app.post("/api/visitors", async (req, res) => {
     try {
       const parsed = insertVisitorSchema.parse(req.body);
@@ -508,6 +737,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(400).json({ error: error.message || "Invalid payload" });
     }
   });
+
+  // ==========================================
+  // 5. UPDATE VISITOR
+  // ==========================================
   app.put("/api/visitors/:id", async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -517,6 +750,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ error: error.message });
     }
   });
+
+  // ==========================================
+  // 6. DELETE VISITOR
+  // ==========================================
   app.delete("/api/visitors/:id", async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -528,6 +765,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.post(
     "/api/visitors/:id/checkout",
+      
     withAudit(
       "visitors",
       "UPDATE",
@@ -682,6 +920,22 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  // app.get("/api/reports/attendance", requireAuth, async (req, res) => {
+  //   try {
+  //     const filters = {
+  //       dateFrom: req.query.dateFrom as string | undefined,
+  //       dateTo: req.query.dateTo as string | undefined,
+  //       status: req.query.status as string | undefined,
+  //       deviceId: req.query.deviceId ? String(req.query.deviceId) : undefined,
+  //       employeeCode: req.query.employeeCode ? String(req.query.employeeCode) : undefined,
+  //     };
+  //     const data = await storage.getAttendanceReport(filters);
+  //     res.json(data);
+  //   } catch (e: any) {
+  //     console.error("Attendance Report Error:", e);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
   app.get("/api/reports/late-coming", requireAuth, async (req, res) => {
     try {
       const filters = {
@@ -736,6 +990,19 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(otRecords);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
+  // app.get("/api/reports/access-log", requireAuth, async (req, res) => {
+  //   try {
+  //     const filters = {
+  //       dateFrom: req.query.dateFrom as string | undefined,
+  //       dateTo: req.query.dateTo as string | undefined,
+  //       eventType: req.query.eventType as string | undefined,
+  //       personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
+  //       siteId: req.query.siteId ? parseInt(req.query.siteId as string) : undefined,
+  //       doorId: req.query.doorId ? parseInt(req.query.doorId as string) : undefined,
+  //     };
+  //     res.json(await storage.getAccessLogReport(filters));
+  //   } catch (e: any) { res.status(500).json({ message: e.message }); }
+  // });
   app.get("/api/reports/access-log", async (req, res) => {
     try {
       const filters = {
@@ -882,9 +1149,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: error.message });
     }
   });
+  // app.post("/api/people/emergency-toggle", withAudit(TABLES.PEOPLE, "UPDATE", async (req) => { const result = await storage.toggleEmployeeDeviceAccess(req.body); return { success: true, data: result }; }, 200));
   app.post(
     "/api/people/emergency-toggle",
     withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, (req) => {
+      // Agar body me action 'block' hai to log me "EMERGENCY_BLOCK" jayega, nahi to "EMERGENCY_UNBLOCK"
       return req.body.action === "block" ? "EMERGENCY_BLOCK" : "EMERGENCY_UNBLOCK";
     }, async (req) => {
       const result = await storage.toggleEmployeeDeviceAccess(req.body);
@@ -1000,6 +1269,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ success: false, message: "Failed to sync doors" });
     }
   });
+  // app.post("/api/emergency/bulk-unblock", isAuthenticated, async (req, res) => {
+  //   try {
+  //     const session = req.session as any;
+  //     const loginId = session.userId;
+  //     if (!loginId) {
+  //       return res.status(401).json({ message: "User session not found. Please re-login." });
+  //     }
+  //     const user = await storage.getUser(loginId.toString());
+  //     const userName = user?.username || "Admin User";
+  //     const result = await storage.executeEmergencybulkUnblock(loginId, userName);
+  //     res.json({
+  //       success: true,
+  //       message: `Emergency unblock initiated for ${result.processedCount} records.`,
+  //       audit: {
+  //         performedBy: userName,
+  //         alertId: result.alertId
+  //       }
+  //     });
+  //   } catch (error: any) {
+  //     console.error("Route Error:", error);
+  //     res.status(500).json({
+  //       message: error.message || "Failed to execute emergency unblock"
+  //     });
+  //   }
+  // });
   app.post("/api/emergency/bulk-unblock", isAuthenticated, withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, "EMERGENCY_UNBLOCK_ALL", async (req) => {
     const loginId = req.session?.userId;
     if (!loginId) throw new Error("User session not found. Please re-login.");
@@ -1020,6 +1314,21 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch door count" });
     }
   });
+  // app.get("/api/reports/cabin-lockout", async (req, res) => {
+  //   try {
+  //     const { dateFrom, dateTo, employeeCode, doorId, status } = req.query;
+  //     const data = await storage.getCabinLockoutReport({
+  //       dateFrom: dateFrom as string,
+  //       dateTo: dateTo as string,
+  //       employeeCode: employeeCode as string,
+  //       doorId: doorId as string,
+  //       status: status as string
+  //     });
+  //     res.json(data);
+  //   } catch (error) {
+  //     res.status(500).json({ message: "Failed to fetch lockout report" });
+  //   }
+  // });
   app.get("/api/reports/cabin-lockout", async (req, res) => {
     try {
       const { dateFrom, dateTo, employeeCode, doorId, status } = req.query;
@@ -1066,12 +1375,65 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch employee door assignment" });
     }
   });
+  // app.post("/api/employee-door-assignments", async (req, res) => {
+  //   try {
+  //     const { employeeCode, doorIds } = req.body;
+  //     if (!employeeCode || !Array.isArray(doorIds)) {
+  //       return res.status(400).json({
+  //         status: "error",
+  //         message: "Required data missing: employeeCode (string) and doorIds (array) are mandatory."
+  //       });
+  //     }
+  //     const result = await storage.upsertEmployeeDoorAssignment({ employeeCode, doorIds });
+  //     res.status(200).json({
+  //       status: "success",
+  //       message: "Access privileges updated successfully.",
+  //       data: result
+  //     });
+  //   } catch (error: any) {
+  //     res.status(400).json({
+  //       status: "error",
+  //       message: error.message || "An unexpected error occurred during assignment."
+  //     });
+  //   }
+  // });
   app.post("/api/employee-door-assignments", withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "ADD/UPDATE", async (req) => {
     const { employeeCode, doorIds } = req.body;
     if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");
     return { status: "success", message: "Access privileges updated successfully.", data: await storage.upsertEmployeeDoorAssignment({ employeeCode, doorIds }) };
   }, 200));
+ 
+  
+
+
+
+  // app.post("/api/visitor-door-assignments", withAudit(TABLES.DEVICE_VISITOR_CARDS, "ADD", async (req) => {
+  //   const { visitorId, visitorCardId, doorIds } = req.body;
+
+  //   if (!visitorId || !visitorCardId || !Array.isArray(doorIds)) {
+  //     throw new Error("Required data missing: visitorId (number), visitorCardId (number), and doorIds (array) are mandatory.");
+  //   }
+
+  //   return {
+  //     status: "success",
+  //     message: "Visitor door privileges updated successfully.",
+  //     data: await storage.upsertVisitorDoorAssignment({ visitorId, visitorCardId, doorIds })
+  //   };
+  // }, 200));;
+
+
+
+
+  // app.delete("/api/employee-door-assignments/:id", async (req, res) => {
+  //   try {
+  //     await storage.deleteEmployeeDoorAssignment(Number(req.params.id));
+  //     res.json({ message: "Assignment deleted successfully" });
+  //   } catch (error) {
+  //     res.status(500).json({ message: "Failed to delete assignment" });
+  //   }
+  // });
   app.delete("/api/employee-door-assignments/:id", withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "DELETE", async (req) => { await storage.deleteEmployeeDoorAssignment(Number(req.params.id)); return { message: "Assignment deleted successfully" }; }, 200));
+  // 1. Daily Performance Report
   app.get("/api/reports/daily-performance", async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
@@ -1120,6 +1482,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+  // // 2. Monthly Muster Roll
+  // app.get("/api/reports/muster-roll", async (req: Request, res: Response) => {
+  //   try {
+  //     const q = req.query as any;
+  //     const data = await storage.getRangeReport(q.dateFrom, q.dateTo);
+  //     res.json(data);
+  //   } catch (e: any) {
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
+  // // 3. Overtime Matrix
+  // app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
+  //   try {
+  //     const q = req.query as any;
+  //     const data = await storage.getRangeReport(q.dateFrom, q.dateTo);
+  //     res.json(data);
+  //   } catch (e: any) {
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
+  // 4. Dept-wise Summary
   app.get("/api/reports/dept-summary", async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
@@ -1130,6 +1513,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  // 5. Daily Efficiency
+  // app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
+  //   try {
+  //     const q = req.query as any;
+  //     const date =
+  //       q.date || new Date().toISOString().split("T")[0];
+  //     const page = q.page
+  //       ? String(q.page)
+  //       : undefined;
+  //     const pageSize = q.pageSize
+  //       ? String(q.pageSize)
+  //       : undefined;
+  //     const data = await storage.getDailyReport(
+  //       date,
+  //       page,
+  //       pageSize
+  //     );
+  //     res.json(data);
+  //   } catch (e: any) {
+  //     res.status(500).json({
+  //       message: e.message
+  //     });
+  //   }
+  // });
   app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
@@ -1148,6 +1555,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  // app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
+  //   try {
+  //     const q = req.query as any;
+  //     const date = q.date || new Date().toISOString().split('T')[0];
+  //     const data = await storage.getDailyReport(date);
+  //     res.json(data);
+  //   } catch (e: any) {
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
+  // 6. Efficiency Analytics
   app.get("/api/reports/efficiency-analytics", async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
@@ -1157,6 +1575,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  // crudRoutes(app, "/api/menus", insertMenuMasterSchema,
+  //   () => storage.getMenus(),
+  //   (d) => storage.createMenu(d),
+  //   (id, d) => storage.updateMenu(id, d),
+  //   (id) => storage.deleteMenu(id)
+  // );
   crudRoutes(
     app,
     "/api/menus",
@@ -1196,6 +1620,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
+  // app.post("/api/roles-with-permissions", async (req, res) => {
+  //   try {
+  //     const { role, permissions } = req.body;
+  //     // 1. Mandatory Data Validation
+  //     if (!role?.code || !Array.isArray(permissions)) {
+  //       return res.status(400).json({
+  //         status: "error",
+  //         message: "Required data missing: code (string) and permissions (array) are mandatory."
+  //       });
+  //     }
+  //     // 2. Duplicate Menu Check
+  //     const menuIds = permissions.map((p: any) => p.menuId);
+  //     if (new Set(menuIds).size !== menuIds.length) {
+  //       return res.status(400).json({
+  //         status: "error",
+  //         isDuplicate: true,
+  //         message: "Duplicate Menu assignments detected. Each menu must have a unique permission set."
+  //       });
+  //     }app.post
+  //     // 3. Existing Role Check
+  //     const existingRole = await storage.getRoleByCode(role.code);
+  //     if (existingRole) {
+  //       return res.status(400).json({
+  //         status: "error",
+  //         isDuplicate: true,
+  //         message: "This Role Code is already registered. Please use a unique code."
+  //       });
+  //     }
+  //     const result = await storage.createRoleWithPermissions(role, permissions);
+  //     res.status(201).json(result);
+  //   } catch (error: any) {
+  //     // Bina handleDbError ke direct error message
+  //     res.status(400).json({
+  //       status: "error",
+  //       message: error.message || "An unexpected error occurred during assignment."
+  //     });
+  //   }
+  // });
   app.post("/api/roles-with-permissions", withAudit(TABLES.ROLES, "ADD/UPDATE", async (req) => {
     const { role, permissions } = req.body;
     if (!role?.code || !Array.isArray(permissions)) throw new Error("Required data missing: code (string) and permissions (array) are mandatory.");
@@ -1205,10 +1667,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (existingRole) throw new Error("This Role Code is already registered. Please use a unique code.");
     return await storage.createRoleWithPermissions(role, permissions);
   }, 201));
+  // UPDATE ROLE + PERMISSIONS
+  // app.put("/api/roles-with-permissions/:id", async (req, res) => {
+  //   try {
+  //     const roleId = parseInt(req.params.id);
+  //     const { role, permissions } = req.body;
+  //     await storage.updateRoleWithPermissions(roleId, role, permissions);
+  //     res.json({ message: "Role and Permissions updated successfully" });
+  //   } catch (e: any) {
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
   app.put("/api/roles-with-permissions/:id", withAudit(TABLES.ROLES, "UPDATE", async (req) => { await storage.updateRoleWithPermissions(parseInt(req.params.id), req.body.role, req.body.permissions); return { message: "Role and Permissions updated successfully" }; }, 200));
+  // Get Role specific permissions
   app.get("/api/roles-with-permissions/:id", async (req, res) => {
     try {
       const roleId = Number(req.params.id);
+      // Naya storage function call karein
       const roleData = await storage.getRolePermissions(roleId);
       if (!roleData) {
         return res.status(404).json({ message: "Role not found" });
@@ -1221,7 +1696,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+  // Delete Role & its permissions
+  // app.delete("/api/roles/:id", async (req, res) => {
+  //   await storage.deleteRole(Number(req.params.id));
+  //   res.sendStatus(204);
+  // });
   app.delete("/api/roles/:id", withAudit(TABLES.ROLES, "DELETE", async (req) => { await storage.deleteRole(Number(req.params.id)); return null; }, 204));
+  // app.get("/api/reports_access_logs", async (req, res) => {
+  //   const { dateFrom, dateTo } = req.query;
+  //   const data = await storage.getDeviceLogsWithEmployee({
+  //     dateFrom: dateFrom as string,
+  //     dateTo: dateTo as string,
+  //   });
+  //   res.json(data);
+  // });
   app.get("/api/reports_access_logs", requireAuth, async (req, res) => {
     try {
       const filters = {
@@ -1239,6 +1727,27 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       console.error(e); res.status(500).json({ message: e.message, });
     }
   });
+  // app.get("/api/reports/employee-productive-report", async (req, res) => {
+  //   try {
+  //     const { date, employeeCode } = req.query;
+  //     const data = await storage.getEmployeeProductiveReport({
+  //       date: date as string,
+  //       employeeCode: employeeCode as string,
+  //     });
+  //     res.json({
+  //       success: true,
+  //       count: data.length,
+  //       data,
+  //     });
+  //   } catch (error: any) {
+  //     console.error("Employee Productive Report Error:", error);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: "Failed to fetch productive report",
+  //       error: error.message,
+  //     });
+  //   }
+  // });
   app.get("/api/reports/employee-productive-report", async (req, res) => {
     try {
       const { date, employeeCode } = req.query;
@@ -1266,6 +1775,38 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+  // app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
+  //   try {
+  //     // Frontend query params: ?dateFrom=...&dateTo=...&employeeCode=...
+  //     const { dateFrom, dateTo, employeeCode } = req.query;
+  //     // ✅ Proper Validation: Check if dates are present
+  //     if (!dateFrom || !dateTo) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: "Date range is required. Please select both Start Date and End Date to proceed."
+  //       });
+  //     }
+  //     // Call storage with validated dates
+  //     const data = await storage.getEmplyeeEefficiency(
+  //       String(dateFrom),
+  //       String(dateTo),
+  //       employeeCode ? String(employeeCode) : undefined
+  //     );
+  //     // ✅ Professional Success Response
+  //     res.json({
+  //       success: true,
+  //       count: data.length,
+  //       data: data
+  //     });
+  //   } catch (error: any) {
+  //     console.error("Efficiency Report Error:", error);
+  //     // ✅ Professional Error Message
+  //     res.status(500).json({
+  //       success: false,
+  //       message: "An internal server error occurred while generating the efficiency report. Please try again later."
+  //     });
+  //   }
+  // });
   app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
     try {
       const {
@@ -1275,6 +1816,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         page,
         pageSize
       } = req.query;
+      // Validation
       if (!dateFrom || !dateTo) {
         return res.status(400).json({
           success: false,
@@ -1309,6 +1851,33 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+  // app.get("/api/reports/department-efficiency", async (req, res) => {
+  //   try {
+  //     const { dateFrom, dateTo, deptId } = req.query;
+  //     if (!dateFrom || !dateTo) {
+  //       return res.status(400).json({
+  //         success: false,
+  //         message: "Missing required parameters: fromDate and toDate are mandatory."
+  //       });
+  //     }
+  //     const data = await storage.getDepartmentEfficiencyReport(
+  //       String(dateFrom),
+  //       String(dateTo),
+  //       deptId ? Number(deptId) : undefined
+  //     );
+  //     res.status(200).json({
+  //       success: true,
+  //       count: data.length,
+  //       data: data
+  //     });
+  //   } catch (error: any) {
+  //     console.error(`[Report API Error] - ${new Date().toISOString()}:`, error.stack);
+  //     res.status(500).json({
+  //       success: false,
+  //       message: "An internal server error occurred while generating the department efficiency report."
+  //     });
+  //   }
+  // });
   app.get("/api/reports/department-efficiency", async (req, res) => {
     try {
       const {
@@ -1318,6 +1887,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         page,
         pageSize
       } = req.query;
+      // Validation
       if (!dateFrom || !dateTo) {
         return res.status(400).json({
           success: false,
@@ -1413,12 +1983,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         page = "1",
         pageSize = "10",
       } = req.query;
+      // Validation
       if (!dateFrom || !dateTo) {
         return res.status(400).json({
           success: false,
           message: "dateFrom and dateTo are required",
         });
       }
+      // Storage Call
       const data = await storage.getDepartmentWiseManpowerReport(
         {
           dateFrom: String(dateFrom),
@@ -1445,9 +2017,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
+  // crudRoutes(
+  //   app,
+  //   "/api/contractors",
+  //   insertContractorSchema,
+  //   // GET
+  //   async (query: any) => {
+  //     return await storage.getContractors(
+  //       query.page,
+  //       query.pageSize,
+  //       query.search
+  //     );
+  //   },
+  //   // CREATE
+  //   async (d) => {
+  //     try {
+  //       return await storage.createContractor(d);
+  //     } catch (err: any) {
+  //       throw { response: { data: { message: err.message } } };
+  //     }
+  //   },
+  //   // UPDATE
+  //   (id, d) => storage.updateContractor(id, d),
+  //   // DELETE
+  //   (id) => storage.deleteContractor(id).then(() => { }),    undefined,
+  //   TABLES.CONTRACTORS
+  // );
   app.post("/api/contractors", withAudit("contractors", "ADD", async (req: any) => {
     return await storage.createContractor(req.body);
   }, 201));
+
   app.patch("/api/contractors/:id", withAudit("contractors", "UPDATE", async (req: any) => {
     return await storage.updateContractor(Number(req.params.id), req.body);
   }));
@@ -1456,12 +2055,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const page = Number(req.query.page) || 1;
       const pageSize = Number(req.query.pageSize) || 5;
       const search = String(req.query.search || "");
+
       const result = await storage.getContractors(page, pageSize, search);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: "Failed to fetch contractors" });
     }
   });
+
+  // GET Single Contractor
   app.get("/api/contractors/:id", async (req, res) => {
     try {
       const data = await storage.getContractor(Number(req.params.id));
@@ -1471,6 +2073,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Error fetching contractor details" });
     }
   });
+  // DELETE
   app.delete("/api/contractors/:id", withAudit("contractors", "DELETE", async (req: any) => {
     return await storage.deleteContractor(Number(req.params.id));
   }, 204));
@@ -1479,11 +2082,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const page = req.query.page ? Number(req.query.page) : undefined;
       const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
       const search = req.query.search ? String(req.query.search) : undefined;
+      // Naye specific filters query params se extract kiye
       const performedBy = req.query.performedBy ? String(req.query.performedBy) : undefined;
       const module = req.query.module ? String(req.query.module) : undefined;
       const action = req.query.action ? String(req.query.action) : undefined;
       const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
       const toDate = req.query.toDate ? String(req.query.toDate) : undefined;
+      // Saare parameters ko getAuditLogs storage method me pass kiya
       const result = await storage.getAuditLogs(
         page,
         pageSize,
@@ -1504,10 +2109,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const page = req.query.page ? Number(req.query.page) : undefined;
       const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
       const search = req.query.search ? String(req.query.search) : undefined;
+      // Naye login logs ke filters extract kiye
       const userId = req.query.userId ? String(req.query.userId) : undefined;
       const status = req.query.status ? String(req.query.status) : undefined;
       const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
       const toDate = req.query.toDate ? String(req.query.toDate) : undefined;
+      // Saare parameters ko getLoginLogs storage method me pass kiya
       const result = await storage.getLoginLogs(
         page,
         pageSize,
@@ -1530,6 +2137,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ message: error.message });
     }
   });
+  // Modules/Tables list dropdown ke liye API
   app.get("/api/audit-logs/modules", requireAuth, async (req, res) => {
     try {
       const data = await storage.getAuditModulesDropdown();
@@ -1546,28 +2154,75 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       next(error);
     }
   });
+  // --- Employee Bulk Update Route (Authenticated) ---
   app.post("/api/people/bulk-update", requireAuth, withAudit("people", "BULK_EMPOYEE_UPDATE", async (req: any) => {
     return await processEmployeeBulkUpdateOnly(req.body.data);
   }));
+
+  // --- Door Assignment Bulk Update Route (Authenticated) ---
   app.post("/api/doors/bulk-assign", requireAuth, withAudit("employee_door_assignments", "BULK_DOOR_ASIGNMENT", async (req: any) => {
     return await processDoorUpdate(req.body.data);
   }));
+
+  // app.post("/api/contractors/bulk-upload", requireAuth, withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
+  //   return await processContractorBulkUploadOnly(req.body.data);
+  // }));
   app.post("/api/contractors/bulk-upload", requireAuth, async (req: any, res: any) => {
     const result = await processContractorBulkUploadOnly(req.body.data);
+
+    // Agar function ne success: false bheja hai, to yahan se error status 400 bhej do
     if (result.success === false) {
       return res.status(400).json(result);
     }
+
+    // Agar success hai, to withAudit chalao (jaise pehle tha)
     const auditHandler = withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
       return result;
     });
+
     await auditHandler(req, res);
   });
+  // app.post("/api/contractors/bulk-upload", requireAuth, async (req: any, res: any) => {
+  //   // 1. Audit ke sath wrap kiya hua function execute karein
+  //   // Hum withAudit ko yahan call kar rahe hain aur res ko control kar rahe hain
+  //   const auditWrapper = withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
+  //     return await processContractorBulkUploadOnly(req.body.data);
+  //   });
+
+  //   // 2. Custom response interceptor
+  //   // Hum ek "mock" res object banayenge taaki hum status code catch kar sakein
+  //   let capturedStatus = 200;
+  //   const mockRes = {
+  //     status: (code: number) => {
+  //       capturedStatus = code;
+  //       return {
+  //         json: (data: any) => {
+  //           // Agar status 400 hai, to hum error bhejenge
+  //           if (capturedStatus === 400) {
+  //             return res.status(400).json(data);
+  //           }
+  //           return res.json(data);
+  //         }
+  //       };
+  //     },
+  //     json: (data: any) => res.json(data),
+  //     sendStatus: (code: number) => res.sendStatus(code)
+  //   };
+
+  //   // 3. Execution
+  //   await auditWrapper(req, mockRes);
+  // });
+
   app.get("/api/download/:type/:category/:folder/:filename", requireAuth, (req, res) => {
     const { type, category, folder, filename } = req.params;
+
     const filePath = path.join(process.cwd(), 'media', type, category, folder, filename);
+
     if (fs.existsSync(filePath)) {
+      // Zaroori Headers: Browser ko force karne ke liye ki file download hi ho
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
       return res.download(filePath, filename, (err) => {
         if (err) {
           console.error("Download Error:", err);
@@ -1578,18 +2233,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(404).send("File not found");
     }
   });
+  
   app.patch("/api/users/:id/toggle-status", withAudit("users", "UPDATE", async (req: any) => {
     const { id } = req.params;
+
     if (!id) {
       throw new Error("User ID is required");
     }
+
+    // storage se function call karein
     const newStatus = await storage.toggleUserStatus(id);
+
+    // Return value audit trail mein store hogi
     return {
       success: true,
       newStatus: newStatus,
       message: `User ${id} is now ${newStatus ? 'Active' : 'Blocked'}`
     };
   }));
+
+  // crudRoutes(
+  //   app,
+  //   "/api/visitor_cards",
+  //   insertVisitorCardSchema, // Aapke schema file se imported validation rule
+  //   (query: any) =>
+  //     storage.getVisitorCards(
+  //       query.page ? parseInt(query.page as string) : undefined,
+  //       query.pageSize ? parseInt(query.pageSize as string) : undefined,
+  //       query.search // 🔥 Yeh query parameters ko storage layer mein forward karega
+  //     ),
+  //   (d) => storage.createVisitorCard(d),
+  //   (id, d) => storage.updateVisitorCard(id, d),
+  //   (id) => storage.deleteVisitorCard(id),
+  //   undefined,
+  //   TABLES.VISITOR_CARDS // Aapke constant se card table mapper reference
+  // );
   crudRoutes(
     app,
     "/api/visitor_cards",
@@ -1612,6 +2290,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.VISITOR_CARDS
   );
+
   app.post("/api/visitor_cards/sync", async (req: any, res: any) => {
     try {
       await syncVisitorCardsFromMsSql();
@@ -1637,37 +2316,47 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           status: visitorCardLogs.status,
           syncDate: visitorCardLogs.syncDate,
           visitorCardCode: visitorCardLogs.visitorCardCode,
+          // Yahan se hum real name utha rahe hain
           visitorName: visitors.nameOfVisitor,
         })
         .from(visitorCardLogs)
+        // JOIN logic: logs ka card code = visitors ka rfidCardNo
         .leftJoin(visitors, eq(visitorCardLogs.visitorCardCode, visitors.rfidCardNo))
         .orderBy(desc(visitorCardLogs.syncDate))
         .limit(100);
+
       res.json(logs);
     } catch (error) {
       console.error("Error fetching logs with name:", error);
       res.status(500).json({ message: "Failed to fetch logs" });
     }
   });
+  // 2. Specific ID ka log fetch karna
   app.get("/api/visitor_card_logs/:id", async (req, res) => {
     try {
       const id = parseInt(req.params.id);
+
       if (isNaN(id)) {
         return res.status(400).json({ message: "Invalid ID format" });
       }
+
       const log = await db
         .select()
         .from(visitorCardLogs)
         .where(eq(visitorCardLogs.id, id));
+
       if (log.length === 0) {
         return res.status(404).json({ message: "Log not found" });
       }
+
       res.json(log[0]);
     } catch (error) {
       console.error("Error fetching single visitor log:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   });
+
+  // 3. (Optional) Latest Log fetch karna
   app.get("/api/visitor_card_logs/latest", async (req, res) => {
     try {
       const latest = await db
@@ -1675,6 +2364,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         .from(visitorCardLogs)
         .orderBy(desc(visitorCardLogs.syncDate))
         .limit(1);
+
       res.json(latest[0] || {});
     } catch (error) {
       res.status(500).json({ message: "Error fetching latest log" });
