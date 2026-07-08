@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/hooks/use-confirm"; 
 import {
   Pencil,
   Plus,
@@ -23,11 +24,12 @@ import { PaginationSize } from "@/components/ui/pagination";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export default function VisitorsPage() {
+  const confirm = useConfirm(); 
   const [visitorDialog, setVisitorDialog] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<any>(null);
   const { toast } = useToast();
 
-  // 🔴 Shifts page ki tarah errors ke liye ek specific state object banaya:
+  // Shifts page ki tarah errors ke liye ek specific state object banaya:
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // View Modal State
@@ -186,26 +188,50 @@ export default function VisitorsPage() {
   });
 
   // Dynamic Schema Fields Layout
+  // 🔴 NOTE: `required: true` ko custom variables se hataya taaki native HTML tooltip popup block na kare!
   const visitorFields: FieldConfig[] = [
     { key: "nameOfVisitor", label: "Visitor Name", required: true },
-    { key: "contactNo", label: "Contact Number", required: true },
-    { key: "emailAddress", label: "Email Address", type: "email" },
+    { 
+      key: "contactNo", 
+      label: "Contact Number", 
+      required: true,
+      onChange: (e: any) => {
+        const val = e.target.value.trim();
+        if (/^\d{10}$/.test(val) && Number(val.charAt(0)) > 5) {
+          setErrors(prev => { const copy = { ...prev }; delete copy.contactNo; return copy; });
+        }
+      }
+    },
+    { 
+      key: "emailAddress", 
+      label: "Email Address", 
+      type: "email",
+      onChange: (e: any) => {
+        const val = e.target.value.trim();
+        if (!val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+          setErrors(prev => { const copy = { ...prev }; delete copy.emailAddress; return copy; });
+        }
+      }
+    },
     { key: "visitorsCompanyName", label: "Company Name" },
     { key: "designation", label: "Designation" },
     {
       key: "rfidCardNo",
-      label: "RFID Card No",
-      required: true,
+      label: "RFID Card No *", // Label me * manually laga diya styling ke liye
       type: "select",
       options: visitorCards.map((c: any) => ({
         label: c.name || c.cardNumber,
         value: c.cardNumber,
       })),
+      onChange: (val: any) => {
+        if (val && val !== "undefined" && val !== "null") {
+          setErrors(prev => { const copy = { ...prev }; delete copy.rfidCardNo; return copy; });
+        }
+      }
     },
     {
       key: "whomToMeet",
-      label: "Whom To Meet (ZIM Employee)",
-      required: true,
+      label: "Whom To Meet (ZIM Employee) *", 
       type: "select",
       options: employees
         .map((e: any) => {
@@ -218,13 +244,23 @@ export default function VisitorsPage() {
           };
         })
         .filter((o: any) => o.label.trim() !== ""),
+      onChange: (val: any) => {
+        if (val && val !== "undefined" && val !== "null") {
+          setErrors(prev => { const copy = { ...prev }; delete copy.whomToMeet; return copy; });
+        }
+      }
     },
     { key: "purpose", label: "Purpose of Visit" },
     {
       key: "permissionDateFrom",
-      label: "In Time",
-      required: true,
+      label: "In Time *",
       type: "datetime-local" as any,
+      onChange: (e: any) => {
+        const val = e.target.value.trim();
+        if (val && val !== "undefined" && val !== "null") {
+          setErrors(prev => { const copy = { ...prev }; delete copy.permissionDateFrom; return copy; });
+        }
+      }
     },
     { key: "state", label: "State" },
     { key: "district", label: "District" },
@@ -292,9 +328,16 @@ export default function VisitorsPage() {
             size="icon"
             variant="ghost"
             title="Mark Exit / Check-out"
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              if (confirm(`Are you sure you want to check out ${v.nameOfVisitor}?`)) {
+              const confirmed = await confirm({
+                title: "Mark Visitor Exit?",
+                description: `Are you sure you want to check out ${v.nameOfVisitor}? This will update their departure timestamp.`,
+                confirmText: "Yes, Check-out",
+                cancelText: "Cancel",
+                variant: "default",
+              });
+              if (confirmed) {
                 checkoutVisitor.mutate(v.id);
               }
             }}
@@ -337,9 +380,16 @@ export default function VisitorsPage() {
             size="icon"
             variant="ghost"
             title="Delete Visitor"
-            onClick={(e) => {
+            onClick={async (e) => {
               e.stopPropagation();
-              if (confirm(`Are you sure you want to delete ${v.nameOfVisitor}?`)) {
+              const confirmed = await confirm({
+                title: "Delete Visitor Profile?",
+                description: `Are you sure you want to delete visitor "${v.nameOfVisitor}"? This action cannot be undone and will erase registry details.`,
+                confirmText: "Yes, Delete",
+                cancelText: "Cancel",
+                variant: "destructive",
+              });
+              if (confirmed) {
                 deleteVisitor.mutate(v.id);
               }
             }}
@@ -463,7 +513,7 @@ export default function VisitorsPage() {
       {/* 1. Register/Edit Profile Dialog Form */}
       <CrudDialog
         open={visitorDialog}
-        errors={errors} // 🔴 Yahan shifts page ki tarah errors object bind kiya!
+        errors={errors} // Shifts page ki tarah errors object bind kiya!
         onClose={() => {
           setVisitorDialog(false);
           setEditingVisitor(null);
@@ -487,40 +537,58 @@ export default function VisitorsPage() {
             : undefined
         }
         onSubmit={(data) => {
+          const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
           const cleanedContact = String(data.contactNo || "").trim();
           const cleanedEmail = String(data.emailAddress || "").trim();
 
           const selectedRfid = String(data.rfidCardNo || "").trim();
           const selectedWhomToMeet = String(data.whomToMeet || "").trim();
+          const selectedInTime = String(data.permissionDateFrom || "").trim();
 
-          // 🛑 1. RFID Card No Selection Validation
+          // Combined validation state object trigger 🔴
+          const validationErrors: Record<string, string> = {};
+
+          // 🛑 1. Name Check
+          if (!cleanedVisitorName) {
+            validationErrors.nameOfVisitor = "Visitor name is required.";
+          }
+
+          // 🛑 2. RFID Card No Selection Validation
           if (!selectedRfid || selectedRfid === "undefined" || selectedRfid === "null") {
-            setErrors({ rfidCardNo: "Please select an RFID Card." });
-            return;
+            validationErrors.rfidCardNo = "Please select an RFID Card.";
           }
 
-          // 🛑 2. Whom To Meet Selection Validation
+          // 🛑 3. Whom To Meet Selection Validation
           if (!selectedWhomToMeet || selectedWhomToMeet === "undefined" || selectedWhomToMeet === "null") {
-            setErrors({ whomToMeet: "Please select the employee to meet." });
-            return;
-          }
-          // 🛑 1. Contact Number Validation: Exactly 10 Digits & only Numbers
-          if (!/^\d{10}$/.test(cleanedContact)) {
-            setErrors({ contactNo: "Contact number must be exactly 10 digits." });
-            return; 
+            validationErrors.whomToMeet = "Please select the employee to meet.";
           }
 
-          // 🛑 2. Contact Number Validation: First digit must be 6, 7, 8, or 9
-          const firstDigit = Number(cleanedContact.charAt(0));
-          if (firstDigit <= 5) {
-            setErrors({ contactNo: "Contact number must start with 6, 7, 8, or 9." });
-            return; 
+          // 🛑 4. In Time Selection Validation 🌟 (Ab bina popup ke block kiye yahan handle hoga)
+          if (!selectedInTime || selectedInTime === "undefined" || selectedInTime === "null") {
+            validationErrors.permissionDateFrom = "Please select the In Time.";
           }
 
-          // 🛑 3. Email Validation: Proper email format check (agar email entered hai toh)
+          // 🛑 5. Contact Number Format Checks
+          if (!cleanedContact) {
+            validationErrors.contactNo = "Contact number is required.";
+          } else if (!/^\d{10}$/.test(cleanedContact)) {
+            validationErrors.contactNo = "Contact number must be exactly 10 digits.";
+          } else {
+            const firstDigit = Number(cleanedContact.charAt(0));
+            if (firstDigit <= 5) {
+              validationErrors.contactNo = "Contact number must start with 6, 7, 8, or 9.";
+            }
+          }
+
+          // 🛑 6. Email Validation
           if (cleanedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
-            setErrors({ emailAddress: "Please enter a valid email address." });
-            return;
+            validationErrors.emailAddress = "Please enter a valid email address.";
+          }
+
+          // If errors exist, reject mutation dispatch sequence 🛑
+          if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            return; 
           }
 
           // Agar saare validations pass ho gaye hain, toh data submit hoga
