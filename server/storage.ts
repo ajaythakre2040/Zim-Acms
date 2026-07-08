@@ -2975,11 +2975,34 @@ export class DatabaseStorage implements IStorage {
         await mssqlPool.connect();
       }
       const request = mssqlPool.request();
-      request.input('Name', mssql.NVarChar, data.nameOfVisitor);
+
+      // MS SQL Table Column Mapping according to your grid image
+      request.input('Name', mssql.NVarChar, data.nameOfVisitor || null);
+      request.input('ContactNumber', mssql.NVarChar, data.contactNo || null);
+      request.input('Email', mssql.NVarChar, data.emailAddress || null);
+      request.input('LocationId', mssql.Int, data.locationId ? Number(data.locationId) : null);
+      request.input('Purpose', mssql.NVarChar, data.purpose || null);
+      request.input('ToMeetId', mssql.NVarChar, data.whomToMeet || null); // Map to your employee field
+      request.input('VisitorDeskId', mssql.Int, data.visitorDeskId ? Number(data.visitorDeskId) : null);
+      request.input('VisitorCardId', mssql.Int, data.visitorCardId ? Number(data.visitorCardId) : null);
+      request.input('Company', mssql.NVarChar, data.visitorsCompanyName || null);
+      request.input('Designation', mssql.NVarChar, data.designation || null);
+      request.input('Remarks', mssql.NVarChar, data.remark || null);
+
+      const currentIsoDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      request.input('InDate', mssql.DateTime, currentIsoDate);
 
       const msSqlResult = await request.query(`
-      INSERT INTO VisitorLogs (Name)
-      VALUES (@Name);
+      INSERT INTO VisitorLogs (
+        Name, ContactNumber, Email, LocationId, Purpose, 
+        ToMeetId, VisitorDeskId, VisitorCardId, Company, 
+        Designation, InDate, Remarks
+      )
+      VALUES (
+        @Name, @ContactNumber, @Email, @LocationId, @Purpose, 
+        @ToMeetId, @VisitorDeskId, @VisitorCardId, @Company, 
+        @Designation, @InDate, @Remarks
+      );
       SELECT SCOPE_IDENTITY() AS id;
     `);
 
