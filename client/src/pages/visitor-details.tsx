@@ -230,11 +230,11 @@ export default function VisitorsPage() {
       label: "Expiry From (In Time)",
       type: "datetime-local" as any,
     },
-    {
-      key: "permissionDateTo",
-      label: "Expiry To (Out Time)",
-      type: "datetime-local" as any,
-    },
+    // {
+    //   key: "permissionDateTo",
+    //   label: "Expiry To (Out Time)",
+    //   type: "datetime-local" as any,
+    // },
 
     { key: "district", label: "District" },
     { key: "state", label: "State" },
@@ -276,23 +276,23 @@ export default function VisitorsPage() {
         );
       },
     },
-    {
-      key: "permissionDateTo",
-      label: "Out Time",
-      render: (v: any) => {
-        if (!v.permissionDateTo) return "-";
-        const date = new Date(v.permissionDateTo);
-        return (
-          <span className="text-xs text-muted-foreground font-medium">
-            {date.toLocaleDateString()}{" "}
-            {date.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </span>
-        );
-      },
-    },
+    // {
+    //   key: "permissionDateTo",
+    //   label: "Out Time",
+    //   render: (v: any) => {
+    //     if (!v.permissionDateTo) return "-";
+    //     const date = new Date(v.permissionDateTo);
+    //     return (
+    //       <span className="text-xs text-muted-foreground font-medium">
+    //         {date.toLocaleDateString()}{" "}
+    //         {date.toLocaleTimeString([], {
+    //           hour: "2-digit",
+    //           minute: "2-digit",
+    //         })}
+    //       </span>
+    //     );
+    //   },
+    // },
     {
       key: "actions",
       label: "Actions",
