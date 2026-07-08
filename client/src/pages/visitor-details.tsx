@@ -17,6 +17,7 @@ import {
   DoorOpen,
   Trash2,
   UserPlus,
+  LogOut,
 } from "lucide-react";
 import { PaginationSize } from "@/components/ui/pagination";
 
@@ -193,10 +194,7 @@ export default function VisitorsPage() {
     { key: "contactNo", label: "Contact Number", required: true },
     { key: "emailAddress", label: "Email Address", type: "email" },
     { key: "visitorsCompanyName", label: "Company Name" },
-    {
-      key: "designation",
-      label: "Designation",
-    },
+    { key: "designation", label: "Designation" },
     {
       key: "rfidCardNo",
       label: "RFID Card No",
@@ -218,17 +216,19 @@ export default function VisitorsPage() {
         })
         .filter((o: any) => o.label !== ""),
     },
-    // {
-    //   key: "department",
-    //   label: "Department",
-    //   type: "select",
-    //   options: departments.map((d: any) => ({ label: d.name, value: d.name })),
-    // },
     { key: "purpose", label: "Purpose of Visit" },
 
-    // ✅ HERE: Added missing Permission Validity Dates
-    { key: "permissionDateFrom", label: "Permission Valid From", type: "date" },
-    { key: "permissionDateTo", label: "Permission Valid To", type: "date" },
+    // 🌟 CHANGE HERE: 'date' ko 'datetime-local' kiya taaki time picker bhi aaye
+    {
+      key: "permissionDateFrom",
+      label: "Expiry From (In Time)",
+      type: "datetime-local" as any,
+    },
+    {
+      key: "permissionDateTo",
+      label: "Expiry To (Out Time)",
+      type: "datetime-local" as any,
+    },
 
     { key: "district", label: "District" },
     { key: "state", label: "State" },
@@ -247,30 +247,66 @@ export default function VisitorsPage() {
         <span className="font-semibold text-foreground">{v.nameOfVisitor}</span>
       ),
     },
-    { key: "contactNo", label: "Contact No" },
-    { key: "visitorsCompanyName", label: "Company", hideOnMobile: true },
     { key: "whomToMeet", label: "Whom To Meet" },
-    { key: "purpose", label: "Purpose", hideOnMobile: true },
     {
       key: "rfidCardNo",
       label: "RFID Card",
       render: (v: any) => v.rfidCardNo || "-",
     },
     {
-      key: "permissionDates",
-      label: "Validity Period",
-      render: (v: any) => (
-        <span className="text-xs text-muted-foreground font-medium">
-          {v.permissionDateFrom || "-"} to {v.permissionDateTo || "-"}
-        </span>
-      ),
-      hideOnMobile: true,
+      key: "permissionDateFrom",
+      label: "In Time",
+      render: (v: any) => {
+        if (!v.permissionDateFrom) return "-";
+        const date = new Date(v.permissionDateFrom);
+        return (
+          <span className="text-xs text-muted-foreground font-medium">
+            {date.toLocaleDateString()}{" "}
+            {date.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        );
+      },
+    },
+    {
+      key: "permissionDateTo",
+      label: "Out Time",
+      render: (v: any) => {
+        if (!v.permissionDateTo) return "-";
+        const date = new Date(v.permissionDateTo);
+        return (
+          <span className="text-xs text-muted-foreground font-medium">
+            {date.toLocaleDateString()}{" "}
+            {date.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </span>
+        );
+      },
     },
     {
       key: "actions",
       label: "Actions",
       render: (v: any) => (
         <div className="flex items-center space-x-1">
+          {/* 🚪 EXIT BUTTON (Added before View Button) */}
+          <Button
+            size="icon"
+            variant="ghost"
+            title="Check-out"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm(`Are you sure ${v.nameOfVisitor} has exited?`)) {
+                console.log("Visitor Exited ID:", v.id);
+              }
+            }}
+          >
+            <LogOut className="w-4 h-4 text-emerald-500" />{" "}
+          </Button>
+
           {/* 1. VIEW BUTTON */}
           <Button
             size="icon"
@@ -284,26 +320,6 @@ export default function VisitorsPage() {
           >
             <Eye className="w-4 h-4 text-blue-500" />
           </Button>
-
-          {/* 2. NEW ASSIGN DOOR BUTTON */}
-          {/* <Button
-            size="icon"
-            variant="ghost"
-            title="Assign Door"
-            onClick={(e) => {
-              e.stopPropagation();
-              setRoleAssign({
-                id: v.id, // 👈 visitorId ke liye
-                rfidCardNo: v.rfidCardNo, // 👈 visitorCardId find karne ke liye
-                name: v.nameOfVisitor,
-              });
-              setSelectedDoorIds(v.doorIds || []);
-              setDoorSearch("");
-              setRoleDialogOpen(true);
-            }}
-          >
-            <DoorOpen className="w-4 h-4 text-teal-600" />
-          </Button> */}
 
           {/* 3. EDIT BUTTON */}
           <Button
@@ -462,11 +478,16 @@ export default function VisitorsPage() {
         }
         fields={visitorFields}
         initialData={
-          editingVisitor 
+          editingVisitor
             ? {
                 ...editingVisitor,
                 // ✅ Agar backend se visitorCardId aa raha hai toh use dropdown selection ke rfidCardNo me map karenge
-                rfidCardNo: editingVisitor.rfidCardNo || visitorCards.find((c: any) => Number(c.id) === Number(editingVisitor.visitorCardId))?.cardNumber
+                rfidCardNo:
+                  editingVisitor.rfidCardNo ||
+                  visitorCards.find(
+                    (c: any) =>
+                      Number(c.id) === Number(editingVisitor.visitorCardId),
+                  )?.cardNumber,
               }
             : undefined
         }
