@@ -205,17 +205,23 @@ export default function VisitorsPage() {
       })),
     },
     {
-      key: "whomToMeet",
-      label: "Whom To Meet (ZIM Employee)",
-      required: true,
-      type: "select",
-      options: employees
-        .map((e: any) => {
-          const name = e.employee_name || e.employeeName || "";
-          return { label: name, value: name };
-        })
-        .filter((o: any) => o.label !== ""),
-    },
+  key: "whomToMeet",
+  label: "Whom To Meet (ZIM Employee)",
+  required: true,
+  type: "select",
+  options: employees
+    .map((e: any) => {
+      const name = e.employee_name || e.employeeName || "";
+      // 💡 Code nikalne ke liye schema ke hisab se e.employee_code ya e.employeeCode use karein
+      const code = e.employee_code || e.employeeCode || name; 
+
+      return { 
+        label: `${name} (${code})`, // UI par Name aur Code dono dikhega taaki identification easy ho
+        value: code                // Backend par data submit hote waqt Code jayega
+      };
+    })
+    .filter((o: any) => o.label.trim() !== ""),
+},
     { key: "purpose", label: "Purpose of Visit" },
 
     // 🌟 CHANGE HERE: 'date' ko 'datetime-local' kiya taaki time picker bhi aaye
