@@ -2,6 +2,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import isBetween from "dayjs/plugin/isBetween";
 import customParseFormat from "dayjs/plugin/customParseFormat";
+import mssql from "mssql";
 dayjs.extend(utc);
 dayjs.extend(isBetween);
 dayjs.extend(customParseFormat);
@@ -10,13 +11,17 @@ import {
   type User, type UpsertUser, type UserProfile, type InsertUserProfile, type Company, type InsertCompany, type Department, type InsertDepartment, type Designation, type InsertDesignation, type Category, type InsertCategory, type Vendor, type InsertVendor, type Site, type InsertSite, type Building, type InsertBuilding, type Floor, type InsertFloor, type Zone, type InsertZone, type Door, type InsertDoor, type Device, type InsertDevice, type Person, type InsertPerson, type Credential, type InsertCredential, type AccessCard, type InsertAccessCard, type Shift, type InsertShift, type ShiftAssignment, type InsertShiftAssignment, type Holiday, type InsertHoliday, type AccessLevel, type InsertAccessLevel, type AccessRule, type InsertAccessRule, type PersonAccess, type InsertPersonAccess, type Visitor, type InsertVisitor, type Visit, type InsertVisit, type Attendance, type InsertAttendance, type AccessLog, type InsertAccessLog, type Alert, type InsertAlert, type Exception, type InsertException, type SystemSetting, type InsertSystemSetting,
   blockUnblockLogs, CronMaster, cronMaster, InsertCronMaster, doorDevices, InsertDoorDevice, DoorDevice, BlockUnblockLog, InsertBlockUnblockLog, dailyAttendanceSummary, MenuMaster, InsertMenuMaster, menuMaster, rolePermissions, users, auditLogs, InsertAuditLog, Contractor, InsertContractor, contractors,
   sessions,
+  InsertLoginAttempt,
+  loginAttempts,
+  visitorCards,
+  peopleAdditionalDetails,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
 import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not, } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
-import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter, } from "@shared/mssql_schema";
-import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES, EMPLOYEE_STATUS, } from "./constant";
+import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter, VisitorCardAdapter, } from "@shared/mssql_schema";
+import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES, EMPLOYEE_STATUS, DEVICE_OFFLINE_THRESHOLD_MINUTES, } from "./constant";
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
 import { withPagination } from "./utils/pagination.utils";
@@ -135,8 +140,11 @@ export interface IStorage {
   getPersonAccess(personId?: number): Promise<PersonAccess[]>;
   createPersonAccess(data: InsertPersonAccess): Promise<PersonAccess>;
   deletePersonAccess(id: number): Promise<void>;
-  getVisitors(): Promise<Visitor[]>;
-  getVisitor(id: number): Promise<Visitor | undefined>;
+  getVisitors(
+    page?: number,
+    pageSize?: number,
+    search?: string
+  ): Promise<{ data: Visitor[]; totalCount: number; totalPages: number } | Visitor[]>; getVisitor(id: number): Promise<Visitor | undefined>;
   createVisitor(data: InsertVisitor): Promise<Visitor>;
   updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor>;
   deleteVisitor(id: number): Promise<void>;
@@ -221,10 +229,15 @@ export interface IStorage {
 
   getContractors(): Promise<schema.Contractor[]>;
   getContractor(id: number): Promise<Contractor | undefined>;
-  getContractorByBiometricId(biometricId: string): Promise<Contractor | undefined>;
   createContractor(contractor: InsertContractor): Promise<Contractor>;
   updateContractor(id: number, contractor: Partial<InsertContractor>): Promise<Contractor>;
   deleteContractor(id: number): Promise<boolean>;
+
+  getVisitorCards(): Promise<any[]>;
+  // createVisitorCard(card: any): Promise<any>;
+  updateVisitorCard(id: number, card: any): Promise<any>;
+  deleteVisitorCard(id: number): Promise<void>;
+  getVisitorCardById(id: number): Promise<any>;
 }
 export class DatabaseStorage implements IStorage {
   // async getDeviceLogsWithEmployee(filters?: {
@@ -410,6 +423,7 @@ export class DatabaseStorage implements IStorage {
         fullName: users.fullName,
         roleName: roles.roleName,
         roleCode: roles.code,
+        isAccountActive: users.isAccountActive,
       })
       .from(userProfiles)
       .leftJoin(users, eq(userProfiles.userId, users.id))
@@ -1372,7 +1386,7 @@ export class DatabaseStorage implements IStorage {
       }
 
       const currentTime = new Date();
-      const THRESHOLD_MINUTES = 1;
+      const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
 
       let onlineCount = 0;
       let offlineCount = 0;
@@ -1640,11 +1654,247 @@ export class DatabaseStorage implements IStorage {
   // STORAGE
   // ==========================
 
+  // async getPeople(
+  //   search?: string,
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  // ): Promise<any> {
+  //   const [pgDataRaw, msDataRaw] = await Promise.all([
+  //     db
+  //       .select({
+  //         person: {
+  //           ...people,
+  //           lastSeenTime: sql<string>`
+  //           TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')
+  //         `,
+  //         },
+  //         departmentName: departments.name,
+  //         designationName: designations.name,
+  //         lastPunchDoorName: doors.name,
+  //       })
+  //       .from(people)
+  //       .leftJoin(departments, eq(people.departmentId, departments.id))
+  //       .leftJoin(designations, eq(people.designationId, designations.id))
+  //       .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
+
+  //     dbMsSql.select().from({ dbName: "Employees" }).execute(),
+  //   ]);
+
+  //   const msIds = new Set();
+
+  //   const ruleIdToName = Object.fromEntries(
+  //     Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
+  //   );
+
+  //   const currentPgData = pgDataRaw.map((row) => ({
+  //     ...row.person,
+  //     departmentName: row.departmentName || "N/A",
+  //     designationName: row.designationName || "N/A",
+  //     lastPunchDoorName: row.lastPunchDoorName || "No Door",
+  //     ruleName:
+  //       row.person.ruleid !== null
+  //         ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
+  //         : "NO_RULE",
+  //   }));
+
+  //   // ==========================
+  //   // MSSQL SYNC
+  //   // ==========================
+
+  //   for (const msRow of msDataRaw || []) {
+  //     const mapped = PersonAdapter.toPostgres(msRow);
+
+  //     if (!mapped.msId) continue;
+
+  //     msIds.add(mapped.msId);
+
+  //     const existingIndex = currentPgData.findIndex(
+  //       (p) => p.msId === mapped.msId,
+  //     );
+
+  //     // ==========================
+  //     // INSERT
+  //     // ==========================
+
+  //     if (existingIndex === -1) {
+  //       try {
+  //         const [newRec] = await db
+  //           .insert(people)
+  //           .values({
+  //             msId: mapped.msId,
+  //             employeeCode: mapped.employeeCode,
+  //             employeeName: mapped.employeeName ?? "Unknown",
+  //             // address: mapped.address ?? null,
+  //             ruleid: mapped.ruleid ?? null,
+  //             locationId: mapped.locationId ?? null,
+  //             externalId: mapped.externalId ?? null,
+  //             overtimeEligible: mapped.overtimeEligible ?? false,
+  //             personType: "employee",
+  //             status: "active",
+  //             sourceSystem: "mssql_bio",
+  //             updatedAt: new Date(),
+  //             createdAt: new Date(),
+  //           })
+  //           .returning();
+
+  //         if (newRec?.employeeCode) {
+  //           // await this.executeHardwareSync(newRec.employeeCode, null, true);
+  //           this.executeHardwareSyncBackground(newRec.employeeCode);
+  //         }
+
+  //         currentPgData.push({
+  //           ...newRec,
+  //           departmentName: "N/A",
+  //           designationName: "N/A",
+  //           lastPunchDoorName: "No Door",
+  //           ruleName:
+  //             newRec.ruleid !== null
+  //               ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
+  //               : "NO_ROLE",
+  //         });
+  //       } catch (e) {
+  //         console.error("New employee sync error:", e);
+  //       }
+  //     }
+
+  //     // ==========================
+  //     // UPDATE
+  //     // ==========================
+  //     else {
+  //       const existing = currentPgData[existingIndex];
+
+  //       const hasChanged =
+  //         existing.employeeName !== mapped.employeeName ||
+  //         existing.employeeCode !== mapped.employeeCode ||
+  //         existing.ruleid !== mapped.ruleid;
+
+  //       if (hasChanged) {
+  //         try {
+  //           const [updatedRec] = await db
+  //             .update(people)
+  //             .set({
+  //               employeeName: mapped.employeeName ?? "Unknown",
+  //               employeeCode: mapped.employeeCode,
+  //               // address: mapped.address ?? null,
+  //               updatedAt: new Date(),
+  //             })
+  //             .where(eq(people.msId, mapped.msId))
+  //             .returning();
+
+  //           currentPgData[existingIndex] = {
+  //             ...existing,
+  //             ...updatedRec,
+  //             ruleName:
+  //               updatedRec.ruleid !== null
+  //                 ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
+  //                 : "NO_ROLE",
+  //           };
+  //         } catch (e) {
+  //           console.error("Employee update sync error:", e);
+  //         }
+  //       }
+  //     }
+  //   }
+
+  //   // ==========================
+  //   // DELETE REMOVED MSSQL USERS
+  //   // ==========================
+
+  //   for (const pgRow of currentPgData) {
+  //     if (pgRow.msId && !msIds.has(pgRow.msId)) {
+  //       try {
+  //         await db.delete(people).where(eq(people.msId, pgRow.msId));
+  //       } catch (e) { }
+  //     }
+  //   }
+
+  //   // ==========================
+  //   // SEARCH
+  //   // ==========================
+
+  //   let results = currentPgData;
+
+  //   if (search?.trim()) {
+  //     const term = search.toLowerCase();
+
+  //     results = results.filter(
+  //       (p) =>
+  //         p.employeeName?.toLowerCase().includes(term) ||
+  //         p.employeeCode?.toLowerCase().includes(term) ||
+  //         p.departmentName?.toLowerCase().includes(term) ||
+  //         p.ruleName?.toLowerCase().includes(term),
+  //     );
+  //   }
+
+  //   // ==========================
+  //   // SORT
+  //   // ==========================
+
+  //   results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+
+  //   // ==========================
+  //   // UNIQUE
+  //   // ==========================
+
+  //   const uniquePeople = Array.from(
+  //     new Map(
+  //       results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
+  //     ).values(),
+  //   );
+
+  //   // ==========================
+  //   // OLD FORMAT
+  //   // ==========================
+
+  //   if (!pageSize) {
+  //     return uniquePeople as Person[];
+  //   }
+
+  //   // ==========================
+  //   // ALL RECORDS
+  //   // ==========================
+
+  //   if (pageSize === -1 || pageSize === "-1") {
+  //     return {
+  //       data: uniquePeople,
+  //       totalCount: uniquePeople.length,
+  //       totalPages: 1,
+  //       currentPage: 1,
+  //       pageSize: uniquePeople.length,
+  //     };
+  //   }
+
+  //   // ==========================
+  //   // PAGINATION
+  //   // ==========================
+
+  //   const p = page && Number(page) > 0 ? Number(page) : 1;
+
+  //   const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+
+  //   const start = (p - 1) * size;
+
+  //   const end = start + size;
+
+  //   const paginatedData = uniquePeople.slice(start, end);
+
+  //   return {
+  //     data: paginatedData,
+  //     totalCount: uniquePeople.length,
+  //     totalPages: Math.ceil(uniquePeople.length / size),
+  //     currentPage: p,
+  //     pageSize: size,
+  //   };
+  // }
+
   async getPeople(
     search?: string,
     page?: number | string,
     pageSize?: number | string,
   ): Promise<any> {
+    // ==========================
+    // 1. FETCH RAW DATA FROM POSTGRES & MSSQL
+    // ==========================
     const [pgDataRaw, msDataRaw] = await Promise.all([
       db
         .select({
@@ -1657,11 +1907,13 @@ export class DatabaseStorage implements IStorage {
           departmentName: departments.name,
           designationName: designations.name,
           lastPunchDoorName: doors.name,
+          additionalDetails: peopleAdditionalDetails,
         })
         .from(people)
         .leftJoin(departments, eq(people.departmentId, departments.id))
         .leftJoin(designations, eq(people.designationId, designations.id))
-        .leftJoin(doors, eq(people.lastPunchDoorId, doors.id)),
+        .leftJoin(doors, eq(people.lastPunchDoorId, doors.id))
+        .leftJoin(peopleAdditionalDetails, eq(people.employeeCode, peopleAdditionalDetails.employeeCode)),
 
       dbMsSql.select().from({ dbName: "Employees" }).execute(),
     ]);
@@ -1672,21 +1924,36 @@ export class DatabaseStorage implements IStorage {
       Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
     );
 
-    const currentPgData = pgDataRaw.map((row) => ({
-      ...row.person,
-      departmentName: row.departmentName || "N/A",
-      designationName: row.designationName || "N/A",
-      lastPunchDoorName: row.lastPunchDoorName || "No Door",
-      ruleName:
-        row.person.ruleid !== null
-          ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
-          : "NO_RULE",
-    }));
+    // ==========================
+    // FLAT MAPPING (Sare Columns Ek Sath)
+    // ==========================
+    const currentPgData = pgDataRaw.map((row) => {
+      // logo ke additional details ke id aur timestamps ko destructure kar rahe hain 
+      // taaki wo main people table ke id, createdAt, updatedAt ko overwrite na karein.
+      const {
+        id: _detailId,
+        employeeCode: _detailCode,
+        createdAt: _detailCreated,
+        updatedAt: _detailUpdated,
+        ...restOfAdditionalDetails
+      } = row.additionalDetails || {};
+
+      return {
+        ...row.person,                  // Main people data
+        ...restOfAdditionalDetails,     // Flat additional details (cardNo, companyUnit, etc.)
+        departmentName: row.departmentName || "N/A",
+        designationName: row.designationName || "N/A",
+        lastPunchDoorName: row.lastPunchDoorName || "No Door",
+        ruleName:
+          row.person.ruleid !== null
+            ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
+            : "NO_RULE",
+      };
+    });
 
     // ==========================
-    // MSSQL SYNC
+    // 2. MSSQL SYNC (INSERT & UPDATE)
     // ==========================
-
     for (const msRow of msDataRaw || []) {
       const mapped = PersonAdapter.toPostgres(msRow);
 
@@ -1698,10 +1965,9 @@ export class DatabaseStorage implements IStorage {
         (p) => p.msId === mapped.msId,
       );
 
-      // ==========================
-      // INSERT
-      // ==========================
-
+      // --------------------------
+      // INSERT NEW EMPLOYEE
+      // --------------------------
       if (existingIndex === -1) {
         try {
           const [newRec] = await db
@@ -1710,7 +1976,6 @@ export class DatabaseStorage implements IStorage {
               msId: mapped.msId,
               employeeCode: mapped.employeeCode,
               employeeName: mapped.employeeName ?? "Unknown",
-              address: mapped.address ?? null,
               ruleid: mapped.ruleid ?? null,
               locationId: mapped.locationId ?? null,
               externalId: mapped.externalId ?? null,
@@ -1724,7 +1989,6 @@ export class DatabaseStorage implements IStorage {
             .returning();
 
           if (newRec?.employeeCode) {
-            // await this.executeHardwareSync(newRec.employeeCode, null, true);
             this.executeHardwareSyncBackground(newRec.employeeCode);
           }
 
@@ -1742,10 +2006,9 @@ export class DatabaseStorage implements IStorage {
           console.error("New employee sync error:", e);
         }
       }
-
-      // ==========================
-      // UPDATE
-      // ==========================
+      // --------------------------
+      // UPDATE EXISTING EMPLOYEE
+      // --------------------------
       else {
         const existing = currentPgData[existingIndex];
 
@@ -1761,7 +2024,6 @@ export class DatabaseStorage implements IStorage {
               .set({
                 employeeName: mapped.employeeName ?? "Unknown",
                 employeeCode: mapped.employeeCode,
-                address: mapped.address ?? null,
                 updatedAt: new Date(),
               })
               .where(eq(people.msId, mapped.msId))
@@ -1783,21 +2045,21 @@ export class DatabaseStorage implements IStorage {
     }
 
     // ==========================
-    // DELETE REMOVED MSSQL USERS
+    // 3. DELETE REMOVED MSSQL USERS
     // ==========================
-
     for (const pgRow of currentPgData) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(people).where(eq(people.msId, pgRow.msId));
-        } catch (e) { }
+        } catch (e) {
+          console.error("Delete sync error:", e);
+        }
       }
     }
 
     // ==========================
-    // SEARCH
+    // 4. SEARCH
     // ==========================
-
     let results = currentPgData;
 
     if (search?.trim()) {
@@ -1813,15 +2075,13 @@ export class DatabaseStorage implements IStorage {
     }
 
     // ==========================
-    // SORT
+    // 5. SORT BY ID DESCENDING
     // ==========================
-
     results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
 
     // ==========================
-    // UNIQUE
+    // 6. UNIQUE RECORDS FILTER
     // ==========================
-
     const uniquePeople = Array.from(
       new Map(
         results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
@@ -1829,16 +2089,11 @@ export class DatabaseStorage implements IStorage {
     );
 
     // ==========================
-    // OLD FORMAT
+    // 7. PAGINATION & RETURN FORMATS
     // ==========================
-
     if (!pageSize) {
-      return uniquePeople as Person[];
+      return uniquePeople;
     }
-
-    // ==========================
-    // ALL RECORDS
-    // ==========================
 
     if (pageSize === -1 || pageSize === "-1") {
       return {
@@ -1850,18 +2105,10 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    // ==========================
-    // PAGINATION
-    // ==========================
-
     const p = page && Number(page) > 0 ? Number(page) : 1;
-
     const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
-
     const start = (p - 1) * size;
-
     const end = start + size;
-
     const paginatedData = uniquePeople.slice(start, end);
 
     return {
@@ -1872,6 +2119,7 @@ export class DatabaseStorage implements IStorage {
       pageSize: size,
     };
   }
+
   // 🛠️ Helper function to trigger sync in the background without locking the main thread
   private async executeHardwareSyncBackground(employeeCode: string) {
     // Thoda sa delay taaki biometric database user ko fully process karle
@@ -2018,12 +2266,45 @@ export class DatabaseStorage implements IStorage {
   //   ) as Person[];
   // }
 
+  // async getPerson(id: number): Promise<any> {
+  //   const [result] = await db
+  //     .select({
+  //       person: people,
+  //       departmentName: departments.name,
+  //       designationName: designations.name,
+  //     })
+  //     .from(people)
+  //     .leftJoin(
+  //       departments,
+  //       eq(people.departmentId, departments.id)
+  //     )
+  //     .leftJoin(
+  //       designations,
+  //       eq(people.designationId, designations.id)
+  //     )
+  //     .leftJoin(
+  //     schema.peopleAdditionalDetails,
+  //     eq(people.employeeCode, schema.peopleAdditionalDetails.employeeCode) // employee_code ke basis par join
+  //   )
+  //     .where(eq(people.id, id));
+
+  //   if (!result) return undefined;
+
+  //   return {
+  //     ...result.person,
+  //     departmentName: result.departmentName,
+  //     designationName: result.designationName,
+  //   };
+  // }
+
   async getPerson(id: number): Promise<any> {
     const [result] = await db
       .select({
         person: people,
         departmentName: departments.name,
         designationName: designations.name,
+        // Yahan se additional details ke saare columns select ho jayenge
+        additionalDetails: peopleAdditionalDetails,
       })
       .from(people)
       .leftJoin(
@@ -2034,6 +2315,10 @@ export class DatabaseStorage implements IStorage {
         designations,
         eq(people.designationId, designations.id)
       )
+      .leftJoin(
+        schema.peopleAdditionalDetails,
+        eq(people.employeeCode, peopleAdditionalDetails.employeeCode) // employee_code ke basis par join
+      )
       .where(eq(people.id, id));
 
     if (!result) return undefined;
@@ -2042,6 +2327,8 @@ export class DatabaseStorage implements IStorage {
       ...result.person,
       departmentName: result.departmentName,
       designationName: result.designationName,
+      // Agar additional details mili hain toh unhe bhi root object me spread kar denge
+      ...(result.additionalDetails || {}),
     };
   }
   // async getPerson(id: number): Promise<Person | undefined> {
@@ -2075,13 +2362,107 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return created;
   }
-  async updatePerson(id: number, data: Partial<InsertPerson>): Promise<Person> {
+  // async updatePerson(id: number, data: Partial<InsertPerson>): Promise<Person> {
+  //   const existing = await db.select().from(people).where(eq(people.id, id));
+  //   console.log("Existing Person Record:", existing);
+  //   const [updated] = await db
+  //     .update(people)
+  //     .set({ ...data, updatedAt: new Date() })
+  //     .where(eq(people.id, id))
+  //     .returning();
+  //   if (!updated) throw new Error("Person not found");
+  //   if (updated.msId) {
+  //     try {
+  //       await dbMsSql
+  //         .update({ dbName: "Employees", pk: "EmployeeId" })
+  //         .set(PersonAdapter.toMsSql(data))
+  //         .where({ value: updated.msId });
+  //     } catch (e) {
+  //       console.error("MS SQL Person Update Error:", e);
+  //     }
+  //   }
+  //   return updated;
+  // }
+  async updatePerson(id: number, data: any): Promise<Person> {
+    // --- :rotating_light: CRITICAL FIX FOR DRIZZLE TIMESTAMP ERROR :rotating_light: ---
+    // Agar lastSeenTime ya koi aur date field string ke roop me aa rahi hai,
+    // toh use proper JS Date object me badal dete hain taaki Drizzle ka mapToDriverValue crash na ho
+    if (data.lastSeenTime && typeof data.lastSeenTime === 'string') {
+      data.lastSeenTime = new Date(data.lastSeenTime);
+    }
+    // Agar activeShiftDate ya koi aur timestamp check ho toh use bhi safe kar sakte hain
+    // -----------------------------------------------------
+
+    // 1. Ab baaki ka purana destructuring chalne do
+    const {
+      cardNo, companyUnit, guardianName, serviceCategory, section, employment,
+      employerName, maritalStatus, reportingManager, leavingReason,
+      presentAddress1, presentAddress2, presentDistrict, presentPincode, presentState,
+      permanentAddress1, permanentAddress2, permanentDistrict, permanentPincode, permanentState,
+      stream, perDayRate, perHourRate, uanNumber, selfDeclaration, policeVerification, authorizedDevice,
+      ...mainPersonData
+    } = data;
+
+    const additionalData = {
+      cardNo, companyUnit, guardianName, serviceCategory, section, employment,
+      employerName, maritalStatus, reportingManager, leavingReason,
+      presentAddress1, presentAddress2, presentDistrict, presentPincode, presentState,
+      permanentAddress1, permanentAddress2, permanentDistrict, permanentPincode, permanentState,
+      stream, perDayRate, perHourRate, uanNumber, selfDeclaration, policeVerification, authorizedDevice
+    };
+
+    const currentIsoDate = new Date();
+
+    // 2. Main 'people' table ko update karte hain (Ab Drizzle crash nahi karega)
     const [updated] = await db
       .update(people)
-      .set({ ...data, updatedAt: new Date() })
+      .set({
+        ...mainPersonData,
+        updatedAt: currentIsoDate
+      })
       .where(eq(people.id, id))
       .returning();
-    if (!updated) throw new Error("Person not found");
+
+    if (!updated) throw new Error("Person not found in primary table");
+
+    // 3. 'people_additional_details' table ko update/insert karte hain
+    if (updated.employeeCode) {
+      try {
+        const existingDetails = await db
+          .select()
+          .from(peopleAdditionalDetails)
+          .where(eq(peopleAdditionalDetails.employeeCode, updated.employeeCode));
+
+        const cleanAdditionalData = Object.fromEntries(
+          Object.entries(additionalData).filter(([_, v]) => v !== undefined && v !== null)
+        );
+
+        if (Object.keys(cleanAdditionalData).length > 0) {
+          if (existingDetails.length > 0) {
+            await db
+              .update(peopleAdditionalDetails)
+              .set({
+                ...cleanAdditionalData,
+                updatedAt: currentIsoDate
+              })
+              .where(eq(peopleAdditionalDetails.employeeCode, updated.employeeCode));
+          } else {
+            await db
+              .insert(peopleAdditionalDetails)
+              .values({
+                employeeCode: updated.employeeCode,
+                ...cleanAdditionalData,
+                createdAt: currentIsoDate,
+                updatedAt: currentIsoDate
+              });
+          }
+        }
+      } catch (err) {
+        console.error("PostgreSQL Additional Details Sync Error:", err);
+      }
+    }
+
+    // 4. MS SQL Sync Logic
     if (updated.msId) {
       try {
         await dbMsSql
@@ -2092,8 +2473,10 @@ export class DatabaseStorage implements IStorage {
         console.error("MS SQL Person Update Error:", e);
       }
     }
+
     return updated;
   }
+
   async deletePerson(id: number): Promise<void> {
     const [record] = await db.select().from(people).where(eq(people.id, id));
     if (record) {
@@ -2534,33 +2917,386 @@ export class DatabaseStorage implements IStorage {
   async deletePersonAccess(id: number): Promise<void> {
     await db.delete(personAccess).where(eq(personAccess.id, id));
   }
-  async getVisitors(): Promise<Visitor[]> {
-    return await db.select().from(visitors);
+  async getVisitors(
+    page?: number,
+    pageSize?: number,
+    search?: string
+  ): Promise<{ data: Visitor[]; totalCount: number; totalPages: number }> {
+
+    // 1. Base query taiyar karein
+    let query = db.select().from(visitors).$dynamic();
+
+    // 2. Safe search check
+    let whereClause: any = undefined;
+    if (search && search.trim() !== "" && search !== "undefined") {
+      whereClause = or(
+        ilike(visitors.nameOfVisitor, `%${search}%`),
+        ilike(visitors.visitorsCompanyName, `%${search}%`),
+        ilike(visitors.whomToMeet, `%${search}%`),
+        ilike(visitors.contactNo, `%${search}%`)
+      );
+
+      query = query.where(whereClause);
+    }
+
+    // 3. Sorting apply karein
+    query = query.orderBy(desc(visitors.id));
+
+    // 4. Bilkul zero-hardcoding ke sath parameters ko aage bhejien
+    const result = await withPagination(db, visitors, query, page, pageSize, whereClause);
+
+    return result;
   }
+
   async getVisitor(id: number): Promise<Visitor | undefined> {
-    const [visitor] = await db
-      .select()
-      .from(visitors)
-      .where(eq(visitors.id, id));
+    const [visitor] = await db.select().from(visitors).where(eq(visitors.id, id));
     return visitor;
   }
+
+  // async createVisitor(data: InsertVisitor): Promise<Visitor> {
+  //   return await db.transaction(async (tx) => {
+  //     const [created] = await tx.insert(visitors).values(data).returning();
+  //     try {
+  //       await dbMsSql.insert(visitors).values(data);
+  //     } catch (err) {
+  //       console.error("MS SQL Sync Insert Error:", err);
+  //       tx.rollback();
+  //       throw new Error("MS SQL Sync Failed during creation");
+  //     }
+  //     return created;
+  //   });
+  // }
+
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
-    const [created] = await db.insert(visitors).values(data).returning();
-    return created;
+    let insertedMsSqlId: number | null = null;
+
+    try {
+      // 🌟 db.ts ke pool se connect check kiya bina use chhede
+      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        await mssqlPool.connect();
+      }
+      const request = mssqlPool.request();
+
+      // Strict types explicitly specified to satisfy TypeScript
+      request.input('Name', mssql.NVarChar, data.nameOfVisitor || null);
+      request.input('ContactNumber', mssql.NVarChar, data.contactNo || null);
+      request.input('Email', mssql.NVarChar, data.emailAddress || null);
+      request.input('LocationId', mssql.Int, data.locationId ? Number(data.locationId) : null);
+      request.input('Purpose', mssql.NVarChar, data.purpose || null);
+      request.input('ToMeetId', mssql.NVarChar, data.whomToMeet || null);
+      request.input('VisitorDeskId', mssql.Int, data.visitorDeskId ? Number(data.visitorDeskId) : null);
+      request.input('VisitorCardId', mssql.Int, data.visitorCardId ? Number(data.visitorCardId) : null);
+      request.input('Company', mssql.NVarChar, data.visitorsCompanyName || null);
+      request.input('Designation', mssql.NVarChar, data.designation || null);
+      request.input('Remarks', mssql.NVarChar, data.remark || null);
+
+      const currentIsoDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      request.input('InDate', mssql.DateTime, currentIsoDate);
+
+      const msSqlResult = await request.query(`
+      INSERT INTO VisitorLogs (
+        Name, ContactNumber, Email, LocationId, Purpose, 
+        ToMeetId, VisitorDeskId, VisitorCardId, Company, 
+        Designation, InDate, Remarks
+      )
+      VALUES (
+        @Name, @ContactNumber, @Email, @LocationId, @Purpose, 
+        @ToMeetId, @VisitorDeskId, @VisitorCardId, @Company, 
+        @Designation, @InDate, @Remarks
+      );
+      SELECT SCOPE_IDENTITY() AS id;
+    `);
+
+      if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
+        insertedMsSqlId = msSqlResult.recordset[0].id;
+      }
+
+      if (!insertedMsSqlId) {
+        throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
+      }
+    } catch (msSqlErr: any) {
+      throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
+    }
+
+    return await db.transaction(async (tx) => {
+      try {
+        const [created] = await tx
+          .insert(visitors)
+          .values({
+            ...data,
+            msId: insertedMsSqlId,
+          })
+          .returning();
+
+        if (data.visitorCardId) {
+          const targetCardId = Number(data.visitorCardId);
+
+          await tx
+            .update(visitorCards)
+            .set({
+              isAssigned: true,
+              updatedAt: new Date()
+            })
+            .where(
+              or(
+                eq(visitorCards.id, targetCardId),
+                eq(visitorCards.msId, targetCardId)
+              )
+            );
+        }
+
+        return created;
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
+      }
+    });
   }
-  async updateVisitor(
-    id: number,
-    data: Partial<InsertVisitor>,
-  ): Promise<Visitor> {
-    const [updated] = await db
-      .update(visitors)
-      .set({ ...data, updatedAt: new Date() })
+ 
+
+  async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
+    const currentVisitor = await db
+      .select()
+      .from(visitors)
       .where(eq(visitors.id, id))
-      .returning();
-    return updated;
+      .limit(1);
+
+    if (currentVisitor.length === 0) {
+      throw new Error(`Visitor update failed: Record with local ID '${id}' not found.`);
+    }
+
+    const targetMsId = currentVisitor[0].msId;
+    const oldCardId = currentVisitor[0].visitorCardId;
+
+    if (!targetMsId) {
+      throw new Error(`Visitor update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+    }
+
+    try {
+      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        await mssqlPool.connect();
+      }
+      const request = mssqlPool.request();
+
+      // Agar incoming data mein field undefined hai, toh current database value ko retain karo
+      const finalName = data.nameOfVisitor !== undefined ? data.nameOfVisitor : currentVisitor[0].nameOfVisitor;
+      const finalContact = data.contactNo !== undefined ? data.contactNo : currentVisitor[0].contactNo;
+      const finalEmail = data.emailAddress !== undefined ? data.emailAddress : currentVisitor[0].emailAddress;
+      const finalLocationId = data.locationId !== undefined ? data.locationId : currentVisitor[0].locationId;
+      const finalPurpose = data.purpose !== undefined ? data.purpose : currentVisitor[0].purpose;
+      const finalToMeetId = data.whomToMeet !== undefined ? data.whomToMeet : currentVisitor[0].whomToMeet;
+      const finalDeskId = data.visitorDeskId !== undefined ? data.visitorDeskId : currentVisitor[0].visitorDeskId;
+      const finalCardId = data.visitorCardId !== undefined ? data.visitorCardId : currentVisitor[0].visitorCardId;
+      const finalCompany = data.visitorsCompanyName !== undefined ? data.visitorsCompanyName : currentVisitor[0].visitorsCompanyName;
+      const finalDesignation = data.designation !== undefined ? data.designation : currentVisitor[0].designation;
+      const finalRemarks = data.remark !== undefined ? data.remark : currentVisitor[0].remark;
+
+      // Set MS SQL input parameters
+      request.input('TargetMsId', mssql.Int, targetMsId);
+      request.input('Name', mssql.NVarChar, finalName || null);
+      request.input('ContactNumber', mssql.NVarChar, finalContact || null);
+      request.input('Email', mssql.NVarChar, finalEmail || null);
+      request.input('LocationId', mssql.Int, finalLocationId ? Number(finalLocationId) : null);
+      request.input('Purpose', mssql.NVarChar, finalPurpose || null);
+      request.input('ToMeetId', mssql.NVarChar, finalToMeetId || null);
+      request.input('VisitorDeskId', mssql.Int, finalDeskId ? Number(finalDeskId) : null);
+      request.input('VisitorCardId', mssql.Int, finalCardId ? Number(finalCardId) : null);
+      request.input('Company', mssql.NVarChar, finalCompany || null);
+      request.input('Designation', mssql.NVarChar, finalDesignation || null);
+      request.input('Remarks', mssql.NVarChar, finalRemarks || null);
+
+      // Update Query matching all columns
+      await request.query(`
+      UPDATE VisitorLogs 
+      SET Name = @Name,
+          ContactNumber = @ContactNumber,
+          Email = @Email,
+          LocationId = @LocationId,
+          Purpose = @Purpose,
+          ToMeetId = @ToMeetId,
+          VisitorDeskId = @VisitorDeskId,
+          VisitorCardId = @VisitorCardId,
+          Company = @Company,
+          Designation = @Designation,
+          Remarks = @Remarks
+      WHERE Id = @TargetMsId
+    `);
+    } catch (msSqlErr: any) {
+      throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+    }
+
+    return await db.transaction(async (tx) => {
+      try {
+        const [updated] = await tx
+          .update(visitors)
+          .set({
+            ...data,
+            updatedAt: new Date()
+          })
+          .where(eq(visitors.id, id))
+          .returning();
+
+        // Card assignment change code (Purana card release karna aur naya occupy karna)
+        if (data.visitorCardId !== undefined && oldCardId !== data.visitorCardId) {
+          if (oldCardId) {
+            await tx
+              .update(visitorCards)
+              .set({ isAssigned: false, updatedAt: new Date() })
+              .where(
+                or(
+                  eq(visitorCards.id, Number(oldCardId)),
+                  eq(visitorCards.msId, Number(oldCardId))
+                )
+              );
+          }
+
+          if (data.visitorCardId) {
+            await tx
+              .update(visitorCards)
+              .set({ isAssigned: true, updatedAt: new Date() })
+              .where(
+                or(
+                  eq(visitorCards.id, Number(data.visitorCardId)),
+                  eq(visitorCards.msId, Number(data.visitorCardId))
+                )
+              );
+          }
+        }
+
+        return updated;
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+      }
+    });
   }
+
   async deleteVisitor(id: number): Promise<void> {
-    await db.delete(visitors).where(eq(visitors.id, id));
+    // 1. Pehle Postgres se purana data nikaalo taaki 'msId' mil sake
+    const currentVisitor = await db
+      .select()
+      .from(visitors)
+      .where(eq(visitors.id, id))
+      .limit(1);
+
+    if (currentVisitor.length === 0) {
+      throw new Error(`Visitor deletion failed: Record with local ID '${id}' not found.`);
+    }
+
+    const targetMsId = currentVisitor[0].msId;
+
+    if (!targetMsId) {
+      throw new Error(`Visitor deletion failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+    }
+
+    // 2. Ab Master Transaction shuru karein
+    return await db.transaction(async (tx) => {
+
+      // STEP A: Local Postgres se delete karein
+      try {
+        await tx.delete(visitors).where(eq(visitors.id, id));
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres Deletion Failed: ${pgErr.message}`);
+      }
+
+      // STEP B: Ab MS SQL se sahi 'targetMsId' use karke delete karein
+      try {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+          await mssqlPool.connect();
+        }
+        const request = mssqlPool.request();
+
+        // YAHA PE DHAYAN DEIN: Hum targetMsId pass kar rahe hain, local id nahi!
+        request.input('TargetMsId', mssql.Int, targetMsId);
+
+        await request.query(`
+        DELETE FROM VisitorLogs 
+        WHERE Id = @TargetMsId
+      `);
+
+      } catch (msSqlErr: any) {
+        console.error("MS SQL Sync Delete Error inside transaction:", msSqlErr);
+        // Agar MS SQL fail hua, toh Postgres ka delete bhi rollback
+        tx.rollback();
+        throw new Error(`Sync Failed: MS SQL failed to delete. Postgres changes rolled back. Reason: ${msSqlErr.message}`);
+      }
+    });
+  }
+  async outVisitor(id: number): Promise<Visitor> {
+    const currentVisitor = await db
+      .select()
+      .from(visitors)
+      .where(eq(visitors.id, id))
+      .limit(1);
+
+    if (currentVisitor.length === 0) {
+      throw new Error(`Visitor checkout failed: Record with local ID '${id}' not found.`);
+    }
+
+    const targetMsId = currentVisitor[0].msId;
+    const cardIdToFree = currentVisitor[0].visitorCardId;
+
+    // FIX: Current Server Time ko Indian Standard Time (IST) format "YYYY-MM-DD HH:mm:ss" mein convert karna
+    const tzOffset = new Date().getTimezoneOffset() * 60000; // offset in milliseconds
+    const localISOTime = new Date(Date.now() - tzOffset).toISOString();
+    const currentIsoDate = localISOTime.slice(0, 19).replace('T', ' ');
+
+    if (targetMsId) {
+      try {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+          await mssqlPool.connect();
+        }
+        const request = mssqlPool.request();
+
+        request.input('TargetMsId', mssql.Int, targetMsId);
+        request.input('OutDate', mssql.DateTime, currentIsoDate);
+
+        await request.query(`
+        UPDATE VisitorLogs 
+        SET OutDate = @OutDate
+        WHERE Id = @TargetMsId
+      `);
+      } catch (msSqlErr: any) {
+        throw new Error(`MS SQL OutDate Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+      }
+    }
+
+    return await db.transaction(async (tx) => {
+      try {
+        const [updated] = await tx
+          .update(visitors)
+          .set({
+            permissionDateTo: currentIsoDate,
+            // FIX: updatedAt ko bhi UTC object ke badle local ISO string pass karenge
+            updatedAt: new Date(Date.now() - (new Date().getTimezoneOffset() * 60000))
+          })
+          .where(eq(visitors.id, id))
+          .returning();
+
+        if (cardIdToFree) {
+          const targetCardId = Number(cardIdToFree);
+          await tx
+            .update(visitorCards)
+            .set({
+              isAssigned: false,
+              // FIX: Yahan bhi same local string logic
+              updatedAt: new Date(Date.now() - (new Date().getTimezoneOffset() * 60000))
+            })
+            .where(
+              or(
+                eq(visitorCards.id, targetCardId),
+                eq(visitorCards.msId, targetCardId)
+              )
+            );
+        }
+
+        return updated;
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+      }
+    });
   }
   async getVisits(status?: string): Promise<Visit[]> {
     if (status) {
@@ -3057,10 +3793,9 @@ export class DatabaseStorage implements IStorage {
       .select({
         id: visits.id,
         visitorId: visits.visitorId,
-        firstName: visitors.firstName,
-        lastName: visitors.lastName,
-        company: visitors.company,
-        phone: visitors.phone,
+        nameOfVisitor: visitors.nameOfVisitor,
+        company: visitors.visitorsCompanyName,
+        phone: visitors.contactNo,
         purpose: visits.purpose,
         status: visits.status,
         checkInAt: visits.checkInAt,
@@ -3678,6 +4413,84 @@ export class DatabaseStorage implements IStorage {
   //   });
   //   return { machineFeed };
   // }
+
+  async getVisitorMachineAccessLogs(date: string) {
+    // Fetch door mappings from Postgres
+    const doorMappings = await db
+      .select({
+        doorName: doors.name,
+        inIds: doorDevices.inDeviceIds,
+        outIds: doorDevices.outDeviceIds,
+      })
+      .from(doors)
+      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
+    // Fetch only visitor records from MS SQL
+    const msSqlData = await mssqlPool.request().input("filterDate", date)
+      .query(`
+      SELECT 
+        l.EmployeeCode, 
+        l.DeviceId, 
+        d.DeviceName,
+        l.Direction, 
+        l.LogDate 
+      FROM DeviceLogs l
+      LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+      WHERE CAST(l.LogDate AS DATE) = @filterDate
+        AND LOWER(l.EmployeeCode) LIKE 'visitor%'
+      ORDER BY l.LogDate DESC
+    `);
+
+    const logs = msSqlData.recordset;
+
+    // Extract plain IDs safely (e.g. 'Visitor270' -> 270)
+    const visitorIds = logs.map(l => {
+      if (!l.EmployeeCode) return null;
+      const matched = String(l.EmployeeCode).match(/\d+/);
+      return matched ? Number(matched[0]) : null;
+    }).filter((id): id is number => id !== null);
+
+    // Fetch true visitor profiles from Postgres
+    let visitorDetails: any[] = [];
+    if (visitorIds.length > 0) {
+      visitorDetails = await db
+        .select({
+          id: schema.visitors.id,
+          name: schema.visitors.nameOfVisitor// Agar aapka schema name alag hai (jaise firstName), toh yahan update karein
+        })
+        .from(schema.visitors)
+        .where(inArray(schema.visitors.id, [...new Set(visitorIds)]));
+    }
+
+    const machineFeed = logs.map((log) => {
+      const door = doorMappings.find(
+        (m) =>
+          (m.inIds || []).includes(log.DeviceId) ||
+          (m.outIds || []).includes(log.DeviceId),
+      );
+
+      const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
+      const numericVisitorId = idMatch ? Number(idMatch[0]) : null;
+
+      // Strict type casting fix: Number aur String dono scenarios check karenge
+      const dbVisitor = visitorDetails.find(v =>
+        Number(v.id) === Number(numericVisitorId)
+      );
+
+      return {
+        visitorName: dbVisitor ? dbVisitor.name : `Visitor ${numericVisitorId}`, // Fallback if record not synced yet
+        visitorId: numericVisitorId,
+        visitorCode: log.EmployeeCode,
+        deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+        direction: log.Direction,
+        logDate: log.LogDate,
+        doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+      };
+    });
+
+    return { machineFeed };
+  }
+
   async getMachineAccessLogs(date: string) {
     const doorMappings = await db
       .select({
@@ -3687,6 +4500,21 @@ export class DatabaseStorage implements IStorage {
       })
       .from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+    // const msSqlData = await mssqlPool.request().input("filterDate", date)
+    //   .query(`
+    //   SELECT 
+    //     e.EmployeeName, 
+    //     l.EmployeeCode, 
+    //     l.DeviceId, 
+    //     d.DeviceName,
+    //     l.Direction, 
+    //     l.LogDate 
+    //   FROM DeviceLogs l
+    //   LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
+    //   LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+    //   WHERE CAST(l.LogDate AS DATE) = @filterDate
+    //   ORDER BY l.LogDate DESC
+    // `);
     const msSqlData = await mssqlPool.request().input("filterDate", date)
       .query(`
       SELECT 
@@ -3700,6 +4528,7 @@ export class DatabaseStorage implements IStorage {
       LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
       LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
       WHERE CAST(l.LogDate AS DATE) = @filterDate
+        AND l.EmployeeCode NOT LIKE 'visitor%' -- Filter out visitors
       ORDER BY l.LogDate DESC
     `);
     const logs = msSqlData.recordset;
@@ -3722,6 +4551,9 @@ export class DatabaseStorage implements IStorage {
       machineFeed,
     };
   }
+
+
+
   async getRoleEligibleDevices(): Promise<any[]> {
     try {
       const msDataRaw = await dbMsSql
@@ -4852,21 +5684,55 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(roles).orderBy(asc(roles.id));
   }
   // Kisi specific role ki saari permissions fetch karna (with Menu details)
+  // async getRolePermissions(roleId: number) {
+  //   // 1. Role ki basic details fetch karein
+  //   const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
+  //   if (!role) return null;
+  //   // 2. Us role ki saari permissions fetch karein
+  //   const permissions = await db
+  //     .select()
+  //     .from(rolePermissions)
+  //     .where(eq(rolePermissions.roleId, roleId));
+  //   // 3. Dono ko merge karke return karein
+  //   return {
+  //     ...role,
+  //     permissions: permissions,
+  //   };
+  // }
+
   async getRolePermissions(roleId: number) {
     // 1. Role ki basic details fetch karein
     const [role] = await db.select().from(roles).where(eq(roles.id, roleId));
     if (!role) return null;
-    // 2. Us role ki saari permissions fetch karein
-    const permissions = await db
-      .select()
+
+    // 2. RolePermissions aur MenuMaster ko Join karein
+    const permissionsWithMenu = await db
+      .select({
+        id: rolePermissions.id,
+        roleId: rolePermissions.roleId,
+        menuId: rolePermissions.menuId,
+        // Menu Master se details lein
+        menuTitle: menuMaster.title,
+        menuCode: menuMaster.code,
+        // Permissions
+        view: rolePermissions.view,
+        add: rolePermissions.add,
+        edit: rolePermissions.edit,
+        delete: rolePermissions.delete,
+        export: rolePermissions.export,
+        print: rolePermissions.print,
+      })
       .from(rolePermissions)
+      .leftJoin(menuMaster, eq(rolePermissions.menuId, menuMaster.id))
       .where(eq(rolePermissions.roleId, roleId));
-    // 3. Dono ko merge karke return karein
+
+    // 3. Result return karein
     return {
       ...role,
-      permissions: permissions,
+      permissions: permissionsWithMenu,
     };
   }
+
   // Naya Role banana aur default permissions set karna
   async createRoleWithPermissions(roleData: any, permissions: any[]) {
     return await db.transaction(async (tx) => {
@@ -6206,6 +7072,60 @@ ${fromDate} || ' to ' || ${toDate}
     }
   }
 
+  // async getContractors(
+  //   page?: number,
+  //   pageSize?: number,
+  //   search?: string,
+  // ): Promise<any> {
+  //   try {
+  //     const conditions = [];
+
+  //     if (search && search.trim() !== "") {
+  //       conditions.push(
+  //         or(
+  //           ilike(contractors.nameOfAgencyOwner, `%${search}%`),
+  //           ilike(contractors.contractorCode, `%${search}%`),
+  //           ilike(contractors.nameOfTheAgency, `%${search}%`)
+  //         )
+  //       );
+  //     }
+
+  //     const whereClause = conditions.length ? and(...conditions) : undefined;
+
+  //     const baseQuery = db
+  //       .select({
+  //         id: contractors.id,
+  //         contractorName: contractors.nameOfAgencyOwner,
+  //         contractorCode: contractors.contractorCode,
+  //         // gender: contractors.gender,
+  //         // aadhaarNumber: contractors.aadhaarNumber,
+  //         contactNumber: contractors.contactNoOwner,
+  //         email: contractors.emailAddress,
+  //         address: contractors.address1,
+  //         companyName: contractors.nameOfTheAgency,
+  //         startDate: contractors.agreementFromDate,
+  //         expiryDate: contractors.agreementValidUpto,
+  //         // biometricId: contractors.biometricId,
+  //         status: contractors.status,
+  //         createdAt: contractors.createdAt,
+  //       })
+  //       .from(contractors)
+  //       .where(whereClause)
+  //       .orderBy(asc(contractors.id));
+
+  //     if (search && search.trim() !== "") {
+  //       const filteredArrayData = await baseQuery;
+  //       return await withPagination(db, contractors, filteredArrayData, page, pageSize);
+  //     }
+
+  //     return await withPagination(db, contractors, baseQuery, page, pageSize);
+
+  //   } catch (dbError: any) {
+  //     console.error("Error in getContractors storage method:", dbError);
+  //     throw dbError;
+  //   }
+  // }
+
   async getContractors(
     page?: number,
     pageSize?: number,
@@ -6217,42 +7137,49 @@ ${fromDate} || ' to ' || ${toDate}
       if (search && search.trim() !== "") {
         conditions.push(
           or(
-            ilike(contractors.contractorName, `%${search}%`),
+            ilike(contractors.nameOfAgencyOwner, `%${search}%`),
             ilike(contractors.contractorCode, `%${search}%`),
-            ilike(contractors.companyName, `%${search}%`)
+            ilike(contractors.nameOfTheAgency, `%${search}%`)
           )
         );
       }
 
       const whereClause = conditions.length ? and(...conditions) : undefined;
 
+      // 🌟 db.select() bina kisi argument ke select * ka kaam karega
       const baseQuery = db
-        .select({
-          id: contractors.id,
-          contractorName: contractors.contractorName,
-          contractorCode: contractors.contractorCode,
-          gender: contractors.gender,
-          aadhaarNumber: contractors.aadhaarNumber,
-          contactNumber: contractors.contactNumber,
-          email: contractors.email,
-          address: contractors.address,
-          companyName: contractors.companyName,
-          startDate: contractors.startDate,
-          expiryDate: contractors.expiryDate,
-          biometricId: contractors.biometricId,
-          status: contractors.status,
-          createdAt: contractors.createdAt,
-        })
+        .select()
         .from(contractors)
         .where(whereClause)
         .orderBy(asc(contractors.id));
 
-      if (search && search.trim() !== "") {
-        const filteredArrayData = await baseQuery;
-        return await withPagination(db, contractors, filteredArrayData, page, pageSize);
+      // Data fetch karein
+      const rawData = await baseQuery;
+
+      // 🌟 Frontend Compatibility Layer:
+      // Saare original columns (...c) bhi bhej rahe hain, aur frontend waali keys bhi map kar rahe hain
+      const formattedData = rawData.map((c: any) => ({
+        ...c, // Isse saare columns (biometricId, aadhaarNumber, bank details, etc.) automatic aa jayenge
+        contractorName: c.nameOfAgencyOwner,
+        contractorCode: c.contractorCode,
+        contactNumber: c.contactNoOwner,
+        email: c.emailAddress,
+        address: c.address1,
+        companyName: c.nameOfTheAgency,
+        startDate: c.agreementFromDate,
+        expiryDate: c.agreementValidUpto,
+      }));
+
+      // Export Extraction Bypass: Agar pagination filters nahi hain toh poora data bhejo
+      if (page === undefined && pageSize === undefined) {
+        return formattedData;
       }
 
-      return await withPagination(db, contractors, baseQuery, page, pageSize);
+      if (search && search.trim() !== "") {
+        return await withPagination(db, contractors, formattedData, page, pageSize);
+      }
+
+      return await withPagination(db, contractors, formattedData, page, pageSize);
 
     } catch (dbError: any) {
       console.error("Error in getContractors storage method:", dbError);
@@ -6260,10 +7187,7 @@ ${fromDate} || ' to ' || ${toDate}
     }
   }
 
-  async createContractor(data: any): Promise<any> {
-    const [created] = await db.insert(contractors).values(data).returning();
-    return created;
-  }
+
   async getContractor(id: number): Promise<any | null> {
     const [contractor] = await db
       .select()
@@ -6271,33 +7195,266 @@ ${fromDate} || ' to ' || ${toDate}
       .where(eq(contractors.id, id));
     return contractor || null;
   }
+  // async createContractor(data: InsertContractor): Promise<Contractor> {
+  //   const cleanData = {
+  //     ...data,
+  //     contactNumber: data.contactNumber || undefined,
+  //     aadhaarNumber: data.aadhaarNumber || undefined,
+  //     email: data.email || undefined,
+  //     biometricId: data.biometricId || undefined,
+  //   };
 
-  async getContractorByBiometricId(biometricId: string): Promise<any | null> {
-    const [contractor] = await db
+  //   if (!cleanData.contractorCode) throw new Error("Contractor code is required.");
+
+  //   if (cleanData.contactNumber && cleanData.contactNumber.length < 10) {
+  //     throw new Error("VALIDATION_ERROR: Contact number must be at least 10 digits");
+  //   }
+
+  //   if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+  //     throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits");
+  //   }
+
+  //   const [existing] = await db
+  //     .select()
+  //     .from(contractors)
+  //     .where(eq(contractors.contractorCode, cleanData.contractorCode));
+
+  //   if (existing) {
+  //     throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+  //   }
+
+  //   const [created] = await db.insert(contractors).values(cleanData as any).returning();
+  //   return created;
+  // }
+
+  // async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+  //   const cleanData = {
+  //     ...data,
+  //     contactNumber: data.contactNumber ?? undefined,
+  //     aadhaarNumber: data.aadhaarNumber ?? undefined,
+  //     email: data.email ?? undefined,
+  //     biometricId: data.biometricId ?? undefined,
+  //   };
+
+  //   if (cleanData.contractorCode) {
+  //     const [existing] = await db
+  //       .select()
+  //       .from(contractors)
+  //       .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+  //     if (existing) {
+  //       throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+  //     }
+  //   }
+
+  //   const [updated] = await db
+  //     .update(contractors)
+  //     .set(cleanData as any)
+  //     .where(eq(contractors.id, id))
+  //     .returning();
+
+  //   if (!updated) throw new Error("Contractor not found");
+  //   return updated;
+  // }
+
+  async createContractor(data: InsertContractor): Promise<Contractor> {
+    // 1. Sabse pehle empty strings ko undefined kijiye taaki sahi validation ho sake
+    const cleanData = {
+      ...data,
+      contractorCode: data.contractorCode ? data.contractorCode.trim() : "",
+      nameOfAgencyOwner: data.nameOfAgencyOwner ? data.nameOfAgencyOwner.trim() : "",
+      nameOfTheAgency: data.nameOfTheAgency ? data.nameOfTheAgency.trim() : "",
+      contactNoOwner: data.contactNoOwner ? data.contactNoOwner.trim() : "",
+
+      // Baaki optional fields ke liye lengths checks bypass karne ke liye safe trimming
+      aadhaarNumber: data.aadhaarNumber && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : undefined,
+      email: data.email && data.email.trim() !== "" ? data.email.trim() : undefined,
+      biometricId: data.biometricId && data.biometricId.trim() !== "" ? data.biometricId.trim() : undefined,
+    };
+
+    // 2. MANDATORY FIELDS VALIDATION (Charo fields ka strict check)
+    if (!cleanData.contractorCode) {
+      throw new Error("VALIDATION_ERROR: Contractor Code is required.");
+    }
+    if (!cleanData.nameOfAgencyOwner) {
+      throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) is required.");
+    }
+    if (!cleanData.nameOfTheAgency) {
+      throw new Error("VALIDATION_ERROR: Agency Name is required.");
+    }
+    if (!cleanData.contactNoOwner) {
+      throw new Error("VALIDATION_ERROR: Mobile Number is required.");
+    }
+
+    // 3. STRICT MOBILE NUMBER VALIDATION (Exactly 10 digits & starts with 6,7,8,9)
+    const mobileRegex = /^[6-9]\d{9}$/;
+    if (!mobileRegex.test(cleanData.contactNoOwner)) {
+      throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+    }
+
+    // 4. STRICT EMAIL FORMAT VALIDATION (Optional field - checked only if present)
+    if (cleanData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanData.email)) {
+        throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+      }
+    }
+
+    // 5. LENGTH & FORMAT VALIDATION FOR OTHER OPTIONAL DETAILS
+    if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+      throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
+    }
+
+    // 6. DUPLICATE CHECK (Ek code do baar nahi ja sakta)
+    const [existing] = await db
       .select()
       .from(contractors)
-      .where(eq(contractors.biometricId, biometricId));
-    return contractor || null;
+      .where(eq(contractors.contractorCode, cleanData.contractorCode));
+
+    if (existing) {
+      throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
+    }
+
+    // 7. INSERT INTO DATABASE
+    const [created] = await db.insert(contractors).values(cleanData as any).returning();
+    return created;
   }
-  async updateContractor(
-    id: number,
-    data: any,
-  ): Promise<any> {
+
+
+  //   async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+  //   const formatDbDate = (dateVal: any) => {
+  //     if (dateVal === undefined) return undefined;
+  //     if (!dateVal || dateVal === "") return null;
+  //     if (typeof dateVal === 'string') {
+  //       return dateVal.split('T')[0]; // Extracted explicitly to prevent downstream conversion crashes
+  //     }
+  //     return null;
+  //   };
+
+  //   const cleanData = {
+  //     ...data,
+  //     contactNumber: data.contactNumber ?? undefined,
+  //     aadhaarNumber: data.aadhaarNumber ?? undefined,
+  //     email: data.email ?? undefined,
+  //     biometricId: data.biometricId ?? undefined,
+
+  //     // ⬇️ FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS ⬇️
+  //     commencementDate: formatDbDate(data.commencementDate),
+  //     agreementFromDate: formatDbDate(data.agreementFromDate),
+  //     agreementValidUpto: formatDbDate(data.agreementValidUpto),
+  //     licenseValidity: formatDbDate(data.licenseValidity),
+  //   };
+
+  //   if (cleanData.contractorCode) {
+  //     const [existing] = await db
+  //       .select()
+  //       .from(contractors)
+  //       .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+  //     if (existing) {
+  //       throw new Error("DUPLICATE_CODE: Contractor code already exists.");
+  //     }
+  //   }
+
+  //   const [updated] = await db
+  //     .update(contractors)
+  //     .set(cleanData as any)
+  //     .where(eq(contractors.id, id))
+  //     .returning();
+
+  //   if (!updated) throw new Error("Contractor not found");
+  //   return updated;
+  // }
+
+  async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+    // Safe helper function to extract clean date string or fallback to null/undefined
+    const formatDbDate = (dateVal: any) => {
+      if (dateVal === undefined) return undefined;
+      if (!dateVal || dateVal === "") return null;
+      if (typeof dateVal === 'string') {
+        return dateVal.split('T')[0]; // Extracted explicitly to prevent downstream conversion crashes
+      }
+      return null;
+    };
+
+    // 1. Sabse pehle empty strings ko trim karke format normalize kijiye
+    const cleanData = {
+      ...data,
+      contractorCode: typeof data.contractorCode === 'string' ? data.contractorCode.trim() : (data.contractorCode === null ? "" : undefined),
+      nameOfAgencyOwner: typeof data.nameOfAgencyOwner === 'string' ? data.nameOfAgencyOwner.trim() : (data.nameOfAgencyOwner === null ? "" : undefined),
+      nameOfTheAgency: typeof data.nameOfTheAgency === 'string' ? data.nameOfTheAgency.trim() : (data.nameOfTheAgency === null ? "" : undefined),
+      contactNoOwner: typeof data.contactNoOwner === 'string' ? data.contactNoOwner.trim() : (data.contactNoOwner === null ? "" : undefined),
+
+      // Optional fields trimming & clean up
+      aadhaarNumber: typeof data.aadhaarNumber === 'string' && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : (data.aadhaarNumber === "" || data.aadhaarNumber === null ? null : data.aadhaarNumber),
+      email: typeof data.email === 'string' && data.email.trim() !== "" ? data.email.trim() : (data.email === "" || data.email === null ? null : data.email),
+      biometricId: typeof data.biometricId === 'string' && data.biometricId.trim() !== "" ? data.biometricId.trim() : (data.biometricId === "" || data.biometricId === null ? null : data.biometricId),
+
+      // FORCING CLEAN STRING FORMATS FOR DRIZZLE TEXT FIELDS
+      commencementDate: formatDbDate(data.commencementDate),
+      agreementFromDate: formatDbDate(data.agreementFromDate),
+      agreementValidUpto: formatDbDate(data.agreementValidUpto),
+      licenseValidity: formatDbDate(data.licenseValidity),
+    };
+
+    // 2. MANDATORY FIELDS VALIDATION (Agar ye fields payload mein hain, to khali nahi ho sakti)
+    if (cleanData.contractorCode === "") {
+      throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
+    }
+    if (cleanData.nameOfAgencyOwner === "") {
+      throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.");
+    }
+    if (cleanData.nameOfTheAgency === "") {
+      throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
+    }
+    if (cleanData.contactNoOwner === "") {
+      throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
+    }
+
+    // 3. STRICT MOBILE NUMBER VALIDATION (Exactly 10 digits & starts with 6,7,8,9)
+    if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
+      const mobileRegex = /^[6-9]\d{9}$/;
+      if (!mobileRegex.test(cleanData.contactNoOwner)) {
+        throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+      }
+    }
+
+    // 4. STRICT EMAIL FORMAT VALIDATION (Checked only if present)
+    if (cleanData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanData.email)) {
+        throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+      }
+    }
+
+    // 5. LENGTH VALIDATION FOR OTHER OPTIONAL DETAILS
+    if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+      throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
+    }
+
+    // 6. DUPLICATE CHECK
+    if (cleanData.contractorCode) {
+      const [existing] = await db
+        .select()
+        .from(contractors)
+        .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+      if (existing) {
+        throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
+      }
+    }
+
+    // 7. UPDATE IN DATABASE
     const [updated] = await db
       .update(contractors)
-      .set(data)
+      .set(cleanData as any)
       .where(eq(contractors.id, id))
       .returning();
+
+    if (!updated) throw new Error("Contractor not found");
     return updated;
   }
 
   async deleteContractor(id: number): Promise<boolean> {
-    const [deleted] = await db
-      .delete(contractors)
-      .where(eq(contractors.id, id))
-      .returning();
-
-    return !!deleted;
+    const result = await db.delete(contractors).where(eq(contractors.id, id));
+    return (result?.rowCount ?? 0) > 0;
   }
   async getAuditLogs(
     page?: number,
@@ -6497,6 +7654,519 @@ ${fromDate} || ' to ' || ${toDate}
       console.error("Error fetching audit modules dropdown:", error);
       return [];
     }
+  }
+  // storage.ts mein AuthStorage class ke andar add karein
+  async toggleUserStatus(userId: string): Promise<boolean> {
+    return await db.transaction(async (tx) => {
+      // 1. Current status check karein
+      const [user] = await tx
+        .select({ isAccountActive: users.isAccountActive })
+        .from(users)
+        .where(eq(users.id, userId));
+
+      if (!user) throw new Error("User not found");
+
+      const newStatus = !user.isAccountActive;
+
+      // 2. Users table update karein
+      await tx.update(users)
+        .set({
+          isAccountActive: newStatus,
+          failedLoginAttempts: 0 // Account unlock karte hi attempts reset
+        })
+        .where(eq(users.id, userId));
+
+      // 3. Sync UserProfiles table (Agar wahan bhi status rakha hai)
+      await tx.update(userProfiles)
+        .set({ isActive: newStatus })
+        .where(eq(userProfiles.userId, userId));
+
+      return newStatus;
+    });
+  }
+  async logLoginAttempt(data: InsertLoginAttempt): Promise<void> {
+    await db.insert(loginAttempts).values(data);
+
+    if (data.status === "FAILED") {
+      const [user] = await db.select().from(users).where(eq(users.username, data.username));
+      if (user) {
+        await db.update(users)
+          .set({ failedLoginAttempts: (user.failedLoginAttempts || 0) + 1 })
+          .where(eq(users.id, user.id));
+      }
+    }
+  }
+  async getVisitorCards(
+    page?: number,
+    pageSize?: number,
+    search?: string,
+  ): Promise<any> {
+    try {
+      const searchText = search?.toLowerCase().trim();
+
+      // 1. BASE QUERY (Ordering by ID asc)
+      const baseQuery = db.select().from(visitorCards).orderBy(asc(visitorCards.id));
+
+      // 2. SEARCH FILTER LOGIC
+      const finalQuery = searchText
+        ? db
+          .select()
+          .from(visitorCards)
+          .where(
+            or(
+              ilike(visitorCards.name, `%${searchText}%`),
+              ilike(visitorCards.cardNumber, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(visitorCards.id))
+        : baseQuery;
+
+      // 3. WITH PAGINATION UTILITY HELP
+      // Yeh same helper use karega jo shifts page use kar raha hai
+      return await withPagination(db, visitorCards, finalQuery, page, pageSize);
+    } catch (error) {
+      console.error("getVisitorCards error:", error);
+
+      // Error safety structure format
+      return {
+        data: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 0,
+      };
+    }
+  }
+  async getVisitorCardById(id: number) {
+    const [card] = await db.select().from(visitorCards).where(eq(visitorCards.id, id));
+    return card;
+  }
+  
+  // async createVisitorCard(card: any) {
+  //   // 1. Postgres ke purane 'id' ko hata dein taaki hum naya generate karein
+  //   const { id, ...cardData } = card;
+
+  //   // 2. DUPLICATE CHECK: Pehle local DB me check karein ki cardNumber already hai ya nahi
+  //   if (cardData.cardNumber) {
+  //     const existingCard = await db
+  //       .select()
+  //       .from(visitorCards)
+  //       .where(eq(visitorCards.cardNumber, cardData.cardNumber))
+  //       .limit(1);
+
+  //     if (existingCard.length > 0) {
+  //       throw new Error(`Duplicate card number not allowed: '${cardData.cardNumber}' already exists.`);
+  //     }
+  //   }
+
+  //   // Postgres sequence sync setup
+  //   try {
+  //     await db.execute(sql`
+  //     SELECT setval(pg_get_serial_sequence('visitor_cards', 'id'), COALESCE(MAX(id), 1)) FROM visitor_cards;
+  //   `);
+  //   } catch (seqErr) {
+  //     // Sequence fail safe ignore
+  //   }
+
+  //   let insertedMsSqlId: number | null = null;
+
+  //   // ==========================================
+  //   // STEP 1: PEHLE MS SQL ME INSERT KAREIN
+  //   // ==========================================
+  //   try {
+  //     if (mssqlPool) {
+  //       if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+  //         await mssqlPool.connect();
+  //       }
+
+  //       const msSqlData = VisitorCardAdapter.toMsSql(cardData);
+  //       const request = mssqlPool.request();
+
+  //       request.input('Name', mssql.NVarChar, msSqlData.Name);
+  //       request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+  //       request.input('LocationId', mssql.Int, msSqlData.LocationId);
+  //       request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom);
+  //       request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo);
+
+  //       const msSqlResult = await request.query(`
+  //       INSERT INTO VisitorCards (Name, CardNumber, LocationId, ExpiryFrom, ExpiryTo)
+  //       VALUES (@Name, @CardNumber, @LocationId, @ExpiryFrom, @ExpiryTo);
+  //       SELECT SCOPE_IDENTITY() AS id;
+  //     `);
+
+  //       if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
+  //         insertedMsSqlId = msSqlResult.recordset[0].id;
+  //       }
+
+  //       if (!insertedMsSqlId) {
+  //         throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
+  //       }
+  //     } else {
+  //       throw new Error("mssqlPool configuration is missing or undefined.");
+  //     }
+  //   } catch (msSqlErr: any) {
+  //     throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
+  //   }
+
+  //   // ==========================================
+  //   // STEP 2: AB POSTGRES ME MS_ID KE SATH INSERT KAREIN
+  //   // ==========================================
+  //   return await db.transaction(async (tx) => {
+  //     try {
+  //       const postgresPayload = {
+  //         name: cardData.name,
+  //         cardNumber: cardData.cardNumber,
+  //         locationId: cardData.locationId,
+  //         location: cardData.location || null,
+  //         expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : null,
+  //         expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : null,
+  //         msId: insertedMsSqlId,
+  //       };
+
+  //       const [newCard] = await tx
+  //         .insert(visitorCards)
+  //         .values(postgresPayload)
+  //         .returning();
+
+  //       return newCard;
+  //     } catch (pgErr: any) {
+  //       tx.rollback();
+  //       throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
+  //     }
+  //   });
+  // }
+
+  
+  async updateVisitorCard(id: number, card: any) {
+    // 1. Id ko destructure karo aur safe side check lagao
+    const { id: _, ...cardData } = card;
+
+    // 2. Postgres se purana card data nikaalo msId lene ke liye
+    const currentCard = await db
+      .select()
+      .from(visitorCards)
+      .where(eq(visitorCards.id, id))
+      .limit(1);
+
+    if (currentCard.length === 0) {
+      throw new Error(`Card update failed: Record with local ID '${id}' not found.`);
+    }
+
+    const targetMsId = currentCard[0].msId;
+
+    if (!targetMsId) {
+      throw new Error(`Card update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+    }
+
+    // ==========================================
+    // STEP 1: PEHLE MS SQL ME UPDATE KAREIN
+    // ==========================================
+    try {
+      if (mssqlPool) {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+          await mssqlPool.connect();
+        }
+
+        // Final values ensure karne ke liye fallbacks
+        const finalCardNumber = cardData.cardNumber || currentCard[0].cardNumber;
+        const finalName = cardData.name || currentCard[0].name;
+        const finalLocationId = cardData.locationId !== undefined ? cardData.locationId : currentCard[0].locationId;
+        const finalExpiryFrom = cardData.expiryFrom !== undefined ? cardData.expiryFrom : currentCard[0].expiryFrom;
+        const finalExpiryTo = cardData.expiryTo !== undefined ? cardData.expiryTo : currentCard[0].expiryTo;
+
+        // Adapter ko full data bhejein taaki mapping accurate ho
+        const msSqlData = VisitorCardAdapter.toMsSql({
+          name: finalName,
+          cardNumber: finalCardNumber,
+          locationId: finalLocationId,
+          expiryFrom: finalExpiryFrom,
+          expiryTo: finalExpiryTo
+        });
+
+        const request = mssqlPool.request();
+
+        request.input('TargetMsId', mssql.Int, targetMsId);
+        request.input('Name', mssql.NVarChar, msSqlData.Name);
+        request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
+        request.input('LocationId', mssql.Int, msSqlData.LocationId || 0);
+        request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom || null);
+        request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo || null);
+
+        await request.query(`
+        UPDATE VisitorCards 
+        SET Name = @Name, 
+            CardNumber = @CardNumber, 
+            LocationId = @LocationId, 
+            ExpiryFrom = @ExpiryFrom, 
+            ExpiryTo = @ExpiryTo
+        WHERE Id = @TargetMsId
+      `);
+      } else {
+        throw new Error("mssqlPool configuration is missing.");
+      }
+    } catch (msSqlErr: any) {
+      throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+    }
+
+    // ==========================================
+    // STEP 2: LOCAL POSTGRES ME UPDATE KAREIN
+    // ==========================================
+    return await db.transaction(async (tx) => {
+      try {
+        const [updatedCard] = await tx
+          .update(visitorCards)
+          .set({
+            name: cardData.name,
+            cardNumber: cardData.cardNumber,
+            locationId: cardData.locationId,
+            location: cardData.location,
+            expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : undefined,
+            expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : undefined,
+            updatedAt: new Date()
+          })
+          .where(eq(visitorCards.id, id))
+          .returning();
+
+        return updatedCard;
+      } catch (pgErr: any) {
+        tx.rollback();
+        throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+      }
+    });
+  }
+
+  
+  async deleteVisitorCard(id: number) {
+    // 1. Postgres se card record uthao taaki MS SQL ki 'msId' mil sake
+    const currentCard = await db
+      .select()
+      .from(visitorCards)
+      .where(eq(visitorCards.id, id))
+      .limit(1);
+
+    if (currentCard.length === 0) {
+      throw new Error(`Delete failed: Local ID '${id}' not found.`);
+    }
+
+    const targetMsId = currentCard[0].msId;
+
+    // 2. MS SQL se record delete karein
+    if (targetMsId && mssqlPool) {
+      try {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+          await mssqlPool.connect();
+        }
+
+        const request = mssqlPool.request();
+        request.input('TargetMsId', mssql.Int, targetMsId);
+
+        await request.query(`DELETE FROM VisitorCards WHERE Id = @TargetMsId`);
+      } catch (msSqlErr) {
+        // MS SQL fail hone par process block nahi hogi, local cleanup chalta rahega
+        console.error("MS SQL Sync Delete Failed:", msSqlErr);
+      }
+    }
+
+    // 3. Local Postgres se delete karein
+    await db.transaction(async (tx) => {
+      try {
+        await tx.delete(visitorCards).where(eq(visitorCards.id, id));
+      } catch (err: any) {
+        tx.rollback();
+        throw err;
+      }
+    });
+  }
+ 
+  // async upsertVisitorDoorAssignment(data: {
+  //   visitorId: number;
+  //   visitorCardId: number;
+  //   doorIds: number[];
+  // }) {
+  //   const uniqueDoorIds = [...new Set(data.doorIds.map(Number))];
+
+  //   if (uniqueDoorIds.length === 0) {
+  //     throw new Error("Door IDs array cannot be empty.");
+  //   }
+
+  //   // 1. Check existing visitor in Postgres
+  //   const [existingVisitor] = await db
+  //     .select()
+  //     .from(schema.visitors)
+  //     .where(
+  //       and(
+  //         eq(schema.visitors.id, Number(data.visitorId)),
+  //         eq(schema.visitors.visitorCardId, Number(data.visitorCardId))
+  //       )
+  //     )
+  //     .limit(1);
+
+  //   if (!existingVisitor) {
+  //     throw new Error("No matching record found for the provided Visitor ID and Visitor Card ID.");
+  //   }
+
+  //   const generatedCardCode = `visitor${data.visitorId}`;
+  //   const currentTimestamp = new Date();
+
+  //   // 2. Fetch device mappings AND locationId from doors
+  //   const mappings = await db
+  //     .select({
+  //       inDeviceIds: schema.doorDevices.inDeviceIds,
+  //       outDeviceIds: schema.doorDevices.outDeviceIds,
+  //       locationId: schema.doors.locationId
+  //     })
+  //     .from(schema.doorDevices)
+  //     .innerJoin(schema.doors, eq(schema.doorDevices.doorId, schema.doors.id))
+  //     .where(inArray(schema.doorDevices.doorId, uniqueDoorIds));
+
+  //   if (!mappings || mappings.length === 0) {
+  //     throw new Error("No matching devices found for the provided Door IDs.");
+  //   }
+
+  //   const allDeviceIds = new Set<number>();
+  //   const backupLocationIds = new Set<number>();
+
+  //   mappings.forEach((row) => {
+  //     if (Array.isArray(row.inDeviceIds)) {
+  //       row.inDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
+  //     }
+  //     if (Array.isArray(row.outDeviceIds)) {
+  //       row.outDeviceIds.forEach((id) => id && allDeviceIds.add(Number(id)));
+  //     }
+  //     if (row.locationId) {
+  //       backupLocationIds.add(Number(row.locationId));
+  //     }
+  //   });
+
+  //   const deviceIds = [...allDeviceIds];
+  //   let targetLocationIds = [...backupLocationIds];
+
+  //   if (deviceIds.length === 0) {
+  //     throw new Error("No valid Device IDs found assigned to the selected doors.");
+  //   }
+
+  //   // --- SAFE CARD TABLE SE LOCATION ID FETCH ---
+  //   try {
+  //     const cardQuery = await mssqlPool.request()
+  //       .input('visitorCardId', Number(data.visitorCardId))
+  //       .query(`
+  //       SELECT LocationId FROM VisitorCards WHERE VisitorCardId = @visitorCardId
+  //     `);
+
+  //     const cardRecord = cardQuery.recordset[0];
+  //     if (cardRecord && cardRecord.LocationId) {
+  //       targetLocationIds = [Number(cardRecord.LocationId)];
+  //     }
+  //   } catch (cardTableError) {
+  //     // Logs mein jo warning aa rahi thi wo yahan capture ho rahi hai
+  //     console.warn("⚠️ VisitorCards column mismatch, relying on doors/devices map.");
+  //   }
+
+  //   // 🔥 CRITICAL FIX: Agar dono jagah se location na mile, toh direct MS SQL ki Devices table se dynamic location uthao
+  //   if (targetLocationIds.length === 0 && deviceIds.length > 0) {
+  //     try {
+  //       console.log(`🔍 Location blank hai, direct Devices (${deviceIds.join(',')}) se LocationId dhoondh rahe hain...`);
+  //       const deviceLocationQuery = await mssqlPool.request()
+  //         .query(`SELECT DISTINCT LocationId FROM Devices WHERE DeviceId IN (${deviceIds.join(',')}) AND LocationId IS NOT NULL`);
+
+  //       if (deviceLocationQuery.recordset.length > 0) {
+  //         targetLocationIds = deviceLocationQuery.recordset.map(row => Number(row.LocationId));
+  //         console.log(`🎯 Devices se successfully extracted Location IDs: ${targetLocationIds.join(', ')}`);
+  //       }
+  //     } catch (devLocErr) {
+  //       console.error("❌ Failed to fetch location via Devices table:", devLocErr);
+  //     }
+  //   }
+
+  //   // Ultimate safe fallback check
+  //   if (targetLocationIds.length === 0) {
+  //     console.log("⚠️ Ultimate Fallback applied: Forcing Default LocationId = 1");
+  //     targetLocationIds = [1];
+  //   }
+  //   // -----------------------------------------------------
+
+  //   // 3. PostgreSQL Transaction (visitorCardLogs)
+  //   const pgResult = await db.transaction(async (tx) => {
+  //     const pgEntries = deviceIds.map((deviceId) => ({
+  //       deviceId: deviceId,
+  //       visitorCardId: Number(data.visitorCardId),
+  //       visitorCardCode: generatedCardCode,
+  //       command: 'ADD',
+  //       status: 'PENDING',
+  //       syncDate: null,
+  //       isDirtyDateTime: currentTimestamp,
+  //     }));
+
+  //     return await tx
+  //       .insert(schema.visitorCardLogs)
+  //       .values(pgEntries)
+  //       .returning();
+  //   });
+
+  //   // 4. MS SQL Native Sync Execution
+  //   try {
+  //     // A. Device Visitor Cards Insertion
+  //     for (const deviceId of deviceIds) {
+  //       await mssqlPool.request()
+  //         .input('deviceId', deviceId)
+  //         .input('visitorCardId', Number(data.visitorCardId))
+  //         .input('visitorCardCode', generatedCardCode)
+  //         .input('currentTimestamp', currentTimestamp)
+  //         .query(`
+  //         INSERT INTO DeviceVisitorCards (DeviceId, VisitorCardId, VisitorCardCode, Command, Status, SyncDate, IsDirtyDateTime)
+  //         VALUES (@deviceId, @visitorCardId, @visitorCardCode, 'ADD', 'PENDING', NULL, @currentTimestamp)
+  //       `);
+  //     }
+
+  //     // B. Location Visitor Cards Insertion
+  //     for (const locationId of targetLocationIds) {
+  //       try {
+  //         const checkDuplicate = await mssqlPool.request()
+  //           .input('locationId', locationId)
+  //           .input('visitorCardId', Number(data.visitorCardId))
+  //           .query(`
+  //           SELECT 1 FROM LocationVisitorCards WHERE LocationId = @locationId AND VisitorCardId = @visitorCardId
+  //         `);
+
+  //         if (checkDuplicate.recordset.length === 0) {
+  //           await mssqlPool.request()
+  //             .input('locationId', locationId)
+  //             .input('visitorCardId', Number(data.visitorCardId))
+  //             .query(`
+  //             INSERT INTO LocationVisitorCards (LocationId, VisitorCardId)
+  //             VALUES (@locationId, @visitorCardId)
+  //           `);
+  //           console.log(`✅ SUCCESSFULLY INSERTED into LocationVisitorCards: Location ${locationId}, Card ${data.visitorCardId}`);
+  //         } else {
+  //           console.log(`ℹ️ Entry already exists in LocationVisitorCards for Location ${locationId}, skipping...`);
+  //         }
+  //       } catch (locErr) {
+  //         const errorMessage = locErr instanceof Error ? locErr.message : String(locErr);
+  //         console.error(`❌ Could not write to LocationVisitorCards for Location ${locationId}:`, errorMessage);
+  //       }
+  //     }
+
+  //   } catch (msSqlError) {
+  //     console.error("❌ MS SQL Main Write Engine Failed:", msSqlError);
+  //     throw new Error("Data saved to Postgres but failed to sync with MS SQL target tables.");
+  //   }
+
+  //   return pgResult;
+  // }
+  
+
+  async getAllCardsForDropdown() {
+    return await db
+      .select({
+        id: visitorCards.id,
+        msId: visitorCards.msId,
+        cardNumber: visitorCards.cardNumber,
+        name: visitorCards.name,
+        isAssigned: visitorCards.isAssigned
+      })
+      .from(visitorCards)
+      .where(eq(visitorCards.isAssigned, false))
+      .orderBy(asc(visitorCards.name));
   }
 }
 export const storage = new DatabaseStorage();
