@@ -14,25 +14,32 @@ import {
   ChevronLeft,
   ChevronsLeft,
   Eye,
+  DoorOpen,
   Trash2,
+  UserPlus,
   LogOut,
 } from "lucide-react";
 import { PaginationSize } from "@/components/ui/pagination";
 
 // Shadcn UI Components
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export default function VisitorsPage() {
   const [visitorDialog, setVisitorDialog] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<any>(null);
   const { toast } = useToast();
 
-  // 🔴 Shifts page ki tarah errors ke liye ek specific state object banaya:
-  const [errors, setErrors] = useState<Record<string, string>>({});
-
   // View Modal State
   const [viewingVisitor, setViewingVisitor] = useState<any>(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+
+  // --- Assign Door (Role Dialog) States ---
+  const [roledialogOpen, setRoleDialogOpen] = useState(false);
+  const [roleassign, setRoleAssign] = useState<any>(null);
+  const [selectedDoorIds, setSelectedDoorIds] = useState<number[]>([]);
+  const [doorSearch, setDoorSearch] = useState("");
+  const [, setSelectedRoleId] = useState<any>(null); // State synced for close handler cleanups
 
   // Pagination & Search States for Main Grid
   const [page, setPage] = useState(1);
@@ -84,6 +91,19 @@ export default function VisitorsPage() {
     },
   });
 
+  // --- Doors Access List Fetch Hook ---
+  const { data: doors = [], isLoading: isLoadingDoors } = useQuery<any[]>({
+    queryKey: ["/api/doors"],
+    queryFn: async () => {
+      try {
+        const res = await fetch("/api/doors");
+        return await res.json();
+      } catch (e) {
+        return [];
+      }
+    },
+  });
+
   // Data Fallback Parsers
   const visitorsData = Array.isArray(pagedResponse)
     ? pagedResponse
@@ -101,6 +121,7 @@ export default function VisitorsPage() {
 
       const payload = {
         ...d,
+        // ✅ DB Schema ke hisab se 'visitorCardId' (CamelCase) bhejenge
         visitorCardId: matchingCard ? Number(matchingCard.id) : null,
       };
 
@@ -110,7 +131,6 @@ export default function VisitorsPage() {
     onSuccess: () => {
       fetchVisitors();
       setVisitorDialog(false);
-      setErrors({}); // Success par errors clear kiye
       toast({ title: "Visitor registered successfully" });
     },
     onError: (e: Error) =>
@@ -130,6 +150,7 @@ export default function VisitorsPage() {
 
       const payload = {
         ...data,
+        // ✅ Edit case me bhi 'visitorCardId' use hoga
         visitorCardId: matchingCard ? Number(matchingCard.id) : null,
       };
 
@@ -140,7 +161,6 @@ export default function VisitorsPage() {
       fetchVisitors();
       setVisitorDialog(false);
       setEditingVisitor(null);
-      setErrors({}); // Success par errors clear kiye
       toast({ title: "Visitor profile updated" });
     },
     onError: (e: Error) =>
@@ -169,22 +189,22 @@ export default function VisitorsPage() {
   });
 
   const checkoutVisitor = useMutation({
-    mutationFn: async (id: number) => {
-      const r = await apiRequest("POST", `/api/visitors/${id}/checkout`, {});
-      return r.json();
-    },
-    onSuccess: () => {
-      fetchVisitors();
-      toast({ title: "Visitor checked out successfully" });
-    },
-    onError: (e: Error) =>
-      toast({
-        title: "Checkout Error",
-        description: e.message,
-        variant: "destructive",
-      }),
-  });
-
+  mutationFn: async (id: number) => {
+    // Aapke apiRequest helper ke sath ya normal fetch ke sath:
+    const r = await apiRequest("POST", `/api/visitors/${id}/checkout`, {});
+    return r.json();
+  },
+  onSuccess: () => {
+    fetchVisitors(); // Grid refresh karne ke kiye
+    toast({ title: "Visitor checked out successfully" });
+  },
+  onError: (e: Error) =>
+    toast({
+      title: "Checkout Error",
+      description: e.message,
+      variant: "destructive",
+    }),
+});
   // Dynamic Schema Fields Layout
   const visitorFields: FieldConfig[] = [
     { key: "nameOfVisitor", label: "Visitor Name", required: true },
@@ -203,33 +223,43 @@ export default function VisitorsPage() {
       })),
     },
     {
-      key: "whomToMeet",
-      label: "Whom To Meet (ZIM Employee)",
-      required: true,
-      type: "select",
-      options: employees
-        .map((e: any) => {
-          const name = e.employee_name || e.employeeName || "";
-          const code = e.employee_code || e.employeeCode || name;
+  key: "whomToMeet",
+  label: "Whom To Meet (ZIM Employee)",
+  required: true,
+  type: "select",
+  options: employees
+    .map((e: any) => {
+      const name = e.employee_name || e.employeeName || "";
+      // 💡 Code nikalne ke liye schema ke hisab se e.employee_code ya e.employeeCode use karein
+      const code = e.employee_code || e.employeeCode || name; 
 
-          return {
-            label: `${name} (${code})`,
-            value: code,
-          };
-        })
-        .filter((o: any) => o.label.trim() !== ""),
-    },
+      return { 
+        label: `${name} (${code})`, // UI par Name aur Code dono dikhega taaki identification easy ho
+        value: code                // Backend par data submit hote waqt Code jayega
+      };
+    })
+    .filter((o: any) => o.label.trim() !== ""),
+},
     { key: "purpose", label: "Purpose of Visit" },
+
+    // 🌟 CHANGE HERE: 'date' ko 'datetime-local' kiya taaki time picker bhi aaye
     {
       key: "permissionDateFrom",
       label: "In Time",
       required: true,
       type: "datetime-local" as any,
     },
+    // {
+    //   key: "permissionDateTo",
+    //   label: "Expiry To (Out Time)",
+    //   type: "datetime-local" as any,
+    // },
+
+    { key: "district", label: "District"},
     { key: "state", label: "State" },
-    { key: "district", label: "District" },
-    { key: "address1", label: "Address Line 1" },
     { key: "pincode", label: "Pincode" },
+    { key: "address1", label: "Address Line 1" },
+    // { key: "address2", label: "Address Line 2" },
     { key: "remark", label: "Remark", type: "textarea" },
   ];
 
@@ -287,23 +317,23 @@ export default function VisitorsPage() {
       label: "Actions",
       render: (v: any) => (
         <div className="flex items-center space-x-1">
-          {/* EXIT BUTTON */}
+          {/* 🚪 EXIT BUTTON (Added before View Button) */}
           <Button
-            size="icon"
-            variant="ghost"
-            title="Mark Exit / Check-out"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (confirm(`Are you sure you want to check out ${v.nameOfVisitor}?`)) {
-                checkoutVisitor.mutate(v.id);
-              }
-            }}
-            disabled={checkoutVisitor.isPending}
-          >
-            <LogOut className="w-4 h-4 text-emerald-500" />
-          </Button>
+        size="icon"
+        variant="ghost"
+        title="Mark Exit / Check-out"
+        onClick={(e) => {
+          e.stopPropagation();
+          if (confirm(`Are you sure you want to check out ${v.nameOfVisitor}?`)) {
+            checkoutVisitor.mutate(v.id); // 👈 Yahan mutation call ho rahi hai
+          }
+        }}
+        disabled={checkoutVisitor.isPending} // Pending state me button disable rahega
+      >
+        <LogOut className="w-4 h-4 text-emerald-500" />
+      </Button>
 
-          {/* VIEW BUTTON */}
+          {/* 1. VIEW BUTTON */}
           <Button
             size="icon"
             variant="ghost"
@@ -317,7 +347,7 @@ export default function VisitorsPage() {
             <Eye className="w-4 h-4 text-blue-500" />
           </Button>
 
-          {/* EDIT BUTTON */}
+          {/* 3. EDIT BUTTON */}
           <Button
             size="icon"
             variant="ghost"
@@ -325,21 +355,22 @@ export default function VisitorsPage() {
             onClick={(e) => {
               e.stopPropagation();
               setEditingVisitor(v);
-              setErrors({}); // Edit khulne par errors reset
               setVisitorDialog(true);
             }}
           >
             <Pencil className="w-4 h-4 text-amber-500" />
           </Button>
 
-          {/* DELETE BUTTON */}
+          {/* 4. DELETE BUTTON */}
           <Button
             size="icon"
             variant="ghost"
             title="Delete Visitor"
             onClick={(e) => {
               e.stopPropagation();
-              if (confirm(`Are you sure you want to delete ${v.nameOfVisitor}?`)) {
+              if (
+                confirm(`Are you sure you want to delete ${v.nameOfVisitor}?`)
+              ) {
                 deleteVisitor.mutate(v.id);
               }
             }}
@@ -358,8 +389,9 @@ export default function VisitorsPage() {
         description="Manage visitor profiles and dynamic area clearway access tokens"
       />
 
-      {/* Top Controls Action Toolbar */}
+      {/* Top Controls Action Toolbar (Fixed Alignment) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
+        {/* Left Side: Search Input */}
         <div className="relative max-w-sm w-full">
           <input
             placeholder="Search registry by name, company, host..."
@@ -372,10 +404,10 @@ export default function VisitorsPage() {
           />
         </div>
 
+        {/* Right Side: Register Button */}
         <Button
           onClick={() => {
             setEditingVisitor(null);
-            setErrors({}); // Fresh form ke liye errors reset
             setVisitorDialog(true);
           }}
         >
@@ -393,7 +425,7 @@ export default function VisitorsPage() {
         emptyMessage="No records matching criteria."
       />
 
-      {/* Pagination Footer */}
+      {/* Pagination Footer Component */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 rounded-b-lg">
         <div className="text-sm text-muted-foreground">
           Showing{" "}
@@ -463,11 +495,9 @@ export default function VisitorsPage() {
       {/* 1. Register/Edit Profile Dialog Form */}
       <CrudDialog
         open={visitorDialog}
-        errors={errors} // 🔴 Yahan shifts page ki tarah errors object bind kiya!
         onClose={() => {
           setVisitorDialog(false);
           setEditingVisitor(null);
-          setErrors({}); // Modal close hone par errors object reset
         }}
         title={
           editingVisitor ? "Modify Visitor Profile" : "Register New Visitor"
@@ -477,6 +507,7 @@ export default function VisitorsPage() {
           editingVisitor
             ? {
                 ...editingVisitor,
+                // ✅ Agar backend se visitorCardId aa raha hai toh use dropdown selection ke rfidCardNo me map karenge
                 rfidCardNo:
                   editingVisitor.rfidCardNo ||
                   visitorCards.find(
@@ -487,44 +518,6 @@ export default function VisitorsPage() {
             : undefined
         }
         onSubmit={(data) => {
-          const cleanedContact = String(data.contactNo || "").trim();
-          const cleanedEmail = String(data.emailAddress || "").trim();
-
-          const selectedRfid = String(data.rfidCardNo || "").trim();
-          const selectedWhomToMeet = String(data.whomToMeet || "").trim();
-
-          // 🛑 1. RFID Card No Selection Validation
-          if (!selectedRfid || selectedRfid === "undefined" || selectedRfid === "null") {
-            setErrors({ rfidCardNo: "Please select an RFID Card." });
-            return;
-          }
-
-          // 🛑 2. Whom To Meet Selection Validation
-          if (!selectedWhomToMeet || selectedWhomToMeet === "undefined" || selectedWhomToMeet === "null") {
-            setErrors({ whomToMeet: "Please select the employee to meet." });
-            return;
-          }
-          // 🛑 1. Contact Number Validation: Exactly 10 Digits & only Numbers
-          if (!/^\d{10}$/.test(cleanedContact)) {
-            setErrors({ contactNo: "Contact number must be exactly 10 digits." });
-            return; 
-          }
-
-          // 🛑 2. Contact Number Validation: First digit must be 6, 7, 8, or 9
-          const firstDigit = Number(cleanedContact.charAt(0));
-          if (firstDigit <= 5) {
-            setErrors({ contactNo: "Contact number must start with 6, 7, 8, or 9." });
-            return; 
-          }
-
-          // 🛑 3. Email Validation: Proper email format check (agar email entered hai toh)
-          if (cleanedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
-            setErrors({ emailAddress: "Please enter a valid email address." });
-            return;
-          }
-
-          // Agar saare validations pass ho gaye hain, toh data submit hoga
-          setErrors({});
           if (editingVisitor) {
             updateVisitor.mutate({ id: editingVisitor.id, data });
           } else {
@@ -533,6 +526,159 @@ export default function VisitorsPage() {
         }}
         isPending={createVisitor.isPending || updateVisitor.isPending}
       />
+
+      {/* 2. ASSIGN DOOR DIALOG BLOCK */}
+      {/* <Dialog open={roledialogOpen} onOpenChange={setRoleDialogOpen}>
+        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+          <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <UserPlus className="w-6 h-6" />
+              <div>
+                <h2 className="text-xl font-bold leading-none">Assign Door</h2>
+                <p className="text-blue-100 text-xs mt-1">
+                  Assign doors to visitor ({roleassign?.name})
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="relative">
+              <input
+                placeholder="Search door..."
+                value={doorSearch}
+                onChange={(e) => setDoorSearch(e.target.value)}
+                className="w-full px-4 py-3 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div className="flex justify-between items-center px-1 mb-2">
+              <span className="text-xs font-bold text-slate-400 uppercase">
+                {selectedDoorIds.length} Selected
+              </span>
+              <div className="flex gap-3">
+                <button
+                  className="text-[11px] font-bold text-blue-600"
+                  onClick={() => setSelectedDoorIds(doors.map((d) => d.id))}
+                >
+                  Select All
+                </button>
+                <button
+                  className="text-[11px] font-bold text-slate-400"
+                  onClick={() => setSelectedDoorIds([])}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+            <div className="h-[300px] overflow-y-auto rounded-xl border bg-slate-50 p-2">
+              {isLoadingDoors ? (
+                <p className="text-center text-sm text-muted-foreground">
+                  Loading doors...
+                </p>
+              ) : (
+                doors
+                  ?.filter((d) =>
+                    d.name.toLowerCase().includes(doorSearch.toLowerCase()),
+                  )
+                  .map((door) => (
+                    <div
+                      key={door.id}
+                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${
+                        selectedDoorIds.includes(door.id)
+                          ? "bg-white border-blue-200 shadow-sm"
+                          : "border-transparent hover:bg-white hover:border-slate-200"
+                      }`}
+                      onClick={() =>
+                        setSelectedDoorIds((prev) => {
+                          const safePrev = Array.isArray(prev) ? prev : [];
+                          return safePrev.includes(door.id)
+                            ? safePrev.filter((id) => id !== door.id)
+                            : [...safePrev, door.id];
+                        })
+                      }
+                    >
+                      <Checkbox
+                        checked={
+                          Array.isArray(selectedDoorIds) &&
+                          selectedDoorIds.includes(Number(door.id))
+                        }
+                        className="pointer-events-none"
+                      />
+                      <span
+                        className={`text-sm ${
+                          selectedDoorIds.includes(door.id)
+                            ? "font-bold text-blue-700"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        {door.name}
+                      </span>
+                    </div>
+                  ))
+              )}
+            </div>
+          </div>
+          <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              className="rounded-xl px-6"
+              onClick={() => {
+                setRoleDialogOpen(false);
+                setRoleAssign(null);
+                setSelectedRoleId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
+              onClick={async () => {
+                try {
+                  const matchingCard = visitorCards.find(
+                    (c: any) => c.cardNumber === roleassign?.rfidCardNo,
+                  );
+
+                  const payload = {
+                    visitorId: Number(roleassign?.id),
+                    visitorCardId: matchingCard
+                      ? Number(matchingCard.id)
+                      : null, 
+                    doorIds: selectedDoorIds.map(Number),
+                  };
+
+                  const response = await apiRequest(
+                    "POST",
+                    "/api/visitor-door-assignments", // 👈 New API endpoint
+                    payload, // 👈 Updated Body
+                  );
+
+                  if (response) {
+                    toast({
+                      title: "Success",
+                      description: "Doors assigned to visitor successfully!",
+                      variant: "default",
+                    });
+
+                    fetchVisitors();
+
+                    setRoleDialogOpen(false);
+                    setRoleAssign(null);
+                  }
+                } catch (error) {
+                  console.error("Assignment Error:", error);
+                  toast({
+                    title: "Error",
+                    description:
+                      "Failed to assign doors to visitor. Please try again.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              Assign Door
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog> */}
 
       {/* 3. VIEW VISITOR DETAILS DIALOG BLOCK */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
@@ -619,8 +765,12 @@ export default function VisitorsPage() {
                       <span className="font-medium text-foreground">
                         {viewingVisitor.whomToMeet || "-"}
                       </span>
-                    </div>
+                      {/* </div>
                     <div>
+                      <span className="text-muted-foreground block text-xs">Department</span>
+                      <span className="font-medium text-foreground">{viewingVisitor.department || "-"}</span>
+                    </div>
+                    <div> */}
                       <span className="text-muted-foreground block text-xs">
                         Purpose of Visit
                       </span>
@@ -677,45 +827,45 @@ export default function VisitorsPage() {
 
                 {/* System / Additional Info */}
                 <div className="space-y-3 md:col-span-2">
-                  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">
-                    Additional Meta
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-muted-foreground block text-xs">
-                        Permission Date
-                      </span>
-                      <span className="font-medium text-slate-800 text-xs flex flex-col gap-1 mt-1">
-                        <div>
-                          <strong className="text-emerald-600 font-medium">In: </strong>
-                          {viewingVisitor.permissionDateFrom ? (() => {
-                            const d = new Date(viewingVisitor.permissionDateFrom);
-                            return isNaN(d.getTime())
-                              ? viewingVisitor.permissionDateFrom
-                              : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                          })() : "-"}
-                        </div>
-                        <div>
-                          <strong className="text-rose-600 font-medium">Out: </strong>
-                          {viewingVisitor.permissionDateTo ? (() => {
-                            const d = new Date(viewingVisitor.permissionDateTo);
-                            return isNaN(d.getTime())
-                              ? viewingVisitor.permissionDateTo
-                              : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                          })() : "-"}
-                        </div>
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block text-xs">
-                        Remark
-                      </span>
-                      <span className="font-medium text-foreground">
-                        {viewingVisitor.remark || "-"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+  <h3 className="font-semibold text-blue-600 text-xs uppercase tracking-wider">
+    Additional Meta
+  </h3>
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <div>
+      <span className="text-muted-foreground block text-xs">
+        Permission Date
+      </span>
+      <span className="font-medium text-slate-800 text-xs flex flex-col gap-1 mt-1">
+        <div>
+          <strong className="text-emerald-600 font-medium">In: </strong>
+          {viewingVisitor.permissionDateFrom ? (() => {
+            const d = new Date(viewingVisitor.permissionDateFrom);
+            return isNaN(d.getTime()) 
+              ? viewingVisitor.permissionDateFrom 
+              : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+          })() : "-"}
+        </div>
+        <div>
+          <strong className="text-rose-600 font-medium">Out: </strong>
+          {viewingVisitor.permissionDateTo ? (() => {
+            const d = new Date(viewingVisitor.permissionDateTo);
+            return isNaN(d.getTime()) 
+              ? viewingVisitor.permissionDateTo 
+              : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+          })() : "-"}
+        </div>
+      </span>
+    </div>
+    <div>
+      <span className="text-muted-foreground block text-xs">
+        Remark
+      </span>
+      <span className="font-medium text-foreground">
+        {viewingVisitor.remark || "-"}
+      </span>
+    </div>
+  </div>
+</div>
               </div>
             ) : (
               <p className="text-center text-sm text-muted-foreground py-4">
