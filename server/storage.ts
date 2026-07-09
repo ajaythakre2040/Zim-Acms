@@ -1815,13 +1815,39 @@ export class DatabaseStorage implements IStorage {
   async deletePersonAccess(id: number): Promise<void> {
     await db.delete(personAccess).where(eq(personAccess.id, id));
   }
+  // async getVisitors(
+  //   page?: number,
+  //   pageSize?: number,
+  //   search?: string
+  // ): Promise<{ data: Visitor[]; totalCount: number; totalPages: number }> {
+  //   let query = db.select().from(visitors).$dynamic();
+  //   let whereClause: any = undefined;
+  //   if (search && search.trim() !== "" && search !== "undefined") {
+  //     whereClause = or(
+  //       ilike(visitors.nameOfVisitor, `%${search}%`),
+  //       ilike(visitors.visitorsCompanyName, `%${search}%`),
+  //       ilike(visitors.whomToMeet, `%${search}%`),
+  //       ilike(visitors.contactNo, `%${search}%`)
+  //     );
+  //     query = query.where(whereClause);
+  //   }
+  //   query = query.orderBy(desc(visitors.id));
+  //   const result = await withPagination(db, visitors, query, page, pageSize, whereClause);
+  //   return result;
+  // }
+  // async getVisitor(id: number): Promise<Visitor | undefined> {
+  //   const [visitor] = await db.select().from(visitors).where(eq(visitors.id, id));
+  //   return visitor;
+  // }
   async getVisitors(
     page?: number,
     pageSize?: number,
     search?: string
-  ): Promise<{ data: Visitor[]; totalCount: number; totalPages: number }> {
+  ): Promise<{ data: any[]; totalCount: number; totalPages: number }> {
+    // 1. Pehle jaisa safe aur original query run karein taaki frontend crash na ho
     let query = db.select().from(visitors).$dynamic();
     let whereClause: any = undefined;
+
     if (search && search.trim() !== "" && search !== "undefined") {
       whereClause = or(
         ilike(visitors.nameOfVisitor, `%${search}%`),
@@ -1831,14 +1857,58 @@ export class DatabaseStorage implements IStorage {
       );
       query = query.where(whereClause);
     }
+
     query = query.orderBy(desc(visitors.id));
+
+    // Original pagination helper call
     const result = await withPagination(db, visitors, query, page, pageSize, whereClause);
+
+    // 2. 🌟 Dynamic look-up lagakar visitor_cards table se Name aur Number inject karein
+    if (result && result.data && result.data.length > 0) {
+      // Sabhi active cards ko ek baar me fetch kar lein
+      const allCards = await db.select().from(visitorCards);
+
+      result.data = result.data.map((visitor: any) => {
+        const matchedCard = allCards.find(
+          (c: any) => Number(c.id) === Number(visitor.visitorCardId)
+        );
+
+        return {
+          ...visitor,
+          // Frontend ko required custom properties append kar dein
+          rfidCardNo: matchedCard ? matchedCard.cardNumber : visitor.rfidCardNo,
+          visitorCardName: matchedCard ? matchedCard.name : undefined,
+        };
+      });
+    }
+
     return result;
   }
-  async getVisitor(id: number): Promise<Visitor | undefined> {
+
+  async getVisitor(id: number): Promise<any | undefined> {
+    // Original single row look-up
     const [visitor] = await db.select().from(visitors).where(eq(visitors.id, id));
+    if (!visitor) return undefined;
+
+    // Single card detail merge karein
+    if (visitor.visitorCardId) {
+      const [card] = await db
+        .select()
+        .from(visitorCards)
+        .where(eq(visitorCards.id, visitor.visitorCardId));
+
+      if (card) {
+        return {
+          ...visitor,
+          rfidCardNo: card.cardNumber,
+          visitorCardName: card.name,
+        };
+      }
+    }
+
     return visitor;
   }
+  
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
     let insertedMsSqlId: number | null = null;
     try {
@@ -2791,7 +2861,7 @@ export class DatabaseStorage implements IStorage {
     // 4. Fetch all visitors mapped to these cards (including visitor table's rfidCardNo)
     if (cardIdentifiers.length > 0) {
       const uniqueCardIds = [...new Set(cardIdentifiers)];
-
+      
       visitorDetails = await db
         .select({
           id: schema.visitors.id,
@@ -2799,8 +2869,8 @@ export class DatabaseStorage implements IStorage {
           rfidCardNo: schema.visitors.rfidCardNo, // Visitor table se direct card no. fetch kiya
           cardMsId: visitorCards.msId,
           cardNo: visitorCards.cardNumber,
-          inTime: schema.visitors.permissionDateFrom,
-          outTime: schema.visitors.permissionDateTo,
+          inTime: schema.visitors.permissionDateFrom, 
+          outTime: schema.visitors.permissionDateTo,   
         })
         .from(schema.visitors)
         .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
@@ -2834,9 +2904,9 @@ export class DatabaseStorage implements IStorage {
 
       // Match correct visitor row based on EXACT card reference AND time span allocation
       const dbVisitor = visitorDetails.find(v => {
-        const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-          (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier));
-
+        const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) || 
+                            (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier));
+        
         if (!isCardMatch) return false;
 
         const visitorInStr = formatToLocalStr(v.inTime) || "";
@@ -2846,7 +2916,7 @@ export class DatabaseStorage implements IStorage {
       });
 
       return {
-        visitorName: dbVisitor ? dbVisitor.visitorName : `Visitor ${numericCardIdentifier}`,
+        visitorName: dbVisitor ? dbVisitor.visitorName : `Visitor ${numericCardIdentifier}`, 
         visitorId: numericCardIdentifier,
         visitorCode: log.EmployeeCode,
         rfidCardNo: dbVisitor ? dbVisitor.rfidCardNo : String(numericCardIdentifier), // Added to response object
@@ -2858,7 +2928,7 @@ export class DatabaseStorage implements IStorage {
     });
 
     return { machineFeed };
-  }
+}
   // async getVisitorMachineAccessLogs(date: string) {
   //   const doorMappings = await db
   //     .select({

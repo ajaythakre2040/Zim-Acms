@@ -136,13 +136,13 @@ function crudRoutes<T>(
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
-  app.get("/api/dashboard/stats", async (_req, res) => {
+  app.get("/api/dashboard/stats", requireAuth, async (_req, res) => {
     try {
       const stats = await storage.getDashboardStats();
       res.json(stats);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.get("/api/dashboard/attendance/door-wise-stats", async (req, res) => {
+  app.get("/api/dashboard/attendance/door-wise-stats", requireAuth, async (req, res) => {
     try {
       const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
       const doorStats = await storage.getDoorWiseStats(date);
@@ -151,7 +151,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/dashboard/attendance/machine-logs", async (req, res) => {
+  app.get("/api/dashboard/attendance/machine-logs", requireAuth, async (req, res) => {
     try {
       const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
       const logs = await storage.getMachineAccessLogs(date);
@@ -161,7 +161,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch machine logs" });
     }
   });
-  app.get("/api/dashboard/visitor/visitor-machine-logs", async (req, res) => {
+  app.get("/api/dashboard/visitor/visitor-machine-logs", requireAuth, async (req, res) => {
     try {
       const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
       const logs = await storage.getVisitorMachineAccessLogs(date);
@@ -171,7 +171,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch visitor machine logs" });
     }
   });
-  app.get("/api/dashboard/attendance/shift-door-stats", async (req, res) => {
+  app.get("/api/dashboard/attendance/shift-door-stats", requireAuth, async (req, res) => {
     try {
       const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
       const shiftStats = await storage.getShiftWiseStats(date);
@@ -293,7 +293,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/sites", insertSiteSchema,
     () => storage.getSites(), (d) => storage.createSite(d),
     (id, d) => storage.updateSite(id, d), (id) => storage.deleteSite(id), undefined, TABLES.SITES);
-  app.get("/api/buildings", async (req, res) => {
+  app.get("/api/buildings", requireAuth, async (req, res) => {
     try {
       const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
       res.json(await storage.getBuildings(siteId));
@@ -302,7 +302,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/buildings", insertBuildingSchema,
     () => storage.getBuildings(), (d) => storage.createBuilding(d),
     (id, d) => storage.updateBuilding(id, d), (id) => storage.deleteBuilding(id), undefined, TABLES.BUILDINGS);
-  app.get("/api/floors", async (req, res) => {
+  app.get("/api/floors", requireAuth, async (req, res) => {
     try {
       const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
       res.json(await storage.getFloors(buildingId));
@@ -311,7 +311,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/floors", insertFloorSchema,
     () => storage.getFloors(), (d) => storage.createFloor(d),
     (id, d) => storage.updateFloor(id, d), (id) => storage.deleteFloor(id));
-  app.get("/api/zones", async (req, res) => {
+  app.get("/api/zones", requireAuth, async (req, res) => {
     try {
       const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
       res.json(await storage.getZones(siteId));
@@ -359,7 +359,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.DEVICES
   );
-  app.get("/api/people", async (req, res) => {
+  app.get("/api/people", requireAuth, async (req, res) => {
     try {
       const search = req.query.search as string | undefined;
       const page = req.query.page as string | undefined;
@@ -369,14 +369,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/people/:id", async (req, res) => {
+  app.get("/api/people/:id", requireAuth, async (req, res) => {
     try {
       const person = await storage.getPerson(parseInt(req.params.id));
       if (!person) return res.status(404).json({ message: "Not found" });
       res.json(person);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.get("/api/peoplebycode/:code", async (req, res) => {
+  app.get("/api/peoplebycode/:code", requireAuth, async (req, res) => {
     try {
       const person = await storage.getPersonByCode(req.params.code);
       return person ? res.json(person) : res.status(404).json({ message: `Employee Code '${req.params.code}' does not exist.` });
@@ -398,7 +398,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }, 200)
   );
     app.delete("/api/people/:id", requireAuth, withAudit(TABLES.PEOPLE, "DELETE", async (req) => { await storage.deletePerson(parseInt(req.params.id)); return null; }, 204));
-  app.get("/api/credentials", async (req, res) => {
+  app.get("/api/credentials", requireAuth, async (req, res) => {
     try {
       const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
       res.json(await storage.getCredentials(personId));
@@ -427,7 +427,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.SHIFTS
   );
-  app.get("/api/shift-assignments", async (req, res) => {
+  app.get("/api/shift-assignments", requireAuth, async (req, res) => {
     try {
       const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
       res.json(await storage.getShiftAssignments(personId));
@@ -458,7 +458,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   crudRoutes(app, "/api/access-rules", insertAccessRuleSchema,
     () => storage.getAccessRules(), (d) => storage.createAccessRule(d),
     (id, d) => storage.updateAccessRule(id, d), (id) => storage.deleteAccessRule(id), undefined, TABLES.ACCESS_RULES);
-  app.get("/api/person-access", async (req, res) => {
+  app.get("/api/person-access", requireAuth, async (req, res) => {
     try {
       const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
       res.json(await storage.getPersonAccess(personId));
@@ -475,7 +475,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.post("/api/person-access", requireAuth, withAudit(TABLES.PERSON_ACCESS, "ADD", async (req) => await storage.createPersonAccess(insertPersonAccessSchema.parse(req.body)), 201));
   app.delete("/api/person-access/:id", requireAuth, withAudit(TABLES.PERSON_ACCESS, "DELETE", async (req) => { await storage.deletePersonAccess(parseInt(req.params.id)); return null; }, 204));
-  app.get("/api/visitors", async (req, res) => {
+  app.get("/api/visitors", requireAuth, async (req, res) => {
     try {
       const page = req.query.page ? Number(req.query.page) : undefined;
       const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
@@ -489,7 +489,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/visitors/:id", async (req, res) => {
+  app.get("/api/visitors/:id", requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
       const visitor = await storage.getVisitor(id);
@@ -499,7 +499,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ error: error.message });
     }
   });
-  app.post("/api/visitors", async (req, res) => {
+  app.post("/api/visitors", requireAuth, async (req, res) => {
     try {
       const parsed = insertVisitorSchema.parse(req.body);
       const created = await storage.createVisitor(parsed);
@@ -508,7 +508,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(400).json({ error: error.message || "Invalid payload" });
     }
   });
-  app.put("/api/visitors/:id", async (req, res) => {
+  app.put("/api/visitors/:id", requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
       const updated = await storage.updateVisitor(id, req.body);
@@ -517,7 +517,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ error: error.message });
     }
   });
-  app.delete("/api/visitors/:id", async (req, res) => {
+  app.delete("/api/visitors/:id", requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
       await storage.deleteVisitor(id);
@@ -527,7 +527,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
   app.post(
-    "/api/visitors/:id/checkout",
+    "/api/visitors/:id/checkout", requireAuth,
     withAudit(
       "visitors",
       "UPDATE",
@@ -541,7 +541,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       200
     )
   );
-  app.get("/api/visits", async (req, res) => {
+  app.get("/api/visits", requireAuth, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       res.json(await storage.getVisits(status));
@@ -583,7 +583,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(visit);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.get("/api/attendance", async (req, res) => {
+  app.get("/api/attendance", requireAuth, async (req, res) => {
     try {
       const date = req.query.date as string | undefined;
       const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
@@ -591,7 +591,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(await storage.getAttendance(date, siteId, personId));
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.get("/api/attendance/summary", async (req, res) => {
+  app.get("/api/attendance/summary", requireAuth, async (req, res) => {
     try {
       const date = req.query.date as string || new Date().toISOString().slice(0, 10);
       const records = await storage.getAttendance(date);
@@ -605,7 +605,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.post("/api/attendance", requireAuth, withAudit(TABLES.ATTENDANCE, "ADD", async (req) => await storage.createAttendance(insertAttendanceSchema.parse(req.body)), 201));
   app.put("/api/attendance/:id", requireAuth, withAudit(TABLES.ATTENDANCE, "UPDATE", async (req) => await storage.updateAttendance(parseInt(req.params.id), insertAttendanceSchema.partial().parse(req.body)), 200));
-  app.get("/api/access-logs", async (req, res) => {
+  app.get("/api/access-logs", requireAuth, async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
@@ -613,7 +613,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.post("/api/access-logs", requireAuth, withAudit(TABLES.ACCESS_LOGS, "ADD/UPDATE", async (req) => await storage.createAccessLog(insertAccessLogSchema.parse(req.body)), 201));
-  app.get("/api/alerts", async (req, res) => {
+  app.get("/api/alerts", requireAuth, async (req, res) => {
     try {
       const isResolved = req.query.resolved === "true" ? true : req.query.resolved === "false" ? false : undefined;
       res.json(await storage.getAlerts(isResolved));
@@ -622,7 +622,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/alerts", requireAuth, withAudit(TABLES.ALERTS, "ADD", async (req) => await storage.createAlert(insertAlertSchema.parse(req.body)), 201));
   app.put("/api/alerts/:id/acknowledge", requireAuth, withAudit(TABLES.ALERTS, "UPDATE", async (req) => await storage.updateAlert(parseInt(req.params.id), { isRead: true }), 200));
   app.put("/api/alerts/:id/resolve", requireAuth, withAudit(TABLES.ALERTS, "UPDATE", async (req) => await storage.updateAlert(parseInt(req.params.id), { isResolved: true, resolvedBy: req.session?.userId, resolvedAt: new Date() }), 200));
-  app.get("/api/exceptions", async (req, res) => {
+  app.get("/api/exceptions", requireAuth, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       res.json(await storage.getExceptions(status));
@@ -664,7 +664,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.post("/api/system-settings", requireAuth, withAudit(TABLES.SYSTEM_SETTINGS, "ADD/UPDATE", async (req) => await storage.upsertSystemSetting(insertSystemSettingSchema.parse(req.body)), 200));
-  app.get("/api/reports/attendance", async (req, res) => {
+  app.get("/api/reports/attendance", requireAuth, async (req, res) => {
     try {
       const filters = {
         dateFrom: req.query.dateFrom as string | undefined,
@@ -736,7 +736,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.json(otRecords);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
-  app.get("/api/reports/access-log", async (req, res) => {
+  app.get("/api/reports/access-log", requireAuth, async (req, res) => {
     try {
       const filters = {
         dateFrom: req.query.dateFrom as string | undefined,
@@ -874,7 +874,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/people/device-status/:empCode", async (req, res) => {
+  app.get("/api/people/device-status/:empCode", requireAuth, async (req, res) => {
     try {
       const statuses = await storage.getEmployeeDeviceStatuses(req.params.empCode);
       res.json(statuses);
@@ -883,7 +883,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
   app.post(
-    "/api/people/emergency-toggle",
+    "/api/people/emergency-toggle", requireAuth,
     withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, (req) => {
       return req.body.action === "block" ? "EMERGENCY_BLOCK" : "EMERGENCY_UNBLOCK";
     }, async (req) => {
@@ -921,12 +921,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return await storage.deleteCronMaster(id);
     }, undefined, TABLES.CRON_MASTER
   );
-  app.get("/api/cron-jobs/main-gate", async (_req, res) => {
+  app.get("/api/cron-jobs/main-gate", requireAuth, async (_req, res) => {
     const allCrons = await storage.getCronMasters();
     const gateJob = allCrons.find(c => c.code === MAIN_GATE_SYNC.CODE);
     res.json(gateJob ? [gateJob] : []);
   });
-  app.get("/api/cron-jobs/cabin-lock", async (_req, res) => {
+  app.get("/api/cron-jobs/cabin-lock", requireAuth, async (_req, res) => {
     const allCrons = await storage.getCronMasters();
     const cabinJob = allCrons.find(c => c.code === CABIN_LOCKOUT_CONFIG.CODE);
     res.json(cabinJob ? [cabinJob] : []);
@@ -968,7 +968,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return await storage.deleteBlockUnblockLog(id);
     }
   );
-  app.get("/api/devices/role-eligible", async (_req, res) => {
+  app.get("/api/devices/role-eligible", requireAuth, async (_req, res) => {
     try {
       const devices = await storage.getRoleEligibleDevices();
       res.json(devices);
@@ -976,7 +976,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch devices for role assignment" });
     }
   });
-  app.get("/api/doors/lockout-eligible", async (req, res) => {
+  app.get("/api/doors/lockout-eligible", requireAuth, async (req, res) => {
     try {
       const search = req.query.search as string;
       const doors = await storage.getLockoutEligibleDoors(search);
@@ -985,7 +985,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch doors" });
     }
   });
-  app.patch("/api/doors/bulk-lockout", async (req, res) => {
+  app.patch("/api/doors/bulk-lockout", requireAuth, async (req, res) => {
     try {
       const { enabledIds, disabledIds } = req.body;
       if (enabledIds && enabledIds.length > 0) {
@@ -1007,7 +1007,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     const result = await storage.executeEmergencybulkUnblock(loginId, user?.username || "Admin User");
     return { success: true, message: `Emergency unblock initiated for ${result.processedCount} records.`, audit: { performedBy: user?.username || "Admin User", alertId: result.alertId } };
   }, 200));
-  app.get("/api/reports/door-count", async (req, res) => {
+  app.get("/api/reports/door-count", requireAuth, async (req, res) => {
     try {
       const { dateFrom, dateTo, deviceId } = req.query;
       const data = await storage.getDoorWiseCount({
@@ -1020,7 +1020,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch door count" });
     }
   });
-  app.get("/api/reports/cabin-lockout", async (req, res) => {
+  app.get("/api/reports/cabin-lockout", requireAuth, async (req, res) => {
     try {
       const { dateFrom, dateTo, employeeCode, doorId, status } = req.query;
       const page = req.query.page
@@ -1047,7 +1047,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/employee-door-assignments", async (req, res) => {
+  app.get("/api/employee-door-assignments", requireAuth, async (req, res) => {
     try {
       const data = await storage.getEmployeeDoorAssignments();
       res.json(data);
@@ -1055,7 +1055,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch door assignments" });
     }
   });
-  app.get("/api/employee-door-assignments/:code", async (req, res) => {
+  app.get("/api/employee-door-assignments/:code", requireAuth, async (req, res) => {
     try {
       const data = await storage.getEmployeeDoorAssignmentByCode(req.params.code);
       if (!data) {
@@ -1066,13 +1066,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch employee door assignment" });
     }
   });
-  app.post("/api/employee-door-assignments", withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "ADD/UPDATE", async (req) => {
+  app.post("/api/employee-door-assignments", requireAuth, withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "ADD/UPDATE", async (req) => {
     const { employeeCode, doorIds } = req.body;
     if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");
     return { status: "success", message: "Access privileges updated successfully.", data: await storage.upsertEmployeeDoorAssignment({ employeeCode, doorIds }) };
   }, 200));
-  app.delete("/api/employee-door-assignments/:id", withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "DELETE", async (req) => { await storage.deleteEmployeeDoorAssignment(Number(req.params.id)); return { message: "Assignment deleted successfully" }; }, 200));
-  app.get("/api/reports/daily-performance", async (req: Request, res: Response) => {
+  app.delete("/api/employee-door-assignments/:id", requireAuth, withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "DELETE", async (req) => { await storage.deleteEmployeeDoorAssignment(Number(req.params.id)); return { message: "Assignment deleted successfully" }; }, 200));
+  app.get("/api/reports/daily-performance", requireAuth, async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
       const date = q.date || new Date().toISOString().split('T')[0];
@@ -1082,7 +1082,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/reports/muster-roll", async (req: Request, res: Response) => {
+  app.get("/api/reports/muster-roll", requireAuth, async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
       const page = q.page ? String(q.page) : undefined;
@@ -1100,7 +1100,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/reports/ot-matrix", async (req: Request, res: Response) => {
+  app.get("/api/reports/ot-matrix", requireAuth, async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
       const page = q.page ? String(q.page) : undefined;
@@ -1120,7 +1120,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/reports/dept-summary", async (req: Request, res: Response) => {
+  app.get("/api/reports/dept-summary", requireAuth, async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
       const date = q.date || new Date().toISOString().split('T')[0];
@@ -1130,7 +1130,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/reports/daily-efficiency", async (req: Request, res: Response) => {
+  app.get("/api/reports/daily-efficiency", requireAuth, async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
       const date = q.date || new Date().toISOString().split("T")[0];
@@ -1148,7 +1148,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/reports/efficiency-analytics", async (req: Request, res: Response) => {
+  app.get("/api/reports/efficiency-analytics", requireAuth, async (req: Request, res: Response) => {
     try {
       const q = req.query as any;
       const data = await storage.getEfficiencyAnalytics(q.dateFrom, q.dateTo, q.employeeCode);
@@ -1184,11 +1184,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     },
     (id) => storage.deleteMenu(id), undefined, TABLES.MENU_MASTER
   );
-  app.get("/api/roles", async (_req, res) => {
+  app.get("/api/roles", requireAuth, async (_req, res) => {
     const roles = await storage.getRoles();
     res.json(roles);
   });
-  app.get("/api/menus/parents", async (_req, res) => {
+  app.get("/api/menus/parents", requireAuth, async (_req, res) => {
     try {
       const parents = await storage.getParentMenus();
       res.json(parents);
@@ -1196,7 +1196,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.post("/api/roles-with-permissions", withAudit(TABLES.ROLES, "ADD/UPDATE", async (req) => {
+  app.post("/api/roles-with-permissions", requireAuth, withAudit(TABLES.ROLES, "ADD/UPDATE", async (req) => {
     const { role, permissions } = req.body;
     if (!role?.code || !Array.isArray(permissions)) throw new Error("Required data missing: code (string) and permissions (array) are mandatory.");
     const menuIds = permissions.map((p: any) => p.menuId);
@@ -1205,8 +1205,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (existingRole) throw new Error("This Role Code is already registered. Please use a unique code.");
     return await storage.createRoleWithPermissions(role, permissions);
   }, 201));
-  app.put("/api/roles-with-permissions/:id", withAudit(TABLES.ROLES, "UPDATE", async (req) => { await storage.updateRoleWithPermissions(parseInt(req.params.id), req.body.role, req.body.permissions); return { message: "Role and Permissions updated successfully" }; }, 200));
-  app.get("/api/roles-with-permissions/:id", async (req, res) => {
+  app.put("/api/roles-with-permissions/:id", requireAuth, withAudit(TABLES.ROLES, "UPDATE", async (req) => { await storage.updateRoleWithPermissions(parseInt(req.params.id), req.body.role, req.body.permissions); return { message: "Role and Permissions updated successfully" }; }, 200));
+  app.get("/api/roles-with-permissions/:id", requireAuth, async (req, res) => {
     try {
       const roleId = Number(req.params.id);
       const roleData = await storage.getRolePermissions(roleId);
@@ -1221,7 +1221,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.delete("/api/roles/:id", withAudit(TABLES.ROLES, "DELETE", async (req) => { await storage.deleteRole(Number(req.params.id)); return null; }, 204));
+  app.delete("/api/roles/:id", requireAuth, withAudit(TABLES.ROLES, "DELETE", async (req) => { await storage.deleteRole(Number(req.params.id)); return null; }, 204));
   app.get("/api/reports_access_logs", requireAuth, async (req, res) => {
     try {
       const filters = {
@@ -1239,7 +1239,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       console.error(e); res.status(500).json({ message: e.message, });
     }
   });
-  app.get("/api/reports/employee-productive-report", async (req, res) => {
+  app.get("/api/reports/employee-productive-report", requireAuth, async (req, res) => {
     try {
       const { date, employeeCode } = req.query;
       const page = req.query.page
@@ -1266,7 +1266,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/reports/employee-efficiency-dateRange", async (req, res) => {
+  app.get("/api/reports/employee-efficiency-dateRange", requireAuth, async (req, res) => {
     try {
       const {
         dateFrom,
@@ -1309,7 +1309,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/reports/department-efficiency", async (req, res) => {
+  app.get("/api/reports/department-efficiency", requireAuth, async (req, res) => {
     try {
       const {
         dateFrom,
@@ -1377,7 +1377,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
     return updatedUser;
   }, 200));
-  app.get("/api/reports/employee-movement-logs", async (req, res) => {
+  app.get("/api/reports/employee-movement-logs", requireAuth, async (req, res) => {
     try {
       const { date, employeeCode } = req.query;
       const page = req.query.page
@@ -1404,7 +1404,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/reports/department-wise-manpower", async (req, res) => {
+  app.get("/api/reports/department-wise-manpower", requireAuth, async (req, res) => {
     try {
       const {
         dateFrom,
@@ -1445,13 +1445,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.post("/api/contractors", withAudit("contractors", "ADD", async (req: any) => {
+  app.post("/api/contractors", requireAuth, withAudit("contractors", "ADD", async (req: any) => {
     return await storage.createContractor(req.body);
   }, 201));
-  app.patch("/api/contractors/:id", withAudit("contractors", "UPDATE", async (req: any) => {
+  app.patch("/api/contractors/:id", requireAuth, withAudit("contractors", "UPDATE", async (req: any) => {
     return await storage.updateContractor(Number(req.params.id), req.body);
   }));
-  app.get("/api/contractors", async (req, res) => {
+  app.get("/api/contractors", requireAuth, async (req, res) => {
     try {
       const page = Number(req.query.page) || 1;
       const pageSize = Number(req.query.pageSize) || 5;
@@ -1462,7 +1462,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch contractors" });
     }
   });
-  app.get("/api/contractors/:id", async (req, res) => {
+  app.get("/api/contractors/:id", requireAuth, async (req, res) => {
     try {
       const data = await storage.getContractor(Number(req.params.id));
       if (!data) return res.status(404).json({ message: "Contractor not found" });
@@ -1471,7 +1471,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Error fetching contractor details" });
     }
   });
-  app.delete("/api/contractors/:id", withAudit("contractors", "DELETE", async (req: any) => {
+  app.delete("/api/contractors/:id", requireAuth, withAudit("contractors", "DELETE", async (req: any) => {
     return await storage.deleteContractor(Number(req.params.id));
   }, 204));
   app.get("/api/audit-logs", requireAuth, async (req, res) => {
@@ -1538,7 +1538,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ message: error.message });
     }
   });
-  app.get("/api/audit-logs/actions", async (req, res, next) => {
+  app.get("/api/audit-logs/actions", requireAuth, async (req, res, next) => {
     try {
       const actions = await storage.getAuditActions();
       res.status(200).json(actions);
@@ -1612,7 +1612,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     undefined,
     TABLES.VISITOR_CARDS
   );
-  app.post("/api/visitor_cards/sync", async (req: any, res: any) => {
+  app.post("/api/visitor_cards/sync", requireAuth, async (req: any, res: any) => {
     try {
       await syncVisitorCardsFromMsSql();
       res.status(200).json({
@@ -1626,7 +1626,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       });
     }
   });
-  app.get("/api/visitor_card_logs", async (req, res) => {
+  app.get("/api/visitor_card_logs", requireAuth, async (req, res) => {
     try {
       const logs = await db
         .select({
@@ -1649,7 +1649,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch logs" });
     }
   });
-  app.get("/api/visitor_card_logs/:id", async (req, res) => {
+  app.get("/api/visitor_card_logs/:id", requireAuth, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -1668,7 +1668,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Internal server error" });
     }
   });
-  app.get("/api/visitor_card_logs/latest", async (req, res) => {
+  app.get("/api/visitor_card_logs/latest", requireAuth, async (req, res) => {
     try {
       const latest = await db
         .select()
@@ -1680,7 +1680,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Error fetching latest log" });
     }
   });
-  app.get("/api/visitor_cards/dropdown", async (req: any, res: any) => {
+  app.get("/api/visitor_cards/dropdown", requireAuth, async (req: any, res: any) => {
     try {
       const data = await storage.getAllCardsForDropdown();
       res.status(200).json({
