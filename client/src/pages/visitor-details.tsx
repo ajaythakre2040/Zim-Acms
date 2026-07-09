@@ -215,17 +215,70 @@ export default function VisitorsPage() {
     },
     { key: "visitorsCompanyName", label: "Company Name" },
     { key: "designation", label: "Designation" },
+    // {
+    //   key: "rfidCardNo",
+    //   label: "RFID Card No *", // Label me * manually laga diya styling ke liye
+    //   type: "select",
+    //   options: visitorCards.map((c: any) => ({
+    //     label: c.name || c.cardNumber,
+    //     value: c.cardNumber,
+    //   })),
+    //   onChange: (val: any) => {
+    //     if (val && val !== "undefined" && val !== "null") {
+    //       setErrors(prev => { const copy = { ...prev }; delete copy.rfidCardNo; return copy; });
+    //     }
+    //   }
+    // },
+    
     {
       key: "rfidCardNo",
-      label: "RFID Card No *", // Label me * manually laga diya styling ke liye
+      label: "RFID Card No *",
       type: "select",
-      options: visitorCards.map((c: any) => ({
-        label: c.name || c.cardNumber,
-        value: c.cardNumber,
-      })),
+      options: (() => {
+        // 1. Available/Unassigned cards map karein (Format: v2 (3062587))
+        const opts = visitorCards.map((c: any) => ({
+          label: c.name ? `${c.name} (${c.cardNumber || c.card_number})` : (c.cardNumber || c.card_number),
+          value: c.cardNumber || c.card_number,
+        }));
+
+        // 2. Agar Edit Mode chal raha hai aur assigned card listed nahi hai
+        if (editingVisitor) {
+          // Check database mapping keys (visitorCardId or visitor_card_id)
+          const currentCardId = editingVisitor.visitorCardId || editingVisitor.visitor_card_id;
+
+          // Fallback number agar backend direct string bhej raha ho
+          const currentCardNumber = editingVisitor.rfidCardNo || editingVisitor.card_number;
+
+          // Check if this card is already in unassigned dropdown list
+          const alreadyExists = opts.some(
+            (o: any) =>
+              (currentCardNumber && String(o.value).trim() === String(currentCardNumber).trim())
+          );
+
+          if (!alreadyExists) {
+            // Hum name nikalne ke liye backend response properties (jo Step 2 mein add karenge) use karenge
+            const currentCardName = editingVisitor.visitorCardName || editingVisitor.cardName || editingVisitor.card_name;
+
+            // Agar name mil gaya toh "v1 (5468103)", nahi toh sirf number fallback
+            const finalLabel = currentCardName && currentCardNumber
+              ? `${currentCardName} (${currentCardNumber}) (Currently Assigned)`
+              : currentCardName
+                ? `${currentCardName} (Currently Assigned)`
+                : `${currentCardNumber || 'Assigned Card'} (Currently Assigned)`;
+
+            opts.unshift({
+              label: finalLabel,
+              // Backend payload key match karne ke liye select value card_number honi chahiye
+              value: currentCardNumber || "",
+            });
+          }
+        }
+
+        return opts;
+      })(),
       onChange: (val: any) => {
         if (val && val !== "undefined" && val !== "null") {
-          setErrors(prev => { const copy = { ...prev }; delete copy.rfidCardNo; return copy; });
+          setErrors(prev => { const copy = { ...prev }; delete copy.contactNo; return copy; });
         }
       }
     },
