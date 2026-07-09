@@ -162,7 +162,8 @@ export default function LiveVisitorLogsDashboard() {
                   <th className="px-4 py-3 font-semibold text-left">
                     Visitor Name
                   </th>
-                  <th className="px-4 py-3 font-semibold">Visitor Code</th>
+                  {/* <th className="px-4 py-3 font-semibold">Visitor Code</th> */}
+                  <th className="px-4 py-3 font-semibold">Card No</th>
                   <th className="px-4 py-3 font-semibold">Door Name</th>
                   <th className="px-4 py-3 font-semibold">Device Name</th>
                   <th className="px-4 py-3 font-semibold">Direction</th>
@@ -187,9 +188,10 @@ export default function LiveVisitorLogsDashboard() {
                         <td className="px-4 py-3 font-medium text-left">
                         {log.visitorName}
                         </td>
-                        <td className="px-4 py-3 text-muted-foreground">
+                        {/* <td className="px-4 py-3 text-muted-foreground">
                         {log.visitorCode}
-                        </td>
+                        </td> */}
+                        <td className="px-4 py-3">{log.rfidCardNo}</td>
                         <td className="px-4 py-3">{log.doorName}</td>
                         <td className="px-4 py-3">{log.deviceName}</td>
                         <td className="px-4 py-3">
