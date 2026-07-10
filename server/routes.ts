@@ -499,33 +499,79 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ error: error.message });
     }
   });
-  app.post("/api/visitors", requireAuth, async (req, res) => {
-    try {
-      const parsed = insertVisitorSchema.parse(req.body);
-      const created = await storage.createVisitor(parsed);
-      return res.status(201).json(created);
-    } catch (error: any) {
-      return res.status(400).json({ error: error.message || "Invalid payload" });
-    }
-  });
-  app.put("/api/visitors/:id", requireAuth, async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const updated = await storage.updateVisitor(id, req.body);
-      return res.json(updated);
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message });
-    }
-  });
-  app.delete("/api/visitors/:id", requireAuth, async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      await storage.deleteVisitor(id);
-      return res.json({ success: true, message: "Visitor deleted successfully" });
-    } catch (error: any) {
-      return res.status(500).json({ error: error.message });
-    }
-  });
+  app.post(
+    "/api/visitors",
+    requireAuth,
+    withAudit(
+      TABLES.VISITORS,
+      "ADD",
+      async (req) => await storage.createVisitor(insertVisitorSchema.parse(req.body)),
+      201
+    )
+  );
+  // app.post("/api/visitors", requireAuth, async (req, res) => {
+  //   try {
+  //     const parsed = insertVisitorSchema.parse(req.body);
+  //     const created = await storage.createVisitor(parsed);
+  //     return res.status(201).json(created);
+  //   } catch (error: any) {
+  //     return res.status(400).json({ error: error.message || "Invalid payload" });
+  //   }
+  // });
+  app.put(
+    "/api/visitors/:id",
+    requireAuth,
+    withAudit(
+      TABLES.VISITORS, // Ya direct "visitors" string agar constant defined na ho
+      "UPDATE",
+      async (req: any) => {
+        const id = Number(req.params.id);
+
+        // Agar aapke paas update karne se pehle zod schema schema validate karna ho:
+        // const parsed = insertVisitorSchema.partial().parse(req.body);
+
+        const updated = await storage.updateVisitor(id, req.body);
+        return updated;
+      },
+      200 // Success status code
+    )
+  );
+  // app.put("/api/visitors/:id", requireAuth, async (req, res) => {
+  //   try {
+  //     const id = Number(req.params.id);
+  //     const updated = await storage.updateVisitor(id, req.body);
+  //     return res.json(updated);
+  //   } catch (error: any) {
+  //     return res.status(500).json({ error: error.message });
+  //   }
+  // });
+  // app.delete("/api/visitors/:id", requireAuth, async (req, res) => {
+  //   try {
+  //     const id = Number(req.params.id);
+  //     await storage.deleteVisitor(id);
+  //     return res.json({ success: true, message: "Visitor deleted successfully" });
+  //   } catch (error: any) {
+  //     return res.status(500).json({ error: error.message });
+  //   }
+  // });
+  app.delete(
+    "/api/visitors/:id",
+    requireAuth,
+    withAudit(
+      TABLES.VISITORS, // Ya direct "visitors" string agar constant defined na ho
+      "DELETE",
+      async (req: any) => {
+        const id = Number(req.params.id);
+
+        // 1. Database se record delete karein
+        await storage.deleteVisitor(id);
+
+        // 2. Response object return karein jo frontend ko receive hoga
+        return { success: true, message: "Visitor deleted successfully" };
+      },
+      200 // Success status code (Aapka middleware ise .json() me convert kar dega)
+    )
+  );
   app.post(
     "/api/visitors/:id/checkout", requireAuth,
     withAudit(
@@ -556,15 +602,45 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.put("/api/visits/:id", requireAuth, async (req, res) => {
-    try {
-      const input = insertVisitSchema.partial().parse(req.body);
-      res.json(await storage.updateVisit(parseInt(req.params.id), input));
-    } catch (e: any) {
-      if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-      res.status(500).json({ message: e.message });
-    }
-  });
+  // app.put("/api/visits/:id", requireAuth, async (req, res) => {
+  //   try {
+  //     const input = insertVisitSchema.partial().parse(req.body);
+  //     res.json(await storage.updateVisit(parseInt(req.params.id), input));
+  //   } catch (e: any) {
+  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
+  //     res.status(500).json({ message: e.message });
+  //   }
+  // });
+  app.put(
+    "/api/visits/:id",
+    requireAuth,
+    withAudit(
+      TABLES.VISITS, // Ya direct "visits" string agar constant defined na ho
+      "UPDATE",
+      async (req: any) => {
+        try {
+          // 1. Zod standard validation checking
+          const input = insertVisitSchema.partial().parse(req.body);
+
+          // 2. Storage operation triggering
+          const updated = await storage.updateVisit(parseInt(req.params.id), input);
+          return updated;
+        } catch (e: any) {
+          // Agar Zod validation fail hoti hai, toh use middleware-compatible custom error banayein
+          if (e instanceof z.ZodError) {
+            throw {
+              isCustom: true,
+              status: 400,
+              errors: e.errors
+            };
+          }
+          // Baki internal errors ko upar default bubble hone dein
+          throw e;
+        }
+      },
+      200 // Success status code
+    )
+  );
   app.post("/api/visits/:id/check-in", requireAuth, async (req, res) => {
     try {
       const visit = await storage.updateVisit(parseInt(req.params.id), {
@@ -1552,16 +1628,41 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/doors/bulk-assign", requireAuth, withAudit("employee_door_assignments", "BULK_DOOR_ASIGNMENT", async (req: any) => {
     return await processDoorUpdate(req.body.data);
   }));
-  app.post("/api/contractors/bulk-upload", requireAuth, async (req: any, res: any) => {
-    const result = await processContractorBulkUploadOnly(req.body.data);
-    if (result.success === false) {
-      return res.status(400).json(result);
-    }
-    const auditHandler = withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
-      return result;
-    });
-    await auditHandler(req, res);
-  });
+  // app.post("/api/contractors/bulk-upload", requireAuth, async (req: any, res: any) => {
+  //   const result = await processContractorBulkUploadOnly(req.body.data);
+  //   if (result.success === false) {
+  //     return res.status(400).json(result);
+  //   }
+  //   const auditHandler = withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
+  //     return result;
+  //   });
+  //   await auditHandler(req, res);
+  // });
+  app.post(
+    "/api/contractors/bulk-upload",
+    requireAuth,
+    withAudit(
+      "contractors", // Ya TABLES.CONTRACTORS agar constant file me defined hai
+      "BULK_CONTRACTOR_UPLOAD",
+      async (req: any) => {
+        // 1. Bulk upload process run karein
+        const result = await processContractorBulkUploadOnly(req.body.data);
+
+        // 2. Agar success false hai, toh custom error throw karein jo withAudit ke catch block me throw ho sake
+        if (result.success === false) {
+          throw {
+            isCustom: true,
+            status: 400,
+            errors: result
+          };
+        }
+
+        // 3. Success hone par data direct return karein jo audit log me 'newData' banega
+        return result;
+      },
+      200 // Success status code
+    )
+  );
   app.get("/api/download/:type/:category/:folder/:filename", requireAuth, (req, res) => {
     const { type, category, folder, filename } = req.params;
     const filePath = path.join(process.cwd(), 'media', type, category, folder, filename);
