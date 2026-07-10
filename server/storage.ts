@@ -1839,6 +1839,7 @@ export class DatabaseStorage implements IStorage {
   //   const [visitor] = await db.select().from(visitors).where(eq(visitors.id, id));
   //   return visitor;
   // }
+  
   async getVisitors(
     page?: number,
     pageSize?: number,

@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
+import { validateNoHtml } from "@/lib/validation";
 import { useConfirm } from "@/hooks/use-confirm";
 import {
   Pencil,
@@ -49,8 +50,10 @@ export default function VisitorCardsPage() {
   const [formKey, setFormKey] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const { isLoading, update, remove, isUpdating } =
-    useCrud<any>(`/api/visitor_cards`, "Visitor Card") as any;
+  const { isLoading, update, remove, isUpdating } = useCrud<any>(
+    `/api/visitor_cards`,
+    "Visitor Card",
+  ) as any;
 
   const [pagedResponse, setPagedResponse] = useState<any>(null);
 
@@ -231,12 +234,14 @@ export default function VisitorCardsPage() {
         title="Visitor Cards"
         description="Manage RFID/Visitor cards and their expiry"
         action={
-          <Button 
-            onClick={handleSync} 
+          <Button
+            onClick={handleSync}
             disabled={isSyncing || isLoading}
             variant="default"
           >
-            <RotateCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+            <RotateCw
+              className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`}
+            />
             {isSyncing ? "Syncing..." : "Sync Cards"}
           </Button>
         }
@@ -372,6 +377,23 @@ export default function VisitorCardsPage() {
             if (!canEdit) return;
             try {
               setErrors({});
+
+              // Combined local object validation layer trigger 🔴
+              let validationErrors: Record<string, string> = {};
+
+              // 🌟 [ADDED] HTML Tags Dynamic Validation Block
+              // Pure formData object ko check karenge taaki Card Name ya custom inputs me koi HTML injector block ho sake
+              const htmlTagErrors = validateNoHtml(formData);
+              if (Object.keys(htmlTagErrors).length > 0) {
+                validationErrors = { ...validationErrors, ...htmlTagErrors };
+              }
+
+              // Agar HTML ya parse validation catch hoti hai toh direct execution roko 🛑
+              if (Object.keys(validationErrors).length > 0) {
+                setErrors(validationErrors);
+                return;
+              }
+
               const payload = {
                 ...formData,
                 location: formData.location ? Number(formData.location) : 0,

@@ -7,6 +7,7 @@ import { DataTable } from "@/components/data-table";
 import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/hooks/use-confirm"; 
+import { validateNoHtml } from "@/lib/validation";
 import {
   Pencil,
   Plus,
@@ -231,50 +232,57 @@ export default function VisitorsPage() {
     // },
     
     {
-      key: "rfidCardNo",
-      label: "RFID Card No *",
-      type: "select",
-      options: (() => {
-        // 1. Available/Unassigned cards map karein (Format: v2 (3062587))
-        const opts = visitorCards.map((c: any) => ({
-          label: c.name ? `${c.name} (${c.cardNumber || c.card_number})` : (c.cardNumber || c.card_number),
-          value: c.cardNumber || c.card_number,
-        }));
+  key: "rfidCardNo",
+  label: "RFID Card No *",
+  type: "select",
+  options: (() => {
+    // 1. Available/Unassigned cards map karein (Format: v2 (3062587))
+    const opts = visitorCards.map((c: any) => ({
+      label: c.name ? `${c.name} (${c.cardNumber || c.card_number})` : (c.cardNumber || c.card_number),
+      value: c.cardNumber || c.card_number,
+    }));
 
-        // 2. Agar Edit Mode chal raha hai aur assigned card listed nahi hai
-        if (editingVisitor) {
-          // Check database mapping keys (visitorCardId or visitor_card_id)
-          const currentCardId = editingVisitor.visitorCardId || editingVisitor.visitor_card_id;
+    // 2. Agar Edit Mode chal raha hai aur assigned card listed nahi hai
+    if (editingVisitor) {
+      // Check database mapping keys (visitorCardId or visitor_card_id)
+      const currentCardId = editingVisitor.visitorCardId || editingVisitor.visitor_card_id;
 
-          // Fallback number agar backend direct string bhej raha ho
-          const currentCardNumber = editingVisitor.rfidCardNo || editingVisitor.card_number;
+      // Fallback number agar backend direct string bhej raha ho
+      const currentCardNumber = editingVisitor.rfidCardNo || editingVisitor.card_number;
 
-          // Check if this card is already in unassigned dropdown list
-          const alreadyExists = opts.some(
-            (o: any) =>
-              (currentCardNumber && String(o.value).trim() === String(currentCardNumber).trim())
-          );
+      // Check if this card is already in unassigned dropdown list
+      const alreadyExists = opts.some(
+        (o: any) =>
+          (currentCardNumber && String(o.value).trim() === String(currentCardNumber).trim())
+      );
 
-          if (!alreadyExists) {
-            // Hum name nikalne ke liye backend response properties (jo Step 2 mein add karenge) use karenge
-            const currentCardName = editingVisitor.visitorCardName || editingVisitor.cardName || editingVisitor.card_name;
+      if (!alreadyExists) {
+        // Hum name nikalne ke liye backend response properties use karenge
+        const currentCardName = editingVisitor.visitorCardName || editingVisitor.cardName || editingVisitor.card_name;
+        
+        // Naya Check: Agar permissionDateTo null hai, toh hi "(Currently Assigned)" lagana hai
+        const isCurrentlyAssigned = !editingVisitor.permissionDateTo; 
+        const suffix = isCurrentlyAssigned ? " (Currently Assigned)" : "";
 
-            // Agar name mil gaya toh "v1 (5468103)", nahi toh sirf number fallback
-            const finalLabel = currentCardName && currentCardNumber
-              ? `${currentCardName} (${currentCardNumber}) (Currently Assigned)`
-              : currentCardName
-                ? `${currentCardName} (Currently Assigned)`
-                : `${currentCardNumber || 'Assigned Card'} (Currently Assigned)`;
-
-            opts.unshift({
-              label: finalLabel,
-              // Backend payload key match karne ke liye select value card_number honi chahiye
-              value: currentCardNumber || "",
-            });
-          }
+        // Label structure create karein based on availability of name and number
+        let finalLabel = "";
+        if (currentCardName && currentCardNumber) {
+          finalLabel = `${currentCardName} (${currentCardNumber})${suffix}`;
+        } else if (currentCardName) {
+          finalLabel = `${currentCardName}${suffix}`;
+        } else {
+          finalLabel = `${currentCardNumber || 'Assigned Card'}${suffix}`;
         }
 
-        return opts;
+        opts.unshift({
+          label: finalLabel,
+          // Backend payload key match karne ke liye select value card_number honi chahiye
+          value: currentCardNumber || "",
+        });
+      }
+    }
+    
+    return opts;
       })(),
       onChange: (val: any) => {
         if (val && val !== "undefined" && val !== "null") {
@@ -378,26 +386,39 @@ export default function VisitorsPage() {
         <div className="flex items-center space-x-1">
           {/* EXIT BUTTON */}
           <Button
-            size="icon"
-            variant="ghost"
-            title="Mark Exit / Check-out"
-            onClick={async (e) => {
-              e.stopPropagation();
-              const confirmed = await confirm({
-                title: "Mark Visitor Exit?",
-                description: `Are you sure you want to check out ${v.nameOfVisitor}? This will update their departure timestamp.`,
-                confirmText: "Yes, Check-out",
-                cancelText: "Cancel",
-                variant: "default",
-              });
-              if (confirmed) {
-                checkoutVisitor.mutate(v.id);
-              }
-            }}
-            disabled={checkoutVisitor.isPending}
-          >
-            <LogOut className="w-4 h-4 text-emerald-500" />
-          </Button>
+  size="icon"
+  variant="ghost"
+  title="Mark Exit / Check-out"
+  onClick={async (e) => {
+    e.stopPropagation();
+
+    // 🌟 CHECK: Agar visitor already check-out ho chuka hai (Out Time majood hai)
+    if (v.permissionDateTo) {
+      toast({
+        title: "Already Checked Out",
+        description: `${v.nameOfVisitor} has already logged out at ${new Date(v.permissionDateTo).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
+        variant: "destructive", // Ya fir "default" jaisa aapko sahi lage
+      });
+      return; // Aage ka confirmation block aur mutation trigger nahi hoga 🛑
+    }
+
+    // Agar checked-out nahi hai, toh hi confirm box open hoga
+    const confirmed = await confirm({
+      title: "Mark Visitor Exit?",
+      description: `Are you sure you want to check out ${v.nameOfVisitor}? This will update their departure timestamp.`,
+      confirmText: "Yes, Check-out",
+      cancelText: "Cancel",
+      variant: "default",
+    });
+    if (confirmed) {
+      checkoutVisitor.mutate(v.id);
+    }
+  }}
+  disabled={checkoutVisitor.isPending}
+>
+  {/* 🌟 STYLING OPTION: Agar visitor already logged out hai toh icon thoda fade/gray-out dikhe */}
+  <LogOut className={`w-4 h-4 ${v.permissionDateTo ? "text-muted-foreground/50" : "text-emerald-500"}`} />
+</Button>
 
           {/* VIEW BUTTON */}
           <Button
@@ -590,68 +611,70 @@ export default function VisitorsPage() {
             : undefined
         }
         onSubmit={(data) => {
-          const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
-          const cleanedContact = String(data.contactNo || "").trim();
-          const cleanedEmail = String(data.emailAddress || "").trim();
+  setErrors({}); // Har submission par pehle errors clear karein
 
-          const selectedRfid = String(data.rfidCardNo || "").trim();
-          const selectedWhomToMeet = String(data.whomToMeet || "").trim();
-          const selectedInTime = String(data.permissionDateFrom || "").trim();
+  // 1. 🌟 GLOBAL HTML CHECK (Shifts Page ke pattern par object level par call kiya)
+  const validationErrors = validateNoHtml(data) || {};
 
-          // Combined validation state object trigger 🔴
-          const validationErrors: Record<string, string> = {};
+  // Cleaned variables for format checks
+  const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
+  const cleanedContact = String(data.contactNo || "").trim();
+  const cleanedEmail = String(data.emailAddress || "").trim();
 
-          // 🛑 1. Name Check
-          if (!cleanedVisitorName) {
-            validationErrors.nameOfVisitor = "Visitor name is required.";
-          }
+  const selectedRfid = String(data.rfidCardNo || "").trim();
+  const selectedWhomToMeet = String(data.whomToMeet || "").trim();
+  const selectedInTime = String(data.permissionDateFrom || "").trim();
 
-          // 🛑 2. RFID Card No Selection Validation
-          if (!selectedRfid || selectedRfid === "undefined" || selectedRfid === "null") {
-            validationErrors.rfidCardNo = "Please select an RFID Card.";
-          }
+  // 🛑 2. Name Check (Agar validateNoHtml me handle na ho raha ho toh backup)
+  if (!cleanedVisitorName) {
+    validationErrors.nameOfVisitor = "Visitor name is required.";
+  }
 
-          // 🛑 3. Whom To Meet Selection Validation
-          if (!selectedWhomToMeet || selectedWhomToMeet === "undefined" || selectedWhomToMeet === "null") {
-            validationErrors.whomToMeet = "Please select the employee to meet.";
-          }
+  // 🛑 3. RFID Card No Selection Validation
+  if (!selectedRfid || selectedRfid === "undefined" || selectedRfid === "null") {
+    validationErrors.rfidCardNo = "Please select an RFID Card.";
+  }
 
-          // 🛑 4. In Time Selection Validation 🌟 (Ab bina popup ke block kiye yahan handle hoga)
-          if (!selectedInTime || selectedInTime === "undefined" || selectedInTime === "null") {
-            validationErrors.permissionDateFrom = "Please select the In Time.";
-          }
+  // 🛑 4. Whom To Meet Selection Validation
+  if (!selectedWhomToMeet || selectedWhomToMeet === "undefined" || selectedWhomToMeet === "null") {
+    validationErrors.whomToMeet = "Please select the employee to meet.";
+  }
 
-          // 🛑 5. Contact Number Format Checks
-          if (!cleanedContact) {
-            validationErrors.contactNo = "Contact number is required.";
-          } else if (!/^\d{10}$/.test(cleanedContact)) {
-            validationErrors.contactNo = "Contact number must be exactly 10 digits.";
-          } else {
-            const firstDigit = Number(cleanedContact.charAt(0));
-            if (firstDigit <= 5) {
-              validationErrors.contactNo = "Contact number must start with 6, 7, 8, or 9.";
-            }
-          }
+  // 🛑 5. In Time Selection Validation
+  if (!selectedInTime || selectedInTime === "undefined" || selectedInTime === "null") {
+    validationErrors.permissionDateFrom = "Please select the In Time.";
+  }
 
-          // 🛑 6. Email Validation
-          if (cleanedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
-            validationErrors.emailAddress = "Please enter a valid email address.";
-          }
+  // 🛑 6. Contact Number Format Checks
+  if (!cleanedContact) {
+    validationErrors.contactNo = "Contact number is required.";
+  } else if (!/^\d{10}$/.test(cleanedContact)) {
+    validationErrors.contactNo = "Contact number must be exactly 10 digits.";
+  } else {
+    const firstDigit = Number(cleanedContact.charAt(0));
+    if (firstDigit <= 5) {
+      validationErrors.contactNo = "Contact number must start with 6, 7, 8, or 9.";
+    }
+  }
 
-          // If errors exist, reject mutation dispatch sequence 🛑
-          if (Object.keys(validationErrors).length > 0) {
-            setErrors(validationErrors);
-            return; 
-          }
+  // 🛑 7. Email Validation
+  if (cleanedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
+    validationErrors.emailAddress = "Please enter a valid email address.";
+  }
 
-          // Agar saare validations pass ho gaye hain, toh data submit hoga
-          setErrors({});
-          if (editingVisitor) {
-            updateVisitor.mutate({ id: editingVisitor.id, data });
-          } else {
-            createVisitor.mutate(data);
-          }
-        }}
+  // If errors exist, reject mutation dispatch sequence 🛑
+  if (Object.keys(validationErrors).length > 0) {
+    setErrors(validationErrors);
+    return; 
+  }
+
+  // Agar saare validations pass ho gaye hain, toh data submit hoga
+  if (editingVisitor) {
+    updateVisitor.mutate({ id: editingVisitor.id, data });
+  } else {
+    createVisitor.mutate(data);
+  }
+}}
         isPending={createVisitor.isPending || updateVisitor.isPending}
       />
 

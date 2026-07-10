@@ -13,6 +13,8 @@ interface FormErrors {
 }
 
 export default function ContractorFormPage() {
+
+  
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -264,21 +266,21 @@ export default function ContractorFormPage() {
       </div>
 
       <form
-        onSubmit={handleSubmit}
-        className="space-y-6 bg-white p-6 border rounded-lg shadow-sm"
-      >
-        <div className="flex border-b mb-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab("personal")}
-            className={`px-4 py-2 ${
-              activeTab === "personal"
-                ? "border-b-2 border-[#5c54d5] text-[#5c54d5] font-bold"
-                : "text-gray-500"
-            }`}
-          >
-            Personal Details
-          </button>
+  onSubmit={handleSubmit}
+  className="space-y-6 bg-white p-6 border rounded-lg shadow-sm"
+>
+  <div className="flex border-b mb-6">
+    <button
+      type="button"
+      onClick={() => setActiveTab("personal")}
+      className={`px-4 py-2 ${
+        activeTab === "personal"
+          ? "border-b-2 border-[#5c54d5] text-[#5c54d5] font-bold"
+          : "text-gray-500"
+      }`}
+    >
+      Personal Details
+    </button>
 
           <button
             type="button"
