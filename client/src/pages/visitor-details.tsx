@@ -613,7 +613,6 @@ export default function VisitorsPage() {
         onSubmit={(data) => {
   setErrors({}); // Har submission par pehle errors clear karein
 
-  // 1. 🌟 GLOBAL HTML CHECK (Shifts Page ke pattern par object level par call kiya)
   const validationErrors = validateNoHtml(data) || {};
 
   // Cleaned variables for format checks
