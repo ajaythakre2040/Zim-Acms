@@ -66,10 +66,8 @@ export default function PeopleFormPage() {
     roleId: "",
     msId: "",
     departmentId: "",
-    departmentName: "",
     shiftId: "",
     designationId: "",
-    designationName: "",
     companyId: "",
     locationId: "",
     ruleid: "",
@@ -389,8 +387,8 @@ export default function PeopleFormPage() {
                   {errors.email && <p className="text-red-500 text-[11px] mt-1 font-semibold">{errors.email}</p>}
                 </div>
                 <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-700">Guardian Name</label>
-                  <input name="guardianName" value={formData.guardianName || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
+                  <label className="block text-xs font-bold mb-1 text-slate-700">Father's Name</label>
+                  <input name="fatherName" value={formData.fatherName || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Emergency Phone</label>
@@ -430,17 +428,17 @@ export default function PeopleFormPage() {
               <h3 className="text-sm font-bold uppercase text-slate-400 mb-3 border-b pb-1">4. System Deployment IDs & Core Work Mapping</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-700">Department</label>
-                  <input name="departmentId" value={formData.departmentName || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
+                  <label className="block text-xs font-bold mb-1 text-slate-700">Department ID (Numeric)</label>
+                  <input name="departmentId" value={formData.departmentId || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-700">Designation</label>
-                  <input name="designationId" value={formData.designationName || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
+                  <label className="block text-xs font-bold mb-1 text-slate-700">Designation ID (Numeric)</label>
+                  <input name="designationId" value={formData.designationId || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
                 </div>
-                {/* <div>
+                <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Shift ID (Numeric)</label>
                   <input name="shiftId" value={formData.shiftId || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
-                </div> */}
+                </div>
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Company ID (Numeric)</label>
                   <input name="companyId" value={formData.companyId || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />

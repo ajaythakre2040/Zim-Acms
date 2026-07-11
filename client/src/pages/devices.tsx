@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { validateNoHtml } from "@/lib/validation";
 import { useToast } from "@/hooks/use-toast";
 import { useConfirm } from "@/hooks/use-confirm";
+
 import {
   Plus,
   Loader2,
@@ -61,6 +62,7 @@ export default function DevicesPage() {
   const [editing, setEditing] = useState<Device | null>(null);
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSyncing, setIsSyncing] = useState(false);
   // Aapka original CRUD hook
   type PaginatedDeviceResponse = {
     data: Device[];
@@ -348,26 +350,40 @@ export default function DevicesPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
       <PageHeader
-        title="Devices"
-        description="Manage access control devices"
-        action={
-          canAdd && (
-            <Button
-              onClick={async () => {
-                setEditing(null);
-                await fetchDevices();
-              }}
-              className="gap-2"
-              disabled={isLoading} // Optional: Fetching ke waqt double click rokne ke liye
-            >
-              <RefreshCw
-                className={`w-4 h-4 mr-1 ${isLoading ? "animate-spin" : "transition-transform group-hover:rotate-180"}`}
-              />
-              {isLoading ? "Syncing..." : "Sync"}
-            </Button>
-          )
+  title="Devices"
+  description="Manage access control devices"
+  action={
+    <Button
+      onClick={async () => {
+        try {
+          setIsSyncing(true);
+          setEditing(null);
+          await fetchDevices();
+          
+          toast({
+            title: "Refreshed",
+            description: "Device list synced successfully",
+          });
+        } catch (error) {
+          console.error(error);
+        } finally {
+          setIsSyncing(false);
         }
-      />
+      }}
+      // 🚀 fixed width (w-24) de di taaki text change par size na badle aur hile nahi
+      className="gap-2 w-24 justify-center" 
+      disabled={isSyncing || isLoading}
+    >
+      <div className={`flex items-center gap-1 ${isSyncing ? "animate-pulse opacity-70" : ""}`}>
+        <RefreshCw
+          className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`}
+        />
+        {/* 🚀 Text ko 'Sync' hi rakha taaki length change na ho, bas sync ke waqt blink karega */}
+        <span>Sync</span>
+      </div>
+    </Button>
+  }
+/>
 
       <div className="grid grid-cols-4 gap-3">
         {" "}

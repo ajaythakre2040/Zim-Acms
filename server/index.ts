@@ -25,13 +25,14 @@ declare module "http" {
 
 app.use(
   express.json({
+    limit: "100mb",
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
   }),
 );
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ limit: "100mb", extended: false }));
 
 /**
  * Logging Helper
