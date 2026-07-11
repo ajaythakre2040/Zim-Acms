@@ -335,8 +335,8 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     const query = db
       .select({
-        id: users.id, 
-        profileId: userProfiles.id, 
+        id: users.id,
+        profileId: userProfiles.id,
         employeeCode: userProfiles.employeeCode,
         roleId: userProfiles.roleId,
         isActive: userProfiles.isActive,
@@ -1087,13 +1087,218 @@ export class DatabaseStorage implements IStorage {
   // }
 
 
+  // async getDevices(
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  //   search?: string,
+  // ): Promise<any> {
+  //   try {
+  //     // 1. Fetch data from MS SQL
+  //     const msDataRaw = await mssqlPool
+  //       .request()
+  //       .query("SELECT * FROM Devices")
+  //       .then((res: any) => res.recordset as any[]);
+
+  //     if (!msDataRaw || msDataRaw.length === 0) {
+  //       return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
+  //     }
+
+  //     const currentTime = new Date();
+  //     const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
+  //     let onlineCount = 0;
+  //     let offlineCount = 0;
+
+  //     // 2. Format devices
+  //     let formattedDevices = msDataRaw.map((d: any) => {
+  //       let lPing: Date | null = null;
+  //       let calculatedStatus = "offline";
+
+  //       if (d.LastPing) {
+  //         lPing = new Date(d.LastPing);
+  //         let diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
+  //         const absDiff = Math.abs(diffInMinutes);
+  //         if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
+  //           calculatedStatus = "online";
+  //         }
+  //       }
+
+  //       if (calculatedStatus === "online") onlineCount++;
+  //       else offlineCount++;
+
+  //       return {
+  //         msId: Number(d.DeviceId || d.DeviceID),
+  //         name: d.DeviceName || "Unnamed Device",
+  //         deviceDirection: d.DeviceDirection || null,
+  //         serialNumber: d.SerialNumber ? d.SerialNumber.trim() : (d.serialno ? d.serialno.trim() : null),
+  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
+  //         lastPing: lPing,
+  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
+  //         activationCode: d.ActivationCode || "",
+  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
+  //         locationId: d.LocationId || null,
+  //         ipAddress: d.IpAddress || "",
+  //         lastHeartbeat: lPing,
+  //         status: calculatedStatus,
+  //         isActive: true,
+  //       };
+  //     });
+
+  //     // Master list of all MS SQL IDs for safe cleanup later
+  //     const allMsSqlIds = formattedDevices.map((d) => d.msId);
+
+  //     // 3. Apply Search Filter
+  //     if (search && search.trim()) {
+  //       const s = search.toLowerCase();
+  //       formattedDevices = formattedDevices.filter(
+  //         (d) =>
+  //           d.name?.toLowerCase().includes(s) ||
+  //           d.ipAddress?.toLowerCase().includes(s) ||
+  //           d.serialNumber?.toLowerCase().includes(s) ||
+  //           d.deviceType?.toLowerCase().includes(s),
+  //       );
+  //     }
+
+  //     // 4. Fetch existing data from Local DB (People table from OPG) & Block Logs
+  //     const [existingLocalDevices, allPeople, existingLogs] = await Promise.all([
+  //       db.select({ msId: devices.msId }).from(devices),
+  //       // 🔥 Yahan hum door assignments ke bajaye schema.people table se employeeCode le rahe hain
+  //       db.select({ employeeCode: schema.people.employeeCode })
+  //         .from(schema.people)
+  //         .execute(),
+  //       db.select({ deviceId: blockUnblockLogs.deviceId }).from(blockUnblockLogs).execute(),
+  //     ]);
+
+  //     const existingMsIdsSet = new Set(existingLocalDevices.map((ld) => Number(ld.msId)));
+  //     const devicesWithLogsSet = new Set(existingLogs.map(l => Number(l.deviceId)));
+
+
+  //     // 5. Processing Loop
+  //     for (const dev of formattedDevices) {
+  //       const currentMsId = Number(dev.msId);
+  //       const deviceSerial = dev.serialNumber;
+
+  //       const isNewDevice = !existingMsIdsSet.has(currentMsId);
+  //       const hasNoLogsYet = !devicesWithLogsSet.has(currentMsId);
+
+  //       if (isNewDevice || hasNoLogsYet) {
+
+  //         // Pehle device ko local DB mein normal save/update karo
+  //         await db
+  //           .insert(devices)
+  //           .values(dev)
+  //           .onConflictDoUpdate({
+  //             target: devices.msId,
+  //             set: { ...dev },
+  //           });
+
+  //         if (allPeople && allPeople.length > 0 && deviceSerial) {
+  //           // People table ke pehle employee ka code nikaalo loop se pehle lock karne ke liye
+  //           const firstEmpCode = allPeople[0].employeeCode?.trim();
+
+  //           if (firstEmpCode) {
+  //             // 🔥 FAIL-SAFE LOCK: Pehle employee ke real code se log insert karke transaction block kar do
+  //             try {
+  //               await db.insert(blockUnblockLogs).values({
+  //                 employeeCode: firstEmpCode,
+  //                 deviceId: currentMsId,
+  //                 type: "block",
+  //                 updatedAt: new Date(),
+  //               });
+  //               devicesWithLogsSet.add(currentMsId);
+  //               console.log(`🔒 Transaction lock applied directly with Real Emp Code from People table: ${firstEmpCode}`);
+  //             } catch (dbErr: any) {
+  //               console.error(`❌ Failed to create initial log lock for device ${currentMsId}:`, dbErr.message);
+  //             }
+  //           }
+
+
+  //           // Saare employees ka step-by-step processing
+  //           for (let i = 0; i < allPeople.length; i++) {
+  //             const empCode = allPeople[i].employeeCode?.trim();
+  //             if (!empCode) continue;
+
+  //             try {
+  //               // 1. eSSL API Call (Hardware Level Block)
+  //               await esslService.syncUserBlockStatus(empCode, deviceSerial, true);
+
+  //               // 2. Database logging strategy
+  //               if (i === 0) {
+  //                 // Pehle employee ka entry upar lock ke liye ho chuka hai, toh yahan dobara nahi karenge
+  //                 console.log(`   ✅ [Lock verified] Block applied on eSSL: Emp ${empCode} ➡️ Device ${currentMsId}`);
+  //               } else {
+  //                 // Baaki saare agle employees ke liye fresh row insert hogi
+  //                 await db.insert(blockUnblockLogs).values({
+  //                   employeeCode: empCode,
+  //                   deviceId: currentMsId,
+  //                   type: "block",
+  //                   updatedAt: new Date(),
+  //                 });
+  //                 console.log(`   ✅ Fresh block log inserted: Emp ${empCode} ➡️ Device ${currentMsId}`);
+  //               }
+  //             } catch (esslErr: any) {
+  //               console.error(`   ❌ eSSL/DB skip for ${empCode} on device ${currentMsId}:`, esslErr.message);
+  //             }
+  //           }
+  //         }
+  //       } else {
+  //         // Normal configuration update agar logs pehle se hain
+  //         await db
+  //           .insert(devices)
+  //           .values(dev)
+  //           .onConflictDoUpdate({
+  //             target: devices.msId,
+  //             set: { ...dev },
+  //           });
+  //       }
+  //     }
+
+  //     // 6. Safe Cleanup (Purane filtered elements delete na ho)
+  //     if (allMsSqlIds.length > 0) {
+  //       await db.delete(devices).where(notInArray(devices.msId, allMsSqlIds));
+  //     }
+
+  //     // 7. Pagination & Return Logic
+  //     if (!pageSize) return formattedDevices;
+  //     if (pageSize === -1 || pageSize === "-1") {
+  //       return {
+  //         data: formattedDevices,
+  //         totalCount: formattedDevices.length,
+  //         totalPages: 1,
+  //         currentPage: 1,
+  //         pageSize: formattedDevices.length,
+  //         onlineCount,
+  //         offlineCount,
+  //       };
+  //     }
+
+  //     const p = page && Number(page) > 0 ? Number(page) : 1;
+  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+  //     const start = (p - 1) * size;
+  //     const end = start + size;
+  //     const paginatedData = formattedDevices.slice(start, end);
+
+  //     return {
+  //       data: paginatedData,
+  //       totalCount: formattedDevices.length,
+  //       totalPages: Math.ceil(formattedDevices.length / size),
+  //       currentPage: p,
+  //       pageSize: size,
+  //       onlineCount,
+  //       offlineCount,
+  //     };
+  //   } catch (error: any) {
+  //     console.error("💀 Comprehensive Device Sync Failure:", error.message);
+  //     return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
+  //   }
+  // }
+
   async getDevices(
     page ?: number | string,
     pageSize ?: number | string,
     search ?: string,
   ): Promise < any > {
     try {
-      // 1. Fetch data from MS SQL
       const msDataRaw = await mssqlPool
         .request()
         .query("SELECT * FROM Devices")
@@ -1108,7 +1313,6 @@ export class DatabaseStorage implements IStorage {
   let onlineCount = 0;
   let offlineCount = 0;
 
-  // 2. Format devices
   let formattedDevices = msDataRaw.map((d: any) => {
     let lPing: Date | null = null;
     let calculatedStatus = "offline";
@@ -1144,10 +1348,8 @@ export class DatabaseStorage implements IStorage {
     };
   });
 
-  // Master list of all MS SQL IDs for safe cleanup later
   const allMsSqlIds = formattedDevices.map((d) => d.msId);
 
-  // 3. Apply Search Filter
   if (search && search.trim()) {
     const s = search.toLowerCase();
     formattedDevices = formattedDevices.filter(
@@ -1159,22 +1361,15 @@ export class DatabaseStorage implements IStorage {
     );
   }
 
-  // 4. Fetch existing data from Local DB (People table from OPG) & Block Logs
   const [existingLocalDevices, allPeople, existingLogs] = await Promise.all([
     db.select({ msId: devices.msId }).from(devices),
-    // 🔥 Yahan hum door assignments ke bajaye schema.people table se employeeCode le rahe hain
-    db.select({ employeeCode: schema.people.employeeCode })
-      .from(schema.people)
-      .execute(),
+    db.select({ employeeCode: schema.people.employeeCode }).from(schema.people).execute(),
     db.select({ deviceId: blockUnblockLogs.deviceId }).from(blockUnblockLogs).execute(),
   ]);
 
   const existingMsIdsSet = new Set(existingLocalDevices.map((ld) => Number(ld.msId)));
   const devicesWithLogsSet = new Set(existingLogs.map(l => Number(l.deviceId)));
 
-  console.log(`🖥️ Total local devices: ${existingMsIdsSet.size} | Devices with active logs: ${devicesWithLogsSet.size}`);
-
-  // 5. Processing Loop
   for (const dev of formattedDevices) {
     const currentMsId = Number(dev.msId);
     const deviceSerial = dev.serialNumber;
@@ -1182,86 +1377,57 @@ export class DatabaseStorage implements IStorage {
     const isNewDevice = !existingMsIdsSet.has(currentMsId);
     const hasNoLogsYet = !devicesWithLogsSet.has(currentMsId);
 
-    if (isNewDevice || hasNoLogsYet) {
-      console.log(`🚀 [BLOCK TRIGGERED] Syncing block sequence for device: ${dev.name} (${deviceSerial})`);
+    await db
+      .insert(devices)
+      .values(dev)
+      .onConflictDoUpdate({
+        target: devices.msId,
+        set: { ...dev },
+      });
 
-      // Pehle device ko local DB mein normal save/update karo
-      await db
-        .insert(devices)
-        .values(dev)
-        .onConflictDoUpdate({
-          target: devices.msId,
-          set: { ...dev },
-        });
+    if (isNewDevice && hasNoLogsYet && allPeople && allPeople.length > 0 && deviceSerial) {
+      devicesWithLogsSet.add(currentMsId);
 
-      if (allPeople && allPeople.length > 0 && deviceSerial) {
-        // People table ke pehle employee ka code nikaalo loop se pehle lock karne ke liye
-        const firstEmpCode = allPeople[0].employeeCode?.trim();
+      const firstEmpCode = allPeople[0].employeeCode?.trim();
+      if (firstEmpCode) {
+        try {
+          await db.insert(blockUnblockLogs).values({
+            employeeCode: firstEmpCode,
+            deviceId: currentMsId,
+            type: "block",
+            updatedAt: new Date(),
+          });
+        } catch (dbErr) {
+          // Quietly catch lock insertion conflicts
+        }
+      }
 
-        if (firstEmpCode) {
-          // 🔥 FAIL-SAFE LOCK: Pehle employee ke real code se log insert karke transaction block kar do
-          try {
+      for (let i = 0; i < allPeople.length; i++) {
+        const empCode = allPeople[i].employeeCode?.trim();
+        if (!empCode) continue;
+
+        try {
+          await esslService.syncUserBlockStatus(empCode, deviceSerial, true);
+
+          if (i > 0) {
             await db.insert(blockUnblockLogs).values({
-              employeeCode: firstEmpCode,
+              employeeCode: empCode,
               deviceId: currentMsId,
               type: "block",
               updatedAt: new Date(),
             });
-            devicesWithLogsSet.add(currentMsId);
-            console.log(`🔒 Transaction lock applied directly with Real Emp Code from People table: ${firstEmpCode}`);
-          } catch (dbErr: any) {
-            console.error(`❌ Failed to create initial log lock for device ${currentMsId}:`, dbErr.message);
           }
-        }
-
-        console.log(`👥 Processing ${allPeople.length} employees from People table for device ${dev.name}...`);
-
-        // Saare employees ka step-by-step processing
-        for (let i = 0; i < allPeople.length; i++) {
-          const empCode = allPeople[i].employeeCode?.trim();
-          if (!empCode) continue;
-
-          try {
-            // 1. eSSL API Call (Hardware Level Block)
-            await esslService.syncUserBlockStatus(empCode, deviceSerial, true);
-
-            // 2. Database logging strategy
-            if (i === 0) {
-              // Pehle employee ka entry upar lock ke liye ho chuka hai, toh yahan dobara nahi karenge
-              console.log(`   ✅ [Lock verified] Block applied on eSSL: Emp ${empCode} ➡️ Device ${currentMsId}`);
-            } else {
-              // Baaki saare agle employees ke liye fresh row insert hogi
-              await db.insert(blockUnblockLogs).values({
-                employeeCode: empCode,
-                deviceId: currentMsId,
-                type: "block",
-                updatedAt: new Date(),
-              });
-              console.log(`   ✅ Fresh block log inserted: Emp ${empCode} ➡️ Device ${currentMsId}`);
-            }
-          } catch (esslErr: any) {
-            console.error(`   ❌ eSSL/DB skip for ${empCode} on device ${currentMsId}:`, esslErr.message);
-          }
+        } catch (esslErr) {
+          // Quietly catch network or API exceptions to let the sync proceed
         }
       }
-    } else {
-      // Normal configuration update agar logs pehle se hain
-      await db
-        .insert(devices)
-        .values(dev)
-        .onConflictDoUpdate({
-          target: devices.msId,
-          set: { ...dev },
-        });
     }
   }
 
-  // 6. Safe Cleanup (Purane filtered elements delete na ho)
   if (allMsSqlIds.length > 0) {
     await db.delete(devices).where(notInArray(devices.msId, allMsSqlIds));
   }
 
-  // 7. Pagination & Return Logic
   if (!pageSize) return formattedDevices;
   if (pageSize === -1 || pageSize === "-1") {
     return {
@@ -1290,8 +1456,7 @@ export class DatabaseStorage implements IStorage {
     onlineCount,
     offlineCount,
   };
-    } catch (error: any) {
-    console.error("💀 Comprehensive Device Sync Failure:", error.message);
+    } catch (error) {
     return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
   }
   }
@@ -1397,8 +1562,8 @@ export class DatabaseStorage implements IStorage {
         ...restOfAdditionalDetails
       } = row.additionalDetails || {};
       return {
-        ...row.person,                  
-        ...restOfAdditionalDetails,     
+        ...row.person,
+        ...restOfAdditionalDetails,
         departmentName: row.departmentName || "N/A",
         designationName: row.designationName || "N/A",
         lastPunchDoorName: row.lastPunchDoorName || "No Door",
@@ -1562,7 +1727,7 @@ export class DatabaseStorage implements IStorage {
       )
       .leftJoin(
         schema.peopleAdditionalDetails,
-        eq(people.employeeCode, peopleAdditionalDetails.employeeCode) 
+        eq(people.employeeCode, peopleAdditionalDetails.employeeCode)
       )
       .where(eq(people.id, id));
     if (!result) return undefined;
@@ -2119,7 +2284,7 @@ export class DatabaseStorage implements IStorage {
 
     return visitor;
   }
-  
+
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
     let insertedMsSqlId: number | null = null;
     try {
@@ -2342,7 +2507,7 @@ export class DatabaseStorage implements IStorage {
     }
     const targetMsId = currentVisitor[0].msId;
     const cardIdToFree = currentVisitor[0].visitorCardId;
-    const tzOffset = new Date().getTimezoneOffset() * 60000; 
+    const tzOffset = new Date().getTimezoneOffset() * 60000;
     const localISOTime = new Date(Date.now() - tzOffset).toISOString();
     const currentIsoDate = localISOTime.slice(0, 19).replace('T', ' ');
     if (targetMsId) {
@@ -2838,7 +3003,7 @@ export class DatabaseStorage implements IStorage {
         mainGateIn: 0,
         mainGateOut: 0,
         mainGateBal: 0,
-        yesterdayInBalance: 0, 
+        yesterdayInBalance: 0,
         totalPresent: 0,
         totalAbsent: totalManpower,
         totalManpower,
@@ -2942,12 +3107,12 @@ export class DatabaseStorage implements IStorage {
       mainGateIn: mainGateInPunches,
       mainGateOut: mainGateOutPunches,
       mainGateBal: Math.max(0, mainGateInPunches - mainGateOutPunches),
-      yesterdayInBalance, 
+      yesterdayInBalance,
       totalPresent: totalPresent,
       totalAbsent: Math.max(0, totalManpower - totalPresent),
       totalManpower,
     };
-  } 
+  }
   async getShiftWiseStats(date: string): Promise<any[]> {
     try {
       const [allShifts, allDoors] = await Promise.all([
@@ -3072,7 +3237,7 @@ export class DatabaseStorage implements IStorage {
     // 4. Fetch all visitors mapped to these cards (including visitor table's rfidCardNo)
     if (cardIdentifiers.length > 0) {
       const uniqueCardIds = [...new Set(cardIdentifiers)];
-      
+
       visitorDetails = await db
         .select({
           id: schema.visitors.id,
@@ -3080,8 +3245,8 @@ export class DatabaseStorage implements IStorage {
           rfidCardNo: schema.visitors.rfidCardNo, // Visitor table se direct card no. fetch kiya
           cardMsId: visitorCards.msId,
           cardNo: visitorCards.cardNumber,
-          inTime: schema.visitors.permissionDateFrom, 
-          outTime: schema.visitors.permissionDateTo,   
+          inTime: schema.visitors.permissionDateFrom,
+          outTime: schema.visitors.permissionDateTo,
         })
         .from(schema.visitors)
         .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
@@ -3115,9 +3280,9 @@ export class DatabaseStorage implements IStorage {
 
       // Match correct visitor row based on EXACT card reference AND time span allocation
       const dbVisitor = visitorDetails.find(v => {
-        const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) || 
-                            (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier));
-        
+        const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
+          (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier));
+
         if (!isCardMatch) return false;
 
         const visitorInStr = formatToLocalStr(v.inTime) || "";
@@ -3127,7 +3292,7 @@ export class DatabaseStorage implements IStorage {
       });
 
       return {
-        visitorName: dbVisitor ? dbVisitor.visitorName : `Visitor ${numericCardIdentifier}`, 
+        visitorName: dbVisitor ? dbVisitor.visitorName : `Visitor ${numericCardIdentifier}`,
         visitorId: numericCardIdentifier,
         visitorCode: log.EmployeeCode,
         rfidCardNo: dbVisitor ? dbVisitor.rfidCardNo : String(numericCardIdentifier), // Added to response object
@@ -3139,7 +3304,7 @@ export class DatabaseStorage implements IStorage {
     });
 
     return { machineFeed };
-}
+  }
   // async getVisitorMachineAccessLogs(date: string) {
   //   const doorMappings = await db
   //     .select({
@@ -3316,6 +3481,8 @@ export class DatabaseStorage implements IStorage {
       .orderBy(desc(doorDevices.createdAt));
   }
   async createDoorDevice(data: InsertDoorDevice): Promise<DoorDevice> {
+
+    console.log("Creating Door Device with data:", data);
     const [newMapping] = await db.insert(doorDevices).values(data).returning();
     return newMapping;
   }
@@ -3333,9 +3500,182 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(doorDevices.id, id))
       .returning();
+
     if (!updatedMapping) throw new Error("Mapping not found");
+
+    try {
+      if (updatedMapping.doorId) {
+        const [doorDetail] = await db
+          .select({ doorCode: schema.doors.code })
+          .from(schema.doors)
+          .where(eq(schema.doors.id, updatedMapping.doorId))
+          .execute();
+
+        if (doorDetail && doorDetail.doorCode === MAIN_GATE_SYNC.CODE) {
+          const allPeople = await db
+            .select({ employeeCode: schema.people.employeeCode })
+            .from(schema.people)
+            .execute();
+
+          const targetDeviceIds: number[] = [];
+          if (updatedMapping.inDeviceIds && Array.isArray(updatedMapping.inDeviceIds)) {
+            targetDeviceIds.push(...updatedMapping.inDeviceIds.map(Number));
+          }
+          if (updatedMapping.outDeviceIds && Array.isArray(updatedMapping.outDeviceIds)) {
+            targetDeviceIds.push(...updatedMapping.outDeviceIds.map(Number));
+          }
+
+          if (targetDeviceIds.length > 0 && allPeople && allPeople.length > 0) {
+            const targetDevices = await db
+              .select({ msId: devices.msId, serialNumber: devices.serialNumber })
+              .from(devices)
+              .where(inArray(devices.msId, targetDeviceIds))
+              .execute();
+
+            const firstEmpCode = allPeople[0].employeeCode?.trim();
+
+            for (const dev of targetDevices) {
+              const currentMsId = Number(dev.msId);
+              const deviceSerial = dev.serialNumber;
+
+              if (!deviceSerial) continue;
+
+              if (firstEmpCode) {
+                try {
+                  await db
+                    .insert(blockUnblockLogs)
+                    .values({
+                      employeeCode: firstEmpCode,
+                      deviceId: currentMsId,
+                      type: "unblock",
+                      updatedAt: new Date(),
+                    })
+                    .onConflictDoUpdate({
+                      target: [blockUnblockLogs.employeeCode, blockUnblockLogs.deviceId],
+                      set: {
+                        type: "unblock",
+                        updatedAt: new Date(),
+                      },
+                    });
+                } catch (lockErr) {
+                  // Fail-safe lock skip
+                }
+              }
+
+              for (const emp of allPeople) {
+                const empCode = emp.employeeCode?.trim();
+                if (!empCode) continue;
+
+                try {
+                  await esslService.syncUserBlockStatus(empCode, deviceSerial, false);
+
+                  await db
+                    .insert(blockUnblockLogs)
+                    .values({
+                      employeeCode: empCode,
+                      deviceId: currentMsId,
+                      type: "unblock",
+                      updatedAt: new Date(),
+                    })
+                    .onConflictDoUpdate({
+                      target: [blockUnblockLogs.employeeCode, blockUnblockLogs.deviceId],
+                      set: {
+                        type: "unblock",
+                        updatedAt: new Date(),
+                      },
+                    });
+                } catch (esslErr) {
+                  // Fail-safe API/DB skip per employee
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch (syncError) {
+      // Fail-safe global catch
+    }
+
     return updatedMapping;
   }
+  // async updateDoorDevice(
+  //   id: number,
+  //   data: Partial<InsertDoorDevice>,
+  // ): Promise < DoorDevice > {
+  //   const [updatedMapping] = await db
+  //     .update(doorDevices)
+  //     .set({
+  //       ...data,
+  //       inDeviceIds: data.inDeviceIds,
+  //       outDeviceIds: data.outDeviceIds,
+  //     })
+  //     .where(eq(doorDevices.id, id))
+  //     .returning();
+
+  //   if(!updatedMapping) throw new Error("Mapping not found");
+
+  //   try {
+  //     if(updatedMapping.doorId) {
+  //   const [doorDetail] = await db
+  //     .select({ doorCode: schema.doors.code })
+  //     .from(schema.doors)
+  //     .where(eq(schema.doors.id, updatedMapping.doorId))
+  //     .execute();
+
+  //   if (doorDetail && doorDetail.doorCode === MAIN_GATE_SYNC.CODE) {
+  //     const allPeople = await db
+  //       .select({ employeeCode: schema.people.employeeCode })
+  //       .from(schema.people)
+  //       .execute();
+
+  //     const targetDeviceIds: number[] = [];
+  //     if (updatedMapping.inDeviceIds && Array.isArray(updatedMapping.inDeviceIds)) {
+  //       targetDeviceIds.push(...updatedMapping.inDeviceIds.map(Number));
+  //     }
+  //     if (updatedMapping.outDeviceIds && Array.isArray(updatedMapping.outDeviceIds)) {
+  //       targetDeviceIds.push(...updatedMapping.outDeviceIds.map(Number));
+  //     }
+
+  //     if (targetDeviceIds.length > 0 && allPeople && allPeople.length > 0) {
+  //       const targetDevices = await db
+  //         .select({ msId: devices.msId, serialNumber: devices.serialNumber })
+  //         .from(devices)
+  //         .where(inArray(devices.msId, targetDeviceIds))
+  //         .execute();
+
+  //       for (const dev of targetDevices) {
+  //         const currentMsId = Number(dev.msId);
+  //         const deviceSerial = dev.serialNumber;
+
+  //         if (!deviceSerial) continue;
+
+  //         for (const emp of allPeople) {
+  //           const empCode = emp.employeeCode?.trim();
+  //           if (!empCode) continue;
+
+  //           try {
+  //             await esslService.syncUserBlockStatus(empCode, deviceSerial, false);
+  //           } catch (esslErr) {
+  //             // Silently skip hardware failures to keep transaction safe
+  //           }
+  //         }
+
+  //         try {
+  //           await db
+  //             .delete(blockUnblockLogs)
+  //             .where(eq(blockUnblockLogs.deviceId, currentMsId));
+  //         } catch (dbErr) {
+  //           // Silently skip log deletion failures
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
+  //   } catch (syncError) {
+  //   // Prevent external sync errors from breaking core mapping save
+  // }
+  // return updatedMapping;
+  // }
   async deleteDoorDevice(id: number): Promise<void> {
     await db.delete(doorDevices).where(eq(doorDevices.id, id));
   }
@@ -4097,7 +4437,7 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(menuMaster)
-      .where(eq(menuMaster.parentId, 0)) 
+      .where(eq(menuMaster.parentId, 0))
       .orderBy(asc(menuMaster.sortOrder));
   }
   async getRoleByCode(code: string): Promise<any | undefined> {
@@ -4158,7 +4498,7 @@ export class DatabaseStorage implements IStorage {
           .where(
             and(
               eq(roles.code, roleData.code),
-              not(eq(roles.id, roleId)), 
+              not(eq(roles.id, roleId)),
             ),
           )
           .limit(1);
@@ -4933,7 +5273,7 @@ ${fromDate} || ' to ' || ${toDate}
         .orderBy(asc(contractors.id));
       const rawData = await baseQuery;
       const formattedData = rawData.map((c: any) => ({
-        ...c, 
+        ...c,
         contractorName: c.nameOfAgencyOwner,
         contractorCode: c.contractorCode,
         contactNumber: c.contactNoOwner,
@@ -5013,7 +5353,7 @@ ${fromDate} || ' to ' || ${toDate}
       if (dateVal === undefined) return undefined;
       if (!dateVal || dateVal === "") return null;
       if (typeof dateVal === 'string') {
-        return dateVal.split('T')[0]; 
+        return dateVal.split('T')[0];
       }
       return null;
     };
@@ -5268,7 +5608,7 @@ ${fromDate} || ' to ' || ${toDate}
       await tx.update(users)
         .set({
           isAccountActive: newStatus,
-          failedLoginAttempts: 0 
+          failedLoginAttempts: 0
         })
         .where(eq(users.id, userId));
       await tx.update(userProfiles)
