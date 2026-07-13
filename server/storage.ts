@@ -963,128 +963,128 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-  // async getDevices(
-  //   page?: number | string,
-  //   pageSize?: number | string,
-  //   search?: string,
-  // ): Promise<any> {
-  //   try {
-  //     const msDataRaw = await dbMsSql
-  //       .select()
-  //       .from({ dbName: "Devices" })
-  //       .execute();
-  //     if (!msDataRaw || msDataRaw.length === 0) {
-  //       return {
-  //         data: [],
-  //         totalCount: 0,
-  //         totalPages: 0,
-  //         currentPage: 1,
-  //         pageSize: 0,
-  //         onlineCount: 0,
-  //         offlineCount: 0,
-  //       };
-  //     }
-  //     const currentTime = new Date();
-  //     const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
-  //     let onlineCount = 0;
-  //     let offlineCount = 0;
-  //     let formattedDevices = msDataRaw.map((d: any) => {
-  //       let lPing: Date | null = null;
-  //       let calculatedStatus = "offline";
-  //       if (d.LastPing) {
-  //         lPing = new Date(d.LastPing);
-  //         let diffInMs = currentTime.getTime() - lPing.getTime();
-  //         let diffInMinutes = diffInMs / 60000;
-  //         const absDiff = Math.abs(diffInMinutes);
-  //         if (
-  //           absDiff <= THRESHOLD_MINUTES ||
-  //           Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
-  //         ) {
-  //           calculatedStatus = "online";
-  //         }
-  //       }
-  //       if (calculatedStatus === "online") onlineCount++;
-  //       else offlineCount++;
-  //       return {
-  //         msId: d.DeviceId || d.DeviceID,
-  //         name: d.DeviceName || "Unnamed Device",
-  //         deviceDirection: d.DeviceDirection || null,
-  //         serialNumber: d.SerialNumber || d.serialno,
-  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
-  //         lastPing: lPing,
-  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
-  //         activationCode: d.ActivationCode || "",
-  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
-  //         locationId: d.LocationId || null,
-  //         ipAddress: d.IpAddress || "",
-  //         lastHeartbeat: lPing,
-  //         status: calculatedStatus,
-  //         isActive: true,
-  //       };
-  //     });
-  //     if (search && search.trim()) {
-  //       const s = search.toLowerCase();
-  //       formattedDevices = formattedDevices.filter(
-  //         (d) =>
-  //           d.name?.toLowerCase().includes(s) ||
-  //           d.ipAddress?.toLowerCase().includes(s) ||
-  //           d.serialNumber?.toLowerCase().includes(s) ||
-  //           d.deviceType?.toLowerCase().includes(s),
-  //       );
-  //     }
-  //     for (const dev of formattedDevices) {
-  //       await db
-  //         .insert(devices)
-  //         .values(dev)
-  //         .onConflictDoUpdate({
-  //           target: devices.msId,
-  //           set: { ...dev },
-  //         });
-  //     }
-  //     const currentMsIds = formattedDevices.map((d) => d.msId as number);
-  //     if (currentMsIds.length > 0) {
-  //       await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
-  //     }
-  //     if (!pageSize) return formattedDevices;
-  //     if (pageSize === -1 || pageSize === "-1") {
-  //       return {
-  //         data: formattedDevices,
-  //         totalCount: formattedDevices.length,
-  //         totalPages: 1,
-  //         currentPage: 1,
-  //         pageSize: formattedDevices.length,
-  //         onlineCount,
-  //         offlineCount,
-  //       };
-  //     }
-  //     const p = page && Number(page) > 0 ? Number(page) : 1;
-  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-  //     const start = (p - 1) * size;
-  //     const end = start + size;
-  //     const paginatedData = formattedDevices.slice(start, end);
-  //     return {
-  //       data: paginatedData,
-  //       totalCount: formattedDevices.length,
-  //       totalPages: Math.ceil(formattedDevices.length / size),
-  //       currentPage: p,
-  //       pageSize: size,
-  //       onlineCount,
-  //       offlineCount,
-  //     };
-  //   } catch (error) {
-  //     console.error("Device Sync Error:", error);
-  //     return {
-  //       data: [],
-  //       totalCount: 0,
-  //       totalPages: 0,
-  //       currentPage: 1,
-  //       pageSize: 0,
-  //       onlineCount: 0,
-  //       offlineCount: 0,
-  //     };
-  //   }
-  // }
+  async getDevices(
+    page?: number | string,
+    pageSize?: number | string,
+    search?: string,
+  ): Promise<any> {
+    try {
+      const msDataRaw = await dbMsSql
+        .select()
+        .from({ dbName: "Devices" })
+        .execute();
+      if (!msDataRaw || msDataRaw.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+          onlineCount: 0,
+          offlineCount: 0,
+        };
+      }
+      const currentTime = new Date();
+      const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
+      let onlineCount = 0;
+      let offlineCount = 0;
+      let formattedDevices = msDataRaw.map((d: any) => {
+        let lPing: Date | null = null;
+        let calculatedStatus = "offline";
+        if (d.LastPing) {
+          lPing = new Date(d.LastPing);
+          let diffInMs = currentTime.getTime() - lPing.getTime();
+          let diffInMinutes = diffInMs / 60000;
+          const absDiff = Math.abs(diffInMinutes);
+          if (
+            absDiff <= THRESHOLD_MINUTES ||
+            Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
+          ) {
+            calculatedStatus = "online";
+          }
+        }
+        if (calculatedStatus === "online") onlineCount++;
+        else offlineCount++;
+        return {
+          msId: d.DeviceId || d.DeviceID,
+          name: d.DeviceName || "Unnamed Device",
+          deviceDirection: d.DeviceDirection || null,
+          serialNumber: d.SerialNumber || d.serialno,
+          opstamp: d.OpStamp ? String(d.OpStamp) : null,
+          lastPing: lPing,
+          lastreset: d.LastReset ? new Date(d.LastReset) : null,
+          activationCode: d.ActivationCode || "",
+          isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+          deviceType: String(d.DeviceType || "-").toLowerCase(),
+          locationId: d.LocationId || null,
+          ipAddress: d.IpAddress || "",
+          lastHeartbeat: lPing,
+          status: calculatedStatus,
+          isActive: true,
+        };
+      });
+      if (search && search.trim()) {
+        const s = search.toLowerCase();
+        formattedDevices = formattedDevices.filter(
+          (d) =>
+            d.name?.toLowerCase().includes(s) ||
+            d.ipAddress?.toLowerCase().includes(s) ||
+            d.serialNumber?.toLowerCase().includes(s) ||
+            d.deviceType?.toLowerCase().includes(s),
+        );
+      }
+      for (const dev of formattedDevices) {
+        await db
+          .insert(devices)
+          .values(dev)
+          .onConflictDoUpdate({
+            target: devices.msId,
+            set: { ...dev },
+          });
+      }
+      const currentMsIds = formattedDevices.map((d) => d.msId as number);
+      if (currentMsIds.length > 0) {
+        await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
+      }
+      if (!pageSize) return formattedDevices;
+      if (pageSize === -1 || pageSize === "-1") {
+        return {
+          data: formattedDevices,
+          totalCount: formattedDevices.length,
+          totalPages: 1,
+          currentPage: 1,
+          pageSize: formattedDevices.length,
+          onlineCount,
+          offlineCount,
+        };
+      }
+      const p = page && Number(page) > 0 ? Number(page) : 1;
+      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+      const start = (p - 1) * size;
+      const end = start + size;
+      const paginatedData = formattedDevices.slice(start, end);
+      return {
+        data: paginatedData,
+        totalCount: formattedDevices.length,
+        totalPages: Math.ceil(formattedDevices.length / size),
+        currentPage: p,
+        pageSize: size,
+        onlineCount,
+        offlineCount,
+      };
+    } catch (error) {
+      console.error("Device Sync Error:", error);
+      return {
+        data: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 0,
+        onlineCount: 0,
+        offlineCount: 0,
+      };
+    }
+  }
 
 
   // async getDevices(
@@ -1293,173 +1293,385 @@ export class DatabaseStorage implements IStorage {
   //   }
   // }
 
-  async getDevices(
-    page ?: number | string,
-    pageSize ?: number | string,
-    search ?: string,
-  ): Promise < any > {
-    try {
-      const msDataRaw = await mssqlPool
-        .request()
-        .query("SELECT * FROM Devices")
-        .then((res: any) => res.recordset as any[]);
+  // async getDevices(
+  //   page ?: number | string,
+  //   pageSize ?: number | string,
+  //   search ?: string,
+  // ): Promise < any > {
+  //   try {
+  //     const msDataRaw = await mssqlPool
+  //       .request()
+  //       .query("SELECT * FROM Devices")
+  //       .then((res: any) => res.recordset as any[]);
 
-      if(!msDataRaw || msDataRaw.length === 0) {
-    return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
-  }
+  //     if(!msDataRaw || msDataRaw.length === 0) {
+  //   return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
+  // }
 
-  const currentTime = new Date();
-  const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
-  let onlineCount = 0;
-  let offlineCount = 0;
+  // const currentTime = new Date();
+  // const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
+  // let onlineCount = 0;
+  // let offlineCount = 0;
 
-  let formattedDevices = msDataRaw.map((d: any) => {
-    let lPing: Date | null = null;
-    let calculatedStatus = "offline";
+  // let formattedDevices = msDataRaw.map((d: any) => {
+  //   let lPing: Date | null = null;
+  //   let calculatedStatus = "offline";
 
-    if (d.LastPing) {
-      lPing = new Date(d.LastPing);
-      let diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
-      const absDiff = Math.abs(diffInMinutes);
-      if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
-        calculatedStatus = "online";
+  //   if (d.LastPing) {
+  //     lPing = new Date(d.LastPing);
+  //     let diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
+  //     const absDiff = Math.abs(diffInMinutes);
+  //     if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
+  //       calculatedStatus = "online";
+  //     }
+  //   }
+
+  //   if (calculatedStatus === "online") onlineCount++;
+  //   else offlineCount++;
+
+  //   return {
+  //     msId: Number(d.DeviceId || d.DeviceID),
+  //     name: d.DeviceName || "Unnamed Device",
+  //     deviceDirection: d.DeviceDirection || null,
+  //     serialNumber: d.SerialNumber ? d.SerialNumber.trim() : (d.serialno ? d.serialno.trim() : null),
+  //     opstamp: d.OpStamp ? String(d.OpStamp) : null,
+  //     lastPing: lPing,
+  //     lastreset: d.LastReset ? new Date(d.LastReset) : null,
+  //     activationCode: d.ActivationCode || "",
+  //     isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+  //     deviceType: String(d.DeviceType || "-").toLowerCase(),
+  //     locationId: d.LocationId || null,
+  //     ipAddress: d.IpAddress || "",
+  //     lastHeartbeat: lPing,
+  //     status: calculatedStatus,
+  //     isActive: true,
+  //   };
+  // });
+
+  // const allMsSqlIds = formattedDevices.map((d) => d.msId);
+
+  // if (search && search.trim()) {
+  //   const s = search.toLowerCase();
+  //   formattedDevices = formattedDevices.filter(
+  //     (d) =>
+  //       d.name?.toLowerCase().includes(s) ||
+  //       d.ipAddress?.toLowerCase().includes(s) ||
+  //       d.serialNumber?.toLowerCase().includes(s) ||
+  //       d.deviceType?.toLowerCase().includes(s),
+  //   );
+  // }
+
+  // const [existingLocalDevices, allPeople, existingLogs] = await Promise.all([
+  //   db.select({ msId: devices.msId }).from(devices),
+  //   db.select({ employeeCode: schema.people.employeeCode }).from(schema.people).execute(),
+  //   db.select({ deviceId: blockUnblockLogs.deviceId }).from(blockUnblockLogs).execute(),
+  // ]);
+
+  // const existingMsIdsSet = new Set(existingLocalDevices.map((ld) => Number(ld.msId)));
+  // const devicesWithLogsSet = new Set(existingLogs.map(l => Number(l.deviceId)));
+
+  // for (const dev of formattedDevices) {
+  //   const currentMsId = Number(dev.msId);
+  //   const deviceSerial = dev.serialNumber;
+
+  //   const isNewDevice = !existingMsIdsSet.has(currentMsId);
+  //   const hasNoLogsYet = !devicesWithLogsSet.has(currentMsId);
+
+  //   await db
+  //     .insert(devices)
+  //     .values(dev)
+  //     .onConflictDoUpdate({
+  //       target: devices.msId,
+  //       set: { ...dev },
+  //     });
+
+  //   if (isNewDevice && hasNoLogsYet && allPeople && allPeople.length > 0 && deviceSerial) {
+  //     devicesWithLogsSet.add(currentMsId);
+
+  //     const firstEmpCode = allPeople[0].employeeCode?.trim();
+  //     if (firstEmpCode) {
+  //       try {
+  //         await db.insert(blockUnblockLogs).values({
+  //           employeeCode: firstEmpCode,
+  //           deviceId: currentMsId,
+  //           type: "block",
+  //           updatedAt: new Date(),
+  //         });
+  //       } catch (dbErr) {
+  //         // Quietly catch lock insertion conflicts
+  //       }
+  //     }
+
+  //     for (let i = 0; i < allPeople.length; i++) {
+  //       const empCode = allPeople[i].employeeCode?.trim();
+  //       if (!empCode) continue;
+
+  //       try {
+  //         await esslService.syncUserBlockStatus(empCode, deviceSerial, true);
+
+  //         if (i > 0) {
+  //           await db.insert(blockUnblockLogs).values({
+  //             employeeCode: empCode,
+  //             deviceId: currentMsId,
+  //             type: "block",
+  //             updatedAt: new Date(),
+  //           });
+  //         }
+  //       } catch (esslErr) {
+  //         // Quietly catch network or API exceptions to let the sync proceed
+  //       }
+  //     }
+  //   }
+  // }
+
+  // if (allMsSqlIds.length > 0) {
+  //   await db.delete(devices).where(notInArray(devices.msId, allMsSqlIds));
+  // }
+
+  // if (!pageSize) return formattedDevices;
+  // if (pageSize === -1 || pageSize === "-1") {
+  //   return {
+  //     data: formattedDevices,
+  //     totalCount: formattedDevices.length,
+  //     totalPages: 1,
+  //     currentPage: 1,
+  //     pageSize: formattedDevices.length,
+  //     onlineCount,
+  //     offlineCount,
+  //   };
+  // }
+
+  // const p = page && Number(page) > 0 ? Number(page) : 1;
+  // const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+  // const start = (p - 1) * size;
+  // const end = start + size;
+  // const paginatedData = formattedDevices.slice(start, end);
+
+  // return {
+  //   data: paginatedData,
+  //   totalCount: formattedDevices.length,
+  //   totalPages: Math.ceil(formattedDevices.length / size),
+  //   currentPage: p,
+  //   pageSize: size,
+  //   onlineCount,
+  //   offlineCount,
+  // };
+  //   } catch (error) {
+  //   return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
+  // }
+  // }
+  async runInBatches<T>(
+    items: T[],
+    batchSize: number,
+    delayMs: number,
+    processor: (item: T) => Promise<void>
+  ): Promise<void> {
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      await Promise.all(batch.map(item => processor(item).catch((err) => {
+        console.error(`Batch item failed:`, err.message);
+      })));
+      if (i + batchSize < items.length) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
       }
     }
-
-    if (calculatedStatus === "online") onlineCount++;
-    else offlineCount++;
-
-    return {
-      msId: Number(d.DeviceId || d.DeviceID),
-      name: d.DeviceName || "Unnamed Device",
-      deviceDirection: d.DeviceDirection || null,
-      serialNumber: d.SerialNumber ? d.SerialNumber.trim() : (d.serialno ? d.serialno.trim() : null),
-      opstamp: d.OpStamp ? String(d.OpStamp) : null,
-      lastPing: lPing,
-      lastreset: d.LastReset ? new Date(d.LastReset) : null,
-      activationCode: d.ActivationCode || "",
-      isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-      deviceType: String(d.DeviceType || "-").toLowerCase(),
-      locationId: d.LocationId || null,
-      ipAddress: d.IpAddress || "",
-      lastHeartbeat: lPing,
-      status: calculatedStatus,
-      isActive: true,
-    };
-  });
-
-  const allMsSqlIds = formattedDevices.map((d) => d.msId);
-
-  if (search && search.trim()) {
-    const s = search.toLowerCase();
-    formattedDevices = formattedDevices.filter(
-      (d) =>
-        d.name?.toLowerCase().includes(s) ||
-        d.ipAddress?.toLowerCase().includes(s) ||
-        d.serialNumber?.toLowerCase().includes(s) ||
-        d.deviceType?.toLowerCase().includes(s),
-    );
   }
 
-  const [existingLocalDevices, allPeople, existingLogs] = await Promise.all([
-    db.select({ msId: devices.msId }).from(devices),
-    db.select({ employeeCode: schema.people.employeeCode }).from(schema.people).execute(),
-    db.select({ deviceId: blockUnblockLogs.deviceId }).from(blockUnblockLogs).execute(),
-  ]);
+  /**
+   * FETCH AND SYNC DEVICES FROM HARDWARE MS SQL TO LOCAL DB
+   */
+  // async getDevices(
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  //   search?: string,
+  // ): Promise<any> {
+  //   try {
+  //     const msDataRaw = await mssqlPool
+  //       .request()
+  //       .query("SELECT * FROM Devices")
+  //       .then((res: any) => res.recordset as any[]);
 
-  const existingMsIdsSet = new Set(existingLocalDevices.map((ld) => Number(ld.msId)));
-  const devicesWithLogsSet = new Set(existingLogs.map(l => Number(l.deviceId)));
+  //     if (!msDataRaw || msDataRaw.length === 0) {
+  //       return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
+  //     }
 
-  for (const dev of formattedDevices) {
-    const currentMsId = Number(dev.msId);
-    const deviceSerial = dev.serialNumber;
+  //     const currentTime = new Date();
+  //     const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
+  //     let onlineCount = 0;
+  //     let offlineCount = 0;
 
-    const isNewDevice = !existingMsIdsSet.has(currentMsId);
-    const hasNoLogsYet = !devicesWithLogsSet.has(currentMsId);
+  //     let formattedDevices = msDataRaw.map((d: any) => {
+  //       let lPing: Date | null = null;
+  //       let calculatedStatus = "offline";
 
-    await db
-      .insert(devices)
-      .values(dev)
-      .onConflictDoUpdate({
-        target: devices.msId,
-        set: { ...dev },
-      });
+  //       if (d.LastPing) {
+  //         lPing = new Date(d.LastPing);
+  //         let diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
+  //         const absDiff = Math.abs(diffInMinutes);
+  //         if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
+  //           calculatedStatus = "online";
+  //         }
+  //       }
 
-    if (isNewDevice && hasNoLogsYet && allPeople && allPeople.length > 0 && deviceSerial) {
-      devicesWithLogsSet.add(currentMsId);
+  //       if (calculatedStatus === "online") onlineCount++;
+  //       else offlineCount++;
 
-      const firstEmpCode = allPeople[0].employeeCode?.trim();
-      if (firstEmpCode) {
-        try {
-          await db.insert(blockUnblockLogs).values({
-            employeeCode: firstEmpCode,
-            deviceId: currentMsId,
-            type: "block",
-            updatedAt: new Date(),
-          });
-        } catch (dbErr) {
-          // Quietly catch lock insertion conflicts
-        }
-      }
+  //       return {
+  //         msId: Number(d.DeviceId || d.DeviceID),
+  //         name: d.DeviceName || "Unnamed Device",
+  //         deviceDirection: d.DeviceDirection || null,
+  //         serialNumber: d.SerialNumber ? d.SerialNumber.trim() : (d.serialno ? d.serialno.trim() : null),
+  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
+  //         lastPing: lPing,
+  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
+  //         activationCode: d.ActivationCode || "",
+  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
+  //         locationId: d.LocationId || null,
+  //         ipAddress: d.IpAddress || "",
+  //         lastHeartbeat: lPing,
+  //         status: calculatedStatus,
+  //         isActive: true,
+  //       };
+  //     });
 
-      for (let i = 0; i < allPeople.length; i++) {
-        const empCode = allPeople[i].employeeCode?.trim();
-        if (!empCode) continue;
+  //     const allMsSqlIds = formattedDevices.map((d) => d.msId);
 
-        try {
-          await esslService.syncUserBlockStatus(empCode, deviceSerial, true);
+  //     if (search && search.trim()) {
+  //       const s = search.toLowerCase();
+  //       formattedDevices = formattedDevices.filter(
+  //         (d) =>
+  //           d.name?.toLowerCase().includes(s) ||
+  //           d.ipAddress?.toLowerCase().includes(s) ||
+  //           d.serialNumber?.toLowerCase().includes(s) ||
+  //           d.deviceType?.toLowerCase().includes(s),
+  //       );
+  //     }
 
-          if (i > 0) {
-            await db.insert(blockUnblockLogs).values({
-              employeeCode: empCode,
-              deviceId: currentMsId,
-              type: "block",
-              updatedAt: new Date(),
-            });
-          }
-        } catch (esslErr) {
-          // Quietly catch network or API exceptions to let the sync proceed
-        }
-      }
-    }
-  }
+  //     const [existingLocalDevices, allPeople, existingLogs, doorDeviceMappings, allDoors] = await Promise.all([
+  //       db.select({ msId: devices.msId }).from(devices),
+  //       db.select({ employeeCode: schema.people.employeeCode }).from(schema.people).execute(),
+  //       db.select({ deviceId: blockUnblockLogs.deviceId }).from(blockUnblockLogs).execute(),
+  //       db.select({ doorId: doorDevices.doorId, inDeviceIds: doorDevices.inDeviceIds, outDeviceIds: doorDevices.outDeviceIds }).from(doorDevices).execute(),
+  //       db.select({ id: schema.doors.id, code: schema.doors.code }).from(schema.doors).execute(),
+  //     ]);
 
-  if (allMsSqlIds.length > 0) {
-    await db.delete(devices).where(notInArray(devices.msId, allMsSqlIds));
-  }
+  //     const existingMsIdsSet = new Set(existingLocalDevices.map((ld) => Number(ld.msId)));
+  //     const devicesWithLogsSet = new Set(existingLogs.map(l => Number(l.deviceId)));
 
-  if (!pageSize) return formattedDevices;
-  if (pageSize === -1 || pageSize === "-1") {
-    return {
-      data: formattedDevices,
-      totalCount: formattedDevices.length,
-      totalPages: 1,
-      currentPage: 1,
-      pageSize: formattedDevices.length,
-      onlineCount,
-      offlineCount,
-    };
-  }
+  //     const doorCodeMap = new Map(allDoors.map(dr => [dr.id, dr.code]));
+  //     const mainGateDeviceIdsSet = new Set<number>();
 
-  const p = page && Number(page) > 0 ? Number(page) : 1;
-  const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-  const start = (p - 1) * size;
-  const end = start + size;
-  const paginatedData = formattedDevices.slice(start, end);
+  //     for (const mapping of doorDeviceMappings) {
+  //       if (mapping.doorId && doorCodeMap.get(mapping.doorId) === 'MG_SYNC_01') {
+  //         if (Array.isArray(mapping.inDeviceIds)) mapping.inDeviceIds.forEach(id => mainGateDeviceIdsSet.add(Number(id)));
+  //         if (Array.isArray(mapping.outDeviceIds)) mapping.outDeviceIds.forEach(id => mainGateDeviceIdsSet.add(Number(id)));
+  //       }
+  //     }
 
-  return {
-    data: paginatedData,
-    totalCount: formattedDevices.length,
-    totalPages: Math.ceil(formattedDevices.length / size),
-    currentPage: p,
-    pageSize: size,
-    onlineCount,
-    offlineCount,
-  };
-    } catch (error) {
-    return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
-  }
-  }
+  //     for (const dev of formattedDevices) {
+  //       const currentMsId = Number(dev.msId);
+  //       const deviceSerial = dev.serialNumber;
+
+  //       const isNewDevice = !existingMsIdsSet.has(currentMsId);
+
+  //       await db
+  //         .insert(devices)
+  //         .values(dev)
+  //         .onConflictDoUpdate({
+  //           target: devices.msId,
+  //           set: { ...dev },
+  //         });
+
+  //       if (mainGateDeviceIdsSet.has(currentMsId)) {
+  //         console.log(`Skipping auto-block sync for Main Gate device: ${dev.name} (ID: ${currentMsId})`);
+  //         continue;
+  //       }
+
+  //       if (isNewDevice && allPeople && allPeople.length > 0 && deviceSerial) {
+  //         existingMsIdsSet.add(currentMsId);
+  //         devicesWithLogsSet.add(currentMsId);
+
+  //         const validEmployees = allPeople
+  //           .map(emp => emp.employeeCode?.trim())
+  //           .filter((code): code is string => !!code);
+
+  //         if (validEmployees.length > 0) {
+  //           const insertPayload = validEmployees.map(empCode => ({
+  //             employeeCode: empCode,
+  //             deviceId: currentMsId,
+  //             type: "block" as const,
+  //             createdAt: new Date(),
+  //             updatedAt: new Date(),
+  //           }));
+
+  //           try {
+  //             const CHUNK_SIZE = 500;
+  //             for (let i = 0; i < insertPayload.length; i += CHUNK_SIZE) {
+  //               const chunk = insertPayload.slice(i, i + CHUNK_SIZE);
+  //               await db.insert(blockUnblockLogs).values(chunk).onConflictDoNothing();
+  //             }
+  //             console.log(`DB logs inserted for new device ${dev.name}`);
+  //           } catch (dbBulkErr) {
+  //             console.error("Bulk Insert Log Error:", dbBulkErr);
+  //           }
+
+  //           // 🔥 FIX: Hardware operation ko background async process mein daal rahe hain taaki main flow block na ho
+  //           // Aur pure device context (IP, Serial) ko copy karke bhej rahe hain taaki DB state par hardware fetch crash na ho
+  //           setImmediate(() => {
+  //             console.log(`[BACKGROUND START] Syncing hardware blocks for NEW device: ${dev.name} (${deviceSerial})`);
+  //             this.runInBatches(validEmployees, 10, 80, async (empCode: string) => {
+  //               // Agar aapke syncUserBlockStatus ko IP ki zarurat padti hai, toh teesra parameter check karein
+  //               await esslService.syncUserBlockStatus(empCode, deviceSerial, true);
+  //             })
+  //               .then(() => {
+  //                 console.log(`[BACKGROUND SUCCESS] Finished hardware block execution for device ${deviceSerial}`);
+  //               })
+  //               .catch((err) => {
+  //                 console.error(`[BACKGROUND FATAL] Hardware sync background process failed for device ${deviceSerial}:`, err);
+  //               });
+  //           });
+
+  //         }
+  //       }
+  //     }
+
+  //     if (allMsSqlIds.length > 0) {
+  //       await db.delete(devices).where(notInArray(devices.msId, allMsSqlIds));
+  //     }
+
+  //     if (!pageSize) return formattedDevices;
+  //     if (pageSize === -1 || pageSize === "-1") {
+  //       return {
+  //         data: formattedDevices,
+  //         totalCount: formattedDevices.length,
+  //         totalPages: 1,
+  //         currentPage: 1,
+  //         pageSize: formattedDevices.length,
+  //         onlineCount,
+  //         offlineCount,
+  //       };
+  //     }
+
+  //     const p = page && Number(page) > 0 ? Number(page) : 1;
+  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+  //     const start = (p - 1) * size;
+  //     const end = start + size;
+  //     const paginatedData = formattedDevices.slice(start, end);
+
+  //     return {
+  //       data: paginatedData,
+  //       totalCount: formattedDevices.length,
+  //       totalPages: Math.ceil(formattedDevices.length / size),
+  //       currentPage: p,
+  //       pageSize: size,
+  //       onlineCount,
+  //       offlineCount,
+  //     };
+  //   } catch (error) {
+  //     return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
+  //   }
+  // }
   async createDevice(data: InsertDevice): Promise<Device> {
     let mssqlId: number | null = null;
     try {
@@ -3491,6 +3703,7 @@ export class DatabaseStorage implements IStorage {
     id: number,
     data: Partial<InsertDoorDevice>,
   ): Promise<DoorDevice> {
+
     const [updatedMapping] = await db
       .update(doorDevices)
       .set({
@@ -3501,103 +3714,107 @@ export class DatabaseStorage implements IStorage {
       .where(eq(doorDevices.id, id))
       .returning();
 
+
+
     if (!updatedMapping) throw new Error("Mapping not found");
 
     try {
       if (updatedMapping.doorId) {
+
         const [doorDetail] = await db
-          .select({ doorCode: schema.doors.code })
+          .select({
+            doorCode: schema.doors.code,
+          })
           .from(schema.doors)
           .where(eq(schema.doors.id, updatedMapping.doorId))
           .execute();
 
         if (doorDetail && doorDetail.doorCode === MAIN_GATE_SYNC.CODE) {
+
           const allPeople = await db
-            .select({ employeeCode: schema.people.employeeCode })
+            .select({
+              employeeCode: schema.people.employeeCode,
+            })
             .from(schema.people)
             .execute();
 
           const targetDeviceIds: number[] = [];
-          if (updatedMapping.inDeviceIds && Array.isArray(updatedMapping.inDeviceIds)) {
-            targetDeviceIds.push(...updatedMapping.inDeviceIds.map(Number));
-          }
-          if (updatedMapping.outDeviceIds && Array.isArray(updatedMapping.outDeviceIds)) {
-            targetDeviceIds.push(...updatedMapping.outDeviceIds.map(Number));
+
+          if (
+            updatedMapping.inDeviceIds &&
+            Array.isArray(updatedMapping.inDeviceIds)
+          ) {
+            targetDeviceIds.push(
+              ...updatedMapping.inDeviceIds.map(Number),
+            );
           }
 
-          if (targetDeviceIds.length > 0 && allPeople && allPeople.length > 0) {
+          if (
+            updatedMapping.outDeviceIds &&
+            Array.isArray(updatedMapping.outDeviceIds)
+          ) {
+            targetDeviceIds.push(
+              ...updatedMapping.outDeviceIds.map(Number),
+            );
+          }
+
+          if (targetDeviceIds.length > 0) {
             const targetDevices = await db
-              .select({ msId: devices.msId, serialNumber: devices.serialNumber })
+              .select({
+                msId: devices.msId,
+                serialNumber: devices.serialNumber,
+              })
               .from(devices)
               .where(inArray(devices.msId, targetDeviceIds))
               .execute();
-
-            const firstEmpCode = allPeople[0].employeeCode?.trim();
 
             for (const dev of targetDevices) {
               const currentMsId = Number(dev.msId);
               const deviceSerial = dev.serialNumber;
 
-              if (!deviceSerial) continue;
-
-              if (firstEmpCode) {
-                try {
-                  await db
-                    .insert(blockUnblockLogs)
-                    .values({
-                      employeeCode: firstEmpCode,
-                      deviceId: currentMsId,
-                      type: "unblock",
-                      updatedAt: new Date(),
-                    })
-                    .onConflictDoUpdate({
-                      target: [blockUnblockLogs.employeeCode, blockUnblockLogs.deviceId],
-                      set: {
-                        type: "unblock",
-                        updatedAt: new Date(),
-                      },
-                    });
-                } catch (lockErr) {
-                  // Fail-safe lock skip
-                }
+              if (!deviceSerial) {
+                continue;
               }
 
               for (const emp of allPeople) {
                 const empCode = emp.employeeCode?.trim();
+
                 if (!empCode) continue;
 
                 try {
-                  await esslService.syncUserBlockStatus(empCode, deviceSerial, false);
 
-                  await db
-                    .insert(blockUnblockLogs)
-                    .values({
-                      employeeCode: empCode,
-                      deviceId: currentMsId,
-                      type: "unblock",
-                      updatedAt: new Date(),
-                    })
-                    .onConflictDoUpdate({
-                      target: [blockUnblockLogs.employeeCode, blockUnblockLogs.deviceId],
-                      set: {
-                        type: "unblock",
-                        updatedAt: new Date(),
-                      },
-                    });
-                } catch (esslErr) {
-                  // Fail-safe API/DB skip per employee
+                  const response =
+                    await esslService.syncUserBlockStatus(
+                      empCode,
+                      deviceSerial,
+                      false,
+                    );
+
+                  await db.insert(blockUnblockLogs).values({
+                    employeeCode: empCode,
+                    deviceId: currentMsId,
+                    type: "unblock",
+                    updatedAt: new Date(),
+                  });
+
+                } catch (err) {
+                  console.error(
+                    `FAILED -> ${empCode} ${deviceSerial}`,
+                    err,
+                  );
                 }
               }
             }
+          } else {
           }
+        } else {
         }
       }
-    } catch (syncError) {
-      // Fail-safe global catch
-    }
+    } catch (err) { }
 
     return updatedMapping;
   }
+
   // async updateDoorDevice(
   //   id: number,
   //   data: Partial<InsertDoorDevice>,
