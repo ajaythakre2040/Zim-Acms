@@ -509,15 +509,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       201
     )
   );
-  // app.post("/api/visitors", requireAuth, async (req, res) => {
-  //   try {
-  //     const parsed = insertVisitorSchema.parse(req.body);
-  //     const created = await storage.createVisitor(parsed);
-  //     return res.status(201).json(created);
-  //   } catch (error: any) {
-  //     return res.status(400).json({ error: error.message || "Invalid payload" });
-  //   }
-  // });
+
   app.put(
     "/api/visitors/:id",
     requireAuth,
@@ -536,24 +528,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       200 // Success status code
     )
   );
-  // app.put("/api/visitors/:id", requireAuth, async (req, res) => {
-  //   try {
-  //     const id = Number(req.params.id);
-  //     const updated = await storage.updateVisitor(id, req.body);
-  //     return res.json(updated);
-  //   } catch (error: any) {
-  //     return res.status(500).json({ error: error.message });
-  //   }
-  // });
-  // app.delete("/api/visitors/:id", requireAuth, async (req, res) => {
-  //   try {
-  //     const id = Number(req.params.id);
-  //     await storage.deleteVisitor(id);
-  //     return res.json({ success: true, message: "Visitor deleted successfully" });
-  //   } catch (error: any) {
-  //     return res.status(500).json({ error: error.message });
-  //   }
-  // });
+  
   app.delete(
     "/api/visitors/:id",
     requireAuth,
@@ -602,15 +577,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  // app.put("/api/visits/:id", requireAuth, async (req, res) => {
-  //   try {
-  //     const input = insertVisitSchema.partial().parse(req.body);
-  //     res.json(await storage.updateVisit(parseInt(req.params.id), input));
-  //   } catch (e: any) {
-  //     if (e instanceof z.ZodError) return res.status(400).json(e.errors);
-  //     res.status(500).json({ message: e.message });
-  //   }
-  // });
+
   app.put(
     "/api/visits/:id",
     requireAuth,
@@ -1628,16 +1595,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.post("/api/doors/bulk-assign", requireAuth, withAudit("employee_door_assignments", "BULK_DOOR_ASIGNMENT", async (req: any) => {
     return await processDoorUpdate(req.body.data);
   }));
-  // app.post("/api/contractors/bulk-upload", requireAuth, async (req: any, res: any) => {
-  //   const result = await processContractorBulkUploadOnly(req.body.data);
-  //   if (result.success === false) {
-  //     return res.status(400).json(result);
-  //   }
-  //   const auditHandler = withAudit("contractors", "BULK_CONTRACTOR_UPLOAD", async (req: any) => {
-  //     return result;
-  //   });
-  //   await auditHandler(req, res);
-  // });
+ 
   app.post(
     "/api/contractors/bulk-upload",
     requireAuth,

@@ -688,10 +688,6 @@ export default function VisitorsPage() {
                 <h2 className="text-xl font-bold leading-none">
                   Visitor Profile
                 </h2>
-                <p className="text-slate-400 text-xs mt-1">
-                  Detailed registry information for{" "}
-                  {viewingVisitor?.nameOfVisitor}
-                </p>
               </div>
             </div>
           </div>

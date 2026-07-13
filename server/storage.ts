@@ -1825,7 +1825,7 @@ export class DatabaseStorage implements IStorage {
                 : "NO_ROLE",
           });
         } catch (e) {
-          console.error("New employee sync error:", e);
+          // console.error("New employee sync error:", e);
         }
       }
       else {

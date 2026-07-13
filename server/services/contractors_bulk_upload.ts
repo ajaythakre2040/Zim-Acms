@@ -90,8 +90,8 @@ export const processContractorBulkUploadOnly = async (data: any[]) => {
         const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
         // Debugging ke liye check karein
-        console.log("Required (Normalized):", REQUIRED_CONTRACTOR_HEADERS.map(normalize));
-        console.log("Actual (Normalized):", actualHeaders.map(normalize));
+        // console.log("Required (Normalized):", REQUIRED_CONTRACTOR_HEADERS.map(normalize));
+        // console.log("Actual (Normalized):", actualHeaders.map(normalize));
 
         const missing = REQUIRED_CONTRACTOR_HEADERS.filter(reqHeader => {
             const normalizedReq = normalize(reqHeader);
