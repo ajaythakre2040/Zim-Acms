@@ -427,7 +427,7 @@ export default function PeopleFormPage() {
         {activeTab === "job" && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-bold uppercase text-slate-400 mb-3 border-b pb-1">4. System Deployment IDs & Core Work Mapping</h3>
+              <h3 className="text-sm font-bold uppercase text-slate-400 mb-3 border-b pb-1">4. Core Work Mapping</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Department</label>
@@ -442,7 +442,7 @@ export default function PeopleFormPage() {
                   <input name="shiftId" value={formData.shiftId || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
                 </div> */}
                 <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-700">Company ID (Numeric)</label>
+                  <label className="block text-xs font-bold mb-1 text-slate-700">Company</label>
                   <input name="companyId" value={formData.companyId || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
                 </div>
               </div>
@@ -509,7 +509,7 @@ export default function PeopleFormPage() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-6 items-center mt-4 bg-slate-50 p-3 rounded border">
+              {/* <div className="flex flex-wrap gap-6 items-center mt-4 bg-slate-50 p-3 rounded border">
                 <label className="flex items-center space-x-2 text-xs font-bold text-slate-700">
                   <input type="checkbox" name="overtimeEligible" checked={formData.overtimeEligible} onChange={handleChange} className="h-4 w-4 text-[#5c54d5]" />
                   <span>Overtime Eligible</span>
@@ -522,7 +522,7 @@ export default function PeopleFormPage() {
                   <input type="checkbox" name="isNightShiftActive" checked={formData.isNightShiftActive} onChange={handleChange} className="h-4 w-4 text-[#5c54d5]" />
                   <span>Night Shift Active</span>
                 </label>
-              </div>
+              </div> */}
             </div>
           </div>
         )}
