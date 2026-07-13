@@ -62,25 +62,25 @@ export const getQueryFn: <T>(options: {
       await throwIfResNotOk(res);
       return await res.json();
     };
-// export const queryClient = new QueryClient({
-//   defaultOptions: {
-//     queries: {
-//       queryFn: getQueryFn({ on401: "throw" }),
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      queryFn: getQueryFn({ on401: "throw" }),
 
-//       // --- Auto-refresh settings ---
-//       refetchInterval: 3000,          // Har 3 second mein data refresh hoga
-//       refetchIntervalInBackground: true, // Doosri tab open ho tab bhi sync chalta rahega
-//       refetchOnWindowFocus: true,     // Tab par wapas aate hi refresh karega
-//       refetchOnReconnect: true,      // Internet wapas aane par sync karega
+      // --- Auto-refresh settings ---
+      // refetchInterval: 3000,          // Har 3 second mein data refresh hoga
+      refetchIntervalInBackground: true, // Doosri tab open ho tab bhi sync chalta rahega
+      refetchOnWindowFocus: true,     // Tab par wapas aate hi refresh karega
+      refetchOnReconnect: true,      // Internet wapas aane par sync karega
 
-//       staleTime: 0,                   // Data ko hamesha fresh rakhega
-//       retry: false,
-//     },
-//     mutations: {
-//       retry: false,
-//     },
-//   },
-// });
+      staleTime: 0,                   // Data ko hamesha fresh rakhega
+      retry: false,
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
 
 
 // export const queryClient = new QueryClient({
@@ -107,9 +107,11 @@ export const getQueryFn: <T>(options: {
 //         const keys = query.queryKey.map(k => String(k));
 
 //         const isLiveLogs = keys.some(k => k.includes('machine-logs'));
-//         const isLiveDevices = keys.some(k => k.includes('live-status')); // 👈 Yahan bhi naya page add kiya
+//         const isLiveDevices = keys.some(k => k.includes('live-status'));
+//         const isPeople = keys.some(k => k.includes('/api/people')); 
+//         const isDevices = keys.some(k => k.includes('device-status')); // 👈 Yahan bhi naya page add kiya
 
-//         if (isLiveLogs || isLiveDevices) {
+//         if (isLiveLogs || isLiveDevices || isPeople || isDevices) {
 //           return 0;
 //         }
 //         return Infinity;
@@ -125,17 +127,17 @@ export const getQueryFn: <T>(options: {
 // });
 
 
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
-      retry: false,
-    },
-    mutations: {
-      retry: false,
-    },
-  },
-});
+// export const queryClient = new QueryClient({
+//   defaultOptions: {
+//     queries: {
+//       queryFn: getQueryFn({ on401: "throw" }),
+//       refetchInterval: false,
+//       refetchOnWindowFocus: false,
+//       staleTime: Infinity,
+//       retry: false,
+//     },
+//     mutations: {
+//       retry: false,
+//     },
+//   },
+// });
