@@ -87,6 +87,7 @@ export const processEmployeeBulkUpdateOnly = async (data: any[]) => {
                         employeeName: row["Emp_Name"],
                         email: row["Email_ID"],
                         phone: row["Mobile_Number"],
+                        emergencyContact: row["Emergency_Number"],
                         departmentId: depMap.get(row["Department"]?.toLowerCase().trim()),
                         designationId: desigMap.get(row["Designation"]?.toLowerCase().trim()),
                         status: row["Active"]?.toLowerCase() === "yes" ? "active" : "inactive",

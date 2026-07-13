@@ -47,7 +47,8 @@ export default function PeopleFormPage() {
     fatherName: "",
     emergencyContact: "",
     bloodGroup: "",
-    qualification: "",
+    professional_qual: "",
+    educational_qual: "",
     experience: "",
     
     // Identifiers & Compliance
@@ -411,8 +412,12 @@ export default function PeopleFormPage() {
                   <input name="maritalStatus" value={formData.maritalStatus || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" placeholder="Single/Married" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-700">Qualification</label>
-                  <input name="qualification" value={formData.qualification || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
+                  <label className="block text-xs font-bold mb-1 text-slate-700">Professional Qualification</label>
+                  <input name="professional_qual" value={formData.professional_qual || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-700">Educational Qualification</label>
+                  <input name="educational_qual" value={formData.educational_qual || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Experience</label>
@@ -541,10 +546,10 @@ export default function PeopleFormPage() {
                   <label className="block text-xs font-bold mb-1 text-slate-700">Aadhaar Number Identification</label>
                   <input name="aadhaarNumber" value={formData.aadhaarNumber || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
                 </div>
-                <div>
+                {/* <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Passport Identity Track</label>
                   <input name="passportNumber" value={formData.passportNumber || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
-                </div>
+                </div> */}
               </div>
             </div>
 
@@ -586,7 +591,7 @@ export default function PeopleFormPage() {
 
             <div>
               <h3 className="text-sm font-bold uppercase text-slate-400 mb-3 border-b pb-1">10. Payout & Fee Configurations</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Per Day Rate</label>
                   <input name="perDayRate" value={formData.perDayRate || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
@@ -595,10 +600,10 @@ export default function PeopleFormPage() {
                   <label className="block text-xs font-bold mb-1 text-slate-700">Per Hour Rate</label>
                   <input name="perHourRate" value={formData.perHourRate || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
                 </div>
-                <div>
+                {/* <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Overtime Rate</label>
                   <input name="overtimeRate" value={formData.overtimeRate || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
-                </div>
+                </div> */}
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Status Control</label>
                   <select name="status" value={formData.status} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]">
