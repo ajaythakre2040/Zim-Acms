@@ -1803,7 +1803,7 @@ export class DatabaseStorage implements IStorage {
               ruleid: mapped.ruleid ?? null,
               locationId: mapped.locationId ?? null,
               externalId: mapped.externalId ?? null,
-              overtimeEligible: mapped.overtimeEligible ?? false,
+              // overtimeEligible: mapped.overtimeEligible ?? false,
               personType: "employee",
               status: "active",
               sourceSystem: "mssql_bio",

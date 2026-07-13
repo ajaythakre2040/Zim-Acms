@@ -102,7 +102,9 @@ export const processEmployeeBulkUpdateOnly = async (data: any[]) => {
                         bankName: row["Bank_Name"],
                         pfNumber: row["UAN_No"],
                         esiNumber: row["ESIC_No"],
-                        qualification: [row["Edu_Qual"], row["Prof_Qual"]].filter(Boolean).join(" + ") || null,
+                        experience: row["Exp_Years"],
+                        educational_qual: row["Edu_Qual"],
+                        professional_qual: row["Prof_Qual"],
                         // permanentAddress: row["Permanent_Addr1"],
                         updatedAt: new Date()
                     })
