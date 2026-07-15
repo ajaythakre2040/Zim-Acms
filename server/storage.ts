@@ -1913,9 +1913,9 @@ export class DatabaseStorage implements IStorage {
   private async executeHardwareSyncBackground(employeeCode: string) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     try {
-      console.log(`⚡ Background Hardware Sync Started for New Employee: ${employeeCode}`);
+      // console.log(`⚡ Background Hardware Sync Started for New Employee: ${employeeCode}`);
       await this.executeHardwareSync(employeeCode, null, false);
-      console.log(`✅ Background Hardware Sync Completed for: ${employeeCode}`);
+      // console.log(`✅ Background Hardware Sync Completed for: ${employeeCode}`);
     } catch (err: any) {
       console.error(`❌ Background Hardware Sync Failed for ${employeeCode}:`, err.message);
     }
@@ -3408,115 +3408,117 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
-  async getVisitorMachineAccessLogs(date: string) {
-    // 1. Fetch Door and Device mappings
-    const doorMappings = await db
-      .select({
-        doorName: doors.name,
-        inIds: doorDevices.inDeviceIds,
-        outIds: doorDevices.outDeviceIds,
-      })
-      .from(doors)
-      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+  // async getVisitorMachineAccessLogs(date: string) {
+  //   // 1. Fetch Door and Device mappings
+  //   const doorMappings = await db
+  //     .select({
+  //       doorName: doors.name,
+  //       inIds: doorDevices.inDeviceIds,
+  //       outIds: doorDevices.outDeviceIds,
+  //     })
+  //     .from(doors)
+  //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-    // 2. Fetch biometric logs from MS SQL
-    const msSqlData = await mssqlPool.request().input("filterDate", date)
-      .query(`
-      SELECT 
-        l.EmployeeCode, 
-        l.DeviceId, 
-        d.DeviceName,
-        l.Direction, 
-        l.LogDate 
-      FROM DeviceLogs l
-      LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-      WHERE CAST(l.LogDate AS DATE) = @filterDate
-        AND LOWER(l.EmployeeCode) LIKE 'visitor%'
-      ORDER BY l.LogDate DESC
-    `);
+  //   // 2. Fetch biometric logs from MS SQL
+  //   const msSqlData = await mssqlPool.request().input("filterDate", date)
+  //     .query(`
+  //     SELECT 
+  //       l.EmployeeCode, 
+  //       l.DeviceId, 
+  //       d.DeviceName,
+  //       l.Direction, 
+  //       l.LogDate 
+  //     FROM DeviceLogs l
+  //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+  //     WHERE CAST(l.LogDate AS DATE) = @filterDate
+  //       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
+  //     ORDER BY l.LogDate DESC
+  //   `);
 
-    const logs = msSqlData.recordset;
+  //   const logs = msSqlData.recordset;
 
-    // 3. Extract unique card identifiers (e.g., 'Visitor340' -> 340)
-    const cardIdentifiers = logs.map(l => {
-      if (!l.EmployeeCode) return null;
-      const matched = String(l.EmployeeCode).match(/\d+/);
-      return matched ? Number(matched[0]) : null;
-    }).filter((id): id is number => id !== null);
+  //   // 3. Extract unique card identifiers (e.g., 'Visitor340' -> 340)
+  //   const cardIdentifiers = logs.map(l => {
+  //     if (!l.EmployeeCode) return null;
+  //     const matched = String(l.EmployeeCode).match(/\d+/);
+  //     return matched ? Number(matched[0]) : null;
+  //   }).filter((id): id is number => id !== null);
 
-    let visitorDetails: any[] = [];
+  //   let visitorDetails: any[] = [];
 
-    // 4. Fetch all visitors mapped to these cards (including visitor table's rfidCardNo)
-    if (cardIdentifiers.length > 0) {
-      const uniqueCardIds = [...new Set(cardIdentifiers)];
+  //   // 4. Fetch all visitors mapped to these cards (including visitor table's rfidCardNo)
+  //   if (cardIdentifiers.length > 0) {
+  //     const uniqueCardIds = [...new Set(cardIdentifiers)];
 
-      visitorDetails = await db
-        .select({
-          id: schema.visitors.id,
-          visitorName: schema.visitors.nameOfVisitor,
-          rfidCardNo: schema.visitors.rfidCardNo, // Visitor table se direct card no. fetch kiya
-          cardMsId: visitorCards.msId,
-          cardNo: visitorCards.cardNumber,
-          inTime: schema.visitors.permissionDateFrom,
-          outTime: schema.visitors.permissionDateTo,
-        })
-        .from(schema.visitors)
-        .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
-        .where(inArray(visitorCards.msId, uniqueCardIds));
-    }
+  //     visitorDetails = await db
+  //       .select({
+  //         id: schema.visitors.id,
+  //         visitorName: schema.visitors.nameOfVisitor,
+  //         rfidCardNo: schema.visitors.rfidCardNo, // Visitor table se direct card no. fetch kiya
+  //         cardMsId: visitorCards.msId,
+  //         cardNo: visitorCards.cardNumber,
+  //         inTime: schema.visitors.permissionDateFrom,
+  //         outTime: schema.visitors.permissionDateTo,
+  //       })
+  //       .from(schema.visitors)
+  //       .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
+  //       .where(inArray(visitorCards.msId, uniqueCardIds));
+  //   }
 
-    // Helper function to safely format dates into clean Local ISO Strings (YYYY-MM-DD HH:mm:ss)
-    const formatToLocalStr = (dateInput: any) => {
-      if (!dateInput) return null;
-      const d = new Date(dateInput);
-      if (isNaN(d.getTime())) return null;
-      return new Date(d.getTime() - (d.getTimezoneOffset() * 60000))
-        .toISOString()
-        .slice(0, 19)
-        .replace('T', ' ');
-    };
+  //   // Helper function to safely format dates into clean Local ISO Strings (YYYY-MM-DD HH:mm:ss)
+  //   const formatToLocalStr = (dateInput: any) => {
+  //     if (!dateInput) return null;
+  //     const d = new Date(dateInput);
+  //     if (isNaN(d.getTime())) return null;
+  //     return new Date(d.getTime() - (d.getTimezoneOffset() * 60000))
+  //       .toISOString()
+  //       .slice(0, 19)
+  //       .replace('T', ' ');
+  //   };
 
-    // 5. Map biometric logs to specific visitors based on EXACT card ID and dynamic timestamps
-    const machineFeed = logs.map((log) => {
-      const door = doorMappings.find(
-        (m) =>
-          (m.inIds || []).includes(log.DeviceId) ||
-          (m.outIds || []).includes(log.DeviceId),
-      );
+  //   // 5. Map biometric logs to specific visitors based on EXACT card ID and dynamic timestamps
+  //   const machineFeed = logs.map((log) => {
+  //     const door = doorMappings.find(
+  //       (m) =>
+  //         (m.inIds || []).includes(log.DeviceId) ||
+  //         (m.outIds || []).includes(log.DeviceId),
+  //     );
 
-      const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
-      const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
+  //     const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
+  //     const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
 
-      // Normalize hardware log timestamp to local time string
-      const logTimeStr = formatToLocalStr(log.LogDate) || "";
+  //     // Normalize hardware log timestamp to local time string
+  //     const logTimeStr = formatToLocalStr(log.LogDate) || "";
 
-      // Match correct visitor row based on EXACT card reference AND time span allocation
-      const dbVisitor = visitorDetails.find(v => {
-        const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-          (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier));
+  //     // Match correct visitor row based on EXACT card reference AND time span allocation
+  //     const dbVisitor = visitorDetails.find(v => {
+  //       const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
+  //         (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier));
 
-        if (!isCardMatch) return false;
+  //       if (!isCardMatch) return false;
 
-        const visitorInStr = formatToLocalStr(v.inTime) || "";
-        const visitorOutStr = formatToLocalStr(v.outTime) || "2099-12-31 23:59:59";
+  //       const visitorInStr = formatToLocalStr(v.inTime) || "";
+  //       const visitorOutStr = formatToLocalStr(v.outTime) || "2099-12-31 23:59:59";
 
-        return logTimeStr >= visitorInStr && logTimeStr <= visitorOutStr;
-      });
+  //       return logTimeStr >= visitorInStr && logTimeStr <= visitorOutStr;
+  //     });
 
-      return {
-        visitorName: dbVisitor ? dbVisitor.visitorName : `Visitor ${numericCardIdentifier}`,
-        visitorId: numericCardIdentifier,
-        visitorCode: log.EmployeeCode,
-        rfidCardNo: dbVisitor ? dbVisitor.rfidCardNo : String(numericCardIdentifier), // Added to response object
-        deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-        direction: log.Direction,
-        logDate: log.LogDate,
-        doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
-      };
-    });
+  //     return {
+  //       visitorName: dbVisitor ? dbVisitor.visitorName : `Visitor ${numericCardIdentifier}`,
+  //       visitorId: numericCardIdentifier,
+  //       visitorCode: log.EmployeeCode,
+  //       rfidCardNo: dbVisitor ? dbVisitor.rfidCardNo : String(numericCardIdentifier), // Added to response object
+  //       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+  //       direction: log.Direction,
+  //       logDate: log.LogDate,
+  //       doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+  //     };
+  //   });
 
-    return { machineFeed };
-  }
+  //   return { machineFeed };
+  // }
+
+  
   // async getVisitorMachineAccessLogs(date: string) {
   //   const doorMappings = await db
   //     .select({
@@ -3579,6 +3581,112 @@ export class DatabaseStorage implements IStorage {
   //   });
   //   return { machineFeed };
   // }
+  async getVisitorMachineAccessLogs(date: string) {
+    // 1. Fetch Door and Device mappings
+    const doorMappings = await db
+      .select({
+        doorName: doors.name,
+        inIds: doorDevices.inDeviceIds,
+        outIds: doorDevices.outDeviceIds,
+      })
+      .from(doors)
+      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
+    // 2. Fetch biometric logs from MS SQL
+    const msSqlData = await mssqlPool.request().input("filterDate", date)
+      .query(`
+      SELECT 
+        l.EmployeeCode, 
+        l.DeviceId, 
+        d.DeviceName,
+        l.Direction, 
+        l.LogDate 
+      FROM DeviceLogs l
+      LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+      WHERE CAST(l.LogDate AS DATE) = @filterDate
+        AND LOWER(l.EmployeeCode) LIKE 'visitor%'
+      ORDER BY l.LogDate DESC
+    `);
+
+    const logs = msSqlData.recordset;
+
+    // 3. Extract unique card identifiers (e.g., 'Visitor340' -> 340)
+    const cardIdentifiers = logs.map(l => {
+      if (!l.EmployeeCode) return null;
+      const matched = String(l.EmployeeCode).match(/\d+/);
+      return matched ? Number(matched[0]) : null;
+    }).filter((id): id is number => id !== null);
+
+    let visitorDetails: any[] = [];
+
+    // 4. Fetch all visitors mapped to these cards
+    if (cardIdentifiers.length > 0) {
+      const uniqueCardIds = [...new Set(cardIdentifiers)];
+
+      visitorDetails = await db
+        .select({
+          id: schema.visitors.id,
+          visitorName: schema.visitors.nameOfVisitor,
+          rfidCardNo: schema.visitors.rfidCardNo,
+          cardMsId: visitorCards.msId,
+          cardNo: visitorCards.cardNumber,
+          inTime: schema.visitors.permissionDateFrom,
+          outTime: schema.visitors.permissionDateTo,
+        })
+        .from(schema.visitors)
+        .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
+        .where(inArray(visitorCards.msId, uniqueCardIds));
+    }
+
+    // 5. Map biometric logs using Epoch Times for precise matching
+    const machineFeed = logs.map((log) => {
+      const door = doorMappings.find(
+        (m) =>
+          (m.inIds || []).includes(log.DeviceId) ||
+          (m.outIds || []).includes(log.DeviceId),
+      );
+
+      const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
+      const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
+
+      // Log date ko epoch timestamp mein convert karein
+      const logTime = log.LogDate ? new Date(log.LogDate).getTime() : 0;
+
+      // Match correct visitor row based on EXACT card reference AND precise time span
+      const dbVisitor = visitorDetails.find(v => {
+        const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
+          (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier));
+
+        if (!isCardMatch) return false;
+
+        // Visitor In aur Out times ko precise epoch timestamps mein convert karein
+        const visitorInTime = v.inTime ? new Date(v.inTime).getTime() : 0;
+
+        // Agar visitor abhi bhi active hai (Out Time is null), toh use future infinite time de do
+        const visitorOutTime = v.outTime ? new Date(v.outTime).getTime() : new Date("2099-12-31T23:59:59").getTime();
+
+        // Strict Check: Log time strictly in-between visitor's card assignment duration hona chahiye
+        return logTime >= visitorInTime && logTime <= visitorOutTime;
+      });
+
+      return {
+        // ✅ Ab jiske time range me log date aayegi, sirf usi ka naam show hoga!
+        visitorName: dbVisitor ? dbVisitor.visitorName : "",
+        visitorId: numericCardIdentifier,
+        visitorCode: log.EmployeeCode,
+        rfidCardNo: dbVisitor ? dbVisitor.rfidCardNo : "",
+        deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+        direction: log.Direction,
+        logDate: log.LogDate,
+        doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+      };
+    });
+
+    return { machineFeed };
+  }
+ 
+ 
+ 
   async getMachineAccessLogs(date: string) {
     const doorMappings = await db
       .select({
