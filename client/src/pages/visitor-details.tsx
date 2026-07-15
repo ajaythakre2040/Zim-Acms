@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
 import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
-import { useConfirm } from "@/hooks/use-confirm"; 
+import { useConfirm } from "@/hooks/use-confirm";
 import { validateNoHtml } from "@/lib/validation";
 import {
   Pencil,
@@ -25,7 +25,7 @@ import { PaginationSize } from "@/components/ui/pagination";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export default function VisitorsPage() {
-  const confirm = useConfirm(); 
+  const confirm = useConfirm();
   const [visitorDialog, setVisitorDialog] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<any>(null);
   const { toast } = useToast();
@@ -192,27 +192,35 @@ export default function VisitorsPage() {
   // 🔴 NOTE: `required: true` ko custom variables se hataya taaki native HTML tooltip popup block na kare!
   const visitorFields: FieldConfig[] = [
     { key: "nameOfVisitor", label: "Visitor Name", required: true },
-    { 
-      key: "contactNo", 
-      label: "Contact Number", 
+    {
+      key: "contactNo",
+      label: "Contact Number",
       required: true,
       onChange: (e: any) => {
         const val = e.target.value.trim();
         if (/^\d{10}$/.test(val) && Number(val.charAt(0)) > 5) {
-          setErrors(prev => { const copy = { ...prev }; delete copy.contactNo; return copy; });
+          setErrors((prev) => {
+            const copy = { ...prev };
+            delete copy.contactNo;
+            return copy;
+          });
         }
-      }
+      },
     },
-    { 
-      key: "emailAddress", 
-      label: "Email Address", 
+    {
+      key: "emailAddress",
+      label: "Email Address",
       type: "email",
       onChange: (e: any) => {
         const val = e.target.value.trim();
         if (!val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
-          setErrors(prev => { const copy = { ...prev }; delete copy.emailAddress; return copy; });
+          setErrors((prev) => {
+            const copy = { ...prev };
+            delete copy.emailAddress;
+            return copy;
+          });
         }
-      }
+      },
     },
     { key: "visitorsCompanyName", label: "Company Name" },
     { key: "designation", label: "Designation" },
@@ -230,69 +238,81 @@ export default function VisitorsPage() {
     //     }
     //   }
     // },
-    
+
     {
-  key: "rfidCardNo",
-  label: "RFID Card No *",
-  type: "select",
-  options: (() => {
-    // 1. Available/Unassigned cards map karein (Format: v2 (3062587))
-    const opts = visitorCards.map((c: any) => ({
-      label: c.name ? `${c.name} (${c.cardNumber || c.card_number})` : (c.cardNumber || c.card_number),
-      value: c.cardNumber || c.card_number,
-    }));
+      key: "rfidCardNo",
+      label: "RFID Card No *",
+      type: "select",
+      options: (() => {
+        // 1. Available/Unassigned cards map karein (Format: v2 (3062587))
+        const opts = visitorCards.map((c: any) => ({
+          label: c.name
+            ? `${c.name} (${c.cardNumber || c.card_number})`
+            : c.cardNumber || c.card_number,
+          value: c.cardNumber || c.card_number,
+        }));
 
-    // 2. Agar Edit Mode chal raha hai aur assigned card listed nahi hai
-    if (editingVisitor) {
-      // Check database mapping keys (visitorCardId or visitor_card_id)
-      const currentCardId = editingVisitor.visitorCardId || editingVisitor.visitor_card_id;
+        // 2. Agar Edit Mode chal raha hai aur assigned card listed nahi hai
+        if (editingVisitor) {
+          // Check database mapping keys (visitorCardId or visitor_card_id)
+          const currentCardId =
+            editingVisitor.visitorCardId || editingVisitor.visitor_card_id;
 
-      // Fallback number agar backend direct string bhej raha ho
-      const currentCardNumber = editingVisitor.rfidCardNo || editingVisitor.card_number;
+          // Fallback number agar backend direct string bhej raha ho
+          const currentCardNumber =
+            editingVisitor.rfidCardNo || editingVisitor.card_number;
 
-      // Check if this card is already in unassigned dropdown list
-      const alreadyExists = opts.some(
-        (o: any) =>
-          (currentCardNumber && String(o.value).trim() === String(currentCardNumber).trim())
-      );
+          // Check if this card is already in unassigned dropdown list
+          const alreadyExists = opts.some(
+            (o: any) =>
+              currentCardNumber &&
+              String(o.value).trim() === String(currentCardNumber).trim(),
+          );
 
-      if (!alreadyExists) {
-        // Hum name nikalne ke liye backend response properties use karenge
-        const currentCardName = editingVisitor.visitorCardName || editingVisitor.cardName || editingVisitor.card_name;
-        
-        // Naya Check: Agar permissionDateTo null hai, toh hi "(Currently Assigned)" lagana hai
-        const isCurrentlyAssigned = !editingVisitor.permissionDateTo; 
-        const suffix = isCurrentlyAssigned ? " (Currently Assigned)" : "";
+          if (!alreadyExists) {
+            // Hum name nikalne ke liye backend response properties use karenge
+            const currentCardName =
+              editingVisitor.visitorCardName ||
+              editingVisitor.cardName ||
+              editingVisitor.card_name;
 
-        // Label structure create karein based on availability of name and number
-        let finalLabel = "";
-        if (currentCardName && currentCardNumber) {
-          finalLabel = `${currentCardName} (${currentCardNumber})${suffix}`;
-        } else if (currentCardName) {
-          finalLabel = `${currentCardName}${suffix}`;
-        } else {
-          finalLabel = `${currentCardNumber || 'Assigned Card'}${suffix}`;
+            // Naya Check: Agar permissionDateTo null hai, toh hi "(Currently Assigned)" lagana hai
+            const isCurrentlyAssigned = !editingVisitor.permissionDateTo;
+            const suffix = isCurrentlyAssigned ? " (Currently Assigned)" : "";
+
+            // Label structure create karein based on availability of name and number
+            let finalLabel = "";
+            if (currentCardName && currentCardNumber) {
+              finalLabel = `${currentCardName} (${currentCardNumber})${suffix}`;
+            } else if (currentCardName) {
+              finalLabel = `${currentCardName}${suffix}`;
+            } else {
+              finalLabel = `${currentCardNumber || "Assigned Card"}${suffix}`;
+            }
+
+            opts.unshift({
+              label: finalLabel,
+              // Backend payload key match karne ke liye select value card_number honi chahiye
+              value: currentCardNumber || "",
+            });
+          }
         }
 
-        opts.unshift({
-          label: finalLabel,
-          // Backend payload key match karne ke liye select value card_number honi chahiye
-          value: currentCardNumber || "",
-        });
-      }
-    }
-    
-    return opts;
+        return opts;
       })(),
       onChange: (val: any) => {
         if (val && val !== "undefined" && val !== "null") {
-          setErrors(prev => { const copy = { ...prev }; delete copy.contactNo; return copy; });
+          setErrors((prev) => {
+            const copy = { ...prev };
+            delete copy.contactNo;
+            return copy;
+          });
         }
-      }
+      },
     },
     {
       key: "whomToMeet",
-      label: "Whom To Meet (ZIM Employee) *", 
+      label: "Whom To Meet (ZIM Employee) *",
       type: "select",
       options: employees
         .map((e: any) => {
@@ -307,9 +327,13 @@ export default function VisitorsPage() {
         .filter((o: any) => o.label.trim() !== ""),
       onChange: (val: any) => {
         if (val && val !== "undefined" && val !== "null") {
-          setErrors(prev => { const copy = { ...prev }; delete copy.whomToMeet; return copy; });
+          setErrors((prev) => {
+            const copy = { ...prev };
+            delete copy.whomToMeet;
+            return copy;
+          });
         }
-      }
+      },
     },
     { key: "purpose", label: "Purpose of Visit" },
     {
@@ -319,9 +343,13 @@ export default function VisitorsPage() {
       onChange: (e: any) => {
         const val = e.target.value.trim();
         if (val && val !== "undefined" && val !== "null") {
-          setErrors(prev => { const copy = { ...prev }; delete copy.permissionDateFrom; return copy; });
+          setErrors((prev) => {
+            const copy = { ...prev };
+            delete copy.permissionDateFrom;
+            return copy;
+          });
         }
-      }
+      },
     },
     { key: "state", label: "State" },
     { key: "district", label: "District" },
@@ -386,39 +414,41 @@ export default function VisitorsPage() {
         <div className="flex items-center space-x-1">
           {/* EXIT BUTTON */}
           <Button
-  size="icon"
-  variant="ghost"
-  title="Mark Exit / Check-out"
-  onClick={async (e) => {
-    e.stopPropagation();
+            size="icon"
+            variant="ghost"
+            title="Mark Exit / Check-out"
+            onClick={async (e) => {
+              e.stopPropagation();
 
-    // 🌟 CHECK: Agar visitor already check-out ho chuka hai (Out Time majood hai)
-    if (v.permissionDateTo) {
-      toast({
-        title: "Already Checked Out",
-        description: `${v.nameOfVisitor} has already logged out at ${new Date(v.permissionDateTo).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`,
-        variant: "destructive", // Ya fir "default" jaisa aapko sahi lage
-      });
-      return; // Aage ka confirmation block aur mutation trigger nahi hoga 🛑
-    }
+              // 🌟 CHECK: Agar visitor already check-out ho chuka hai (Out Time majood hai)
+              if (v.permissionDateTo) {
+                toast({
+                  title: "Already Checked Out",
+                  description: `${v.nameOfVisitor} has already logged out at ${new Date(v.permissionDateTo).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`,
+                  variant: "destructive", // Ya fir "default" jaisa aapko sahi lage
+                });
+                return; // Aage ka confirmation block aur mutation trigger nahi hoga 🛑
+              }
 
-    // Agar checked-out nahi hai, toh hi confirm box open hoga
-    const confirmed = await confirm({
-      title: "Mark Visitor Exit?",
-      description: `Are you sure you want to check out ${v.nameOfVisitor}? This will update their departure timestamp.`,
-      confirmText: "Yes, Check-out",
-      cancelText: "Cancel",
-      variant: "default",
-    });
-    if (confirmed) {
-      checkoutVisitor.mutate(v.id);
-    }
-  }}
-  disabled={checkoutVisitor.isPending}
->
-  {/* 🌟 STYLING OPTION: Agar visitor already logged out hai toh icon thoda fade/gray-out dikhe */}
-  <LogOut className={`w-4 h-4 ${v.permissionDateTo ? "text-muted-foreground/50" : "text-emerald-500"}`} />
-</Button>
+              // Agar checked-out nahi hai, toh hi confirm box open hoga
+              const confirmed = await confirm({
+                title: "Mark Visitor Exit?",
+                description: `Are you sure you want to check out ${v.nameOfVisitor}? This will update their departure timestamp.`,
+                confirmText: "Yes, Check-out",
+                cancelText: "Cancel",
+                variant: "default",
+              });
+              if (confirmed) {
+                checkoutVisitor.mutate(v.id);
+              }
+            }}
+            disabled={checkoutVisitor.isPending}
+          >
+            {/* 🌟 STYLING OPTION: Agar visitor already logged out hai toh icon thoda fade/gray-out dikhe */}
+            <LogOut
+              className={`w-4 h-4 ${v.permissionDateTo ? "text-muted-foreground/50" : "text-emerald-500"}`}
+            />
+          </Button>
 
           {/* VIEW BUTTON */}
           <Button
@@ -434,42 +464,47 @@ export default function VisitorsPage() {
             <Eye className="w-4 h-4 text-blue-500" />
           </Button>
 
-          {/* EDIT BUTTON */}
-          <Button
-            size="icon"
-            variant="ghost"
-            title="Edit Profile"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingVisitor(v);
-              setErrors({}); // Edit khulne par errors reset
-              setVisitorDialog(true);
-            }}
-          >
-            <Pencil className="w-4 h-4 text-amber-500" />
-          </Button>
+          {/* HIDE EDIT & DELETE BUTTONS IF VISITOR HAS CHECKED OUT */}
+          {!v.permissionDateTo && (
+            <>
+              {/* EDIT BUTTON */}
+              <Button
+                size="icon"
+                variant="ghost"
+                title="Edit Profile"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingVisitor(v);
+                  setErrors({}); // Edit khulne par errors reset
+                  setVisitorDialog(true);
+                }}
+              >
+                <Pencil className="w-4 h-4 text-amber-500" />
+              </Button>
 
-          {/* DELETE BUTTON */}
-          <Button
-            size="icon"
-            variant="ghost"
-            title="Delete Visitor"
-            onClick={async (e) => {
-              e.stopPropagation();
-              const confirmed = await confirm({
-                title: "Delete Visitor Profile?",
-                description: `Are you sure you want to delete visitor "${v.nameOfVisitor}"? This action cannot be undone and will erase registry details.`,
-                confirmText: "Yes, Delete",
-                cancelText: "Cancel",
-                variant: "destructive",
-              });
-              if (confirmed) {
-                deleteVisitor.mutate(v.id);
-              }
-            }}
-          >
-            <Trash2 className="w-4 h-4 text-destructive" />
-          </Button>
+              {/* DELETE BUTTON */}
+              <Button
+                size="icon"
+                variant="ghost"
+                title="Delete Visitor"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  const confirmed = await confirm({
+                    title: "Delete Visitor Profile?",
+                    description: `Are you sure you want to delete visitor "${v.nameOfVisitor}"? This action cannot be undone and will erase registry details.`,
+                    confirmText: "Yes, Delete",
+                    cancelText: "Cancel",
+                    variant: "destructive",
+                  });
+                  if (confirmed) {
+                    deleteVisitor.mutate(v.id);
+                  }
+                }}
+              >
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </Button>
+            </>
+          )}
         </div>
       ),
     },
@@ -611,69 +646,87 @@ export default function VisitorsPage() {
             : undefined
         }
         onSubmit={(data) => {
-  setErrors({}); // Har submission par pehle errors clear karein
+          setErrors({}); // Har submission par pehle errors clear karein
 
-  const validationErrors = validateNoHtml(data) || {};
+          const validationErrors = validateNoHtml(data) || {};
 
-  // Cleaned variables for format checks
-  const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
-  const cleanedContact = String(data.contactNo || "").trim();
-  const cleanedEmail = String(data.emailAddress || "").trim();
+          // Cleaned variables for format checks
+          const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
+          const cleanedContact = String(data.contactNo || "").trim();
+          const cleanedEmail = String(data.emailAddress || "").trim();
 
-  const selectedRfid = String(data.rfidCardNo || "").trim();
-  const selectedWhomToMeet = String(data.whomToMeet || "").trim();
-  const selectedInTime = String(data.permissionDateFrom || "").trim();
+          const selectedRfid = String(data.rfidCardNo || "").trim();
+          const selectedWhomToMeet = String(data.whomToMeet || "").trim();
+          const selectedInTime = String(data.permissionDateFrom || "").trim();
 
-  // 🛑 2. Name Check (Agar validateNoHtml me handle na ho raha ho toh backup)
-  if (!cleanedVisitorName) {
-    validationErrors.nameOfVisitor = "Visitor name is required.";
-  }
+          // 🛑 2. Name Check (Agar validateNoHtml me handle na ho raha ho toh backup)
+          if (!cleanedVisitorName) {
+            validationErrors.nameOfVisitor = "Visitor name is required.";
+          }
 
-  // 🛑 3. RFID Card No Selection Validation
-  if (!selectedRfid || selectedRfid === "undefined" || selectedRfid === "null") {
-    validationErrors.rfidCardNo = "Please select an RFID Card.";
-  }
+          // 🛑 3. RFID Card No Selection Validation
+          if (
+            !selectedRfid ||
+            selectedRfid === "undefined" ||
+            selectedRfid === "null"
+          ) {
+            validationErrors.rfidCardNo = "Please select an RFID Card.";
+          }
 
-  // 🛑 4. Whom To Meet Selection Validation
-  if (!selectedWhomToMeet || selectedWhomToMeet === "undefined" || selectedWhomToMeet === "null") {
-    validationErrors.whomToMeet = "Please select the employee to meet.";
-  }
+          // 🛑 4. Whom To Meet Selection Validation
+          if (
+            !selectedWhomToMeet ||
+            selectedWhomToMeet === "undefined" ||
+            selectedWhomToMeet === "null"
+          ) {
+            validationErrors.whomToMeet = "Please select the employee to meet.";
+          }
 
-  // 🛑 5. In Time Selection Validation
-  if (!selectedInTime || selectedInTime === "undefined" || selectedInTime === "null") {
-    validationErrors.permissionDateFrom = "Please select the In Time.";
-  }
+          // 🛑 5. In Time Selection Validation
+          if (
+            !selectedInTime ||
+            selectedInTime === "undefined" ||
+            selectedInTime === "null"
+          ) {
+            validationErrors.permissionDateFrom = "Please select the In Time.";
+          }
 
-  // 🛑 6. Contact Number Format Checks
-  if (!cleanedContact) {
-    validationErrors.contactNo = "Contact number is required.";
-  } else if (!/^\d{10}$/.test(cleanedContact)) {
-    validationErrors.contactNo = "Contact number must be exactly 10 digits.";
-  } else {
-    const firstDigit = Number(cleanedContact.charAt(0));
-    if (firstDigit <= 5) {
-      validationErrors.contactNo = "Contact number must start with 6, 7, 8, or 9.";
-    }
-  }
+          // 🛑 6. Contact Number Format Checks
+          if (!cleanedContact) {
+            validationErrors.contactNo = "Contact number is required.";
+          } else if (!/^\d{10}$/.test(cleanedContact)) {
+            validationErrors.contactNo =
+              "Contact number must be exactly 10 digits.";
+          } else {
+            const firstDigit = Number(cleanedContact.charAt(0));
+            if (firstDigit <= 5) {
+              validationErrors.contactNo =
+                "Contact number must start with 6, 7, 8, or 9.";
+            }
+          }
 
-  // 🛑 7. Email Validation
-  if (cleanedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)) {
-    validationErrors.emailAddress = "Please enter a valid email address.";
-  }
+          // 🛑 7. Email Validation
+          if (
+            cleanedEmail &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
+          ) {
+            validationErrors.emailAddress =
+              "Please enter a valid email address.";
+          }
 
-  // If errors exist, reject mutation dispatch sequence 🛑
-  if (Object.keys(validationErrors).length > 0) {
-    setErrors(validationErrors);
-    return; 
-  }
+          // If errors exist, reject mutation dispatch sequence 🛑
+          if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            return;
+          }
 
-  // Agar saare validations pass ho gaye hain, toh data submit hoga
-  if (editingVisitor) {
-    updateVisitor.mutate({ id: editingVisitor.id, data });
-  } else {
-    createVisitor.mutate(data);
-  }
-}}
+          // Agar saare validations pass ho gaye hain, toh data submit hoga
+          if (editingVisitor) {
+            updateVisitor.mutate({ id: editingVisitor.id, data });
+          } else {
+            createVisitor.mutate(data);
+          }
+        }}
         isPending={createVisitor.isPending || updateVisitor.isPending}
       />
 
@@ -826,22 +879,34 @@ export default function VisitorsPage() {
                       </span>
                       <span className="font-medium text-slate-800 text-xs flex flex-col gap-1 mt-1">
                         <div>
-                          <strong className="text-emerald-600 font-medium">In: </strong>
-                          {viewingVisitor.permissionDateFrom ? (() => {
-                            const d = new Date(viewingVisitor.permissionDateFrom);
-                            return isNaN(d.getTime())
-                              ? viewingVisitor.permissionDateFrom
-                              : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                          })() : "-"}
+                          <strong className="text-emerald-600 font-medium">
+                            In:{" "}
+                          </strong>
+                          {viewingVisitor.permissionDateFrom
+                            ? (() => {
+                                const d = new Date(
+                                  viewingVisitor.permissionDateFrom,
+                                );
+                                return isNaN(d.getTime())
+                                  ? viewingVisitor.permissionDateFrom
+                                  : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+                              })()
+                            : "-"}
                         </div>
                         <div>
-                          <strong className="text-rose-600 font-medium">Out: </strong>
-                          {viewingVisitor.permissionDateTo ? (() => {
-                            const d = new Date(viewingVisitor.permissionDateTo);
-                            return isNaN(d.getTime())
-                              ? viewingVisitor.permissionDateTo
-                              : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-                          })() : "-"}
+                          <strong className="text-rose-600 font-medium">
+                            Out:{" "}
+                          </strong>
+                          {viewingVisitor.permissionDateTo
+                            ? (() => {
+                                const d = new Date(
+                                  viewingVisitor.permissionDateTo,
+                                );
+                                return isNaN(d.getTime())
+                                  ? viewingVisitor.permissionDateTo
+                                  : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+                              })()
+                            : "-"}
                         </div>
                       </span>
                     </div>
