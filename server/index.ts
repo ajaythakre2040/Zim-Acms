@@ -105,7 +105,7 @@ app.use((req, res, next) => {
       log("Cron reset failed: " + e, "error");
     }
     startAttendanceCron();
-    initAutoSuspendScheduler();
+    // initAutoSuspendScheduler();
     initSyncVisitorLogsCron();
     
     // 2. Register API Routes

@@ -2498,6 +2498,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
+    console.log("Creating visitor with data:", data);
     let insertedMsSqlId: number | null = null;
     try {
       if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
@@ -2515,8 +2516,11 @@ export class DatabaseStorage implements IStorage {
       request.input('Company', mssql.NVarChar, data.visitorsCompanyName || null);
       request.input('Designation', mssql.NVarChar, data.designation || null);
       request.input('Remarks', mssql.NVarChar, data.remark || null);
-      const currentIsoDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
-      request.input('InDate', mssql.DateTime, currentIsoDate);
+      // const currentIsoDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      // request.input('InDate', mssql.DateTime, currentIsoDate);
+
+      // request.input('InDate', mssql.DateTime, new Date());
+
       const msSqlResult = await request.query(`
       INSERT INTO VisitorLogs (
         Name, ContactNumber, Email, LocationId, Purpose, 
@@ -2526,7 +2530,7 @@ export class DatabaseStorage implements IStorage {
       VALUES (
         @Name, @ContactNumber, @Email, @LocationId, @Purpose, 
         @ToMeetId, @VisitorDeskId, @VisitorCardId, @Company, 
-        @Designation, @InDate, @Remarks
+        @Designation, GETDATE(), @Remarks
       );
       SELECT SCOPE_IDENTITY() AS id;
     `);
@@ -2732,7 +2736,7 @@ export class DatabaseStorage implements IStorage {
         request.input('OutDate', mssql.DateTime, currentIsoDate);
         await request.query(`
         UPDATE VisitorLogs 
-        SET OutDate = @OutDate
+        SET OutDate =GETDATE()
         WHERE Id = @TargetMsId
       `);
       } catch (msSqlErr: any) {
@@ -3518,7 +3522,7 @@ export class DatabaseStorage implements IStorage {
   //   return { machineFeed };
   // }
 
-  
+
   // async getVisitorMachineAccessLogs(date: string) {
   //   const doorMappings = await db
   //     .select({
@@ -3581,6 +3585,7 @@ export class DatabaseStorage implements IStorage {
   //   });
   //   return { machineFeed };
   // }
+
   async getVisitorMachineAccessLogs(date: string) {
     // 1. Fetch Door and Device mappings
     const doorMappings = await db
@@ -3635,10 +3640,41 @@ export class DatabaseStorage implements IStorage {
         })
         .from(schema.visitors)
         .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
-        .where(inArray(visitorCards.msId, uniqueCardIds));
+        .where(
+          or(
+            inArray(visitorCards.msId, uniqueCardIds),
+            inArray(visitorCards.cardNumber, uniqueCardIds.map(String))
+          )
+        );
     }
 
-    // 5. Map biometric logs using Epoch Times for precise matching
+    // ⭐ STRONGEST DATE TO LOCAL STRING CONVERTER (Bypasses all UTC/Local offsets)
+    const formatToRawLocalStr = (dateInput: any) => {
+      if (!dateInput) return "";
+      const d = new Date(dateInput);
+      if (isNaN(d.getTime())) return "";
+
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const year = d.getFullYear();
+      const month = pad(d.getMonth() + 1);
+      const day = pad(d.getDate());
+      const hours = pad(d.getHours());
+      const minutes = pad(d.getMinutes());
+      const seconds = pad(d.getSeconds());
+
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    };
+
+    // Helper: Buffer time badhane ke liye (seconds match issues door karne)
+    const addMinutesToLocalStr = (dateInput: any, minutesToAdd: number) => {
+      if (!dateInput) return "";
+      const d = new Date(dateInput);
+      if (isNaN(d.getTime())) return "";
+      const futureDate = new Date(d.getTime() + (minutesToAdd * 60 * 1000));
+      return formatToRawLocalStr(futureDate);
+    };
+
+    // 5. Map biometric logs using Local Time Strings comparison
     const machineFeed = logs.map((log) => {
       const door = doorMappings.find(
         (m) =>
@@ -3649,32 +3685,67 @@ export class DatabaseStorage implements IStorage {
       const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
       const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
 
-      // Log date ko epoch timestamp mein convert karein
-      const logTime = log.LogDate ? new Date(log.LogDate).getTime() : 0;
+      // Log date as raw local string (e.g. "2026-07-15 17:37:00")
+      const logTimeStr = formatToRawLocalStr(log.LogDate);
 
       // Match correct visitor row based on EXACT card reference AND precise time span
       const dbVisitor = visitorDetails.find(v => {
+        // Card Match Check (Checks across MS ID, Physical Card No, and RFID fallback)
         const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-          (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier));
+          (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier)) ||
+          (v.rfidCardNo !== null && String(v.rfidCardNo) === String(numericCardIdentifier));
 
         if (!isCardMatch) return false;
 
-        // Visitor In aur Out times ko precise epoch timestamps mein convert karein
-        const visitorInTime = v.inTime ? new Date(v.inTime).getTime() : 0;
+        const visitorInStr = formatToRawLocalStr(v.inTime);
 
-        // Agar visitor abhi bhi active hai (Out Time is null), toh use future infinite time de do
-        const visitorOutTime = v.outTime ? new Date(v.outTime).getTime() : new Date("2099-12-31T23:59:59").getTime();
+        // 🚨 STRICT BOUNDARY 1: Biometric log ka time card assignment (inTime) se pehle nahi ho sakta
+        // (Ek 2-minute ka buffer pehle ka de dete hain, in case check-in lagne se thoda pehle machine tap hua ho)
+        const visitorInWithBuffer = addMinutesToLocalStr(v.inTime, -2);
+        if (logTimeStr < visitorInWithBuffer) return false;
 
-        // Strict Check: Log time strictly in-between visitor's card assignment duration hona chahiye
-        return logTime >= visitorInTime && logTime <= visitorOutTime;
+        // 🚨 DYNAMIC UPPER BOUNDARY:
+        // Hum check karenge ki kya is card par iske baad koi naya visitor registered hua hai baad mein?
+        const nextVisitorOnSameCard = visitorDetails
+          .filter(other => {
+            const otherCardMatch = (other.cardMsId !== null && Number(other.cardMsId) === Number(numericCardIdentifier)) ||
+              (other.cardNo !== null && String(other.cardNo) === String(numericCardIdentifier)) ||
+              (other.rfidCardNo !== null && String(other.rfidCardNo) === String(numericCardIdentifier));
+
+            const otherInStr = formatToRawLocalStr(other.inTime);
+            return otherCardMatch && other.id !== v.id && otherInStr > visitorInStr;
+          })
+          .sort((a, b) => {
+            const aIn = formatToRawLocalStr(a.inTime);
+            const bIn = formatToRawLocalStr(b.inTime);
+            return aIn.localeCompare(bIn);
+          })[0];
+
+        if (nextVisitorOnSameCard) {
+          // A. Agar koi naya visitor aa chuka hai, toh purane visitor ki strict boundary naye check-in se pehle tak hi rahegi
+          const nextVisitorInStr = formatToRawLocalStr(nextVisitorOnSameCard.inTime);
+          return logTimeStr < nextVisitorInStr;
+        }
+
+        // B. Agar koi naya visitor nahi aaya hai is card par:
+        if (v.outTime) {
+          // Agar current visitor checkout ho gaya hai aur naya visitor nahi aaya hai,
+          // tab checkout time se upar 10-minutes ka buffer milna chahiye (unintentional delay sync handle karne ke liye)
+          const visitorOutWithBuffer = addMinutesToLocalStr(v.outTime, 10);
+          return logTimeStr <= visitorOutWithBuffer;
+        }
+
+        // C. Agar checkout bhi nahi hua hai aur naya visitor bhi nahi aaya, toh ye active card holder hai
+        return true;
       });
 
       return {
-        // ✅ Ab jiske time range me log date aayegi, sirf usi ka naam show hoga!
         visitorName: dbVisitor ? dbVisitor.visitorName : "",
         visitorId: numericCardIdentifier,
         visitorCode: log.EmployeeCode,
-        rfidCardNo: dbVisitor ? dbVisitor.rfidCardNo : "",
+        rfidCardNo: dbVisitor
+          ? (dbVisitor.cardNo || dbVisitor.rfidCardNo || "")
+          : (numericCardIdentifier ? String(numericCardIdentifier) : ""),
         deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
         direction: log.Direction,
         logDate: log.LogDate,
@@ -3684,9 +3755,6 @@ export class DatabaseStorage implements IStorage {
 
     return { machineFeed };
   }
- 
- 
- 
   async getMachineAccessLogs(date: string) {
     const doorMappings = await db
       .select({
@@ -3806,7 +3874,7 @@ export class DatabaseStorage implements IStorage {
     const [newMapping] = await db.insert(doorDevices).values(data).returning();
     return newMapping;
   }
-  
+
   async updateDoorDevice(
     id: number,
     data: Partial<InsertDoorDevice>,
