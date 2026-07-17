@@ -1736,10 +1736,14 @@ export class DatabaseStorage implements IStorage {
     }
   }
   async getPeople(
-    search?: string,
-    page?: number | string,
-    pageSize?: number | string,
-  ): Promise<any> {
+  search?: string,
+  page?: number | string,
+  pageSize?: number | string,
+  dept?: string,
+  status?: string,
+  lockout?: string,
+  rule?: string,
+): Promise<any> {
     const [pgDataRaw, msDataRaw] = await Promise.all([
       db
         .select({
@@ -1879,6 +1883,35 @@ export class DatabaseStorage implements IStorage {
           p.ruleName?.toLowerCase().includes(term),
       );
     }
+    // Department
+if (dept && dept !== "all") {
+  results = results.filter(
+    (p) => String(p.departmentId) === String(dept)
+  );
+}
+
+// Status
+if (status && status !== "all") {
+  results = results.filter(
+    (p) => p.status === status
+  );
+}
+
+// Lockout
+if (lockout && lockout !== "all") {
+  const isLocked = lockout === "true";
+
+  results = results.filter(
+    (p) => Boolean(p.is_lockout_enabled) === isLocked
+  );
+}
+
+// Rule
+if (rule && rule !== "all") {
+  results = results.filter(
+    (p) => String(p.ruleid) === String(rule)
+  );
+}
     results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
     const uniquePeople = Array.from(
       new Map(
@@ -3586,175 +3619,339 @@ export class DatabaseStorage implements IStorage {
   //   return { machineFeed };
   // }
 
-  async getVisitorMachineAccessLogs(date: string) {
-    // 1. Fetch Door and Device mappings
-    const doorMappings = await db
+  async getVisitorMachineAccessLogs(
+  date: string, 
+  filters?: { search?: string; fromDate?: string; toDate?: string }
+) {
+  // 1. Fetch Door and Device mappings
+  const doorMappings = await db
+    .select({
+      doorName: doors.name,
+      inIds: doorDevices.inDeviceIds,
+      outIds: doorDevices.outDeviceIds,
+    })
+    .from(doors)
+    .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
+  // 2. Fetch biometric logs from MS SQL (String format mapping)
+  const msSqlData = await mssqlPool.request().input("filterDate", date)
+    .query(`
+    SELECT 
+      l.EmployeeCode, 
+      l.DeviceId, 
+      d.DeviceName,
+      l.Direction, 
+      CONVERT(VARCHAR(19), l.LogDate, 120) AS LogDate  -- Direct 'YYYY-MM-DD HH:MM:SS' format
+    FROM DeviceLogs l
+    LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+    WHERE CAST(l.LogDate AS DATE) = @filterDate
+      AND LOWER(l.EmployeeCode) LIKE 'visitor%'
+    ORDER BY l.LogDate DESC
+  `);
+
+  const logs = msSqlData.recordset;
+
+  // 3. Extract unique card identifiers
+  const cardIdentifiers = logs.map(l => {
+    if (!l.EmployeeCode) return null;
+    const matched = String(l.EmployeeCode).match(/\d+/);
+    return matched ? Number(matched[0]) : null;
+  }).filter((id): id is number => id !== null);
+
+  let visitorDetails: any[] = [];
+
+  // 4. Fetch all visitors mapped to these cards
+  if (cardIdentifiers.length > 0) {
+    const uniqueCardIds = [...new Set(cardIdentifiers)];
+
+    visitorDetails = await db
       .select({
-        doorName: doors.name,
-        inIds: doorDevices.inDeviceIds,
-        outIds: doorDevices.outDeviceIds,
+        id: schema.visitors.id,
+        visitorName: schema.visitors.nameOfVisitor,
+        rfidCardNo: schema.visitors.rfidCardNo,
+        cardMsId: visitorCards.msId,
+        cardNo: visitorCards.cardNumber,
+        inTime: schema.visitors.permissionDateFrom, 
+        outTime: schema.visitors.permissionDateTo,  
       })
-      .from(doors)
-      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-
-    // 2. Fetch biometric logs from MS SQL
-    const msSqlData = await mssqlPool.request().input("filterDate", date)
-      .query(`
-      SELECT 
-        l.EmployeeCode, 
-        l.DeviceId, 
-        d.DeviceName,
-        l.Direction, 
-        l.LogDate 
-      FROM DeviceLogs l
-      LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-      WHERE CAST(l.LogDate AS DATE) = @filterDate
-        AND LOWER(l.EmployeeCode) LIKE 'visitor%'
-      ORDER BY l.LogDate DESC
-    `);
-
-    const logs = msSqlData.recordset;
-
-    // 3. Extract unique card identifiers (e.g., 'Visitor340' -> 340)
-    const cardIdentifiers = logs.map(l => {
-      if (!l.EmployeeCode) return null;
-      const matched = String(l.EmployeeCode).match(/\d+/);
-      return matched ? Number(matched[0]) : null;
-    }).filter((id): id is number => id !== null);
-
-    let visitorDetails: any[] = [];
-
-    // 4. Fetch all visitors mapped to these cards
-    if (cardIdentifiers.length > 0) {
-      const uniqueCardIds = [...new Set(cardIdentifiers)];
-
-      visitorDetails = await db
-        .select({
-          id: schema.visitors.id,
-          visitorName: schema.visitors.nameOfVisitor,
-          rfidCardNo: schema.visitors.rfidCardNo,
-          cardMsId: visitorCards.msId,
-          cardNo: visitorCards.cardNumber,
-          inTime: schema.visitors.permissionDateFrom,
-          outTime: schema.visitors.permissionDateTo,
-        })
-        .from(schema.visitors)
-        .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
-        .where(
-          or(
-            inArray(visitorCards.msId, uniqueCardIds),
-            inArray(visitorCards.cardNumber, uniqueCardIds.map(String))
-          )
-        );
-    }
-
-    // ⭐ STRONGEST DATE TO LOCAL STRING CONVERTER (Bypasses all UTC/Local offsets)
-    const formatToRawLocalStr = (dateInput: any) => {
-      if (!dateInput) return "";
-      const d = new Date(dateInput);
-      if (isNaN(d.getTime())) return "";
-
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const year = d.getFullYear();
-      const month = pad(d.getMonth() + 1);
-      const day = pad(d.getDate());
-      const hours = pad(d.getHours());
-      const minutes = pad(d.getMinutes());
-      const seconds = pad(d.getSeconds());
-
-      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-    };
-
-    // Helper: Buffer time badhane ke liye (seconds match issues door karne)
-    const addMinutesToLocalStr = (dateInput: any, minutesToAdd: number) => {
-      if (!dateInput) return "";
-      const d = new Date(dateInput);
-      if (isNaN(d.getTime())) return "";
-      const futureDate = new Date(d.getTime() + (minutesToAdd * 60 * 1000));
-      return formatToRawLocalStr(futureDate);
-    };
-
-    // 5. Map biometric logs using Local Time Strings comparison
-    const machineFeed = logs.map((log) => {
-      const door = doorMappings.find(
-        (m) =>
-          (m.inIds || []).includes(log.DeviceId) ||
-          (m.outIds || []).includes(log.DeviceId),
+      .from(schema.visitors)
+      .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
+      .where(
+        or(
+          inArray(visitorCards.msId, uniqueCardIds),
+          inArray(visitorCards.cardNumber, uniqueCardIds.map(String))
+        )
       );
+  }
 
-      const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
-      const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
+  // ⭐ TIMEZONE-SAFE STRING CONVERTER
+  const toLocalString = (dateInput: any) => {
+    if (!dateInput) return "";
+    if (typeof dateInput === 'string') {
+      let cleanStr = dateInput.replace('T', ' ').split('.')[0];
+      if (cleanStr.length === 16) cleanStr += ":00";
+      return cleanStr;
+    }
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  };
 
-      // Log date as raw local string (e.g. "2026-07-15 17:37:00")
-      const logTimeStr = formatToRawLocalStr(log.LogDate);
+  const sortedVisitors = [...visitorDetails].sort((a, b) => {
+    return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
+  });
 
-      // Match correct visitor row based on EXACT card reference AND precise time span
-      const dbVisitor = visitorDetails.find(v => {
-        // Card Match Check (Checks across MS ID, Physical Card No, and RFID fallback)
-        const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-          (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier)) ||
-          (v.rfidCardNo !== null && String(v.rfidCardNo) === String(numericCardIdentifier));
+  // 5. Map biometric logs using Pure Local String slotting
+  let machineFeed = logs.map((log) => {
+    const door = doorMappings.find(
+      (m) =>
+        (m.inIds || []).includes(log.DeviceId) ||
+        (m.outIds || []).includes(log.DeviceId),
+    );
 
-        if (!isCardMatch) return false;
+    const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
+    const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
+    const logTimeStr = toLocalString(log.LogDate);
 
-        const visitorInStr = formatToRawLocalStr(v.inTime);
+    const dbVisitor = sortedVisitors.find(v => {
+      const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
+        (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier)) ||
+        (v.rfidCardNo !== null && String(v.rfidCardNo) === String(numericCardIdentifier));
 
-        // 🚨 STRICT BOUNDARY 1: Biometric log ka time card assignment (inTime) se pehle nahi ho sakta
-        // (Ek 2-minute ka buffer pehle ka de dete hain, in case check-in lagne se thoda pehle machine tap hua ho)
-        const visitorInWithBuffer = addMinutesToLocalStr(v.inTime, -2);
-        if (logTimeStr < visitorInWithBuffer) return false;
+      if (!isCardMatch) return false;
+      if (!v.inTime) return false;
+      
+      const visitorInStr = toLocalString(v.inTime);
+      if (logTimeStr < visitorInStr) return false;
 
-        // 🚨 DYNAMIC UPPER BOUNDARY:
-        // Hum check karenge ki kya is card par iske baad koi naya visitor registered hua hai baad mein?
-        const nextVisitorOnSameCard = visitorDetails
-          .filter(other => {
-            const otherCardMatch = (other.cardMsId !== null && Number(other.cardMsId) === Number(numericCardIdentifier)) ||
-              (other.cardNo !== null && String(other.cardNo) === String(numericCardIdentifier)) ||
-              (other.rfidCardNo !== null && String(other.rfidCardNo) === String(numericCardIdentifier));
+      if (v.outTime) {
+        const visitorOutStr = toLocalString(v.outTime);
+        return logTimeStr <= visitorOutStr;
+      } else {
+        const nextVisitorOnSameCard = sortedVisitors.find(other => {
+          if (other.id === v.id) return false;
+          const otherCardMatch = (other.cardMsId !== null && Number(other.cardMsId) === Number(numericCardIdentifier)) ||
+            (other.cardNo !== null && String(other.cardNo) === String(numericCardIdentifier)) ||
+            (other.rfidCardNo !== null && String(other.rfidCardNo) === String(numericCardIdentifier));
 
-            const otherInStr = formatToRawLocalStr(other.inTime);
-            return otherCardMatch && other.id !== v.id && otherInStr > visitorInStr;
-          })
-          .sort((a, b) => {
-            const aIn = formatToRawLocalStr(a.inTime);
-            const bIn = formatToRawLocalStr(b.inTime);
-            return aIn.localeCompare(bIn);
-          })[0];
+          if (!otherCardMatch || !other.inTime) return false;
+          return toLocalString(other.inTime) > visitorInStr;
+        });
 
         if (nextVisitorOnSameCard) {
-          // A. Agar koi naya visitor aa chuka hai, toh purane visitor ki strict boundary naye check-in se pehle tak hi rahegi
-          const nextVisitorInStr = formatToRawLocalStr(nextVisitorOnSameCard.inTime);
+          const nextVisitorInStr = toLocalString(nextVisitorOnSameCard.inTime);
           return logTimeStr < nextVisitorInStr;
         }
-
-        // B. Agar koi naya visitor nahi aaya hai is card par:
-        if (v.outTime) {
-          // Agar current visitor checkout ho gaya hai aur naya visitor nahi aaya hai,
-          // tab checkout time se upar 10-minutes ka buffer milna chahiye (unintentional delay sync handle karne ke liye)
-          const visitorOutWithBuffer = addMinutesToLocalStr(v.outTime, 10);
-          return logTimeStr <= visitorOutWithBuffer;
-        }
-
-        // C. Agar checkout bhi nahi hua hai aur naya visitor bhi nahi aaya, toh ye active card holder hai
         return true;
-      });
-
-      return {
-        visitorName: dbVisitor ? dbVisitor.visitorName : "",
-        visitorId: numericCardIdentifier,
-        visitorCode: log.EmployeeCode,
-        rfidCardNo: dbVisitor
-          ? (dbVisitor.cardNo || dbVisitor.rfidCardNo || "")
-          : (numericCardIdentifier ? String(numericCardIdentifier) : ""),
-        deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-        direction: log.Direction,
-        logDate: log.LogDate,
-        doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
-      };
+      }
     });
 
-    return { machineFeed };
+    return {
+      visitorName: dbVisitor ? dbVisitor.visitorName : "Not Assigned",
+      visitorId: numericCardIdentifier,
+      visitorCode: log.EmployeeCode,
+      rfidCardNo: dbVisitor
+        ? (dbVisitor.cardNo || dbVisitor.rfidCardNo || "")
+        : (numericCardIdentifier ? String(numericCardIdentifier) : ""),
+      deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+      direction: log.Direction,
+      logDate: log.LogDate,
+      doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+    };
+  });
+
+  // 🚨 6. APPLY FILTERS HERE (Search, From Date, To Date)
+  if (filters) {
+    const { search, fromDate, toDate } = filters;
+
+    if (search) {
+      const lowerSearch = search.toLowerCase();
+      machineFeed = machineFeed.filter(item => 
+        item.visitorName.toLowerCase().includes(lowerSearch) ||
+        (item.rfidCardNo && item.rfidCardNo.toLowerCase().includes(lowerSearch))
+      );
+    }
+
+    if (fromDate) {
+      // Compare only YYYY-MM-DD part from logDate string
+      machineFeed = machineFeed.filter(item => {
+        const itemDate = item.logDate ? item.logDate.split(' ')[0] : "";
+        return itemDate >= fromDate;
+      });
+    }
+
+    if (toDate) {
+      machineFeed = machineFeed.filter(item => {
+        const itemDate = item.logDate ? item.logDate.split(' ')[0] : "";
+        return itemDate <= toDate;
+      });
+    }
   }
+
+  return { machineFeed };
+}
+  
+//   async getVisitorMachineAccessLogs(date: string) {
+//   // 1. Fetch Door and Device mappings
+//   const doorMappings = await db
+//     .select({
+//       doorName: doors.name,
+//       inIds: doorDevices.inDeviceIds,
+//       outIds: doorDevices.outDeviceIds,
+//     })
+//     .from(doors)
+//     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
+//   // 2. Fetch biometric logs from MS SQL (String format mapping)
+//   const msSqlData = await mssqlPool.request().input("filterDate", date)
+//     .query(`
+//     SELECT 
+//       l.EmployeeCode, 
+//       l.DeviceId, 
+//       d.DeviceName,
+//       l.Direction, 
+//       CONVERT(VARCHAR(19), l.LogDate, 120) AS LogDate  -- Direct 'YYYY-MM-DD HH:MM:SS' format
+//     FROM DeviceLogs l
+//     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+//     WHERE CAST(l.LogDate AS DATE) = @filterDate
+//       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
+//     ORDER BY l.LogDate DESC
+//   `);
+
+//   const logs = msSqlData.recordset;
+
+//   // 3. Extract unique card identifiers
+//   const cardIdentifiers = logs.map(l => {
+//     if (!l.EmployeeCode) return null;
+//     const matched = String(l.EmployeeCode).match(/\d+/);
+//     return matched ? Number(matched[0]) : null;
+//   }).filter((id): id is number => id !== null);
+
+//   let visitorDetails: any[] = [];
+
+//   // 4. Fetch all visitors mapped to these cards
+//   if (cardIdentifiers.length > 0) {
+//     const uniqueCardIds = [...new Set(cardIdentifiers)];
+
+//     visitorDetails = await db
+//       .select({
+//         id: schema.visitors.id,
+//         visitorName: schema.visitors.nameOfVisitor,
+//         rfidCardNo: schema.visitors.rfidCardNo,
+//         cardMsId: visitorCards.msId,
+//         cardNo: visitorCards.cardNumber,
+//         inTime: schema.visitors.permissionDateFrom, 
+//         outTime: schema.visitors.permissionDateTo,  
+//       })
+//       .from(schema.visitors)
+//       .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
+//       .where(
+//         or(
+//           inArray(visitorCards.msId, uniqueCardIds),
+//           inArray(visitorCards.cardNumber, uniqueCardIds.map(String))
+//         )
+//       );
+//   }
+
+//   // ⭐ TIMEZONE-SAFE STRING CONVERTER
+//   const toLocalString = (dateInput: any) => {
+//     if (!dateInput) return "";
+    
+//     if (typeof dateInput === 'string') {
+//       let cleanStr = dateInput.replace('T', ' ').split('.')[0];
+//       if (cleanStr.length === 16) cleanStr += ":00"; // YYYY-MM-DD HH:MM -> HH:MM:SS
+//       return cleanStr;
+//     }
+    
+//     const d = new Date(dateInput);
+//     if (isNaN(d.getTime())) return "";
+//     const pad = (n: number) => String(n).padStart(2, '0');
+//     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+//   };
+
+//   // 🚨 Sort visitors by local string format ascending order
+//   const sortedVisitors = [...visitorDetails].sort((a, b) => {
+//     return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
+//   });
+
+//   // 5. Map biometric logs using Pure Local String slotting
+//   const machineFeed = logs.map((log) => {
+//     const door = doorMappings.find(
+//       (m) =>
+//         (m.inIds || []).includes(log.DeviceId) ||
+//         (m.outIds || []).includes(log.DeviceId),
+//     );
+
+//     const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
+//     const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
+
+//     // Log Date is already a clean string from SQL
+//     const logTimeStr = toLocalString(log.LogDate);
+
+//     const dbVisitor = sortedVisitors.find(v => {
+//       // Card Mappings Check
+//       const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
+//         (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier)) ||
+//         (v.rfidCardNo !== null && String(v.rfidCardNo) === String(numericCardIdentifier));
+
+//       if (!isCardMatch) return false;
+//       if (!v.inTime) return false;
+      
+//       const visitorInStr = toLocalString(v.inTime);
+
+//       // Boundary 1: Log time cannot be before check-in time
+//       if (logTimeStr < visitorInStr) return false;
+
+//       // Boundary 2: If Visitor has Checked Out (outTime exists)
+//       if (v.outTime) {
+//         const visitorOutStr = toLocalString(v.outTime);
+//         // STRICT CHECK: Punch MUST happen before or exactly at checkout time
+//         // If punch time crosses checkout time, this visitor is completely rejected
+//         return logTimeStr <= visitorOutStr;
+//       } 
+      
+//       // Boundary 3: If Visitor is still Active (outTime is null)
+//       else {
+//         // Check if this card was passed to another visitor later
+//         const nextVisitorOnSameCard = sortedVisitors.find(other => {
+//           if (other.id === v.id) return false;
+//           const otherCardMatch = (other.cardMsId !== null && Number(other.cardMsId) === Number(numericCardIdentifier)) ||
+//             (other.cardNo !== null && String(other.cardNo) === String(numericCardIdentifier)) ||
+//             (other.rfidCardNo !== null && String(other.rfidCardNo) === String(numericCardIdentifier));
+
+//           if (!otherCardMatch || !other.inTime) return false;
+//           return toLocalString(other.inTime) > visitorInStr;
+//         });
+
+//         if (nextVisitorOnSameCard) {
+//           const nextVisitorInStr = toLocalString(nextVisitorOnSameCard.inTime);
+//           return logTimeStr < nextVisitorInStr;
+//         }
+
+//         // Active visitor and no next visitor took the card yet
+//         return true;
+//       }
+//     });
+
+//     return {
+      
+//       visitorName: dbVisitor ? dbVisitor.visitorName : "Not Assigned",
+//       visitorId: numericCardIdentifier,
+//       visitorCode: log.EmployeeCode,
+//       rfidCardNo: dbVisitor
+//         ? (dbVisitor.cardNo || dbVisitor.rfidCardNo || "")
+//         : (numericCardIdentifier ? String(numericCardIdentifier) : ""),
+//       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+//       direction: log.Direction,
+//       logDate: log.LogDate,
+//       doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+//     };
+//   });
+
+//   return { machineFeed };
+// }
+  
   async getMachineAccessLogs(date: string) {
     const doorMappings = await db
       .select({
@@ -5741,73 +5938,170 @@ ${fromDate} || ' to ' || ${toDate}
     const [created] = await db.insert(contractors).values(cleanData as any).returning();
     return created;
   }
+  // async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
+  //   const formatDbDate = (dateVal: any) => {
+  //     if (dateVal === undefined) return undefined;
+  //     if (!dateVal || dateVal === "") return null;
+  //     if (typeof dateVal === 'string') {
+  //       return dateVal.split('T')[0];
+  //     }
+  //     return null;
+  //   };
+  //   const cleanData = {
+  //     ...data,
+  //     contractorCode: typeof data.contractorCode === 'string' ? data.contractorCode.trim() : (data.contractorCode === null ? "" : undefined),
+  //     nameOfAgencyOwner: typeof data.nameOfAgencyOwner === 'string' ? data.nameOfAgencyOwner.trim() : (data.nameOfAgencyOwner === null ? "" : undefined),
+  //     nameOfTheAgency: typeof data.nameOfTheAgency === 'string' ? data.nameOfTheAgency.trim() : (data.nameOfTheAgency === null ? "" : undefined),
+  //     contactNoOwner: typeof data.contactNoOwner === 'string' ? data.contactNoOwner.trim() : (data.contactNoOwner === null ? "" : undefined),
+  //     aadhaarNumber: typeof data.aadhaarNumber === 'string' && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : (data.aadhaarNumber === "" || data.aadhaarNumber === null ? null : data.aadhaarNumber),
+  //     email: typeof data.email === 'string' && data.email.trim() !== "" ? data.email.trim() : (data.email === "" || data.email === null ? null : data.email),
+  //     biometricId: typeof data.biometricId === 'string' && data.biometricId.trim() !== "" ? data.biometricId.trim() : (data.biometricId === "" || data.biometricId === null ? null : data.biometricId),
+  //     commencementDate: formatDbDate(data.commencementDate),
+  //     agreementFromDate: formatDbDate(data.agreementFromDate),
+  //     agreementValidUpto: formatDbDate(data.agreementValidUpto),
+  //     licenseValidity: formatDbDate(data.licenseValidity),
+  //   };
+  //   if (cleanData.contractorCode === "") {
+  //     throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
+  //   }
+  //   if (cleanData.nameOfAgencyOwner === "") {
+  //     throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.");
+  //   }
+  //   if (cleanData.nameOfTheAgency === "") {
+  //     throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
+  //   }
+  //   if (cleanData.contactNoOwner === "") {
+  //     throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
+  //   }
+  //   if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
+  //     const mobileRegex = /^[6-9]\d{9}$/;
+  //     if (!mobileRegex.test(cleanData.contactNoOwner)) {
+  //       throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+  //     }
+  //   }
+  //   if (cleanData.email) {
+  //     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  //     if (!emailRegex.test(cleanData.email)) {
+  //       throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+  //     }
+  //   }
+  //   if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+  //     throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
+  //   }
+  //   if (cleanData.contractorCode) {
+  //     const [existing] = await db
+  //       .select()
+  //       .from(contractors)
+  //       .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+  //     if (existing) {
+  //       throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
+  //     }
+  //   }
+  //   const [updated] = await db
+  //     .update(contractors)
+  //     .set(cleanData as any)
+  //     .where(eq(contractors.id, id))
+  //     .returning();
+  //   if (!updated) throw new Error("Contractor not found");
+  //   return updated;
+  // }
+
   async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
-    const formatDbDate = (dateVal: any) => {
-      if (dateVal === undefined) return undefined;
-      if (!dateVal || dateVal === "") return null;
-      if (typeof dateVal === 'string') {
+  const formatDbDate = (dateVal: any) => {
+    if (dateVal === undefined) return undefined;
+    if (!dateVal || dateVal === "") return null;
+    
+    // Agar Date object hai to seedha ISO string se extract kar lo
+    if (dateVal instanceof Date) {
+      return dateVal.toISOString().split('T')[0];
+    }
+
+    if (typeof dateVal === 'string') {
+      // Agar string pehle se ISO format me hai (e.g., 2026-07-16T...)
+      if (dateVal.includes('T')) {
         return dateVal.split('T')[0];
       }
-      return null;
-    };
-    const cleanData = {
-      ...data,
-      contractorCode: typeof data.contractorCode === 'string' ? data.contractorCode.trim() : (data.contractorCode === null ? "" : undefined),
-      nameOfAgencyOwner: typeof data.nameOfAgencyOwner === 'string' ? data.nameOfAgencyOwner.trim() : (data.nameOfAgencyOwner === null ? "" : undefined),
-      nameOfTheAgency: typeof data.nameOfTheAgency === 'string' ? data.nameOfTheAgency.trim() : (data.nameOfTheAgency === null ? "" : undefined),
-      contactNoOwner: typeof data.contactNoOwner === 'string' ? data.contactNoOwner.trim() : (data.contactNoOwner === null ? "" : undefined),
-      aadhaarNumber: typeof data.aadhaarNumber === 'string' && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : (data.aadhaarNumber === "" || data.aadhaarNumber === null ? null : data.aadhaarNumber),
-      email: typeof data.email === 'string' && data.email.trim() !== "" ? data.email.trim() : (data.email === "" || data.email === null ? null : data.email),
-      biometricId: typeof data.biometricId === 'string' && data.biometricId.trim() !== "" ? data.biometricId.trim() : (data.biometricId === "" || data.biometricId === null ? null : data.biometricId),
-      commencementDate: formatDbDate(data.commencementDate),
-      agreementFromDate: formatDbDate(data.agreementFromDate),
-      agreementValidUpto: formatDbDate(data.agreementValidUpto),
-      licenseValidity: formatDbDate(data.licenseValidity),
-    };
-    if (cleanData.contractorCode === "") {
-      throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
-    }
-    if (cleanData.nameOfAgencyOwner === "") {
-      throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.");
-    }
-    if (cleanData.nameOfTheAgency === "") {
-      throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
-    }
-    if (cleanData.contactNoOwner === "") {
-      throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
-    }
-    if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
-      const mobileRegex = /^[6-9]\d{9}$/;
-      if (!mobileRegex.test(cleanData.contactNoOwner)) {
-        throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+      
+      // Agar format "01-Jan-2020" ya "31-Dec-2026" jaisa hai, to use convert karein
+      const parsedDate = Date.parse(dateVal);
+      if (!isNaN(parsedDate)) {
+        return new Date(parsedDate).toISOString().split('T')[0];
       }
+      
+      return dateVal; // standard YYYY-MM-DD string ke liye fallback
     }
-    if (cleanData.email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(cleanData.email)) {
-        throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
-      }
-    }
-    if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
-      throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
-    }
-    if (cleanData.contractorCode) {
-      const [existing] = await db
-        .select()
-        .from(contractors)
-        .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
-      if (existing) {
-        throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
-      }
-    }
-    const [updated] = await db
-      .update(contractors)
-      .set(cleanData as any)
-      .where(eq(contractors.id, id))
-      .returning();
-    if (!updated) throw new Error("Contractor not found");
-    return updated;
+    return null;
+  };
+
+  const cleanData = {
+    ...data,
+    contractorCode: typeof data.contractorCode === 'string' ? data.contractorCode.trim() : (data.contractorCode === null ? "" : undefined),
+    nameOfAgencyOwner: typeof data.nameOfAgencyOwner === 'string' ? data.nameOfAgencyOwner.trim() : (data.nameOfAgencyOwner === null ? "" : undefined),
+    nameOfTheAgency: typeof data.nameOfTheAgency === 'string' ? data.nameOfTheAgency.trim() : (data.nameOfTheAgency === null ? "" : undefined),
+    contactNoOwner: typeof data.contactNoOwner === 'string' ? data.contactNoOwner.trim() : (data.contactNoOwner === null ? "" : undefined),
+    aadhaarNumber: typeof data.aadhaarNumber === 'string' && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : (data.aadhaarNumber === "" || data.aadhaarNumber === null ? null : data.aadhaarNumber),
+    
+    // YAHAN DHAYAN DEIN: Aapke logs me column name "email_address" hai, to object property ensure karein schema ke mutabik ho
+    email: typeof data.email === 'string' && data.email.trim() !== "" ? data.email.trim() : (data.email === "" || data.email === null ? null : data.email),
+    
+    biometricId: typeof data.biometricId === 'string' && data.biometricId.trim() !== "" ? data.biometricId.trim() : (data.biometricId === "" || data.biometricId === null ? null : data.biometricId),
+    commencementDate: formatDbDate(data.commencementDate),
+    agreementFromDate: formatDbDate(data.agreementFromDate),
+    agreementValidUpto: formatDbDate(data.agreementValidUpto),
+    licenseValidity: formatDbDate(data.licenseValidity),
+  };
+
+  // Validations
+  if (cleanData.contractorCode === "") {
+    throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
   }
+  if (cleanData.nameOfAgencyOwner === "") {
+    throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.");
+  }
+  if (cleanData.nameOfTheAgency === "") {
+    throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
+  }
+  if (cleanData.contactNoOwner === "") {
+    throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
+  }
+  if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
+    const mobileRegex = /^[6-9]\d{9}$/;
+    if (!mobileRegex.test(cleanData.contactNoOwner)) {
+      throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+    }
+  }
+  if (cleanData.email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(cleanData.email)) {
+      throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+    }
+  }
+  if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+    throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
+  }
+
+  // Duplicate Code Check
+  if (cleanData.contractorCode) {
+    const [existing] = await db
+      .select()
+      .from(contractors)
+      .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
+    if (existing) {
+      throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
+    }
+  }
+
+  // Update query execution
+  const [updated] = await db
+    .update(contractors)
+    .set(cleanData as any)
+    .where(eq(contractors.id, id))
+    .returning();
+
+  if (!updated) throw new Error("Contractor not found");
+  return updated;
+}
+
   async deleteContractor(id: number): Promise<boolean> {
     const result = await db.delete(contractors).where(eq(contractors.id, id));
     return (result?.rowCount ?? 0) > 0;

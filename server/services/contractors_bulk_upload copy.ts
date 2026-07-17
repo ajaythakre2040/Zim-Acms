@@ -33,30 +33,13 @@ const parseInteger = (val: any) => {
     return isNaN(parsed) ? null : parsed;
 };
 
+// Updated Helper: Database me numeric column ke liye % sign strip karne ke liye
 const parseNumeric = (val: any) => {
     if (val === undefined || val === null || val.toString().trim() === "") return null;
+    // Agar string me '%' ka sign hai to use hata do taaki numeric parse ho sake
     const cleanVal = val.toString().replace(/%/g, '').trim();
     const parsed = parseFloat(cleanVal);
     return isNaN(parsed) ? null : cleanVal;
-};
-
-// 🌟 NAYA HELPER: Bulk upload dates ko database-friendly "YYYY-MM-DD" me badalne ke liye
-const formatBulkUploadDate = (dateVal: any) => {
-    if (dateVal === undefined || dateVal === null || dateVal.toString().trim() === "") return null;
-    const strVal = dateVal.toString().trim();
-
-    // Agar pehle se YYYY-MM-DD format me hai
-    if (/^\d{4}-\d{2}-\d{2}$/.test(strVal)) {
-        return strVal;
-    }
-
-    // "01-Jan-2020" ya "31/12/2026" jaise string formats ko parse karne ke liye
-    const parsedDate = Date.parse(strVal);
-    if (!isNaN(parsedDate)) {
-        return new Date(parsedDate).toISOString().split('T')[0]; // Returns "YYYY-MM-DD"
-    }
-
-    return strVal; // Agar parse na ho paye to original value hi bhej dein (fallback)
 };
 
 // Helper: Auto-generate Contractor Code
@@ -86,10 +69,9 @@ const generateContractorCode = async (): Promise<string> => {
 
 // --- Contractor Bulk Upload Service ---
 export const processContractorBulkUploadOnly = async (data: any[]) => {
-    // 🌟 FIXED: arrays ko sabse pehle declare karein taaki poore function scope me access ho sakein
     const errors: any[] = [];
     const success: any[] = [];
-
+    // 🌟 1. CONTRACTOR HEADER VALIDATION
     // 🌟 1. CONTRACTOR HEADER VALIDATION
     const REQUIRED_CONTRACTOR_HEADERS = [
         "Name_of_the_Agency", "Job_Summary", "Address-1", "Address-2", "District",
@@ -107,32 +89,39 @@ export const processContractorBulkUploadOnly = async (data: any[]) => {
         const actualHeaders = Object.keys(data[0]).map(h => h.trim());
         const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
 
+        // Debugging ke liye check karein
+        // console.log("Required (Normalized):", REQUIRED_CONTRACTOR_HEADERS.map(normalize));
+        // console.log("Actual (Normalized):", actualHeaders.map(normalize));
+
         const missing = REQUIRED_CONTRACTOR_HEADERS.filter(reqHeader => {
             const normalizedReq = normalize(reqHeader);
+            // Is line ko debug karein: kya koi match mil raha hai?
             const isMatch = actualHeaders.some(actHeader => normalize(actHeader) === normalizedReq);
             return !isMatch;
         });
 
         if (missing.length > 0) {
+            // Yeh line trigger honi chahiye!
             console.log("Validation Failed! Missing list:", missing);
+
             return {
                 success: false,
                 error: `Header Error! Required columns missing: ${missing.join(", ")}`
             };
         }
     }
-
     // Save Original Backup
     saveToFile(DIRS.CON_ORIGINAL, 'original', data);
 
     for (const rawRow of data) {
         // 🌟 STEP 1: Exact Excel Headers Mapping Layer
+        // Handles any extra spaces in header keys gracefully
         const row: any = {};
         Object.keys(rawRow).forEach((key) => {
             row[key.trim()] = rawRow[key];
         });
 
-        // 🌟 STEP 2: Extraction
+        // 🌟 STEP 2: Extraction using updated template columns
         const agencyNameRaw = row["Name_of_the_Agency"];
         const emailRaw = row["E-mail"]; 
         const mobileOwnerRaw = row["Contact_of_Owner"];  
@@ -172,7 +161,7 @@ export const processContractorBulkUploadOnly = async (data: any[]) => {
                 )
                 .limit(1);
 
-            // 🌟 STEP 3: Pure Columns Exact Mapping
+            // 🌟 STEP 3: Pure Columns Exact Mapping According to NEW Template
             const commonPayload = {
                 jobSummary: row["Job_Summary"] || null,
                 address1: row["Address-1"] || null,
@@ -181,13 +170,16 @@ export const processContractorBulkUploadOnly = async (data: any[]) => {
                 pincode: row["Pincode"] ? row["Pincode"].toString().trim() : null,
                 state: row["State"] || null,
                 
+                // Numbers & Percentages parsing safely with new headers
                 experienceInSimilarField: row["Experience_in_Similar_Field"] ? row["Experience_in_Similar_Field"].toString().trim() : null,
-                commencementDate: formatBulkUploadDate(row["Commencement_Date"]),
+                commencementDate: row["Commencement_Date"] || null,
                 associatedWithZimInYears: parseInteger(row["Associated_with_ZIM_(In Years)"]),
                 referenceBy: row["Reference_By"] || null,
                 
                 manpowerServiceAvailableInZim: parseInteger(row["Manpower/Service_Available_in_ZIM"]),
+                // Schema match mapping for totalManpowerServiceAvailableWithTheVendor
                 totalManpowerServiceAvailableWithTheVendor: parseInteger(row["Total_Manpower/Service_available_with_Vendor"]),
+                // Fixed percentage parsing
                 percentageUtilizedInZim: parseNumeric(row["%age_Utilized_in_ZIM"]),
                 workingWithOtherVendors: row["Working_with_Other_Vendors"] || null,
                 
@@ -197,11 +189,11 @@ export const processContractorBulkUploadOnly = async (data: any[]) => {
                 contactNoRepresentative: row["Contact_of_Representative"] || null, 
                 emailAddress: emailClean, 
                 
-                agreementFromDate: formatBulkUploadDate(row["Agreement_From_Date"]),
-                agreementValidUpto: formatBulkUploadDate(row["Agreement_Valid_Upto"]),
+                agreementFromDate: row["Agreement_From_Date"] || null,
+                agreementValidUpto: row["Agreement_Valid_Upto"] || null,
                 licenseNo: row["License_No"] || null,
                 licensedQuantity: parseInteger(row["Licensed_Quantity"]),
-                licenseValidity: formatBulkUploadDate(row["License_Validity"]),
+                licenseValidity: row["License_Validity"] || null,
                 
                 gstNo: row["GST_No"] || null,
                 pfCodeNo: row["PF_Code_No"] || null,
@@ -210,6 +202,7 @@ export const processContractorBulkUploadOnly = async (data: any[]) => {
                 bankAccountNo: row["Bank_Account_No"] ? row["Bank_Account_No"].toString().trim() : null,
                 bankName: row["Bank_Name"] || null,
                 ifcCode: row["IFC_Code"] || null,
+                // Fallback for status field since it's removed from new template headers
                 status: row["Status"] ? row["Status"].toLowerCase().trim() : 'active',
             };
 

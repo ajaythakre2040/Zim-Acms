@@ -161,16 +161,34 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch machine logs" });
     }
   });
+  // app.get("/api/dashboard/visitor/visitor-machine-logs", requireAuth, async (req, res) => {
+  //   try {
+  //     const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+  //     const logs = await storage.getVisitorMachineAccessLogs(date);
+  //     res.json(logs);
+  //   } catch (e: any) {
+  //     console.error("Visitor Machine Logs Error:", e.message);
+  //     res.status(500).json({ message: "Failed to fetch visitor machine logs" });
+  //   }
+  // });
+
   app.get("/api/dashboard/visitor/visitor-machine-logs", requireAuth, async (req, res) => {
-    try {
-      const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-      const logs = await storage.getVisitorMachineAccessLogs(date);
-      res.json(logs);
-    } catch (e: any) {
-      console.error("Visitor Machine Logs Error:", e.message);
-      res.status(500).json({ message: "Failed to fetch visitor machine logs" });
-    }
-  });
+  try {
+    const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+    
+    // 🚨 Extracting dynamic filter query strings from front-end request
+    const search = req.query.search as string;
+    const fromDate = req.query.fromDate as string;
+    const toDate = req.query.toDate as string;
+
+    // Passing date along with the filter bundle object
+    const logs = await storage.getVisitorMachineAccessLogs(date, { search, fromDate, toDate });
+    res.json(logs);
+  } catch (e: any) {
+    console.error("Visitor Machine Logs Error:", e.message);
+    res.status(500).json({ message: "Failed to fetch visitor machine logs" });
+  }
+});
   app.get("/api/dashboard/attendance/shift-door-stats", requireAuth, async (req, res) => {
     try {
       const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
@@ -360,15 +378,31 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     TABLES.DEVICES
   );
   app.get("/api/people", requireAuth, async (req, res) => {
-    try {
-      const search = req.query.search as string | undefined;
-      const page = req.query.page as string | undefined;
-      const pageSize = req.query.pageSize as string | undefined;
-      res.json(await storage.getPeople(search, page, pageSize));
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
+  try {
+    const search = req.query.search as string | undefined;
+    const dept = req.query.dept as string | undefined;
+    const status = req.query.status as string | undefined;
+    const lockout = req.query.lockout as string | undefined;
+    const rule = req.query.rule as string | undefined;
+
+    const page = req.query.page as string | undefined;
+    const pageSize = req.query.pageSize as string | undefined;
+
+    res.json(
+      await storage.getPeople(
+        search,
+        page,
+        pageSize,
+        dept,
+        status,
+        lockout,
+        rule
+      )
+    );
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
+  }
+});
   app.get("/api/people/:id", requireAuth, async (req, res) => {
     try {
       const person = await storage.getPerson(parseInt(req.params.id));

@@ -412,13 +412,14 @@ export default function PeopleFormPage() {
                   <input name="maritalStatus" value={formData.maritalStatus || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" placeholder="Single/Married" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold mb-1 text-slate-700">Professional Qualification</label>
-                  <input name="professional_qual" value={formData.professional_qual || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
-                </div>
-                <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Educational Qualification</label>
                   <input name="educational_qual" value={formData.educational_qual || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
                 </div>
+                <div>
+                  <label className="block text-xs font-bold mb-1 text-slate-700">Professional Qualification</label>
+                  <input name="professional_qual" value={formData.professional_qual || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
+                </div>
+                
                 <div>
                   <label className="block text-xs font-bold mb-1 text-slate-700">Experience</label>
                   <input name="experience" value={formData.experience || ""} onChange={handleChange} className="w-full border rounded p-2 text-sm focus:outline-[#5c54d5]" />
