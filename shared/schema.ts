@@ -222,6 +222,15 @@ export const people = pgTable("people", {
     .$defaultFn(() => new Date())
     .notNull(),
 });
+export const unauthorizedDeviceLogs = pgTable('unauthorized_device_logs', {
+  id: serial('id').primaryKey(),
+  deviceId: integer('device_id'),
+  deviceName: text('device_name'),
+  serialNumber: text('serial_number'),
+  ipAddress: text('ip_address'),
+  attemptedAt: timestamp('attempted_at').defaultNow().notNull(),
+  statusMessage: text('status_message'),
+});
 export const peopleAdditionalDetails = pgTable("people_additional_details", {
   id: serial("id").primaryKey(),
   employeeCode: text("employee_code")
