@@ -969,1090 +969,7 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-  // async getDevices(
-  //   page?: number | string,
-  //   pageSize?: number | string,
-  //   search?: string,
-  // ): Promise<any> {
-  //   try {
-  //     // 1. Fetch raw data from eSSL MS SQL database
-  //     const msDataRaw = await dbMsSql
-  //       .select()
-  //       .from({ dbName: "Devices" })
-  //       .execute();
 
-  //     if (!msDataRaw || msDataRaw.length === 0) {
-  //       return {
-  //         data: [],
-  //         totalCount: 0,
-  //         totalPages: 0,
-  //         currentPage: 1,
-  //         pageSize: 0,
-  //         onlineCount: 0,
-  //         offlineCount: 0,
-  //       };
-  //     }
-  //     const filePath = path.join(process.cwd(), "server", "Config", "secure_serials.json");
-  //     let encryptedSerialsFromJson: string[] = [];
-
-  //     console.log(`[DEBUG] Looking for JSON file at: ${filePath}`);
-  //     const fileExists = fs.existsSync(filePath);
-  //     console.log(`[DEBUG] Does file exist? ${fileExists}`);
-
-  //     if (fileExists) {
-  //       const rawJson = fs.readFileSync(filePath, "utf-8");
-  //       encryptedSerialsFromJson = JSON.parse(rawJson);
-  //       console.log(`[DEBUG] Raw encrypted items in JSON:`, encryptedSerialsFromJson.length);
-  //     } else {
-  //       console.error(`❌ [ERROR] File NOT found at path: ${filePath}`);
-  //     }
-
-  //     // JSON ke serials ko decrypt karke lowercase array banayein
-  //     const allowedSerials = encryptedSerialsFromJson.map(enc => {
-  //       const decrypted = decryptSerialNumber(enc).trim().toLowerCase();
-  //       console.log(`[DEBUG] Decrypted: "${decrypted}" (from: ${enc.substring(0, 8)}...)`);
-  //       return decrypted;
-  //     }).filter(serial => serial !== "");
-
-  //     console.log(`[DEBUG] Final Allowed Decrypted Serials:`, allowedSerials);
-
-  //     const currentTime = new Date();
-  //     const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
-  //     let onlineCount = 0;
-  //     let offlineCount = 0;
-
-  //     const validDevicesToSync: any[] = [];
-  //     const currentValidMsIds: number[] = [];
-
-  //     // 3. SECURE INTERCEPTOR LOOP
-  //     for (const d of msDataRaw) {
-  //       const currentSerial = String(d.SerialNumber || d.serialno || "").trim().toLowerCase();
-  //       const deviceId = d.DeviceId || d.DeviceID;
-  //       const deviceName = d.DeviceName || "Unnamed Device";
-
-  //       console.log(`[DEBUG] Checking DB Device Serial: ${currentSerial}`);
-
-  //       // STRICT CHECK: Dono taraf lowercase karke matching kar rahe hain
-  //       const isAuthorized = allowedSerials.includes(currentSerial);
-
-  //       if (!isAuthorized) {
-  //         // ❌ Security Alert: Block unauthorized device sync
-  //         console.warn(`[SECURITY LAYER] Blocked unauthorized device sync: ${deviceName} (${currentSerial})`);
-
-  //         await db.insert(unauthorizedDeviceLogs).values({
-  //           deviceId: deviceId,
-  //           deviceName: deviceName,
-  //           serialNumber: d.SerialNumber || d.serialno || "",
-  //           ipAddress: d.IpAddress || "",
-  //           attemptedAt: new Date(),
-  //           statusMessage: `Access Denied: Serial number is not present in the secure JSON config.`
-  //         }).onConflictDoNothing();
-
-  //         continue; // Skip saving to postgres database
-  //       }
-
-  //       // ────── AUTHORIZED DEVICES ONLY ──────
-  //       let lPing: Date | null = null;
-  //       let calculatedStatus = "offline";
-
-  //       if (d.LastPing) {
-  //         lPing = new Date(d.LastPing);
-  //         let diffInMs = currentTime.getTime() - lPing.getTime();
-  //         let diffInMinutes = diffInMs / 60000;
-  //         const absDiff = Math.abs(diffInMinutes);
-
-  //         if (
-  //           absDiff <= THRESHOLD_MINUTES ||
-  //           Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
-  //         ) {
-  //           calculatedStatus = "online";
-  //         }
-  //       }
-
-  //       if (calculatedStatus === "online") onlineCount++;
-  //       else offlineCount++;
-
-  //       const devicePayload = {
-  //         msId: deviceId,
-  //         name: deviceName,
-  //         deviceDirection: d.DeviceDirection || null,
-  //         serialNumber: d.SerialNumber || d.serialno,
-  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
-  //         lastPing: lPing,
-  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
-  //         activationCode: d.ActivationCode || "",
-  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
-  //         locationId: d.LocationId || null,
-  //         ipAddress: d.IpAddress || "",
-  //         lastHeartbeat: lPing,
-  //         status: calculatedStatus,
-  //         isActive: true,
-  //       };
-
-  //       validDevicesToSync.push(devicePayload);
-  //       currentValidMsIds.push(deviceId);
-  //     }
-
-  //     // 4. Client Search criteria filtering
-  //     let filteredDevices = validDevicesToSync;
-  //     if (search && search.trim()) {
-  //       const s = search.toLowerCase();
-  //       filteredDevices = filteredDevices.filter(
-  //         (d) =>
-  //           d.name?.toLowerCase().includes(s) ||
-  //           d.ipAddress?.toLowerCase().includes(s) ||
-  //           d.serialNumber?.toLowerCase().includes(s) ||
-  //           d.deviceType?.toLowerCase().includes(s),
-  //       );
-  //     }
-
-  //     // 5. Store filtered data inside PG database
-  //     for (const dev of filteredDevices) {
-  //       await db
-  //         .insert(devices)
-  //         .values(dev)
-  //         .onConflictDoUpdate({
-  //           target: devices.msId,
-  //           set: { ...dev },
-  //         });
-  //     }
-
-  //     // Sync cleanup architecture
-  //     if (currentValidMsIds.length > 0) {
-  //       await db.delete(devices).where(notInArray(devices.msId, currentValidMsIds));
-  //     }
-
-  //     // 6. Pagination output return mapping
-  //     if (!pageSize) return filteredDevices;
-
-  //     if (pageSize === -1 || pageSize === "-1") {
-  //       return {
-  //         data: filteredDevices,
-  //         totalCount: filteredDevices.length,
-  //         totalPages: 1,
-  //         currentPage: 1,
-  //         pageSize: filteredDevices.length,
-  //         onlineCount,
-  //         offlineCount,
-  //       };
-  //     }
-
-  //     const p = page && Number(page) > 0 ? Number(page) : 1;
-  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-  //     const start = (p - 1) * size;
-  //     const end = start + size;
-  //     const paginatedData = filteredDevices.slice(start, end);
-
-  //     return {
-  //       data: paginatedData,
-  //       totalCount: filteredDevices.length,
-  //       totalPages: Math.ceil(filteredDevices.length / size),
-  //       currentPage: p,
-  //       pageSize: size,
-  //       onlineCount,
-  //       offlineCount,
-  //     };
-  //   } catch (error) {
-  //     console.error("Device Guard Execution Sync Failure:", error);
-  //     return {
-  //       data: [],
-  //       totalCount: 0,
-  //       totalPages: 0,
-  //       currentPage: 1,
-  //       pageSize: 0,
-  //       onlineCount: 0,
-  //       offlineCount: 0,
-  //     };
-  //   }
-  // }
-  // async getDevices(
-  //   page?: number | string,
-  //   pageSize?: number | string,
-  //   search?: string,
-  // ): Promise<any> {
-  //   try {
-  //     const msDataRaw = await dbMsSql
-  //       .select()
-  //       .from({ dbName: "Devices" })
-  //       .execute();
-  //     if (!msDataRaw || msDataRaw.length === 0) {
-  //       return {
-  //         data: [],
-  //         totalCount: 0,
-  //         totalPages: 0,
-  //         currentPage: 1,
-  //         pageSize: 0,
-  //         onlineCount: 0,
-  //         offlineCount: 0,
-  //       };
-  //     }
-
-  //     const currentTime = new Date();
-  //     const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
-  //     let onlineCount = 0;
-  //     let offlineCount = 0;
-  //     let formattedDevices = msDataRaw.map((d: any) => {
-  //       let lPing: Date | null = null;
-  //       let calculatedStatus = "offline";
-  //       if (d.LastPing) {
-  //         lPing = new Date(d.LastPing);
-  //         let diffInMs = currentTime.getTime() - lPing.getTime();
-  //         let diffInMinutes = diffInMs / 60000;
-  //         const absDiff = Math.abs(diffInMinutes);
-  //         if (
-  //           absDiff <= THRESHOLD_MINUTES ||
-  //           Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
-  //         ) {
-  //           calculatedStatus = "online";
-  //         }
-  //       }
-  //       if (calculatedStatus === "online") onlineCount++;
-  //       else offlineCount++;
-  //       return {
-  //         msId: d.DeviceId || d.DeviceID,
-  //         name: d.DeviceName || "Unnamed Device",
-  //         deviceDirection: d.DeviceDirection || null,
-  //         serialNumber: d.SerialNumber || d.serialno,
-  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
-  //         lastPing: lPing,
-  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
-  //         activationCode: d.ActivationCode || "",
-  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
-  //         locationId: d.LocationId || null,
-  //         ipAddress: d.IpAddress || "",
-  //         lastHeartbeat: lPing,
-  //         status: calculatedStatus,
-  //         isActive: true,
-  //       };
-  //     });
-  //     if (search && search.trim()) {
-  //       const s = search.toLowerCase();
-  //       formattedDevices = formattedDevices.filter(
-  //         (d) =>
-  //           d.name?.toLowerCase().includes(s) ||
-  //           d.ipAddress?.toLowerCase().includes(s) ||
-  //           d.serialNumber?.toLowerCase().includes(s) ||
-  //           d.deviceType?.toLowerCase().includes(s),
-  //       );
-  //     }
-  //     for (const dev of formattedDevices) {
-  //       await db
-  //         .insert(devices)
-  //         .values(dev)
-  //         .onConflictDoUpdate({
-  //           target: devices.msId,
-  //           set: { ...dev },
-  //         });
-  //     }
-  //     const currentMsIds = formattedDevices.map((d) => d.msId as number);
-  //     if (currentMsIds.length > 0) {
-  //       await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
-  //     }
-  //     if (!pageSize) return formattedDevices;
-  //     if (pageSize === -1 || pageSize === "-1") {
-  //       return {
-  //         data: formattedDevices,
-  //         totalCount: formattedDevices.length,
-  //         totalPages: 1,
-  //         currentPage: 1,
-  //         pageSize: formattedDevices.length,
-  //         onlineCount,
-  //         offlineCount,
-  //       };
-  //     }
-  //     const p = page && Number(page) > 0 ? Number(page) : 1;
-  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-  //     const start = (p - 1) * size;
-  //     const end = start + size;
-  //     const paginatedData = formattedDevices.slice(start, end);
-  //     return {
-  //       data: paginatedData,
-  //       totalCount: formattedDevices.length,
-  //       totalPages: Math.ceil(formattedDevices.length / size),
-  //       currentPage: p,
-  //       pageSize: size,
-  //       onlineCount,
-  //       offlineCount,
-  //     };
-  //   } catch (error) {
-  //     console.error("Device Sync Error:", error);
-  //     return {
-  //       data: [],
-  //       totalCount: 0,
-  //       totalPages: 0,
-  //       currentPage: 1,
-  //       pageSize: 0,
-  //       onlineCount: 0,
-  //       offlineCount: 0,
-  //     };
-  //   }
-  // }
-
-
-  // async getDevices(
-  //   page?: number | string,
-  //   pageSize?: number | string,
-  //   search?: string,
-  // ): Promise<any> {
-  //   try {
-  //     // 1. Fetch data from MS SQL
-  //     const msDataRaw = await mssqlPool
-  //       .request()
-  //       .query("SELECT * FROM Devices")
-  //       .then((res: any) => res.recordset as any[]);
-
-  //     if (!msDataRaw || msDataRaw.length === 0) {
-  //       return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
-  //     }
-
-  //     const currentTime = new Date();
-  //     const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
-  //     let onlineCount = 0;
-  //     let offlineCount = 0;
-
-  //     // 2. Format devices
-  //     let formattedDevices = msDataRaw.map((d: any) => {
-  //       let lPing: Date | null = null;
-  //       let calculatedStatus = "offline";
-
-  //       if (d.LastPing) {
-  //         lPing = new Date(d.LastPing);
-  //         let diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
-  //         const absDiff = Math.abs(diffInMinutes);
-  //         if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
-  //           calculatedStatus = "online";
-  //         }
-  //       }
-
-  //       if (calculatedStatus === "online") onlineCount++;
-  //       else offlineCount++;
-
-  //       return {
-  //         msId: Number(d.DeviceId || d.DeviceID),
-  //         name: d.DeviceName || "Unnamed Device",
-  //         deviceDirection: d.DeviceDirection || null,
-  //         serialNumber: d.SerialNumber ? d.SerialNumber.trim() : (d.serialno ? d.serialno.trim() : null),
-  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
-  //         lastPing: lPing,
-  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
-  //         activationCode: d.ActivationCode || "",
-  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
-  //         locationId: d.LocationId || null,
-  //         ipAddress: d.IpAddress || "",
-  //         lastHeartbeat: lPing,
-  //         status: calculatedStatus,
-  //         isActive: true,
-  //       };
-  //     });
-
-  //     // Master list of all MS SQL IDs for safe cleanup later
-  //     const allMsSqlIds = formattedDevices.map((d) => d.msId);
-
-  //     // 3. Apply Search Filter
-  //     if (search && search.trim()) {
-  //       const s = search.toLowerCase();
-  //       formattedDevices = formattedDevices.filter(
-  //         (d) =>
-  //           d.name?.toLowerCase().includes(s) ||
-  //           d.ipAddress?.toLowerCase().includes(s) ||
-  //           d.serialNumber?.toLowerCase().includes(s) ||
-  //           d.deviceType?.toLowerCase().includes(s),
-  //       );
-  //     }
-
-  //     // 4. Fetch existing data from Local DB (People table from OPG) & Block Logs
-  //     const [existingLocalDevices, allPeople, existingLogs] = await Promise.all([
-  //       db.select({ msId: devices.msId }).from(devices),
-  //       // 🔥 Yahan hum door assignments ke bajaye schema.people table se employeeCode le rahe hain
-  //       db.select({ employeeCode: schema.people.employeeCode })
-  //         .from(schema.people)
-  //         .execute(),
-  //       db.select({ deviceId: blockUnblockLogs.deviceId }).from(blockUnblockLogs).execute(),
-  //     ]);
-
-  //     const existingMsIdsSet = new Set(existingLocalDevices.map((ld) => Number(ld.msId)));
-  //     const devicesWithLogsSet = new Set(existingLogs.map(l => Number(l.deviceId)));
-
-
-  //     // 5. Processing Loop
-  //     for (const dev of formattedDevices) {
-  //       const currentMsId = Number(dev.msId);
-  //       const deviceSerial = dev.serialNumber;
-
-  //       const isNewDevice = !existingMsIdsSet.has(currentMsId);
-  //       const hasNoLogsYet = !devicesWithLogsSet.has(currentMsId);
-
-  //       if (isNewDevice || hasNoLogsYet) {
-
-  //         // Pehle device ko local DB mein normal save/update karo
-  //         await db
-  //           .insert(devices)
-  //           .values(dev)
-  //           .onConflictDoUpdate({
-  //             target: devices.msId,
-  //             set: { ...dev },
-  //           });
-
-  //         if (allPeople && allPeople.length > 0 && deviceSerial) {
-  //           // People table ke pehle employee ka code nikaalo loop se pehle lock karne ke liye
-  //           const firstEmpCode = allPeople[0].employeeCode?.trim();
-
-  //           if (firstEmpCode) {
-  //             // 🔥 FAIL-SAFE LOCK: Pehle employee ke real code se log insert karke transaction block kar do
-  //             try {
-  //               await db.insert(blockUnblockLogs).values({
-  //                 employeeCode: firstEmpCode,
-  //                 deviceId: currentMsId,
-  //                 type: "block",
-  //                 updatedAt: new Date(),
-  //               });
-  //               devicesWithLogsSet.add(currentMsId);
-  //               console.log(`🔒 Transaction lock applied directly with Real Emp Code from People table: ${firstEmpCode}`);
-  //             } catch (dbErr: any) {
-  //               console.error(`❌ Failed to create initial log lock for device ${currentMsId}:`, dbErr.message);
-  //             }
-  //           }
-
-
-  //           // Saare employees ka step-by-step processing
-  //           for (let i = 0; i < allPeople.length; i++) {
-  //             const empCode = allPeople[i].employeeCode?.trim();
-  //             if (!empCode) continue;
-
-  //             try {
-  //               // 1. eSSL API Call (Hardware Level Block)
-  //               await esslService.syncUserBlockStatus(empCode, deviceSerial, true);
-
-  //               // 2. Database logging strategy
-  //               if (i === 0) {
-  //                 // Pehle employee ka entry upar lock ke liye ho chuka hai, toh yahan dobara nahi karenge
-  //                 console.log(`   ✅ [Lock verified] Block applied on eSSL: Emp ${empCode} ➡️ Device ${currentMsId}`);
-  //               } else {
-  //                 // Baaki saare agle employees ke liye fresh row insert hogi
-  //                 await db.insert(blockUnblockLogs).values({
-  //                   employeeCode: empCode,
-  //                   deviceId: currentMsId,
-  //                   type: "block",
-  //                   updatedAt: new Date(),
-  //                 });
-  //                 console.log(`   ✅ Fresh block log inserted: Emp ${empCode} ➡️ Device ${currentMsId}`);
-  //               }
-  //             } catch (esslErr: any) {
-  //               console.error(`   ❌ eSSL/DB skip for ${empCode} on device ${currentMsId}:`, esslErr.message);
-  //             }
-  //           }
-  //         }
-  //       } else {
-  //         // Normal configuration update agar logs pehle se hain
-  //         await db
-  //           .insert(devices)
-  //           .values(dev)
-  //           .onConflictDoUpdate({
-  //             target: devices.msId,
-  //             set: { ...dev },
-  //           });
-  //       }
-  //     }
-
-  //     // 6. Safe Cleanup (Purane filtered elements delete na ho)
-  //     if (allMsSqlIds.length > 0) {
-  //       await db.delete(devices).where(notInArray(devices.msId, allMsSqlIds));
-  //     }
-
-  //     // 7. Pagination & Return Logic
-  //     if (!pageSize) return formattedDevices;
-  //     if (pageSize === -1 || pageSize === "-1") {
-  //       return {
-  //         data: formattedDevices,
-  //         totalCount: formattedDevices.length,
-  //         totalPages: 1,
-  //         currentPage: 1,
-  //         pageSize: formattedDevices.length,
-  //         onlineCount,
-  //         offlineCount,
-  //       };
-  //     }
-
-  //     const p = page && Number(page) > 0 ? Number(page) : 1;
-  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-  //     const start = (p - 1) * size;
-  //     const end = start + size;
-  //     const paginatedData = formattedDevices.slice(start, end);
-
-  //     return {
-  //       data: paginatedData,
-  //       totalCount: formattedDevices.length,
-  //       totalPages: Math.ceil(formattedDevices.length / size),
-  //       currentPage: p,
-  //       pageSize: size,
-  //       onlineCount,
-  //       offlineCount,
-  //     };
-  //   } catch (error: any) {
-  //     console.error("💀 Comprehensive Device Sync Failure:", error.message);
-  //     return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
-  //   }
-  // }
-
-  // async getDevices(
-  //   page ?: number | string,
-  //   pageSize ?: number | string,
-  //   search ?: string,
-  // ): Promise < any > {
-  //   try {
-  //     const msDataRaw = await mssqlPool
-  //       .request()
-  //       .query("SELECT * FROM Devices")
-  //       .then((res: any) => res.recordset as any[]);
-
-  //     if(!msDataRaw || msDataRaw.length === 0) {
-  //   return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
-  // }
-
-  // const currentTime = new Date();
-  // const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
-  // let onlineCount = 0;
-  // let offlineCount = 0;
-
-  // let formattedDevices = msDataRaw.map((d: any) => {
-  //   let lPing: Date | null = null;
-  //   let calculatedStatus = "offline";
-
-  //   if (d.LastPing) {
-  //     lPing = new Date(d.LastPing);
-  //     let diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
-  //     const absDiff = Math.abs(diffInMinutes);
-  //     if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
-  //       calculatedStatus = "online";
-  //     }
-  //   }
-
-  //   if (calculatedStatus === "online") onlineCount++;
-  //   else offlineCount++;
-
-  //   return {
-  //     msId: Number(d.DeviceId || d.DeviceID),
-  //     name: d.DeviceName || "Unnamed Device",
-  //     deviceDirection: d.DeviceDirection || null,
-  //     serialNumber: d.SerialNumber ? d.SerialNumber.trim() : (d.serialno ? d.serialno.trim() : null),
-  //     opstamp: d.OpStamp ? String(d.OpStamp) : null,
-  //     lastPing: lPing,
-  //     lastreset: d.LastReset ? new Date(d.LastReset) : null,
-  //     activationCode: d.ActivationCode || "",
-  //     isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-  //     deviceType: String(d.DeviceType || "-").toLowerCase(),
-  //     locationId: d.LocationId || null,
-  //     ipAddress: d.IpAddress || "",
-  //     lastHeartbeat: lPing,
-  //     status: calculatedStatus,
-  //     isActive: true,
-  //   };
-  // });
-
-  // const allMsSqlIds = formattedDevices.map((d) => d.msId);
-
-  // if (search && search.trim()) {
-  //   const s = search.toLowerCase();
-  //   formattedDevices = formattedDevices.filter(
-  //     (d) =>
-  //       d.name?.toLowerCase().includes(s) ||
-  //       d.ipAddress?.toLowerCase().includes(s) ||
-  //       d.serialNumber?.toLowerCase().includes(s) ||
-  //       d.deviceType?.toLowerCase().includes(s),
-  //   );
-  // }
-
-  // const [existingLocalDevices, allPeople, existingLogs] = await Promise.all([
-  //   db.select({ msId: devices.msId }).from(devices),
-  //   db.select({ employeeCode: schema.people.employeeCode }).from(schema.people).execute(),
-  //   db.select({ deviceId: blockUnblockLogs.deviceId }).from(blockUnblockLogs).execute(),
-  // ]);
-
-  // const existingMsIdsSet = new Set(existingLocalDevices.map((ld) => Number(ld.msId)));
-  // const devicesWithLogsSet = new Set(existingLogs.map(l => Number(l.deviceId)));
-
-  // for (const dev of formattedDevices) {
-  //   const currentMsId = Number(dev.msId);
-  //   const deviceSerial = dev.serialNumber;
-
-  //   const isNewDevice = !existingMsIdsSet.has(currentMsId);
-  //   const hasNoLogsYet = !devicesWithLogsSet.has(currentMsId);
-
-  //   await db
-  //     .insert(devices)
-  //     .values(dev)
-  //     .onConflictDoUpdate({
-  //       target: devices.msId,
-  //       set: { ...dev },
-  //     });
-
-  //   if (isNewDevice && hasNoLogsYet && allPeople && allPeople.length > 0 && deviceSerial) {
-  //     devicesWithLogsSet.add(currentMsId);
-
-  //     const firstEmpCode = allPeople[0].employeeCode?.trim();
-  //     if (firstEmpCode) {
-  //       try {
-  //         await db.insert(blockUnblockLogs).values({
-  //           employeeCode: firstEmpCode,
-  //           deviceId: currentMsId,
-  //           type: "block",
-  //           updatedAt: new Date(),
-  //         });
-  //       } catch (dbErr) {
-  //         // Quietly catch lock insertion conflicts
-  //       }
-  //     }
-
-  //     for (let i = 0; i < allPeople.length; i++) {
-  //       const empCode = allPeople[i].employeeCode?.trim();
-  //       if (!empCode) continue;
-
-  //       try {
-  //         await esslService.syncUserBlockStatus(empCode, deviceSerial, true);
-
-  //         if (i > 0) {
-  //           await db.insert(blockUnblockLogs).values({
-  //             employeeCode: empCode,
-  //             deviceId: currentMsId,
-  //             type: "block",
-  //             updatedAt: new Date(),
-  //           });
-  //         }
-  //       } catch (esslErr) {
-  //         // Quietly catch network or API exceptions to let the sync proceed
-  //       }
-  //     }
-  //   }
-  // }
-
-  // if (allMsSqlIds.length > 0) {
-  //   await db.delete(devices).where(notInArray(devices.msId, allMsSqlIds));
-  // }
-
-  // if (!pageSize) return formattedDevices;
-  // if (pageSize === -1 || pageSize === "-1") {
-  //   return {
-  //     data: formattedDevices,
-  //     totalCount: formattedDevices.length,
-  //     totalPages: 1,
-  //     currentPage: 1,
-  //     pageSize: formattedDevices.length,
-  //     onlineCount,
-  //     offlineCount,
-  //   };
-  // }
-
-  // const p = page && Number(page) > 0 ? Number(page) : 1;
-  // const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-  // const start = (p - 1) * size;
-  // const end = start + size;
-  // const paginatedData = formattedDevices.slice(start, end);
-
-  // return {
-  //   data: paginatedData,
-  //   totalCount: formattedDevices.length,
-  //   totalPages: Math.ceil(formattedDevices.length / size),
-  //   currentPage: p,
-  //   pageSize: size,
-  //   onlineCount,
-  //   offlineCount,
-  // };
-  //   } catch (error) {
-  //   return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
-  // }
-  // }
-  async getDevices(
-    page?: number | string,
-    pageSize?: number | string,
-    search?: string,
-  ): Promise<any> {
-    try {
-      // 1. Fetch raw datasets from MS SQL Source Database
-      const msDataRaw = await dbMsSql
-        .select()
-        .from({ dbName: "Devices" })
-        .execute();
-
-      if (!msDataRaw || msDataRaw.length === 0) {
-        return {
-          data: [],
-          totalCount: 0,
-          totalPages: 0,
-          currentPage: 1,
-          pageSize: 0,
-          onlineCount: 0,
-          offlineCount: 0,
-        };
-      }
-
-      // 2. Fetch Authorized List from the Cryptographic Security Service
-      const allowedSerials = await DeviceSecurityService.getAuthorizedSerials();
-
-      const currentTime = new Date();
-      const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
-      let onlineCount = 0;
-      let offlineCount = 0;
-
-      const validDevicesToSync: any[] = [];
-      const currentValidMsIds: number[] = [];
-
-      // 3. SECURE INTERCEPTOR & STATUS CONVERSION LOOP
-      for (const d of msDataRaw) {
-        const currentSerial = String(d.SerialNumber || d.serialno || "").trim().toLowerCase();
-        const deviceId = d.DeviceId || d.DeviceID;
-        const deviceName = d.DeviceName || "Unnamed Device";
-
-        // Security assertion using highly-performant Set.has() O(1) lookup
-        const isAuthorized = allowedSerials.has(currentSerial);
-
-        if (!isAuthorized) {
-          // Log intrusion/unauthorized attempt inside PG for security audit
-          console.warn(`[SECURITY INTERCEPT] Unauthorized attempt blocked: ${deviceName} (${currentSerial})`);
-
-          await db.insert(unauthorizedDeviceLogs).values({
-            deviceId: deviceId,
-            deviceName: deviceName,
-            serialNumber: d.SerialNumber || d.serialno || "",
-            ipAddress: d.IpAddress || "",
-            attemptedAt: new Date(),
-            statusMessage: "Access Denied: Serial signature absent from decrypted configuration profile."
-          }).onConflictDoNothing();
-
-          continue; // Prevent local database sync pipeline inclusion
-        }
-
-        // Processing online status metadata mapping
-        let lPing: Date | null = null;
-        let calculatedStatus = "offline";
-
-        if (d.LastPing) {
-          lPing = new Date(d.LastPing);
-          const diffInMs = currentTime.getTime() - lPing.getTime();
-          const diffInMinutes = diffInMs / 60000;
-          const absDiff = Math.abs(diffInMinutes);
-
-          if (
-            absDiff <= THRESHOLD_MINUTES ||
-            Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
-          ) {
-            calculatedStatus = "online";
-          }
-        }
-
-        if (calculatedStatus === "online") onlineCount++;
-        else offlineCount++;
-
-        const devicePayload = {
-          msId: deviceId,
-          name: deviceName,
-          deviceDirection: d.DeviceDirection || null,
-          serialNumber: d.SerialNumber || d.serialno,
-          opstamp: d.OpStamp ? String(d.OpStamp) : null,
-          lastPing: lPing,
-          lastreset: d.LastReset ? new Date(d.LastReset) : null,
-          activationCode: d.ActivationCode || "",
-          isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-          deviceType: String(d.DeviceType || "-").toLowerCase(),
-          locationId: d.LocationId || null,
-          ipAddress: d.IpAddress || "",
-          lastHeartbeat: lPing,
-          status: calculatedStatus,
-          isActive: true,
-        };
-
-        validDevicesToSync.push(devicePayload);
-        currentValidMsIds.push(deviceId);
-      }
-
-      // 4. Filtering parameters
-      let filteredDevices = validDevicesToSync;
-      if (search && search.trim()) {
-        const s = search.toLowerCase();
-        filteredDevices = filteredDevices.filter(
-          (d) =>
-            d.name?.toLowerCase().includes(s) ||
-            d.ipAddress?.toLowerCase().includes(s) ||
-            d.serialNumber?.toLowerCase().includes(s) ||
-            d.deviceType?.toLowerCase().includes(s),
-        );
-      }
-
-      // 5. Atomic transaction upsert inside local Postgres Database
-      for (const dev of filteredDevices) {
-        await db
-          .insert(devices)
-          .values(dev)
-          .onConflictDoUpdate({
-            target: devices.msId,
-            set: { ...dev },
-          });
-      }
-
-      // Clean up synchronization: Delete devices removed from MS SQL master
-      if (currentValidMsIds.length > 0) {
-        await db.delete(devices).where(notInArray(devices.msId, currentValidMsIds));
-      }
-
-      // 6. Pagination output mapping framework
-      if (!pageSize) return filteredDevices;
-
-      if (pageSize === -1 || pageSize === "-1") {
-        return {
-          data: filteredDevices,
-          totalCount: filteredDevices.length,
-          totalPages: 1,
-          currentPage: 1,
-          pageSize: filteredDevices.length,
-          onlineCount,
-          offlineCount,
-        };
-      }
-
-      const p = page && Number(page) > 0 ? Number(page) : 1;
-      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-      const start = (p - 1) * size;
-      const end = start + size;
-      const paginatedData = filteredDevices.slice(start, end);
-
-      return {
-        data: paginatedData,
-        totalCount: filteredDevices.length,
-        totalPages: Math.ceil(filteredDevices.length / size),
-        currentPage: p,
-        pageSize: size,
-        onlineCount,
-        offlineCount,
-      };
-    } catch (error: unknown) {
-      console.error("Device Guard Execution Sync Failure:", error);
-      return {
-        data: [],
-        totalCount: 0,
-        totalPages: 0,
-        currentPage: 1,
-        pageSize: 0,
-        onlineCount: 0,
-        offlineCount: 0,
-      };
-    }
-  }
-
-  
-  async runInBatches<T>(
-    items: T[],
-    batchSize: number,
-    delayMs: number,
-    processor: (item: T) => Promise<void>
-  ): Promise<void> {
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
-      await Promise.all(batch.map(item => processor(item).catch((err) => {
-        console.error(`Batch item failed:`, err.message);
-      })));
-      if (i + batchSize < items.length) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-    }
-  }
-
-  /**
-   * FETCH AND SYNC DEVICES FROM HARDWARE MS SQL TO LOCAL DB
-   */
-  // async getDevices(
-  //   page?: number | string,
-  //   pageSize?: number | string,
-  //   search?: string,
-  // ): Promise<any> {
-  //   try {
-  //     const msDataRaw = await mssqlPool
-  //       .request()
-  //       .query("SELECT * FROM Devices")
-  //       .then((res: any) => res.recordset as any[]);
-
-  //     if (!msDataRaw || msDataRaw.length === 0) {
-  //       return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
-  //     }
-
-  //     const currentTime = new Date();
-  //     const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
-  //     let onlineCount = 0;
-  //     let offlineCount = 0;
-
-  //     let formattedDevices = msDataRaw.map((d: any) => {
-  //       let lPing: Date | null = null;
-  //       let calculatedStatus = "offline";
-
-  //       if (d.LastPing) {
-  //         lPing = new Date(d.LastPing);
-  //         let diffInMinutes = (currentTime.getTime() - lPing.getTime()) / 60000;
-  //         const absDiff = Math.abs(diffInMinutes);
-  //         if (absDiff <= THRESHOLD_MINUTES || Math.abs(absDiff - 330) <= THRESHOLD_MINUTES) {
-  //           calculatedStatus = "online";
-  //         }
-  //       }
-
-  //       if (calculatedStatus === "online") onlineCount++;
-  //       else offlineCount++;
-
-  //       return {
-  //         msId: Number(d.DeviceId || d.DeviceID),
-  //         name: d.DeviceName || "Unnamed Device",
-  //         deviceDirection: d.DeviceDirection || null,
-  //         serialNumber: d.SerialNumber ? d.SerialNumber.trim() : (d.serialno ? d.serialno.trim() : null),
-  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
-  //         lastPing: lPing,
-  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
-  //         activationCode: d.ActivationCode || "",
-  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
-  //         locationId: d.LocationId || null,
-  //         ipAddress: d.IpAddress || "",
-  //         lastHeartbeat: lPing,
-  //         status: calculatedStatus,
-  //         isActive: true,
-  //       };
-  //     });
-
-  //     const allMsSqlIds = formattedDevices.map((d) => d.msId);
-
-  //     if (search && search.trim()) {
-  //       const s = search.toLowerCase();
-  //       formattedDevices = formattedDevices.filter(
-  //         (d) =>
-  //           d.name?.toLowerCase().includes(s) ||
-  //           d.ipAddress?.toLowerCase().includes(s) ||
-  //           d.serialNumber?.toLowerCase().includes(s) ||
-  //           d.deviceType?.toLowerCase().includes(s),
-  //       );
-  //     }
-
-  //     const [existingLocalDevices, allPeople, existingLogs, doorDeviceMappings, allDoors] = await Promise.all([
-  //       db.select({ msId: devices.msId }).from(devices),
-  //       db.select({ employeeCode: schema.people.employeeCode }).from(schema.people).execute(),
-  //       db.select({ deviceId: blockUnblockLogs.deviceId }).from(blockUnblockLogs).execute(),
-  //       db.select({ doorId: doorDevices.doorId, inDeviceIds: doorDevices.inDeviceIds, outDeviceIds: doorDevices.outDeviceIds }).from(doorDevices).execute(),
-  //       db.select({ id: schema.doors.id, code: schema.doors.code }).from(schema.doors).execute(),
-  //     ]);
-
-  //     const existingMsIdsSet = new Set(existingLocalDevices.map((ld) => Number(ld.msId)));
-  //     const devicesWithLogsSet = new Set(existingLogs.map(l => Number(l.deviceId)));
-
-  //     const doorCodeMap = new Map(allDoors.map(dr => [dr.id, dr.code]));
-  //     const mainGateDeviceIdsSet = new Set<number>();
-
-  //     for (const mapping of doorDeviceMappings) {
-  //       if (mapping.doorId && doorCodeMap.get(mapping.doorId) === 'MG_SYNC_01') {
-  //         if (Array.isArray(mapping.inDeviceIds)) mapping.inDeviceIds.forEach(id => mainGateDeviceIdsSet.add(Number(id)));
-  //         if (Array.isArray(mapping.outDeviceIds)) mapping.outDeviceIds.forEach(id => mainGateDeviceIdsSet.add(Number(id)));
-  //       }
-  //     }
-
-  //     for (const dev of formattedDevices) {
-  //       const currentMsId = Number(dev.msId);
-  //       const deviceSerial = dev.serialNumber;
-
-  //       const isNewDevice = !existingMsIdsSet.has(currentMsId);
-
-  //       await db
-  //         .insert(devices)
-  //         .values(dev)
-  //         .onConflictDoUpdate({
-  //           target: devices.msId,
-  //           set: { ...dev },
-  //         });
-
-  //       if (mainGateDeviceIdsSet.has(currentMsId)) {
-  //         console.log(`Skipping auto-block sync for Main Gate device: ${dev.name} (ID: ${currentMsId})`);
-  //         continue;
-  //       }
-
-  //       if (isNewDevice && allPeople && allPeople.length > 0 && deviceSerial) {
-  //         existingMsIdsSet.add(currentMsId);
-  //         devicesWithLogsSet.add(currentMsId);
-
-  //         const validEmployees = allPeople
-  //           .map(emp => emp.employeeCode?.trim())
-  //           .filter((code): code is string => !!code);
-
-  //         if (validEmployees.length > 0) {
-  //           const insertPayload = validEmployees.map(empCode => ({
-  //             employeeCode: empCode,
-  //             deviceId: currentMsId,
-  //             type: "block" as const,
-  //             createdAt: new Date(),
-  //             updatedAt: new Date(),
-  //           }));
-
-  //           try {
-  //             const CHUNK_SIZE = 500;
-  //             for (let i = 0; i < insertPayload.length; i += CHUNK_SIZE) {
-  //               const chunk = insertPayload.slice(i, i + CHUNK_SIZE);
-  //               await db.insert(blockUnblockLogs).values(chunk).onConflictDoNothing();
-  //             }
-  //             console.log(`DB logs inserted for new device ${dev.name}`);
-  //           } catch (dbBulkErr) {
-  //             console.error("Bulk Insert Log Error:", dbBulkErr);
-  //           }
-
-  //           // 🔥 FIX: Hardware operation ko background async process mein daal rahe hain taaki main flow block na ho
-  //           // Aur pure device context (IP, Serial) ko copy karke bhej rahe hain taaki DB state par hardware fetch crash na ho
-  //           setImmediate(() => {
-  //             console.log(`[BACKGROUND START] Syncing hardware blocks for NEW device: ${dev.name} (${deviceSerial})`);
-  //             this.runInBatches(validEmployees, 10, 80, async (empCode: string) => {
-  //               // Agar aapke syncUserBlockStatus ko IP ki zarurat padti hai, toh teesra parameter check karein
-  //               await esslService.syncUserBlockStatus(empCode, deviceSerial, true);
-  //             })
-  //               .then(() => {
-  //                 console.log(`[BACKGROUND SUCCESS] Finished hardware block execution for device ${deviceSerial}`);
-  //               })
-  //               .catch((err) => {
-  //                 console.error(`[BACKGROUND FATAL] Hardware sync background process failed for device ${deviceSerial}:`, err);
-  //               });
-  //           });
-
-  //         }
-  //       }
-  //     }
-
-  //     if (allMsSqlIds.length > 0) {
-  //       await db.delete(devices).where(notInArray(devices.msId, allMsSqlIds));
-  //     }
-
-  //     if (!pageSize) return formattedDevices;
-  //     if (pageSize === -1 || pageSize === "-1") {
-  //       return {
-  //         data: formattedDevices,
-  //         totalCount: formattedDevices.length,
-  //         totalPages: 1,
-  //         currentPage: 1,
-  //         pageSize: formattedDevices.length,
-  //         onlineCount,
-  //         offlineCount,
-  //       };
-  //     }
-
-  //     const p = page && Number(page) > 0 ? Number(page) : 1;
-  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-  //     const start = (p - 1) * size;
-  //     const end = start + size;
-  //     const paginatedData = formattedDevices.slice(start, end);
-
-  //     return {
-  //       data: paginatedData,
-  //       totalCount: formattedDevices.length,
-  //       totalPages: Math.ceil(formattedDevices.length / size),
-  //       currentPage: p,
-  //       pageSize: size,
-  //       onlineCount,
-  //       offlineCount,
-  //     };
-  //   } catch (error) {
-  //     return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
-  //   }
-  // }
   async createDevice(data: InsertDevice): Promise<Device> {
     let mssqlId: number | null = null;
     try {
@@ -6851,5 +5768,316 @@ ${fromDate} || ' to ' || ${toDate}
       .where(eq(visitorCards.isAssigned, false))
       .orderBy(asc(visitorCards.name));
   }
+
+  async getDevices(
+    page?: number | string,
+    pageSize?: number | string,
+    search?: string,
+  ): Promise<any> {
+    try {
+      const msDataRaw = await dbMsSql
+        .select()
+        .from({ dbName: "Devices" })
+        .execute();
+
+      if (!msDataRaw || msDataRaw.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+          onlineCount: 0,
+          offlineCount: 0,
+        };
+      }
+
+      const currentTime = new Date();
+      const THRESHOLD_MINUTES = 1;
+
+      let onlineCount = 0;
+      let offlineCount = 0;
+
+      // :fire: STEP 1: FORMAT DATA
+      let formattedDevices = msDataRaw.map((d: any) => {
+        let lPing: Date | null = null;
+        let calculatedStatus = "offline";
+
+        if (d.LastPing) {
+          lPing = new Date(d.LastPing);
+          let diffInMs = currentTime.getTime() - lPing.getTime();
+          let diffInMinutes = diffInMs / 60000;
+
+          const absDiff = Math.abs(diffInMinutes);
+
+          if (
+            absDiff <= THRESHOLD_MINUTES ||
+            Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
+          ) {
+            calculatedStatus = "online";
+          }
+        }
+
+        if (calculatedStatus === "online") onlineCount++;
+        else offlineCount++;
+
+        return {
+          msId: d.DeviceId || d.DeviceID,
+          name: d.DeviceName || "Unnamed Device",
+          deviceDirection: d.DeviceDirection || null,
+          serialNumber: d.SerialNumber || d.serialno,
+          opstamp: d.OpStamp ? String(d.OpStamp) : null,
+          lastPing: lPing,
+          lastreset: d.LastReset ? new Date(d.LastReset) : null,
+          activationCode: d.ActivationCode || "",
+          isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+          deviceType: String(d.DeviceType || "-").toLowerCase(),
+          locationId: d.LocationId || null,
+          ipAddress: d.IpAddress || "",
+          lastHeartbeat: lPing,
+          status: calculatedStatus,
+          isActive: true,
+        };
+      });
+
+      // :fire: STEP 2: SEARCH FILTER (IMPORTANT)
+      if (search && search.trim()) {
+        const s = search.toLowerCase();
+
+        formattedDevices = formattedDevices.filter(
+          (d) =>
+            d.name?.toLowerCase().includes(s) ||
+            d.ipAddress?.toLowerCase().includes(s) ||
+            d.serialNumber?.toLowerCase().includes(s) ||
+            d.deviceType?.toLowerCase().includes(s),
+        );
+      }
+
+      // :fire: STEP 3: SYNC DB
+      for (const dev of formattedDevices) {
+        await db
+          .insert(devices)
+          .values(dev)
+          .onConflictDoUpdate({
+            target: devices.msId,
+            set: { ...dev },
+          });
+      }
+
+      const currentMsIds = formattedDevices.map((d) => d.msId as number);
+
+      if (currentMsIds.length > 0) {
+        await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
+      }
+
+      // :fire: STEP 4: PAGINATION
+      if (!pageSize) return formattedDevices;
+
+      if (pageSize === -1 || pageSize === "-1") {
+        return {
+          data: formattedDevices,
+          totalCount: formattedDevices.length,
+          totalPages: 1,
+          currentPage: 1,
+          pageSize: formattedDevices.length,
+          onlineCount,
+          offlineCount,
+        };
+      }
+
+      const p = page && Number(page) > 0 ? Number(page) : 1;
+      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+
+      const start = (p - 1) * size;
+      const end = start + size;
+
+      const paginatedData = formattedDevices.slice(start, end);
+
+      return {
+        data: paginatedData,
+        totalCount: formattedDevices.length,
+        totalPages: Math.ceil(formattedDevices.length / size),
+        currentPage: p,
+        pageSize: size,
+        onlineCount,
+        offlineCount,
+      };
+    } catch (error) {
+      console.error("Device Sync Error:", error);
+
+      return {
+        data: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 0,
+        onlineCount: 0,
+        offlineCount: 0,
+      };
+    }
+  }
+  // async getDevices(page?: number | string, pageSize?: number | string, search?: string): Promise<any> {
+  //   try {
+  //     // -------------------------------------------------------------
+  //     // 🛠️ STEP 1: MS SQL से रॉ डेटा लाना
+  //     // -------------------------------------------------------------
+  //     const msDataRaw = await dbMsSql.select().from({ dbName: "Devices" }).execute();
+  //     if (!msDataRaw || msDataRaw.length === 0) {
+  //       return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
+  //     }
+  //     console.log
+  //     const currentTime = new Date();
+  //     let onlineCount = 0, offlineCount = 0;
+
+  //     // -------------------------------------------------------------
+  //     // 🔒 STEP 2: JSON फ़ाइल से स्वीकृत (Allowed) सीरियल्स लोड करना
+  //     // -------------------------------------------------------------
+  //     const filePath = path.join(process.cwd(), "server", "Config", "secure_serials.json");
+  //     let allowedSerials = new Set<string>();
+
+  //     if (fs.existsSync(filePath)) {
+  //       try {
+  //         const encryptedSerials: string[] = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+
+  //         for (const cipherText of encryptedSerials) {
+  //           // ⚠️ ध्यान दें: अगर decryptSerialNumber फेल होगा तो उसे try-catch में संभालें ताकि लूप न टूटे
+  //           try {
+  //             const decrypted = decryptSerialNumber(cipherText);
+  //             if (decrypted) {
+  //               const cleanDecrypted = decrypted.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+  //               allowedSerials.add(cleanDecrypted);
+  //             }
+  //           } catch (decErr) {
+  //             console.error(`❌ Decryption failed for token: ${cipherText}`);
+  //           }
+  //         }
+  //         console.log(`🔒 Loaded ${allowedSerials.size} authorized serials from JSON.`);
+  //       } catch (err) {
+  //         console.error("❌ JSON Parsing Error:", err);
+  //       }
+  //     } else {
+  //       console.error(`🚨 CRITICAL: secure_serials.json NOT found at ${filePath}`);
+  //     }
+
+  //     // -------------------------------------------------------------
+  //     // 🔍 STEP 3: डेटा वैलिडेट करना (STRICT MATCHING - नो सेफ गार्ड)
+  //     // -------------------------------------------------------------
+  //     const allValidDevices: any[] = [];
+  //     const currentMsIds: number[] = [];
+
+  //     for (const d of msDataRaw) {
+  //       const rawSerial = String(d.SerialNumber || d.serialno || "").trim();
+  //       const cleanSerial = rawSerial.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+  //       const deviceId = d.DeviceId || d.DeviceID;
+  //       const deviceName = d.DeviceName || "Unnamed Device";
+
+  //       // 🛑 STRICT CHECK: अगर सीरियल नंबर अलाउड सेट में नहीं है, तो सीधा ब्लॉक और लॉग होगा!
+  //       if (!allowedSerials.has(cleanSerial)) {
+  //         console.warn(`🚨 Unauthorized Serial Blocked: ${rawSerial} (Device: ${deviceName})`);
+
+  //         try {
+  //           await db.insert(unauthorizedDeviceLogs).values({
+  //             deviceId: deviceId && !isNaN(Number(deviceId)) ? Number(deviceId) : null,
+  //             deviceName: deviceName.slice(0, 255),
+  //             serialNumber: rawSerial.slice(0, 255),
+  //             ipAddress: (d.IpAddress || "").slice(0, 50),
+  //             attemptedAt: currentTime,
+  //             statusMessage: "Access Denied: Decrypted serial mismatch or token not found in JSON."
+  //           });
+  //         } catch (e) {
+  //           console.error("❌ Failed to write threat log to DB");
+  //         }
+
+  //         continue; // ❗ सिंक में जाने से रोकें, अगले डिवाइस पर बढ़ें
+  //       }
+
+  //       // 🟢 अगर मैच हो गया तभी यहाँ पहुंचेगा -> स्टेटस कैलकुलेशन
+  //       let calculatedStatus = "offline";
+  //       if (d.LastPing) {
+  //         const diffInMin = Math.abs((currentTime.getTime() - new Date(d.LastPing).getTime()) / 60000);
+  //         if (diffInMin <= 1 || Math.abs(diffInMin - 330) <= 1) {
+  //           calculatedStatus = "online";
+  //         }
+  //       }
+
+  //       if (calculatedStatus === "online") onlineCount++;
+  //       else offlineCount++;
+
+  //       const formatted = {
+  //         msId: deviceId,
+  //         name: deviceName,
+  //         deviceDirection: d.DeviceDirection || null,
+  //         serialNumber: rawSerial,
+  //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
+  //         lastPing: d.LastPing ? new Date(d.LastPing) : null,
+  //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
+  //         activationCode: d.ActivationCode || "",
+  //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+  //         deviceType: String(d.DeviceType || "-").toLowerCase(),
+  //         locationId: d.LocationId || null,
+  //         ipAddress: d.IpAddress || "",
+  //         lastHeartbeat: d.LastPing ? new Date(d.LastPing) : null,
+  //         status: calculatedStatus,
+  //         isActive: true,
+  //       };
+
+  //       allValidDevices.push(formatted);
+  //       if (deviceId) currentMsIds.push(Number(deviceId));
+  //     }
+
+  //     // -------------------------------------------------------------
+  //     // 🔄 STEP 4: Postgres DB के साथ सिंक और क्लीनअप
+  //     // -------------------------------------------------------------
+  //     // केवल वही डिवाइसेस सिंक होंगे जो ऊपर JSON मैच पास कर चुके हैं
+  //     for (const dev of allValidDevices) {
+  //       await db.insert(devices).values(dev).onConflictDoUpdate({
+  //         target: devices.msId,
+  //         set: { ...dev },
+  //       });
+  //     }
+
+  //     // जो अब ऑथराइज्ड नहीं हैं या MS SQL में नहीं हैं, उन्हें Postgres से साफ़ करें
+  //     if (currentMsIds.length > 0) {
+  //       await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
+  //     }
+
+  //     // -------------------------------------------------------------
+  //     // 📄 STEP 5: सर्च फ़िल्टर और पंगिनेशन
+  //     // -------------------------------------------------------------
+  //     let finalData = [...allValidDevices];
+  //     if (search && search.trim()) {
+  //       const s = search.toLowerCase();
+  //       finalData = finalData.filter(d =>
+  //         d.name?.toLowerCase().includes(s) ||
+  //         d.ipAddress?.toLowerCase().includes(s) ||
+  //         d.serialNumber?.toLowerCase().includes(s)
+  //       );
+  //     }
+
+  //     if (!pageSize) return finalData;
+
+  //     if (pageSize === -1 || pageSize === "-1") {
+  //       return { data: finalData, totalCount: finalData.length, totalPages: 1, currentPage: 1, pageSize: finalData.length, onlineCount, offlineCount };
+  //     }
+
+  //     const p = page && Number(page) > 0 ? Number(page) : 1;
+  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+  //     const paginatedData = finalData.slice((p - 1) * size, ((p - 1) * size) + size);
+
+  //     return {
+  //       data: paginatedData,
+  //       totalCount: finalData.length,
+  //       totalPages: Math.ceil(finalData.length / size),
+  //       currentPage: p,
+  //       pageSize: size,
+  //       onlineCount,
+  //       offlineCount,
+  //     };
+
+  //   } catch (error) {
+  //     console.error("Device Sync Error:", error);
+  //     return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
+  //   }
+  // }
 }
 export const storage = new DatabaseStorage();
