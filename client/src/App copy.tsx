@@ -12,10 +12,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmProvider } from "@/hooks/use-confirm";
-import { Shield, Eye, EyeOff, User, KeyRound, LogIn, RefreshCw, Lock } from "lucide-react";
+import { Shield, Eye, EyeOff, User, KeyRound, LogIn, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
-
+// Pages
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import PeoplePage from "@/pages/people";
@@ -57,7 +57,7 @@ import { useMutation } from "@tanstack/react-query";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePermission } from "./hooks/use-permission";
 import { MENU_CONFIG } from "../../server/constant";
-import ContractorFormPage from "./pages/ContractorFormPage";
+import ContractorFormPage from "./pages/ContractorFormPage"; // Aapka form page file path
 import visitors from "./pages/visitor-details";
 import VisitorLogs from "./pages/VisitorLogs";
 import LiveVisitorLogsDashboard from "./pages/VisitorLiveLogs";
@@ -140,7 +140,7 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
                 alt="ZIM Logo"
                 className="w-full h-full object-contain p-1 cursor-pointer animate-pulse transition-transform duration-500 hover:animate-none hover:rotate-[360deg]"
               />
-            </div>
+               </div>
           </div>
           <h1 className="text-3xl font-bold text-[#4c51bf] mb-2">ZIM Laboratories Limited</h1>
           <p className="text-gray-500">Attendance Cum Access Control System</p>
@@ -208,28 +208,7 @@ function AuthenticatedApp() {
       toast({ variant: "destructive", title: "Error", description: err.message });
     }
   });
-  const [isEmergencyBlockOpen, setIsEmergencyBlockOpen] = useState(false);
 
-
-
-
-
-
-
-  const bulkEmergencyBlockMut = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/newDevice/bulk-block", { method: "POST" });
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    },
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/people"] });
-      toast({ title: "Success", description: res.message || "All devices blocked successfully." });
-    },
-    onError: (err: any) => {
-      toast({ variant: "destructive", title: "Error", description: err.message });
-    }
-  });
   return (
     <>
       <AlertDialog open={isEmergencyAlertOpen} onOpenChange={setIsEmergencyAlertOpen}>
@@ -245,26 +224,6 @@ function AuthenticatedApp() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={isEmergencyBlockOpen} onOpenChange={setIsEmergencyBlockOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive">Trigger Emergency Bulk Block?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will BLOCK ALL users and communications on active devices immediately.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive hover:bg-destructive/90 text-white"
-              onClick={() => bulkEmergencyBlockMut.mutate()}
-            >
-              Confirm Block
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <SidebarProvider>
         <div className="flex h-screen w-full">
           <AppSidebar />
@@ -273,21 +232,9 @@ function AuthenticatedApp() {
               <SidebarTrigger />
               <div className="flex items-center gap-2">
                 <ThemeToggle />
-
-                <Button variant="default" size="sm" onClick={() => setIsEmergencyAlertOpen(true)}>
-                  <RefreshCw className="w-4 h-4 mr-2" /> Emergency Unblock
+                <Button variant="destructive" size="sm" onClick={() => setIsEmergencyAlertOpen(true)}>
+                  <RefreshCw className="w-4 h-4 mr-2" /> Emergency
                 </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="border-destructive text-destructive hover:bg-destructive hover:text-white transition-colors"
-                  onClick={() => setIsEmergencyBlockOpen(true)}
-                >
-                  <Lock className="w-4 h-4 mr-2" /> Block Devices
-                </Button>
-                {/* )} */}
-
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   Logout
                 </Button>

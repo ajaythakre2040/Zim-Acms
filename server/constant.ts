@@ -161,7 +161,9 @@ export const MENU_CONFIG = {
   VISITOR_CARDS: { title: "Visitor Cards", code: "visit_cards", icon: "CreditCard" },
   VISITOR_LOGS: { title: "Visitor Logs", code: "visit_logs", icon: "FileText" },
   CONTRACTORS: { title: "Contractors", code: "contr_01", icon: "Users" },
-  AUDIT_TRAIL: { title: "Audit Trail", code: "audit_01", icon: "History" }
+  AUDIT_TRAIL: { title: "Audit Trail", code: "audit_01", icon: "History" },
+  NEW_DEVICE_BLOCK: { title: "New Device block All", code: "newDevice_block_01", icon: "Lock" },
+
 } as const;
 
 

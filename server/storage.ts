@@ -6073,5 +6073,90 @@ ${fromDate} || ' to ' || ${toDate}
   //     return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
   //   }
   // }
+
+  async executeNewDevicebulkBlock(
+    userId: string,
+    userName: string,
+  ): Promise<any> {
+    const allPeople = await db
+      .select()
+      .from(people)
+      .where(eq(people.status, "active"));
+    const allDevices = await db
+      .select()
+      .from(devices)
+      .where(eq(devices.isActive, true));
+    const taskQueue = [];
+    for (const person of allPeople) {
+      if (!person.employeeCode) continue;
+      for (const device of allDevices) {
+        if (
+          device.serialNumber &&
+          device.msId !== null &&
+          device.msId !== undefined
+        ) {
+          taskQueue.push({
+            employeeCode: person.employeeCode,
+            deviceMsId: Number(device.msId),
+            serialNumber: device.serialNumber,
+          });
+        }
+      }
+    }
+    if (taskQueue.length === 0) {
+      return {
+        status: "Empty",
+        processedCount: 0,
+        message: "No active records found.",
+      };
+    }
+    const [alertEntry] = await db
+      .insert(alerts)
+      .values({
+        alertType: "security",
+        severity: "critical",
+        title: "🚨 EMERGENCY BULK UNBLOCK",
+        message: `System-wide unblock triggered by ${userName} for ${taskQueue.length} records.`,
+        createdBy: userId,
+        resolvedBy: userName,
+        isRead: false,
+        isResolved: true,
+        resolvedAt: new Date(),
+        createdAt: new Date(),
+      })
+      .returning();
+    const BATCH_SIZE = 50;
+    let processedCount = 0;
+    for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
+      const batch = taskQueue.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (task) => {
+          try {
+            await db.insert(blockUnblockLogs).values({
+              employeeCode: task.employeeCode,
+              deviceId: task.deviceMsId,
+              type: "block",
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+            esslService
+              .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
+              .catch((err) =>
+                console.error(`API Sync Fail for ${task.employeeCode}:`, err),
+              );
+            processedCount++;
+          } catch (err) {
+            console.error(`PG Log Error for ${task.employeeCode}:`, err);
+          }
+        }),
+      );
+      await new Promise((res) => setTimeout(res, 100));
+    }
+    return {
+      status: "Success",
+      processedCount: processedCount,
+      alertId: alertEntry.id,
+    };
+  }
 }
 export const storage = new DatabaseStorage();
