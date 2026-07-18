@@ -72,29 +72,6 @@ export default function DevicesPage() {
     offlineCount: number;
   };
 
-  // const {
-  //   data: response = {
-  //     data: [],
-  //     totalPages: 1,
-  //     totalCount: 0,
-  //   },
-  //   isLoading,
-  //   create,
-  //   update,
-  //   remove,
-  //   isCreating,
-  //   isUpdating,
-  //   refetch,
-  // } = useCrud<PaginatedDeviceResponse>(
-  //   `/api/devices?page=${page}&pageSize=${pageSize}`,
-  //   "Device",
-  // );
-  // const paginatedResponse = response as unknown as PaginatedDeviceResponse;
-
-  // const data: Device[] = paginatedResponse?.data || [];
-  // const totalPages = paginatedResponse?.totalPages || 1;
-  // const totalCount = paginatedResponse?.totalCount || 0;
-
   const [pagedResponse, setPagedResponse] = useState<PaginatedDeviceResponse>({
     data: [],
     totalPages: 1,
@@ -153,25 +130,9 @@ export default function DevicesPage() {
       options: [
         { value: "reader", label: "AI" },
         { value: "turnstile", label: "Non AI" },
-        // { value: "gate", label: "Gate" },
-        // { value: "barrier", label: "Barrier" },
-        // { value: "controller", label: "Controller" },
-        // { value: "biometric", label: "Biometric" },
       ],
       defaultValue: "reader",
     },
-    // {
-    //   key: "locationId",
-    //   label: "Site",
-    //   type: "select",
-    //   options: sites.map((s) => ({ value: String(s.id), label: s.name })),
-    // },
-    // {
-    //   key: "zoneId",
-    //   label: "Zone",
-    //   type: "select",
-    //   options: zones.map((z) => ({ value: String(z.id), label: z.name })),
-    // },
     { key: "ipAddress", label: "IP Address" },
     { key: "macAddress", label: "MAC Address" },
     { key: "serialNumber", label: "Serial Number" },
@@ -211,15 +172,11 @@ export default function DevicesPage() {
       label: "Type",
       render: (d: Device) => <Badge variant="secondary">{d.deviceType}</Badge>,
     },
-
-    // YEH RAH AAPKA SITE COLUMN
-    // {
-    //   key: "site",
-    //   label: "Site",
-    //   hideOnMobile: true,
-    //   render: (d: Device) =>
-    //     sites.find((s) => s.id === d.locationId)?.name || "-",
-    // },
+    {
+      key: "serialNumber",
+      label: "Serial Number",
+      render: (d: Device) => <Badge variant="secondary">{d.serialNumber}</Badge>,
+    },
 
     // STATUS COLUMN
     {

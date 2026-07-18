@@ -2931,8 +2931,21 @@ if (rule && rule !== "all") {
     .from(doors)
     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-  // 2. Fetch biometric logs from MS SQL (String format mapping)
-  const msSqlData = await mssqlPool.request().input("filterDate", date)
+  // 🛠️ Corrected Dynamic Date Selection Logic
+  let effectiveFromDate = date;
+  let effectiveToDate = date;
+
+  if (filters?.fromDate || filters?.toDate) {
+    // अगर सिर्फ fromDate है, तो effectiveFromDate वो बनेगी, वरना toDate या डिफ़ॉल्ट date
+    effectiveFromDate = filters.fromDate || filters.toDate || date;
+    // अगर toDate नहीं है, तो effectiveToDate को effectiveFromDate के बराबर रखेंगे ताकि सिर्फ उसी single date का डेटा आए
+    effectiveToDate = filters.toDate || effectiveFromDate;
+  }
+
+  // 2. Fetch biometric logs from MS SQL (Using corrected Range filters)
+  const msSqlData = await mssqlPool.request()
+    .input("fromDate", effectiveFromDate)
+    .input("toDate", effectiveToDate)
     .query(`
     SELECT 
       l.EmployeeCode, 
@@ -2942,7 +2955,7 @@ if (rule && rule !== "all") {
       CONVERT(VARCHAR(19), l.LogDate, 120) AS LogDate  -- Direct 'YYYY-MM-DD HH:MM:SS' format
     FROM DeviceLogs l
     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-    WHERE CAST(l.LogDate AS DATE) = @filterDate
+    WHERE CAST(l.LogDate AS DATE) BETWEEN @fromDate AND @toDate
       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
     ORDER BY l.LogDate DESC
   `);
@@ -3059,32 +3072,13 @@ if (rule && rule !== "all") {
     };
   });
 
-  // 🚨 6. APPLY FILTERS HERE (Search, From Date, To Date)
-  if (filters) {
-    const { search, fromDate, toDate } = filters;
-
-    if (search) {
-      const lowerSearch = search.toLowerCase();
-      machineFeed = machineFeed.filter(item => 
-        item.visitorName.toLowerCase().includes(lowerSearch) ||
-        (item.rfidCardNo && item.rfidCardNo.toLowerCase().includes(lowerSearch))
-      );
-    }
-
-    if (fromDate) {
-      // Compare only YYYY-MM-DD part from logDate string
-      machineFeed = machineFeed.filter(item => {
-        const itemDate = item.logDate ? item.logDate.split(' ')[0] : "";
-        return itemDate >= fromDate;
-      });
-    }
-
-    if (toDate) {
-      machineFeed = machineFeed.filter(item => {
-        const itemDate = item.logDate ? item.logDate.split(' ')[0] : "";
-        return itemDate <= toDate;
-      });
-    }
+  // 6. APPLY FILTERS (Search only - Date filtering is optimized at DB level)
+  if (filters && filters.search) {
+    const lowerSearch = filters.search.toLowerCase();
+    machineFeed = machineFeed.filter(item => 
+      item.visitorName.toLowerCase().includes(lowerSearch) ||
+      (item.rfidCardNo && item.rfidCardNo.toLowerCase().includes(lowerSearch))
+    );
   }
 
   return { machineFeed };
