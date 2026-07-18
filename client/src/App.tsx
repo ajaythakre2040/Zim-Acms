@@ -12,9 +12,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmProvider } from "@/hooks/use-confirm";
-import { Shield, Eye, EyeOff, User, KeyRound, LogIn, RefreshCw, Lock } from "lucide-react";
+import {
+  Shield,
+  Eye,
+  EyeOff,
+  User,
+  KeyRound,
+  LogIn,
+  RefreshCw,
+  Lock,
+} from "lucide-react";
 import { useState } from "react";
-
 
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
@@ -54,7 +62,16 @@ import Contractors from "./pages/contractors";
 import AuditTrailPage from "./pages/audit-trail";
 import { useToast } from "./hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { usePermission } from "./hooks/use-permission";
 import { MENU_CONFIG } from "../../server/constant";
 import ContractorFormPage from "./pages/ContractorFormPage";
@@ -99,7 +116,10 @@ function StandardRouter() {
       <Route path="/role" component={RolesPage} />
       <Route path="/master-data/roles/add" component={RoleFormPage} />
       <Route path="/master-data/roles/edit/:id" component={RoleFormPage} />
-      <Route path="/master-data/roles/view/:id" component={RolePermissionViewPage} />
+      <Route
+        path="/master-data/roles/view/:id"
+        component={RolePermissionViewPage}
+      />
       <Route path="/employees/view/:id" component={EmployeeView} />
       <Route path="/contractors" component={Contractors} />
       <Route path="/audit-trail" component={AuditTrailPage} />
@@ -142,46 +162,90 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
               />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-[#4c51bf] mb-2">ZIM Laboratories Limited</h1>
+          <h1 className="text-3xl font-bold text-[#4c51bf] mb-2">
+            ZIM Laboratories Limited
+          </h1>
           <p className="text-gray-500">Attendance Cum Access Control System</p>
         </div>
 
         <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-sm font-medium text-gray-700">Username</Label>
+              <Label
+                htmlFor="username"
+                className="text-sm font-medium text-gray-700"
+              >
+                Username
+              </Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input id="username" value={username} onChange={(e) => setUsername(e.target.value)} className="pl-10 h-11 bg-gray-50" required />
+                <Input
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="pl-10 h-11 bg-gray-50"
+                  required
+                />
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-sm font-medium text-gray-700">Password</Label>
+              <Label
+                htmlFor="password"
+                className="text-sm font-medium text-gray-700"
+              >
+                Password
+              </Label>
               <div className="relative">
                 <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} className="pl-10 pr-10 h-11 bg-gray-50" required />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pl-10 pr-10 h-11 bg-gray-50"
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
                 </button>
               </div>
             </div>
-            {loginError && <div className="text-sm text-red-500 bg-red-50 p-3 rounded-lg">{loginError}</div>}
-            <Button type="submit" className="w-full h-11 bg-[#5c54d5] hover:bg-[#4c44c5] text-white shadow-md" disabled={isLoggingIn}>
+            {loginError && (
+              <div className="text-sm text-red-500 bg-red-50 p-3 rounded-lg">
+                {loginError}
+              </div>
+            )}
+            <Button
+              type="submit"
+              className="w-full h-11 bg-[#5c54d5] hover:bg-[#4c44c5] text-white shadow-md"
+              disabled={isLoggingIn}
+            >
               {isLoggingIn ? "Signing in..." : "Sign In"}
             </Button>
           </form>
           <div className="mt-6 text-center text-sm text-gray-500">
-            Don't have an account? Please contact the <span className="text-[#5c54d5] font-medium">System Administrator</span> to register your profile.
+            Don't have an account? Please contact the{" "}
+            <span className="text-[#5c54d5] font-medium">
+              System Administrator
+            </span>{" "}
+            to register your profile.
           </div>
           <div className="mt-6 flex justify-center items-center text-gray-400 text-xs">
-            &copy; {new Date().getFullYear()} ZIM Laboratories Limited. All rights reserved.
+            &copy; {new Date().getFullYear()} ZIM Laboratories Limited. All
+            rights reserved.
           </div>
         </div>
       </div>
 
-      <div className="mt-8 text-sm text-gray-400">
-
-      </div>
+      <div className="mt-8 text-sm text-gray-400"></div>
     </div>
   );
 }
@@ -191,12 +255,16 @@ function AuthenticatedApp() {
   const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
 
   const handleLogout = () => {
-    fetch("/api/logout", { method: "POST" }).then(() => window.location.reload());
+    fetch("/api/logout", { method: "POST" }).then(() =>
+      window.location.reload(),
+    );
   };
 
   const bulkEmergencyUnblockMut = useMutation({
     mutationFn: async () => {
-      const res = await fetch("/api/emergency/bulk-unblock", { method: "POST" });
+      const res = await fetch("/api/emergency/bulk-unblock", {
+        method: "POST",
+      });
       if (!res.ok) throw new Error(await res.text());
       return res.json();
     },
@@ -205,16 +273,14 @@ function AuthenticatedApp() {
       toast({ title: "Success", description: res.message });
     },
     onError: (err: any) => {
-      toast({ variant: "destructive", title: "Error", description: err.message });
-    }
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.message,
+      });
+    },
   });
   const [isEmergencyBlockOpen, setIsEmergencyBlockOpen] = useState(false);
-
-
-
-
-
-
 
   const bulkEmergencyBlockMut = useMutation({
     mutationFn: async () => {
@@ -224,33 +290,53 @@ function AuthenticatedApp() {
     },
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["/api/people"] });
-      toast({ title: "Success", description: res.message || "All devices blocked successfully." });
+      toast({
+        title: "Success",
+        description: res.message || "All devices blocked successfully.",
+      });
     },
     onError: (err: any) => {
-      toast({ variant: "destructive", title: "Error", description: err.message });
-    }
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.message,
+      });
+    },
   });
   return (
     <>
-      <AlertDialog open={isEmergencyAlertOpen} onOpenChange={setIsEmergencyAlertOpen}>
+      <AlertDialog
+        open={isEmergencyAlertOpen}
+        onOpenChange={setIsEmergencyAlertOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Trigger Emergency Unblock?</AlertDialogTitle>
-            <AlertDialogDescription>This will UNBLOCK ALL doors.</AlertDialogDescription>
+            <AlertDialogDescription>
+              This will UNBLOCK ALL doors.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => bulkEmergencyUnblockMut.mutate()}>Confirm</AlertDialogAction>
+            <AlertDialogAction onClick={() => bulkEmergencyUnblockMut.mutate()}>
+              Confirm
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={isEmergencyBlockOpen} onOpenChange={setIsEmergencyBlockOpen}>
+      <AlertDialog
+        open={isEmergencyBlockOpen}
+        onOpenChange={setIsEmergencyBlockOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-destructive">Trigger Emergency Bulk Block?</AlertDialogTitle>
+            <AlertDialogTitle className="text-destructive">
+              Trigger Emergency Bulk Block?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              This will BLOCK ALL users and communications on active devices immediately.
+              This will BLOCK ALL users and communications on active devices
+              immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -274,14 +360,21 @@ function AuthenticatedApp() {
               <div className="flex items-center gap-2">
                 <ThemeToggle />
 
-                <Button variant="default" size="sm" onClick={() => setIsEmergencyAlertOpen(true)}>
-                  <RefreshCw className="w-4 h-4 mr-2" /> Emergency Unblock
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="bg-green-600 text-white hover:bg-green-700" /* बटन का कलर और सही साइज */
+                  onClick={() => setIsEmergencyAlertOpen(true)}
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />{" "}
+                  {/* आइकॉन का साइज सिर्फ यहाँ रहेगा */}
+                  Emergency Unblock
                 </Button>
 
                 <Button
-                  variant="outline"
+                  variant="default" /* outline से बदलकर default कर दिया */
                   size="sm"
-                  className="border-destructive text-destructive hover:bg-destructive hover:text-white transition-colors"
+                  className="bg-red-600 text-white hover:bg-red-700" /* सॉलिड रेड बैकग्राउंड और वाइट टेक्स्ट */
                   onClick={() => setIsEmergencyBlockOpen(true)}
                 >
                   <Lock className="w-4 h-4 mr-2" /> Block Devices
@@ -293,7 +386,9 @@ function AuthenticatedApp() {
                 </Button>
               </div>
             </header>
-            <main className="flex-1 overflow-auto"><StandardRouter /></main>
+            <main className="flex-1 overflow-auto">
+              <StandardRouter />
+            </main>
           </div>
         </div>
       </SidebarProvider>
@@ -312,7 +407,12 @@ export default function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <TooltipProvider><ConfirmProvider><AppContent /><Toaster /></ConfirmProvider></TooltipProvider>
+        <TooltipProvider>
+          <ConfirmProvider>
+            <AppContent />
+            <Toaster />
+          </ConfirmProvider>
+        </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

@@ -92,7 +92,7 @@ export function AppSidebar() {
     if (!user?.menuPermissions) return [];
 
     const visiblePermissions = user.menuPermissions.filter(
-      (item) => item.view === true && item.code !== MENU_CONFIG.EMERGENCY_UNBLOCK.code
+      (item) => item.view === true && item.code !== MENU_CONFIG.EMERGENCY_UNBLOCK.code && item.code !== MENU_CONFIG.NEW_DEVICE_BLOCK.code
     );
     const map: Record<number, any> = {};
     const roots: any[] = [];
