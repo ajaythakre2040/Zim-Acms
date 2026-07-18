@@ -20,7 +20,7 @@ import {
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
-import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not, } from "drizzle-orm";
+import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not, gt, } from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter, VisitorCardAdapter, } from "@shared/mssql_schema";
 import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES, EMPLOYEE_STATUS, DEVICE_OFFLINE_THRESHOLD_MINUTES, } from "./constant";
@@ -5911,90 +5911,7 @@ ${fromDate} || ' to ' || ${toDate}
   //   }
   // }
 
-  async executeNewDevicebulkBlock(
-    userId: string,
-    userName: string,
-  ): Promise<any> {
-    const allPeople = await db
-      .select()
-      .from(people)
-      .where(eq(people.status, "active"));
-    const allDevices = await db
-      .select()
-      .from(devices)
-      .where(eq(devices.isActive, true));
-    const taskQueue = [];
-    for (const person of allPeople) {
-      if (!person.employeeCode) continue;
-      for (const device of allDevices) {
-        if (
-          device.serialNumber &&
-          device.msId !== null &&
-          device.msId !== undefined
-        ) {
-          taskQueue.push({
-            employeeCode: person.employeeCode,
-            deviceMsId: Number(device.msId),
-            serialNumber: device.serialNumber,
-          });
-        }
-      }
-    }
-    if (taskQueue.length === 0) {
-      return {
-        status: "Empty",
-        processedCount: 0,
-        message: "No active records found.",
-      };
-    }
-    const [alertEntry] = await db
-      .insert(alerts)
-      .values({
-        alertType: "security",
-        severity: "critical",
-        title: "🚨 EMERGENCY BULK UNBLOCK",
-        message: `System-wide unblock triggered by ${userName} for ${taskQueue.length} records.`,
-        createdBy: userId,
-        resolvedBy: userName,
-        isRead: false,
-        isResolved: true,
-        resolvedAt: new Date(),
-        createdAt: new Date(),
-      })
-      .returning();
-    const BATCH_SIZE = 50;
-    let processedCount = 0;
-    for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
-      const batch = taskQueue.slice(i, i + BATCH_SIZE);
-      await Promise.all(
-        batch.map(async (task) => {
-          try {
-            await db.insert(blockUnblockLogs).values({
-              employeeCode: task.employeeCode,
-              deviceId: task.deviceMsId,
-              type: "block",
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            });
-            esslService
-              .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
-              .catch((err) =>
-                console.error(`API Sync Fail for ${task.employeeCode}:`, err),
-              );
-            processedCount++;
-          } catch (err) {
-            console.error(`PG Log Error for ${task.employeeCode}:`, err);
-          }
-        }),
-      );
-      await new Promise((res) => setTimeout(res, 100));
-    }
-    return {
-      status: "Success",
-      processedCount: processedCount,
-      alertId: alertEntry.id,
-    };
-  }
+ 
   async getDevices(page?: number | string, pageSize?: number | string, search?: string): Promise<any> {
   try {
     // -------------------------------------------------------------
@@ -6215,5 +6132,553 @@ ${fromDate} || ' to ' || ${toDate}
     return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
   }
 }
+  // async executeNewDevicebulkBlock(
+  //   userId: string,
+  //   userName: string,
+  // ): Promise<any> {
+  //   const allPeople = await db
+  //     .select()
+  //     .from(people)
+  //     .where(eq(people.status, "active"));
+  //   const allDevices = await db
+  //     .select()
+  //     .from(devices)
+  //     .where(eq(devices.isActive, true));
+  //   const taskQueue = [];
+  //   for (const person of allPeople) {
+  //     if (!person.employeeCode) continue;
+  //     for (const device of allDevices) {
+  //       if (
+  //         device.serialNumber &&
+  //         device.msId !== null &&
+  //         device.msId !== undefined
+  //       ) {
+  //         taskQueue.push({
+  //           employeeCode: person.employeeCode,
+  //           deviceMsId: Number(device.msId),
+  //           serialNumber: device.serialNumber,
+  //         });
+  //       }
+  //     }
+  //   }
+  //   if (taskQueue.length === 0) {
+  //     return {
+  //       status: "Empty",
+  //       processedCount: 0,
+  //       message: "No active records found.",
+  //     };
+  //   }
+  //   const [alertEntry] = await db
+  //     .insert(alerts)
+  //     .values({
+  //       alertType: "security",
+  //       severity: "critical",
+  //       title: "🚨 EMERGENCY BULK UNBLOCK",
+  //       message: `System-wide unblock triggered by ${userName} for ${taskQueue.length} records.`,
+  //       createdBy: userId,
+  //       resolvedBy: userName,
+  //       isRead: false,
+  //       isResolved: true,
+  //       resolvedAt: new Date(),
+  //       createdAt: new Date(),
+  //     })
+  //     .returning();
+  //   const BATCH_SIZE = 50;
+  //   let processedCount = 0;
+  //   for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
+  //     const batch = taskQueue.slice(i, i + BATCH_SIZE);
+  //     await Promise.all(
+  //       batch.map(async (task) => {
+  //         try {
+  //           await db.insert(blockUnblockLogs).values({
+  //             employeeCode: task.employeeCode,
+  //             deviceId: task.deviceMsId,
+  //             type: "block",
+  //             createdAt: new Date(),
+  //             updatedAt: new Date(),
+  //           });
+  //           esslService
+  //             .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
+  //             .catch((err) =>
+  //               console.error(`API Sync Fail for ${task.employeeCode}:`, err),
+  //             );
+  //           processedCount++;
+  //         } catch (err) {
+  //           console.error(`PG Log Error for ${task.employeeCode}:`, err);
+  //         }
+  //       }),
+  //     );
+  //     await new Promise((res) => setTimeout(res, 100));
+  //   }
+  //   return {
+  //     status: "Success",
+  //     processedCount: processedCount,
+  //     alertId: alertEntry.id,
+  //   };
+  // }
+  async executeNewDevicebulkBlock(
+    userId: string,
+    userName: string,
+  ): Promise<any> {
+
+    // Safe fallback to prevent undefined inputs
+    const safeUserId = userId || "SYSTEM";
+    const safeUserName = userName || "System Admin";
+
+    // ==========================================
+    // STEP 1: COMPUTE LIVE HARDWARE TELEMETRY
+    // ==========================================
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+    const allOnlineDevices = (await db
+      .select()
+      .from(devices)
+      .where(
+        and(
+          eq(devices.isActive, true),
+          gt(devices.lastPing, fiveMinutesAgo)
+        )
+      )) ?? [];
+
+    const onlineDeviceIds = new Set(
+      allOnlineDevices
+        .filter(d => d && d.msId !== null && d.msId !== undefined)
+        .map(d => Number(d.msId))
+    );
+
+    const allActiveDevices = (await db
+      .select()
+      .from(devices)
+      .where(eq(devices.isActive, true))) ?? [];
+
+    // ==========================================
+    // STEP 2: EXTRACT GLOBAL DOOR-TO-DEVICE MAPS
+    // ==========================================
+    const allDoorDevicesRelations = (await db
+      .select({
+        doorId: doorDevices.doorId,
+        inDeviceIds: doorDevices.inDeviceIds,
+        outDeviceIds: doorDevices.outDeviceIds,
+        isActive: doorDevices.isActive,
+        doorType: doors.doorType,
+        code: doors.code
+      })
+      .from(doorDevices)
+      .leftJoin(doors, eq(doorDevices.doorId, doors.id))
+      .where(eq(doorDevices.isActive, true))) ?? [];
+
+    const globalAssignedDeviceIds = new Set<number>();
+    const gateDeviceIds = new Set<number>();
+
+    for (const dd of allDoorDevicesRelations) {
+      if (!dd) continue;
+
+      const isMainGate =
+        dd.code === MAIN_GATE_SYNC.CODE ||
+        dd.doorType === MAIN_GATE_SYNC.DOOR_TYPE;
+
+      const inIds = Array.isArray(dd.inDeviceIds) ? dd.inDeviceIds : [];
+      for (const id of inIds) {
+        if (id !== null && id !== undefined) {
+          globalAssignedDeviceIds.add(Number(id));
+          if (isMainGate) gateDeviceIds.add(Number(id));
+        }
+      }
+
+      const outIds = Array.isArray(dd.outDeviceIds) ? dd.outDeviceIds : [];
+      for (const id of outIds) {
+        if (id !== null && id !== undefined) {
+          globalAssignedDeviceIds.add(Number(id));
+          if (isMainGate) gateDeviceIds.add(Number(id));
+        }
+      }
+    }
+
+    // Isolate rogue or extra online endpoints
+    const onlineButNotAssignedToAnyDoor = new Set<number>();
+    for (const onlineId of onlineDeviceIds) {
+      if (!globalAssignedDeviceIds.has(onlineId)) {
+        onlineButNotAssignedToAnyDoor.add(onlineId);
+      }
+    }
+
+    // Fetch all active personnel
+    const allPeople = (await db
+      .select()
+      .from(people)
+      .where(eq(people.status, "active"))) ?? [];
+
+    const taskQueue: Array<{
+      employeeCode: string;
+      deviceMsId: number;
+      serialNumber: string;
+    }> = [];
+
+    // ==========================================
+    // STEP 3: TRANSACTIONAL MATRIX EVALUATION
+    // ==========================================
+    for (const person of allPeople) {
+      if (!person?.employeeCode) continue;
+
+      // CASE A: Personnel currently located in outer boundaries (OUT zone)
+      if (person.currentZone === "OUT") {
+        for (const dev of allActiveDevices) {
+          if (!dev?.msId || !dev?.serialNumber) continue;
+          const currentDevId = Number(dev.msId);
+
+          if (gateDeviceIds.has(currentDevId)) {
+            continue;
+          }
+
+          const lastLog = await db
+            .select()
+            .from(blockUnblockLogs)
+            .where(
+              and(
+                eq(blockUnblockLogs.employeeCode, person.employeeCode),
+                eq(blockUnblockLogs.deviceId, currentDevId)
+              )
+            )
+            .orderBy(desc(blockUnblockLogs.createdAt))
+            .limit(1);
+
+          if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
+            continue;
+          }
+
+          taskQueue.push({
+            employeeCode: person.employeeCode,
+            deviceMsId: currentDevId,
+            serialNumber: dev.serialNumber,
+          });
+        }
+      }
+      // CASE B: Personnel located within inner secure parameters (IN/CABIN zone)
+      else {
+        for (const dev of allActiveDevices) {
+          if (!dev?.msId || !dev?.serialNumber) continue;
+          const currentDevId = Number(dev.msId);
+
+          if (gateDeviceIds.has(currentDevId)) {
+            continue;
+          }
+
+          if (onlineButNotAssignedToAnyDoor.has(currentDevId)) {
+            const lastLog = await db
+              .select()
+              .from(blockUnblockLogs)
+              .where(
+                and(
+                  eq(blockUnblockLogs.employeeCode, person.employeeCode),
+                  eq(blockUnblockLogs.deviceId, currentDevId)
+                )
+              )
+              .orderBy(desc(blockUnblockLogs.createdAt))
+              .limit(1);
+
+            if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
+              continue;
+            }
+
+            taskQueue.push({
+              employeeCode: person.employeeCode,
+              deviceMsId: currentDevId,
+              serialNumber: dev.serialNumber,
+            });
+          }
+        }
+      }
+    }
+
+    // ==========================================
+    // STEP 4: AUDIT LOGGING & SECURITY ALERTS
+    // ==========================================
+    if (taskQueue.length === 0) {
+      return {
+        status: "Empty",
+        processedCount: 0,
+        message: "No records found matching the security block conditions.",
+      };
+    }
+
+    // FIX: Destructuring array safely to prevent "Cannot convert undefined or null to object"
+    const alertResult = await db
+      .insert(alerts)
+      .values({
+        alertType: "security",
+        severity: "critical",
+        title: "🚨 EMERGENCY BULK BLOCK",
+        message: `Conditional system-wide block triggered by ${safeUserName} for ${taskQueue.length} records. Main Gate peripherals left untouched.`,
+        createdBy: safeUserId,
+        resolvedBy: safeUserName,
+        isRead: false,
+        isResolved: true,
+        resolvedAt: new Date(),
+        createdAt: new Date(),
+      })
+      .returning();
+
+    const alertEntry = Array.isArray(alertResult) && alertResult.length > 0 ? alertResult[0] : null;
+
+    // ==========================================
+    // STEP 5: BATCHED DISPATCH & HARDWARE SYNC
+    // ==========================================
+    const BATCH_SIZE = 50;
+    let processedCount = 0;
+
+    for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
+      const batch = taskQueue.slice(i, i + BATCH_SIZE);
+
+      await Promise.all(
+        batch.map(async (task) => {
+          try {
+            if (!task?.employeeCode || !task?.deviceMsId) return;
+
+            await db.insert(blockUnblockLogs).values({
+              employeeCode: task.employeeCode,
+              deviceId: task.deviceMsId,
+              type: "block",
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+
+            if (esslService?.syncUserBlockStatus) {
+              esslService
+                .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
+                .catch((err) =>
+                  console.error(`API Sync Fail for ${task.employeeCode} on device ${task.deviceMsId}:`, err),
+                );
+            }
+
+            processedCount++;
+          } catch (err) {
+            console.error(`PG Log Error for ${task.employeeCode}:`, err);
+          }
+        }),
+      );
+
+      await new Promise((res) => setTimeout(res, 100));
+    }
+
+    return {
+      status: "Success",
+      processedCount: processedCount,
+      alertId: alertEntry ? alertEntry.id : null,
+    };
+  }
+
+  // async executeNewDevicebulkBlock(
+  //   userId: string,
+  //   userName: string,
+  // ): Promise<any> {
+
+  //   // ==========================================
+  //   // STEP 1: COMPUTE LIVE HARDWARE TELEMETRY
+  //   // ==========================================
+  //   // Restrict online validation to devices pinging within the historical 5-minute matrix window
+  //   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+  //   const allOnlineDevices = await db
+  //     .select()
+  //     .from(devices)
+  //     .where(
+  //       and(
+  //         eq(devices.isActive, true),
+  //         gt(devices.lastPing, fiveMinutesAgo)
+  //       )
+  //     );
+
+  //   const onlineDeviceIds = new Set(allOnlineDevices.map(d => Number(d.msId)));
+
+  //   // Retrieve global active catalog for fallback and OUT zone loops
+  //   const allActiveDevices = await db
+  //     .select()
+  //     .from(devices)
+  //     .where(eq(devices.isActive, true));
+
+  //   // ==========================================
+  //   // STEP 2: EXTRACT GLOBAL DOOR-TO-DEVICE MAPS
+  //   // ==========================================
+  //   // Fetch active architectural topology definitions to evaluate system-wide mappings
+  //   const allDoorDevicesRelations = await db
+  //     .select()
+  //     .from(doorDevices)
+  //     .where(eq(doorDevices.isActive, true));
+
+  //   const globalAssignedDeviceIds = new Set<number>();
+  //   for (const dd of allDoorDevicesRelations) {
+  //     if (dd.inDeviceIds) dd.inDeviceIds.forEach(id => globalAssignedDeviceIds.add(id));
+  //     if (dd.outDeviceIds) dd.outDeviceIds.forEach(id => globalAssignedDeviceIds.add(id));
+  //   }
+
+  //   // Isolate rogue or extra online endpoints (Live endpoints not associated with any logical perimeter door)
+  //   const onlineButNotAssignedToAnyDoor = new Set<number>();
+  //   for (const onlineId of onlineDeviceIds) {
+  //     if (!globalAssignedDeviceIds.has(onlineId)) {
+  //       onlineButNotAssignedToAnyDoor.add(onlineId);
+  //     }
+  //   }
+
+  //   // Fetch all active personnel to evaluate per-user zoning policies
+  //   const allPeople = await db
+  //     .select()
+  //     .from(people)
+  //     .where(eq(people.status, "active"));
+
+  //   const taskQueue: Array<{
+  //     employeeCode: string;
+  //     deviceMsId: number;
+  //     serialNumber: string;
+  //   }> = [];
+
+  //   // ==========================================
+  //   // STEP 3: TRANSACTIONAL MATRIX EVALUATION
+  //   // ==========================================
+  //   for (const person of allPeople) {
+  //     if (!person.employeeCode) continue;
+
+  //     // CASE A: Personnel currently located in outer boundaries (OUT zone)
+  //     // FIX: Changed person.zone to person.currentZone to match schema
+  //     if (person.currentZone === "OUT") {
+  //       for (const dev of allActiveDevices) {
+  //         if (!dev.msId || !dev.serialNumber) continue;
+  //         const currentDevId = Number(dev.msId);
+
+  //         // Anti-redundancy check: Bypass execution if the latest operational status is already set to 'block'
+  //         const lastLog = await db
+  //           .select()
+  //           .from(blockUnblockLogs)
+  //           .where(
+  //             and(
+  //               eq(blockUnblockLogs.employeeCode, person.employeeCode),
+  //               eq(blockUnblockLogs.deviceId, currentDevId)
+  //             )
+  //           )
+  //           .orderBy(desc(blockUnblockLogs.createdAt))
+  //           .limit(1);
+
+  //         if (lastLog.length > 0 && lastLog[0].type === "block") {
+  //           continue;
+  //         }
+
+  //         taskQueue.push({
+  //           employeeCode: person.employeeCode,
+  //           deviceMsId: currentDevId,
+  //           serialNumber: dev.serialNumber,
+  //         });
+  //       }
+  //     }
+  //     // CASE B: Personnel located within inner secure parameters (IN/CABIN zone)
+  //     // Targets ONLY unallocated rogue hardware; leaves configured offline endpoints untouched
+  //     else {
+  //       for (const dev of allActiveDevices) {
+  //         if (!dev.msId || !dev.serialNumber) continue;
+  //         const currentDevId = Number(dev.msId);
+
+  //         // Conditional Security Constraint: Target endpoint must be online AND absent from door arrays
+  //         if (onlineButNotAssignedToAnyDoor.has(currentDevId)) {
+
+  //           // Anti-redundancy check: Verify if the system has already recorded a block state for this tuple
+  //           const lastLog = await db
+  //             .select()
+  //             .from(blockUnblockLogs)
+  //             .where(
+  //               and(
+  //                 eq(blockUnblockLogs.employeeCode, person.employeeCode),
+  //                 eq(blockUnblockLogs.deviceId, currentDevId)
+  //               )
+  //             )
+  //             .orderBy(desc(blockUnblockLogs.createdAt))
+  //             .limit(1);
+
+  //           if (lastLog.length > 0 && lastLog[0].type === "block") {
+  //             continue;
+  //           }
+
+  //           taskQueue.push({
+  //             employeeCode: person.employeeCode,
+  //             deviceMsId: currentDevId,
+  //             serialNumber: dev.serialNumber,
+  //           });
+  //         }
+  //       }
+  //     }
+  //   }
+
+  //   // ==========================================
+  //   // STEP 4: AUDIT LOGGING & SECURITY ALERTS
+  //   // ==========================================
+  //   // Graceful early exit if no security tasks require synchronization
+  //   if (taskQueue.length === 0) {
+  //     return {
+  //       status: "Empty",
+  //       processedCount: 0,
+  //       message: "No records found matching the security block conditions.",
+  //     };
+  //   }
+
+  //   // Register critical tracking incident within administrative audit tables
+  //   const [alertEntry] = await db
+  //     .insert(alerts)
+  //     .values({
+  //       alertType: "security",
+  //       severity: "critical",
+  //       title: "🚨 EMERGENCY BULK BLOCK",
+  //       message: `Conditional system-wide block triggered by ${userName} for ${taskQueue.length} records.`,
+  //       createdBy: userId,
+  //       resolvedBy: userName,
+  //       isRead: false,
+  //       isResolved: true,
+  //       resolvedAt: new Date(),
+  //       createdAt: new Date(),
+  //     })
+  //     .returning();
+
+  //   // ==========================================
+  //   // STEP 5: BATCHED DISPATCH & HARDWARE SYNC
+  //   // ==========================================
+  //   // Throttle queries inside chunks of 50 to maximize throughput and prevent socket starvation
+  //   const BATCH_SIZE = 50;
+  //   let processedCount = 0;
+
+  //   for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
+  //     const batch = taskQueue.slice(i, i + BATCH_SIZE);
+
+  //     await Promise.all(
+  //       batch.map(async (task) => {
+  //         try {
+  //           // Write definitive access log back to storage engine
+  //           await db.insert(blockUnblockLogs).values({
+  //             employeeCode: task.employeeCode,
+  //             deviceId: task.deviceMsId,
+  //             type: "block",
+  //             createdAt: new Date(),
+  //             updatedAt: new Date(),
+  //           });
+
+  //           // Non-blocking asynchronous transmission to eSSL hardware endpoints
+  //           esslService
+  //             .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
+  //             .catch((err) =>
+  //               console.error(`API Sync Fail for ${task.employeeCode} on device ${task.deviceMsId}:`, err),
+  //             );
+
+  //           processedCount++;
+  //         } catch (err) {
+  //           console.error(`PG Log Error for ${task.employeeCode}:`, err);
+  //         }
+  //       }),
+  //     );
+
+  //     // Artificial cool-down frame to safely absorb background API network overhead
+  //     await new Promise((res) => setTimeout(res, 100));
+  //   }
+
+  //   return {
+  //     status: "Success",
+  //     processedCount: processedCount,
+  //     alertId: alertEntry.id,
+  //   };
+  // }
 }
 export const storage = new DatabaseStorage();
