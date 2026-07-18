@@ -927,146 +927,131 @@ export default function PeoplePage() {
       </div>
       {/* --- DEVICE ACCESS MODAL --- */}
       <Dialog open={deviceStatusOpen} onOpenChange={setDeviceStatusOpen}>
-  <DialogContent className="max-w-md h-[520px] p-0 overflow-hidden flex flex-col">
-    {/* HEADER */}
-    <DialogHeader className="p-4 border-b bg-muted/20">
-      <DialogTitle className="text-sm font-bold uppercase">
-        Device Access : {deviceViewPerson?.employeeName}
-      </DialogTitle>
-    </DialogHeader>
-    {/* 🔍 SEARCH BAR */}
-    <div className="p-3 border-b bg-muted/10">
-      <input
-        type="text"
-        placeholder="Search device by name or SN..."
-        value={deviceSearch}
-        onChange={(e) => setDeviceSearch(e.target.value)}
-        className="w-full px-3 py-2 text-xs border rounded-md outline-none focus:ring-1 focus:ring-primary"
-      />
-    </div>
-    {/* 📋 DEVICE LIST */}
-    <div className="flex-1 overflow-y-auto">
-      {/* 🔴 IMPORTANT: prevent shrink */}
-      <div className="min-h-full">
-        <table className="w-full text-xs">
-          <tbody className="divide-y">
-            {allDevices
-              .filter(
-                (dev) =>
-                  (dev.name || "")
-                    .toLowerCase()
-                    .includes(deviceSearch.toLowerCase()) ||
-                  (dev.serialNumber || "")
-                    .toLowerCase()
-                    .includes(deviceSearch.toLowerCase()),
-              )
-              .map((dev) => {
-                const latestLog = deviceLogs?.find((l: any) => {
-                  const lId = l.deviceId ?? l.device_id;
-                  return Number(lId) === Number(dev.msId);
-                });
-                const isDoorAssigned =
-                  ((deviceViewPerson as any)?.doorIds || [])?.includes(
-                    Number(dev.msId),
-                  ) ?? false;
-                const isUnblocked = latestLog
-                  ? latestLog.type === "unblock"
-                  : isDoorAssigned;
-
-                // 🟢 1. यहाँ चेक करें कि डिवाइस ऑनलाइन है या नहीं
-                // (अगर आपकी API में की का नाम अलग है, तो यहाँ 'dev.status === "online"' को बदल लें)
-                const isOnline = dev.status === "online"; 
-
-                return (
-                  <tr key={dev.id} className="hover:bg-muted/30">
-                    {/* DEVICE INFO */}
-                    <td className="p-3">
-                      <div className="flex items-center gap-1.5">
-                        {/* छोटा सा विजुअल इंडिकेटर (ग्रीन/ग्रे डॉट) */}
-                        <span 
-                          className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-300"}`} 
-                          title={isOnline ? "Online" : "Offline"}
-                        />
-                        <p className="font-bold text-foreground">
-                          {dev.name || "Unknown Device"}
-                        </p>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground font-mono pl-3.5">
-                        SN: {dev.serialNumber || "N/A"}
-                      </p>
-                    </td>
-                    {/* STATUS */}
-                    <td className="p-3 text-center">
-                      <Badge
-                        variant={isUnblocked ? "outline" : "destructive"}
-                        className={`text-[9px] font-bold px-2 ${
-                          isUnblocked
-                            ? "border-green-500 text-green-600 bg-green-50"
-                            : ""
-                        }`}
+        <DialogContent className="max-w-md h-[520px] p-0 overflow-hidden flex flex-col">
+          {/* HEADER */}
+          <DialogHeader className="p-4 border-b bg-muted/20">
+            <DialogTitle className="text-sm font-bold uppercase">
+              Device Access : {deviceViewPerson?.employeeName}
+            </DialogTitle>
+          </DialogHeader>
+          {/* :mag: SEARCH BAR */}
+          <div className="p-3 border-b bg-muted/10">
+            <input
+              type="text"
+              placeholder="Search device by name or SN..."
+              value={deviceSearch}
+              onChange={(e) => setDeviceSearch(e.target.value)}
+              className="w-full px-3 py-2 text-xs border rounded-md outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+          {/* :clipboard: DEVICE LIST */}
+          <div className="flex-1 overflow-y-auto">
+            {/* :red_circle: IMPORTANT: prevent shrink */}
+            <div className="min-h-full">
+              <table className="w-full text-xs">
+                <tbody className="divide-y">
+                  {allDevices
+                    .filter(
+                      (dev) =>
+                        (dev.name || "")
+                          .toLowerCase()
+                          .includes(deviceSearch.toLowerCase()) ||
+                        (dev.serialNumber || "")
+                          .toLowerCase()
+                          .includes(deviceSearch.toLowerCase()),
+                    )
+                    .map((dev) => {
+                      const latestLog = deviceLogs?.find((l: any) => {
+                        const lId = l.deviceId ?? l.device_id;
+                        return Number(lId) === Number(dev.msId);
+                      });
+                      const isDoorAssigned =
+                        ((deviceViewPerson as any)?.doorIds || [])?.includes(
+                          Number(dev.msId),
+                        ) ?? false;
+                      const isUnblocked = latestLog
+                        ? latestLog.type === "unblock"
+                        : isDoorAssigned;
+                      return (
+                        <tr key={dev.id} className="hover:bg-muted/30">
+                          {/* DEVICE INFO */}
+                          <td className="p-3">
+                            <p className="font-bold text-foreground">
+                              {dev.name || "Unknown Device"}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground font-mono">
+                              SN: {dev.serialNumber || "N/A"}
+                            </p>
+                          </td>
+                          {/* STATUS */}
+                          <td className="p-3 text-center">
+                            <Badge
+                              variant={isUnblocked ? "outline" : "destructive"}
+                              className={`text-[9px] font-bold px-2 ${
+                                isUnblocked
+                                  ? "border-green-500 text-green-600 bg-green-50"
+                                  : ""
+                              }`}
+                            >
+                              {isUnblocked ? "ALLOWED" : "BLOCKED"}
+                            </Badge>
+                          </td>
+                          {/* ACTION */}
+                          <td className="p-3 text-right">
+                            <Button
+                              size="sm"
+                              variant={isUnblocked ? "destructive" : "outline"}
+                              className="h-7 text-[10px] font-bold min-w-[80px]"
+                              disabled={emergencyToggleMut.isPending}
+                              onClick={() => {
+                                emergencyToggleMut.mutate({
+                                  employeeCode: deviceViewPerson?.employeeCode,
+                                  deviceId: dev.msId,
+                                  serialNumber: dev.serialNumber,
+                                  action: isUnblocked ? "block" : "unblock",
+                                });
+                              }}
+                            >
+                              {emergencyToggleMut.isPending
+                                ? "..."
+                                : isUnblocked
+                                  ? "BLOCK"
+                                  : "UNBLOCK"}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {/* :x: NO DATA */}
+                  {allDevices.filter(
+                    (dev) =>
+                      (dev.name || "")
+                        .toLowerCase()
+                        .includes(deviceSearch.toLowerCase()) ||
+                      (dev.serialNumber || "")
+                        .toLowerCase()
+                        .includes(deviceSearch.toLowerCase()),
+                  ).length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="text-center p-6 text-muted-foreground"
                       >
-                        {isUnblocked ? "ALLOWED" : "BLOCKED"}
-                      </Badge>
-                    </td>
-                    {/* ACTION */}
-                    <td className="p-3 text-right">
-                      <Button
-                        size="sm"
-                        variant={isUnblocked ? "destructive" : "outline"}
-                        className="h-7 text-[10px] font-bold min-w-[80px]"
-                        // 🟢 2. म्यूटेशन पेंडिंग होने पर या डिवाइस ऑफ़लाइन होने पर बटन डिसेबल हो जाएगा
-                        disabled={emergencyToggleMut.isPending || !isOnline}
-                        onClick={() => {
-                          emergencyToggleMut.mutate({
-                            employeeCode: deviceViewPerson?.employeeCode,
-                            deviceId: dev.msId,
-                            serialNumber: dev.serialNumber,
-                            action: isUnblocked ? "block" : "unblock",
-                          });
-                        }}
-                      >
-                        {emergencyToggleMut.isPending
-                          ? "..."
-                          : !isOnline
-                          ? "OFFLINE" // ऑफ़लाइन होने पर बटन पर OFFLINE दिखेगा (ऑप्शनल)
-                          : isUnblocked
-                          ? "BLOCK"
-                          : "UNBLOCK"}
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            {/* ❌ NO DATA */}
-            {allDevices.filter(
-              (dev) =>
-                (dev.name || "")
-                  .toLowerCase()
-                  .includes(deviceSearch.toLowerCase()) ||
-                (dev.serialNumber || "")
-                  .toLowerCase()
-                  .includes(deviceSearch.toLowerCase()),
-            ).length === 0 && (
-              <tr>
-                <td
-                  colSpan={3}
-                  className="text-center p-6 text-muted-foreground"
-                >
-                  No devices found
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    {/* FOOTER */}
-    <div className="p-2 text-[9px] text-center bg-muted/10 italic text-muted-foreground">
-      Logs override the default Role settings.
-    </div>
-  </DialogContent>
-</Dialog>
-
+                        No devices found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {/* FOOTER */}
+          <div className="p-2 text-[9px] text-center bg-muted/10 italic text-muted-foreground">
+            Logs override the default Role settings.
+          </div>
+        </DialogContent>
+      </Dialog>
+      
       {(canAdd || canEdit) && (
         <CrudDialog
           open={dialogOpen}

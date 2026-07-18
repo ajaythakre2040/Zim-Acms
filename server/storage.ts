@@ -1664,181 +1664,155 @@ export class DatabaseStorage implements IStorage {
   //   return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
   // }
   // }
-  async getDevices(
-    page?: number | string,
-    pageSize?: number | string,
-    search?: string,
-  ): Promise<any> {
-    try {
-      // 1. Fetch raw datasets from MS SQL Source Database
-      const msDataRaw = await dbMsSql
-        .select()
-        .from({ dbName: "Devices" })
-        .execute();
 
-      if (!msDataRaw || msDataRaw.length === 0) {
-        return {
-          data: [],
-          totalCount: 0,
-          totalPages: 0,
-          currentPage: 1,
-          pageSize: 0,
-          onlineCount: 0,
-          offlineCount: 0,
-        };
-      }
+async getDevices(
+    page?: number | string,
+    pageSize?: number | string,
+    search?: string,
+  ): Promise<any> {
+    try {
+      const msDataRaw = await dbMsSql
+        .select()
+        .from({ dbName: "Devices" })
+        .execute();
 
-      // 2. Fetch Authorized List from the Cryptographic Security Service
-      const allowedSerials = await DeviceSecurityService.getAuthorizedSerials();
+      if (!msDataRaw || msDataRaw.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+          onlineCount: 0,
+          offlineCount: 0,
+        };
+      }
 
-      const currentTime = new Date();
-      const THRESHOLD_MINUTES = DEVICE_OFFLINE_THRESHOLD_MINUTES;
-      let onlineCount = 0;
-      let offlineCount = 0;
+      const currentTime = new Date();
+      const THRESHOLD_MINUTES = 1;
 
-      const validDevicesToSync: any[] = [];
-      const currentValidMsIds: number[] = [];
+      let onlineCount = 0;
+      let offlineCount = 0;
 
-      // 3. SECURE INTERCEPTOR & STATUS CONVERSION LOOP
-      for (const d of msDataRaw) {
-        const currentSerial = String(d.SerialNumber || d.serialno || "").trim().toLowerCase();
-        const deviceId = d.DeviceId || d.DeviceID;
-        const deviceName = d.DeviceName || "Unnamed Device";
+      // :fire: STEP 1: FORMAT DATA
+      let formattedDevices = msDataRaw.map((d: any) => {
+        let lPing: Date | null = null;
+        let calculatedStatus = "offline";
 
-        // Security assertion using highly-performant Set.has() O(1) lookup
-        const isAuthorized = allowedSerials.has(currentSerial);
+        if (d.LastPing) {
+          lPing = new Date(d.LastPing);
+          let diffInMs = currentTime.getTime() - lPing.getTime();
+          let diffInMinutes = diffInMs / 60000;
 
-        if (!isAuthorized) {
-          // Log intrusion/unauthorized attempt inside PG for security audit
-          console.warn(`[SECURITY INTERCEPT] Unauthorized attempt blocked: ${deviceName} (${currentSerial})`);
+          const absDiff = Math.abs(diffInMinutes);
 
-          await db.insert(unauthorizedDeviceLogs).values({
-            deviceId: deviceId,
-            deviceName: deviceName,
-            serialNumber: d.SerialNumber || d.serialno || "",
-            ipAddress: d.IpAddress || "",
-            attemptedAt: new Date(),
-            statusMessage: "Access Denied: Serial signature absent from decrypted configuration profile."
-          }).onConflictDoNothing();
+          if (
+            absDiff <= THRESHOLD_MINUTES ||
+            Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
+          ) {
+            calculatedStatus = "online";
+          }
+        }
 
-          continue; // Prevent local database sync pipeline inclusion
-        }
+        if (calculatedStatus === "online") onlineCount++;
+        else offlineCount++;
 
-        // Processing online status metadata mapping
-        let lPing: Date | null = null;
-        let calculatedStatus = "offline";
+        return {
+          msId: d.DeviceId || d.DeviceID,
+          name: d.DeviceName || "Unnamed Device",
+          deviceDirection: d.DeviceDirection || null,
+          serialNumber: d.SerialNumber || d.serialno,
+          opstamp: d.OpStamp ? String(d.OpStamp) : null,
+          lastPing: lPing,
+          lastreset: d.LastReset ? new Date(d.LastReset) : null,
+          activationCode: d.ActivationCode || "",
+          isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+          deviceType: String(d.DeviceType || "-").toLowerCase(),
+          locationId: d.LocationId || null,
+          ipAddress: d.IpAddress || "",
+          lastHeartbeat: lPing,
+          status: calculatedStatus,
+          isActive: true,
+        };
+      });
 
-        if (d.LastPing) {
-          lPing = new Date(d.LastPing);
-          const diffInMs = currentTime.getTime() - lPing.getTime();
-          const diffInMinutes = diffInMs / 60000;
-          const absDiff = Math.abs(diffInMinutes);
+      // :fire: STEP 2: SEARCH FILTER (IMPORTANT)
+      if (search && search.trim()) {
+        const s = search.toLowerCase();
 
-          if (
-            absDiff <= THRESHOLD_MINUTES ||
-            Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
-          ) {
-            calculatedStatus = "online";
-          }
-        }
+        formattedDevices = formattedDevices.filter(
+          (d) =>
+            d.name?.toLowerCase().includes(s) ||
+            d.ipAddress?.toLowerCase().includes(s) ||
+            d.serialNumber?.toLowerCase().includes(s) ||
+            d.deviceType?.toLowerCase().includes(s),
+        );
+      }
 
-        if (calculatedStatus === "online") onlineCount++;
-        else offlineCount++;
+      // :fire: STEP 3: SYNC DB
+      for (const dev of formattedDevices) {
+        await db
+          .insert(devices)
+          .values(dev)
+          .onConflictDoUpdate({
+            target: devices.msId,
+            set: { ...dev },
+          });
+      }
 
-        const devicePayload = {
-          msId: deviceId,
-          name: deviceName,
-          deviceDirection: d.DeviceDirection || null,
-          serialNumber: d.SerialNumber || d.serialno,
-          opstamp: d.OpStamp ? String(d.OpStamp) : null,
-          lastPing: lPing,
-          lastreset: d.LastReset ? new Date(d.LastReset) : null,
-          activationCode: d.ActivationCode || "",
-          isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-          deviceType: String(d.DeviceType || "-").toLowerCase(),
-          locationId: d.LocationId || null,
-          ipAddress: d.IpAddress || "",
-          lastHeartbeat: lPing,
-          status: calculatedStatus,
-          isActive: true,
-        };
+      const currentMsIds = formattedDevices.map((d) => d.msId as number);
 
-        validDevicesToSync.push(devicePayload);
-        currentValidMsIds.push(deviceId);
-      }
+      if (currentMsIds.length > 0) {
+        await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
+      }
 
-      // 4. Filtering parameters
-      let filteredDevices = validDevicesToSync;
-      if (search && search.trim()) {
-        const s = search.toLowerCase();
-        filteredDevices = filteredDevices.filter(
-          (d) =>
-            d.name?.toLowerCase().includes(s) ||
-            d.ipAddress?.toLowerCase().includes(s) ||
-            d.serialNumber?.toLowerCase().includes(s) ||
-            d.deviceType?.toLowerCase().includes(s),
-        );
-      }
+      // :fire: STEP 4: PAGINATION
+      if (!pageSize) return formattedDevices;
 
-      // 5. Atomic transaction upsert inside local Postgres Database
-      for (const dev of filteredDevices) {
-        await db
-          .insert(devices)
-          .values(dev)
-          .onConflictDoUpdate({
-            target: devices.msId,
-            set: { ...dev },
-          });
-      }
+      if (pageSize === -1 || pageSize === "-1") {
+        return {
+          data: formattedDevices,
+          totalCount: formattedDevices.length,
+          totalPages: 1,
+          currentPage: 1,
+          pageSize: formattedDevices.length,
+          onlineCount,
+          offlineCount,
+        };
+      }
 
-      // Clean up synchronization: Delete devices removed from MS SQL master
-      if (currentValidMsIds.length > 0) {
-        await db.delete(devices).where(notInArray(devices.msId, currentValidMsIds));
-      }
+      const p = page && Number(page) > 0 ? Number(page) : 1;
+      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
 
-      // 6. Pagination output mapping framework
-      if (!pageSize) return filteredDevices;
+      const start = (p - 1) * size;
+      const end = start + size;
 
-      if (pageSize === -1 || pageSize === "-1") {
-        return {
-          data: filteredDevices,
-          totalCount: filteredDevices.length,
-          totalPages: 1,
-          currentPage: 1,
-          pageSize: filteredDevices.length,
-          onlineCount,
-          offlineCount,
-        };
-      }
+      const paginatedData = formattedDevices.slice(start, end);
 
-      const p = page && Number(page) > 0 ? Number(page) : 1;
-      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-      const start = (p - 1) * size;
-      const end = start + size;
-      const paginatedData = filteredDevices.slice(start, end);
+      return {
+        data: paginatedData,
+        totalCount: formattedDevices.length,
+        totalPages: Math.ceil(formattedDevices.length / size),
+        currentPage: p,
+        pageSize: size,
+        onlineCount,
+        offlineCount,
+      };
+    } catch (error) {
+      console.error("Device Sync Error:", error);
 
-      return {
-        data: paginatedData,
-        totalCount: filteredDevices.length,
-        totalPages: Math.ceil(filteredDevices.length / size),
-        currentPage: p,
-        pageSize: size,
-        onlineCount,
-        offlineCount,
-      };
-    } catch (error: unknown) {
-      console.error("Device Guard Execution Sync Failure:", error);
-      return {
-        data: [],
-        totalCount: 0,
-        totalPages: 0,
-        currentPage: 1,
-        pageSize: 0,
-        onlineCount: 0,
-        offlineCount: 0,
-      };
-    }
-  }
+      return {
+        data: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 0,
+        onlineCount: 0,
+        offlineCount: 0,
+      };
+    }
+  }
+
 
   
   async runInBatches<T>(
@@ -4014,8 +3988,21 @@ if (rule && rule !== "all") {
     .from(doors)
     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-  // 2. Fetch biometric logs from MS SQL (String format mapping)
-  const msSqlData = await mssqlPool.request().input("filterDate", date)
+  // 🛠️ Corrected Dynamic Date Selection Logic
+  let effectiveFromDate = date;
+  let effectiveToDate = date;
+
+  if (filters?.fromDate || filters?.toDate) {
+    // अगर सिर्फ fromDate है, तो effectiveFromDate वो बनेगी, वरना toDate या डिफ़ॉल्ट date
+    effectiveFromDate = filters.fromDate || filters.toDate || date;
+    // अगर toDate नहीं है, तो effectiveToDate को effectiveFromDate के बराबर रखेंगे ताकि सिर्फ उसी single date का डेटा आए
+    effectiveToDate = filters.toDate || effectiveFromDate;
+  }
+
+  // 2. Fetch biometric logs from MS SQL (Using corrected Range filters)
+  const msSqlData = await mssqlPool.request()
+    .input("fromDate", effectiveFromDate)
+    .input("toDate", effectiveToDate)
     .query(`
     SELECT 
       l.EmployeeCode, 
@@ -4025,7 +4012,7 @@ if (rule && rule !== "all") {
       CONVERT(VARCHAR(19), l.LogDate, 120) AS LogDate  -- Direct 'YYYY-MM-DD HH:MM:SS' format
     FROM DeviceLogs l
     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-    WHERE CAST(l.LogDate AS DATE) = @filterDate
+    WHERE CAST(l.LogDate AS DATE) BETWEEN @fromDate AND @toDate
       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
     ORDER BY l.LogDate DESC
   `);
@@ -4142,32 +4129,13 @@ if (rule && rule !== "all") {
     };
   });
 
-  // 🚨 6. APPLY FILTERS HERE (Search, From Date, To Date)
-  if (filters) {
-    const { search, fromDate, toDate } = filters;
-
-    if (search) {
-      const lowerSearch = search.toLowerCase();
-      machineFeed = machineFeed.filter(item => 
-        item.visitorName.toLowerCase().includes(lowerSearch) ||
-        (item.rfidCardNo && item.rfidCardNo.toLowerCase().includes(lowerSearch))
-      );
-    }
-
-    if (fromDate) {
-      // Compare only YYYY-MM-DD part from logDate string
-      machineFeed = machineFeed.filter(item => {
-        const itemDate = item.logDate ? item.logDate.split(' ')[0] : "";
-        return itemDate >= fromDate;
-      });
-    }
-
-    if (toDate) {
-      machineFeed = machineFeed.filter(item => {
-        const itemDate = item.logDate ? item.logDate.split(' ')[0] : "";
-        return itemDate <= toDate;
-      });
-    }
+  // 6. APPLY FILTERS (Search only - Date filtering is optimized at DB level)
+  if (filters && filters.search) {
+    const lowerSearch = filters.search.toLowerCase();
+    machineFeed = machineFeed.filter(item => 
+      item.visitorName.toLowerCase().includes(lowerSearch) ||
+      (item.rfidCardNo && item.rfidCardNo.toLowerCase().includes(lowerSearch))
+    );
   }
 
   return { machineFeed };
