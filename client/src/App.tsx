@@ -142,7 +142,10 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("Admin@123");
   const [showPassword, setShowPassword] = useState(false);
-
+  
+  const { canView: canViewEmergency } = usePermission(
+    MENU_CONFIG.EMERGENCY_UNBLOCK?.code || "Emergency Unblock All"
+  );
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await login({ username, password });
@@ -253,7 +256,15 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
 function AuthenticatedApp() {
   const { toast } = useToast();
   const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
+  const [isEmergencyBlockOpen, setIsEmergencyBlockOpen] = useState(false);
 
+  
+  const { canView: canViewEmergencyUnblock } = usePermission(
+    MENU_CONFIG.EMERGENCY_UNBLOCK?.code || "Emergency Unblock All"
+  );
+  const { canView: canViewBlockNewDevice } = usePermission(
+    MENU_CONFIG.NEW_DEVICE_BLOCK?.code || "New Device block All"
+  );
   const handleLogout = () => {
     fetch("/api/logout", { method: "POST" }).then(() =>
       window.location.reload(),
@@ -280,7 +291,6 @@ function AuthenticatedApp() {
       });
     },
   });
-  const [isEmergencyBlockOpen, setIsEmergencyBlockOpen] = useState(false);
 
   const bulkEmergencyBlockMut = useMutation({
     mutationFn: async () => {
@@ -303,6 +313,7 @@ function AuthenticatedApp() {
       });
     },
   });
+
   return (
     <>
       <AlertDialog
@@ -360,26 +371,32 @@ function AuthenticatedApp() {
               <div className="flex items-center gap-2">
                 <ThemeToggle />
 
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="bg-green-600 text-white hover:bg-green-700" /* बटन का कलर और सही साइज */
-                  onClick={() => setIsEmergencyAlertOpen(true)}
-                >
-                  <RefreshCw className="w-4 h-4 mr-2" />{" "}
-                  {/* आइकॉन का साइज सिर्फ यहाँ रहेगा */}
-                  Emergency Unblock
-                </Button>
-
-                <Button
-                  variant="default" /* outline से बदलकर default कर दिया */
-                  size="sm"
-                  className="bg-red-600 text-white hover:bg-red-700" /* सॉलिड रेड बैकग्राउंड और वाइट टेक्स्ट */
-                  onClick={() => setIsEmergencyBlockOpen(true)}
-                >
-                  <Lock className="w-4 h-4 mr-2" /> Block Devices
-                </Button>
-                {/* )} */}
+                {/* 2. Dono buttons ko canViewEmergency ke conditional block ke andar wrap kar diya hai */}
+               
+                  <>
+                  {canViewEmergencyUnblock && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="bg-green-600 text-white hover:bg-green-700"
+                      onClick={() => setIsEmergencyAlertOpen(true)}
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      Emergency Unblock
+                    </Button>
+               )}
+                  {canViewBlockNewDevice && (
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="bg-red-600 text-white hover:bg-red-700"
+                      onClick={() => setIsEmergencyBlockOpen(true)}
+                    >
+                      <Lock className="w-4 h-4 mr-2" /> Block Devices
+                    </Button>
+                  )}
+                  </>
+                  
 
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   Logout
