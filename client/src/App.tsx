@@ -23,7 +23,6 @@ import {
   Lock,
 } from "lucide-react";
 import { useState } from "react";
-
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import PeoplePage from "@/pages/people";
@@ -79,7 +78,6 @@ import visitors from "./pages/visitor-details";
 import VisitorLogs from "./pages/VisitorLogs";
 import LiveVisitorLogsDashboard from "./pages/VisitorLiveLogs";
 import VisitorCards from "./pages/VisitorCards";
-
 function StandardRouter() {
   return (
     <Switch>
@@ -131,18 +129,15 @@ function StandardRouter() {
       <Route path="/visitor-logs" component={LiveVisitorLogsDashboard} />
       <Route path="/visitor-cards" component={VisitorCards} />
       <Route path="/contractors/view/:id" component={ContractorView} />
-
       <Route component={NotFound} />
     </Switch>
   );
 }
-
 function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const { login, loginError, isLoggingIn } = auth;
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("Admin@123");
   const [showPassword, setShowPassword] = useState(false);
-  
   const { canView: canViewEmergency } = usePermission(
     MENU_CONFIG.EMERGENCY_UNBLOCK?.code || "Emergency Unblock All"
   );
@@ -150,7 +145,6 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
     e.preventDefault();
     await login({ username, password });
   };
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f4f6]">
       <div className="w-full max-w-lg mx-4">
@@ -170,7 +164,6 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
           </h1>
           <p className="text-gray-500">Attendance Cum Access Control System</p>
         </div>
-
         <div className="bg-white rounded-2xl p-10 shadow-sm border border-gray-100">
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-2">
@@ -247,18 +240,14 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
           </div>
         </div>
       </div>
-
       <div className="mt-8 text-sm text-gray-400"></div>
     </div>
   );
 }
-
 function AuthenticatedApp() {
   const { toast } = useToast();
   const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
   const [isEmergencyBlockOpen, setIsEmergencyBlockOpen] = useState(false);
-
-  
   const { canView: canViewEmergencyUnblock } = usePermission(
     MENU_CONFIG.EMERGENCY_UNBLOCK?.code || "Emergency Unblock All"
   );
@@ -270,7 +259,6 @@ function AuthenticatedApp() {
       window.location.reload(),
     );
   };
-
   const bulkEmergencyUnblockMut = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/emergency/bulk-unblock", {
@@ -291,7 +279,6 @@ function AuthenticatedApp() {
       });
     },
   });
-
   const bulkEmergencyBlockMut = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/newDevice/bulk-block", { method: "POST" });
@@ -313,7 +300,6 @@ function AuthenticatedApp() {
       });
     },
   });
-
   return (
     <>
       <AlertDialog
@@ -335,7 +321,6 @@ function AuthenticatedApp() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
       <AlertDialog
         open={isEmergencyBlockOpen}
         onOpenChange={setIsEmergencyBlockOpen}
@@ -361,7 +346,6 @@ function AuthenticatedApp() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
       <SidebarProvider>
         <div className="flex h-screen w-full">
           <AppSidebar />
@@ -370,9 +354,7 @@ function AuthenticatedApp() {
               <SidebarTrigger />
               <div className="flex items-center gap-2">
                 <ThemeToggle />
-
                 {/* 2. Dono buttons ko canViewEmergency ke conditional block ke andar wrap kar diya hai */}
-               
                   <>
                   {canViewEmergencyUnblock && (
                     <Button
@@ -396,8 +378,6 @@ function AuthenticatedApp() {
                     </Button>
                   )}
                   </>
-                  
-
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   Logout
                 </Button>
@@ -412,14 +392,12 @@ function AuthenticatedApp() {
     </>
   );
 }
-
 function AppContent() {
   const auth = useAuth();
   const { user, isLoading } = auth;
   if (isLoading) return null;
   return !user ? <LoginPage auth={auth} /> : <AuthenticatedApp />;
 }
-
 export default function App() {
   return (
     <ThemeProvider>
