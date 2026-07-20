@@ -3,14 +3,120 @@ import utc from "dayjs/plugin/utc";
 import isBetween from "dayjs/plugin/isBetween";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import mssql from "mssql";
-import fs from 'fs';
+import fs from "fs";
 dayjs.extend(utc);
 dayjs.extend(isBetween);
 dayjs.extend(customParseFormat);
 import {
-  userProfiles, companies, departments, designations, categories, vendors, sites, buildings, floors, zones, doors, devices, people, credentials, accessCards, shifts, shiftAssignments, holidays, accessLevels, accessRules, personAccess, visitors, visits, attendance, accessLogs, alerts, exceptions, systemSettings, InsertRole, Role, roles,
-  type User, type UpsertUser, type UserProfile, type InsertUserProfile, type Company, type InsertCompany, type Department, type InsertDepartment, type Designation, type InsertDesignation, type Category, type InsertCategory, type Vendor, type InsertVendor, type Site, type InsertSite, type Building, type InsertBuilding, type Floor, type InsertFloor, type Zone, type InsertZone, type Door, type InsertDoor, type Device, type InsertDevice, type Person, type InsertPerson, type Credential, type InsertCredential, type AccessCard, type InsertAccessCard, type Shift, type InsertShift, type ShiftAssignment, type InsertShiftAssignment, type Holiday, type InsertHoliday, type AccessLevel, type InsertAccessLevel, type AccessRule, type InsertAccessRule, type PersonAccess, type InsertPersonAccess, type Visitor, type InsertVisitor, type Visit, type InsertVisit, type Attendance, type InsertAttendance, type AccessLog, type InsertAccessLog, type Alert, type InsertAlert, type Exception, type InsertException, type SystemSetting, type InsertSystemSetting,
-  blockUnblockLogs, CronMaster, cronMaster, InsertCronMaster, doorDevices, InsertDoorDevice, DoorDevice, BlockUnblockLog, InsertBlockUnblockLog, dailyAttendanceSummary, MenuMaster, InsertMenuMaster, menuMaster, rolePermissions, users, auditLogs, InsertAuditLog, Contractor, InsertContractor, contractors,
+  userProfiles,
+  companies,
+  departments,
+  designations,
+  categories,
+  vendors,
+  sites,
+  buildings,
+  floors,
+  zones,
+  doors,
+  devices,
+  people,
+  credentials,
+  accessCards,
+  shifts,
+  shiftAssignments,
+  holidays,
+  accessLevels,
+  accessRules,
+  personAccess,
+  visitors,
+  visits,
+  attendance,
+  accessLogs,
+  alerts,
+  exceptions,
+  systemSettings,
+  InsertRole,
+  Role,
+  roles,
+  type User,
+  type UpsertUser,
+  type UserProfile,
+  type InsertUserProfile,
+  type Company,
+  type InsertCompany,
+  type Department,
+  type InsertDepartment,
+  type Designation,
+  type InsertDesignation,
+  type Category,
+  type InsertCategory,
+  type Vendor,
+  type InsertVendor,
+  type Site,
+  type InsertSite,
+  type Building,
+  type InsertBuilding,
+  type Floor,
+  type InsertFloor,
+  type Zone,
+  type InsertZone,
+  type Door,
+  type InsertDoor,
+  type Device,
+  type InsertDevice,
+  type Person,
+  type InsertPerson,
+  type Credential,
+  type InsertCredential,
+  type AccessCard,
+  type InsertAccessCard,
+  type Shift,
+  type InsertShift,
+  type ShiftAssignment,
+  type InsertShiftAssignment,
+  type Holiday,
+  type InsertHoliday,
+  type AccessLevel,
+  type InsertAccessLevel,
+  type AccessRule,
+  type InsertAccessRule,
+  type PersonAccess,
+  type InsertPersonAccess,
+  type Visitor,
+  type InsertVisitor,
+  type Visit,
+  type InsertVisit,
+  type Attendance,
+  type InsertAttendance,
+  type AccessLog,
+  type InsertAccessLog,
+  type Alert,
+  type InsertAlert,
+  type Exception,
+  type InsertException,
+  type SystemSetting,
+  type InsertSystemSetting,
+  blockUnblockLogs,
+  CronMaster,
+  cronMaster,
+  InsertCronMaster,
+  doorDevices,
+  InsertDoorDevice,
+  DoorDevice,
+  BlockUnblockLog,
+  InsertBlockUnblockLog,
+  dailyAttendanceSummary,
+  MenuMaster,
+  InsertMenuMaster,
+  menuMaster,
+  rolePermissions,
+  users,
+  auditLogs,
+  InsertAuditLog,
+  Contractor,
+  InsertContractor,
+  contractors,
   sessions,
   InsertLoginAttempt,
   loginAttempts,
@@ -20,15 +126,51 @@ import {
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
-import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not, gt, } from "drizzle-orm";
+import {
+  eq,
+  desc,
+  or,
+  and,
+  ne,
+  count,
+  sql,
+  ilike,
+  notInArray,
+  inArray,
+  asc,
+  lte,
+  gte,
+  between,
+  not,
+  gt,
+} from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
-import { DeviceAdapter, HolidayAdapter, PersonAdapter, SiteAdapter, VisitorCardAdapter, } from "@shared/mssql_schema";
-import { SHIFT_START, SHIFT_END, EXPECTED_WORKING_HRS, ATTENDANCE_STATUS, ALERT_TEMPLATES, ACCESS_RULES, ZONES, EMPLOYEE_STATUS, DEVICE_OFFLINE_THRESHOLD_MINUTES, } from "./constant";
+import {
+  DeviceAdapter,
+  HolidayAdapter,
+  PersonAdapter,
+  SiteAdapter,
+  VisitorCardAdapter,
+} from "@shared/mssql_schema";
+import {
+  SHIFT_START,
+  SHIFT_END,
+  EXPECTED_WORKING_HRS,
+  ATTENDANCE_STATUS,
+  ALERT_TEMPLATES,
+  ACCESS_RULES,
+  ZONES,
+  EMPLOYEE_STATUS,
+  DEVICE_OFFLINE_THRESHOLD_MINUTES,
+} from "./constant";
 import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
 import { withPagination } from "./utils/pagination.utils";
 import bcryptjs from "bcryptjs";
-import { decryptSerialNumber, encryptSerialNumber } from '../server/utils/cryptoUtils';
+import {
+  decryptSerialNumber,
+  encryptSerialNumber,
+} from "../server/utils/cryptoUtils";
 import path from "path";
 import { DeviceSecurityService } from "./services/deviceSecurityService";
 
@@ -148,8 +290,11 @@ export interface IStorage {
   getVisitors(
     page?: number,
     pageSize?: number,
-    search?: string
-  ): Promise<{ data: Visitor[]; totalCount: number; totalPages: number } | Visitor[]>; getVisitor(id: number): Promise<Visitor | undefined>;
+    search?: string,
+  ): Promise<
+    { data: Visitor[]; totalCount: number; totalPages: number } | Visitor[]
+  >;
+  getVisitor(id: number): Promise<Visitor | undefined>;
   createVisitor(data: InsertVisitor): Promise<Visitor>;
   updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor>;
   deleteVisitor(id: number): Promise<void>;
@@ -229,7 +374,10 @@ export interface IStorage {
   getContractors(): Promise<schema.Contractor[]>;
   getContractor(id: number): Promise<Contractor | undefined>;
   createContractor(contractor: InsertContractor): Promise<Contractor>;
-  updateContractor(id: number, contractor: Partial<InsertContractor>): Promise<Contractor>;
+  updateContractor(
+    id: number,
+    contractor: Partial<InsertContractor>,
+  ): Promise<Contractor>;
   deleteContractor(id: number): Promise<boolean>;
   getVisitorCards(): Promise<any[]>;
   updateVisitorCard(id: number, card: any): Promise<any>;
@@ -252,12 +400,12 @@ export class DatabaseStorage implements IStorage {
       const conditions = [];
       if (filters?.dateFrom) {
         conditions.push(
-          sql`DATE(${schema.employeeActivityLogs.logDate}) >= ${filters.dateFrom}`
+          sql`DATE(${schema.employeeActivityLogs.logDate}) >= ${filters.dateFrom}`,
         );
       }
       if (filters?.dateTo) {
         conditions.push(
-          sql`DATE(${schema.employeeActivityLogs.logDate}) <= ${filters.dateTo}`
+          sql`DATE(${schema.employeeActivityLogs.logDate}) <= ${filters.dateTo}`,
         );
       }
       if (filters?.employeeCode) {
@@ -607,14 +755,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     return currentSites;
@@ -688,7 +836,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) { }
+        } catch (e) {}
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -867,12 +1015,12 @@ export class DatabaseStorage implements IStorage {
       const searchText = search?.toLowerCase().trim();
       const filteredDoors = searchText
         ? resolvedDoors.filter((door) => {
-          return (
-            door.name?.toLowerCase().includes(searchText) ||
-            door.code?.toLowerCase().includes(searchText) ||
-            door.doorType?.toLowerCase().includes(searchText)
-          );
-        })
+            return (
+              door.name?.toLowerCase().includes(searchText) ||
+              door.code?.toLowerCase().includes(searchText) ||
+              door.doorType?.toLowerCase().includes(searchText)
+            );
+          })
         : resolvedDoors;
       if (!pageSize) {
         return filteredDoors;
@@ -902,12 +1050,12 @@ export class DatabaseStorage implements IStorage {
       console.error("getDoors Error:", error);
       return pageSize
         ? {
-          data: [],
-          totalCount: 0,
-          totalPages: 0,
-          currentPage: 1,
-          pageSize: 0,
-        }
+            data: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: 1,
+            pageSize: 0,
+          }
         : [];
     }
   }
@@ -1034,14 +1182,14 @@ export class DatabaseStorage implements IStorage {
     }
   }
   async getPeople(
-  search?: string,
-  page?: number | string,
-  pageSize?: number | string,
-  dept?: string,
-  status?: string,
-  lockout?: string,
-  rule?: string,
-): Promise<any> {
+    search?: string,
+    page?: number | string,
+    pageSize?: number | string,
+    dept?: string,
+    status?: string,
+    lockout?: string,
+    rule?: string,
+  ): Promise<any> {
     const [pgDataRaw, msDataRaw] = await Promise.all([
       db
         .select({
@@ -1060,7 +1208,10 @@ export class DatabaseStorage implements IStorage {
         .leftJoin(departments, eq(people.departmentId, departments.id))
         .leftJoin(designations, eq(people.designationId, designations.id))
         .leftJoin(doors, eq(people.lastPunchDoorId, doors.id))
-        .leftJoin(peopleAdditionalDetails, eq(people.employeeCode, peopleAdditionalDetails.employeeCode)),
+        .leftJoin(
+          peopleAdditionalDetails,
+          eq(people.employeeCode, peopleAdditionalDetails.employeeCode),
+        ),
       dbMsSql.select().from({ dbName: "Employees" }).execute(),
     ]);
     const msIds = new Set();
@@ -1129,8 +1280,7 @@ export class DatabaseStorage implements IStorage {
         } catch (e) {
           // console.error("New employee sync error:", e);
         }
-      }
-      else {
+      } else {
         const existing = currentPgData[existingIndex];
         const hasChanged =
           existing.employeeName !== mapped.employeeName ||
@@ -1182,34 +1332,28 @@ export class DatabaseStorage implements IStorage {
       );
     }
     // Department
-if (dept && dept !== "all") {
-  results = results.filter(
-    (p) => String(p.departmentId) === String(dept)
-  );
-}
+    if (dept && dept !== "all") {
+      results = results.filter((p) => String(p.departmentId) === String(dept));
+    }
 
-// Status
-if (status && status !== "all") {
-  results = results.filter(
-    (p) => p.status === status
-  );
-}
+    // Status
+    if (status && status !== "all") {
+      results = results.filter((p) => p.status === status);
+    }
 
-// Lockout
-if (lockout && lockout !== "all") {
-  const isLocked = lockout === "true";
+    // Lockout
+    if (lockout && lockout !== "all") {
+      const isLocked = lockout === "true";
 
-  results = results.filter(
-    (p) => Boolean(p.is_lockout_enabled) === isLocked
-  );
-}
+      results = results.filter(
+        (p) => Boolean(p.is_lockout_enabled) === isLocked,
+      );
+    }
 
-// Rule
-if (rule && rule !== "all") {
-  results = results.filter(
-    (p) => String(p.ruleid) === String(rule)
-  );
-}
+    // Rule
+    if (rule && rule !== "all") {
+      results = results.filter((p) => String(p.ruleid) === String(rule));
+    }
     results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
     const uniquePeople = Array.from(
       new Map(
@@ -1248,7 +1392,10 @@ if (rule && rule !== "all") {
       await this.executeHardwareSync(employeeCode, null, false);
       // console.log(`✅ Background Hardware Sync Completed for: ${employeeCode}`);
     } catch (err: any) {
-      console.error(`❌ Background Hardware Sync Failed for ${employeeCode}:`, err.message);
+      console.error(
+        `❌ Background Hardware Sync Failed for ${employeeCode}:`,
+        err.message,
+      );
     }
   }
   async getPerson(id: number): Promise<any> {
@@ -1260,17 +1407,11 @@ if (rule && rule !== "all") {
         additionalDetails: peopleAdditionalDetails,
       })
       .from(people)
-      .leftJoin(
-        departments,
-        eq(people.departmentId, departments.id)
-      )
-      .leftJoin(
-        designations,
-        eq(people.designationId, designations.id)
-      )
+      .leftJoin(departments, eq(people.departmentId, departments.id))
+      .leftJoin(designations, eq(people.designationId, designations.id))
       .leftJoin(
         schema.peopleAdditionalDetails,
-        eq(people.employeeCode, peopleAdditionalDetails.employeeCode)
+        eq(people.employeeCode, peopleAdditionalDetails.employeeCode),
       )
       .where(eq(people.id, id));
     if (!result) return undefined;
@@ -1309,30 +1450,74 @@ if (rule && rule !== "all") {
     return created;
   }
   async updatePerson(id: number, data: any): Promise<Person> {
-    if (data.lastSeenTime && typeof data.lastSeenTime === 'string') {
+    if (data.lastSeenTime && typeof data.lastSeenTime === "string") {
       data.lastSeenTime = new Date(data.lastSeenTime);
     }
     const {
-      cardNo, companyUnit, guardianName, serviceCategory, section, employment,
-      employerName, maritalStatus, reportingManager, leavingReason,
-      presentAddress1, presentAddress2, presentDistrict, presentPincode, presentState,
-      permanentAddress1, permanentAddress2, permanentDistrict, permanentPincode, permanentState,
-      stream, perDayRate, perHourRate, uanNumber, selfDeclaration, policeVerification, authorizedDevice,
+      cardNo,
+      companyUnit,
+      guardianName,
+      serviceCategory,
+      section,
+      employment,
+      employerName,
+      maritalStatus,
+      reportingManager,
+      leavingReason,
+      presentAddress1,
+      presentAddress2,
+      presentDistrict,
+      presentPincode,
+      presentState,
+      permanentAddress1,
+      permanentAddress2,
+      permanentDistrict,
+      permanentPincode,
+      permanentState,
+      stream,
+      perDayRate,
+      perHourRate,
+      uanNumber,
+      selfDeclaration,
+      policeVerification,
+      authorizedDevice,
       ...mainPersonData
     } = data;
     const additionalData = {
-      cardNo, companyUnit, guardianName, serviceCategory, section, employment,
-      employerName, maritalStatus, reportingManager, leavingReason,
-      presentAddress1, presentAddress2, presentDistrict, presentPincode, presentState,
-      permanentAddress1, permanentAddress2, permanentDistrict, permanentPincode, permanentState,
-      stream, perDayRate, perHourRate, uanNumber, selfDeclaration, policeVerification, authorizedDevice
+      cardNo,
+      companyUnit,
+      guardianName,
+      serviceCategory,
+      section,
+      employment,
+      employerName,
+      maritalStatus,
+      reportingManager,
+      leavingReason,
+      presentAddress1,
+      presentAddress2,
+      presentDistrict,
+      presentPincode,
+      presentState,
+      permanentAddress1,
+      permanentAddress2,
+      permanentDistrict,
+      permanentPincode,
+      permanentState,
+      stream,
+      perDayRate,
+      perHourRate,
+      uanNumber,
+      selfDeclaration,
+      policeVerification,
+      authorizedDevice,
     };
     const currentIsoDate = new Date();
     const [updated] = await db
       .update(people)
       .set({
         ...mainPersonData,
-        updatedAt: currentIsoDate
+        updatedAt: currentIsoDate,
       })
       .where(eq(people.id, id))
       .returning();
@@ -1342,9 +1527,13 @@ if (rule && rule !== "all") {
         const existingDetails = await db
           .select()
           .from(peopleAdditionalDetails)
-          .where(eq(peopleAdditionalDetails.employeeCode, updated.employeeCode));
+          .where(
+            eq(peopleAdditionalDetails.employeeCode, updated.employeeCode),
+          );
         const cleanAdditionalData = Object.fromEntries(
-          Object.entries(additionalData).filter(([_, v]) => v !== undefined && v !== null)
+          Object.entries(additionalData).filter(
+            ([_, v]) => v !== undefined && v !== null,
+          ),
         );
         if (Object.keys(cleanAdditionalData).length > 0) {
           if (existingDetails.length > 0) {
@@ -1352,18 +1541,18 @@ if (rule && rule !== "all") {
               .update(peopleAdditionalDetails)
               .set({
                 ...cleanAdditionalData,
-                updatedAt: currentIsoDate
+                updatedAt: currentIsoDate,
               })
-              .where(eq(peopleAdditionalDetails.employeeCode, updated.employeeCode));
+              .where(
+                eq(peopleAdditionalDetails.employeeCode, updated.employeeCode),
+              );
           } else {
-            await db
-              .insert(peopleAdditionalDetails)
-              .values({
-                employeeCode: updated.employeeCode,
-                ...cleanAdditionalData,
-                createdAt: currentIsoDate,
-                updatedAt: currentIsoDate
-              });
+            await db.insert(peopleAdditionalDetails).values({
+              employeeCode: updated.employeeCode,
+              ...cleanAdditionalData,
+              createdAt: currentIsoDate,
+              updatedAt: currentIsoDate,
+            });
           }
         }
       } catch (err) {
@@ -1463,15 +1652,15 @@ if (rule && rule !== "all") {
       const baseQuery = db.select().from(shifts).orderBy(asc(shifts.id));
       const finalQuery = searchText
         ? db
-          .select()
-          .from(shifts)
-          .where(
-            or(
-              ilike(shifts.name, `%${searchText}%`),
-              ilike(shifts.code, `%${searchText}%`),
-            ),
-          )
-          .orderBy(asc(shifts.id))
+            .select()
+            .from(shifts)
+            .where(
+              or(
+                ilike(shifts.name, `%${searchText}%`),
+                ilike(shifts.code, `%${searchText}%`),
+              ),
+            )
+            .orderBy(asc(shifts.id))
         : baseQuery;
       return await withPagination(db, shifts, finalQuery, page, pageSize);
     } catch (error) {
@@ -1761,7 +1950,7 @@ if (rule && rule !== "all") {
   async getVisitors(
     page?: number,
     pageSize?: number,
-    search?: string
+    search?: string,
   ): Promise<{ data: any[]; totalCount: number; totalPages: number }> {
     // 1. Pehle jaisa safe aur original query run karein taaki frontend crash na ho
     let query = db.select().from(visitors).$dynamic();
@@ -1772,7 +1961,7 @@ if (rule && rule !== "all") {
         ilike(visitors.nameOfVisitor, `%${search}%`),
         ilike(visitors.visitorsCompanyName, `%${search}%`),
         ilike(visitors.whomToMeet, `%${search}%`),
-        ilike(visitors.contactNo, `%${search}%`)
+        ilike(visitors.contactNo, `%${search}%`),
       );
       query = query.where(whereClause);
     }
@@ -1780,7 +1969,14 @@ if (rule && rule !== "all") {
     query = query.orderBy(desc(visitors.id));
 
     // Original pagination helper call
-    const result = await withPagination(db, visitors, query, page, pageSize, whereClause);
+    const result = await withPagination(
+      db,
+      visitors,
+      query,
+      page,
+      pageSize,
+      whereClause,
+    );
 
     // 2. 🌟 Dynamic look-up lagakar visitor_cards table se Name aur Number inject karein
     if (result && result.data && result.data.length > 0) {
@@ -1789,7 +1985,7 @@ if (rule && rule !== "all") {
 
       result.data = result.data.map((visitor: any) => {
         const matchedCard = allCards.find(
-          (c: any) => Number(c.id) === Number(visitor.visitorCardId)
+          (c: any) => Number(c.id) === Number(visitor.visitorCardId),
         );
 
         return {
@@ -1806,7 +2002,10 @@ if (rule && rule !== "all") {
 
   async getVisitor(id: number): Promise<any | undefined> {
     // Original single row look-up
-    const [visitor] = await db.select().from(visitors).where(eq(visitors.id, id));
+    const [visitor] = await db
+      .select()
+      .from(visitors)
+      .where(eq(visitors.id, id));
     if (!visitor) return undefined;
 
     // Single card detail merge karein
@@ -1832,21 +2031,37 @@ if (rule && rule !== "all") {
     console.log("Creating visitor with data:", data);
     let insertedMsSqlId: number | null = null;
     try {
-      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+      if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
         await mssqlPool.connect();
       }
       const request = mssqlPool.request();
-      request.input('Name', mssql.NVarChar, data.nameOfVisitor || null);
-      request.input('ContactNumber', mssql.NVarChar, data.contactNo || null);
-      request.input('Email', mssql.NVarChar, data.emailAddress || null);
-      request.input('LocationId', mssql.Int, data.locationId ? Number(data.locationId) : null);
-      request.input('Purpose', mssql.NVarChar, data.purpose || null);
-      request.input('ToMeetId', mssql.NVarChar, data.whomToMeet || null);
-      request.input('VisitorDeskId', mssql.Int, data.visitorDeskId ? Number(data.visitorDeskId) : null);
-      request.input('VisitorCardId', mssql.Int, data.visitorCardId ? Number(data.visitorCardId) : null);
-      request.input('Company', mssql.NVarChar, data.visitorsCompanyName || null);
-      request.input('Designation', mssql.NVarChar, data.designation || null);
-      request.input('Remarks', mssql.NVarChar, data.remark || null);
+      request.input("Name", mssql.NVarChar, data.nameOfVisitor || null);
+      request.input("ContactNumber", mssql.NVarChar, data.contactNo || null);
+      request.input("Email", mssql.NVarChar, data.emailAddress || null);
+      request.input(
+        "LocationId",
+        mssql.Int,
+        data.locationId ? Number(data.locationId) : null,
+      );
+      request.input("Purpose", mssql.NVarChar, data.purpose || null);
+      request.input("ToMeetId", mssql.NVarChar, data.whomToMeet || null);
+      request.input(
+        "VisitorDeskId",
+        mssql.Int,
+        data.visitorDeskId ? Number(data.visitorDeskId) : null,
+      );
+      request.input(
+        "VisitorCardId",
+        mssql.Int,
+        data.visitorCardId ? Number(data.visitorCardId) : null,
+      );
+      request.input(
+        "Company",
+        mssql.NVarChar,
+        data.visitorsCompanyName || null,
+      );
+      request.input("Designation", mssql.NVarChar, data.designation || null);
+      request.input("Remarks", mssql.NVarChar, data.remark || null);
       // const currentIsoDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
       // request.input('InDate', mssql.DateTime, currentIsoDate);
 
@@ -1869,10 +2084,14 @@ if (rule && rule !== "all") {
         insertedMsSqlId = msSqlResult.recordset[0].id;
       }
       if (!insertedMsSqlId) {
-        throw new Error("MS SQL Inserted but failed to retrieve generated Identity ID.");
+        throw new Error(
+          "MS SQL Inserted but failed to retrieve generated Identity ID.",
+        );
       }
     } catch (msSqlErr: any) {
-      throw new Error(`MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`);
+      throw new Error(
+        `MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`,
+      );
     }
     return await db.transaction(async (tx) => {
       try {
@@ -1889,64 +2108,114 @@ if (rule && rule !== "all") {
             .update(visitorCards)
             .set({
               isAssigned: true,
-              updatedAt: new Date()
+              updatedAt: new Date(),
             })
             .where(
               or(
                 eq(visitorCards.id, targetCardId),
-                eq(visitorCards.msId, targetCardId)
-              )
+                eq(visitorCards.msId, targetCardId),
+              ),
             );
         }
         return created;
       } catch (pgErr: any) {
         tx.rollback();
-        throw new Error(`Postgres transaction failed and rolled back. Error: ${pgErr.message}`);
+        throw new Error(
+          `Postgres transaction failed and rolled back. Error: ${pgErr.message}`,
+        );
       }
     });
   }
-  async updateVisitor(id: number, data: Partial<InsertVisitor>): Promise<Visitor> {
+  async updateVisitor(
+    id: number,
+    data: Partial<InsertVisitor>,
+  ): Promise<Visitor> {
     const currentVisitor = await db
       .select()
       .from(visitors)
       .where(eq(visitors.id, id))
       .limit(1);
     if (currentVisitor.length === 0) {
-      throw new Error(`Visitor update failed: Record with local ID '${id}' not found.`);
+      throw new Error(
+        `Visitor update failed: Record with local ID '${id}' not found.`,
+      );
     }
     const targetMsId = currentVisitor[0].msId;
     const oldCardId = currentVisitor[0].visitorCardId;
     if (!targetMsId) {
-      throw new Error(`Visitor update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+      throw new Error(
+        `Visitor update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`,
+      );
     }
     try {
-      if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+      if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
         await mssqlPool.connect();
       }
       const request = mssqlPool.request();
-      const finalName = data.nameOfVisitor !== undefined ? data.nameOfVisitor : currentVisitor[0].nameOfVisitor;
-      const finalContact = data.contactNo !== undefined ? data.contactNo : currentVisitor[0].contactNo;
-      const finalEmail = data.emailAddress !== undefined ? data.emailAddress : currentVisitor[0].emailAddress;
-      const finalLocationId = data.locationId !== undefined ? data.locationId : currentVisitor[0].locationId;
-      const finalPurpose = data.purpose !== undefined ? data.purpose : currentVisitor[0].purpose;
-      const finalToMeetId = data.whomToMeet !== undefined ? data.whomToMeet : currentVisitor[0].whomToMeet;
-      const finalDeskId = data.visitorDeskId !== undefined ? data.visitorDeskId : currentVisitor[0].visitorDeskId;
-      const finalCardId = data.visitorCardId !== undefined ? data.visitorCardId : currentVisitor[0].visitorCardId;
-      const finalCompany = data.visitorsCompanyName !== undefined ? data.visitorsCompanyName : currentVisitor[0].visitorsCompanyName;
-      const finalDesignation = data.designation !== undefined ? data.designation : currentVisitor[0].designation;
-      const finalRemarks = data.remark !== undefined ? data.remark : currentVisitor[0].remark;
-      request.input('TargetMsId', mssql.Int, targetMsId);
-      request.input('Name', mssql.NVarChar, finalName || null);
-      request.input('ContactNumber', mssql.NVarChar, finalContact || null);
-      request.input('Email', mssql.NVarChar, finalEmail || null);
-      request.input('LocationId', mssql.Int, finalLocationId ? Number(finalLocationId) : null);
-      request.input('Purpose', mssql.NVarChar, finalPurpose || null);
-      request.input('ToMeetId', mssql.NVarChar, finalToMeetId || null);
-      request.input('VisitorDeskId', mssql.Int, finalDeskId ? Number(finalDeskId) : null);
-      request.input('VisitorCardId', mssql.Int, finalCardId ? Number(finalCardId) : null);
-      request.input('Company', mssql.NVarChar, finalCompany || null);
-      request.input('Designation', mssql.NVarChar, finalDesignation || null);
-      request.input('Remarks', mssql.NVarChar, finalRemarks || null);
+      const finalName =
+        data.nameOfVisitor !== undefined
+          ? data.nameOfVisitor
+          : currentVisitor[0].nameOfVisitor;
+      const finalContact =
+        data.contactNo !== undefined
+          ? data.contactNo
+          : currentVisitor[0].contactNo;
+      const finalEmail =
+        data.emailAddress !== undefined
+          ? data.emailAddress
+          : currentVisitor[0].emailAddress;
+      const finalLocationId =
+        data.locationId !== undefined
+          ? data.locationId
+          : currentVisitor[0].locationId;
+      const finalPurpose =
+        data.purpose !== undefined ? data.purpose : currentVisitor[0].purpose;
+      const finalToMeetId =
+        data.whomToMeet !== undefined
+          ? data.whomToMeet
+          : currentVisitor[0].whomToMeet;
+      const finalDeskId =
+        data.visitorDeskId !== undefined
+          ? data.visitorDeskId
+          : currentVisitor[0].visitorDeskId;
+      const finalCardId =
+        data.visitorCardId !== undefined
+          ? data.visitorCardId
+          : currentVisitor[0].visitorCardId;
+      const finalCompany =
+        data.visitorsCompanyName !== undefined
+          ? data.visitorsCompanyName
+          : currentVisitor[0].visitorsCompanyName;
+      const finalDesignation =
+        data.designation !== undefined
+          ? data.designation
+          : currentVisitor[0].designation;
+      const finalRemarks =
+        data.remark !== undefined ? data.remark : currentVisitor[0].remark;
+      request.input("TargetMsId", mssql.Int, targetMsId);
+      request.input("Name", mssql.NVarChar, finalName || null);
+      request.input("ContactNumber", mssql.NVarChar, finalContact || null);
+      request.input("Email", mssql.NVarChar, finalEmail || null);
+      request.input(
+        "LocationId",
+        mssql.Int,
+        finalLocationId ? Number(finalLocationId) : null,
+      );
+      request.input("Purpose", mssql.NVarChar, finalPurpose || null);
+      request.input("ToMeetId", mssql.NVarChar, finalToMeetId || null);
+      request.input(
+        "VisitorDeskId",
+        mssql.Int,
+        finalDeskId ? Number(finalDeskId) : null,
+      );
+      request.input(
+        "VisitorCardId",
+        mssql.Int,
+        finalCardId ? Number(finalCardId) : null,
+      );
+      request.input("Company", mssql.NVarChar, finalCompany || null);
+      request.input("Designation", mssql.NVarChar, finalDesignation || null);
+      request.input("Remarks", mssql.NVarChar, finalRemarks || null);
       await request.query(`
       UPDATE VisitorLogs 
       SET Name = @Name,
@@ -1963,7 +2232,9 @@ if (rule && rule !== "all") {
       WHERE Id = @TargetMsId
     `);
     } catch (msSqlErr: any) {
-      throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+      throw new Error(
+        `MS SQL Update Failed: ${msSqlErr.message || "Unknown Sync Error"}`,
+      );
     }
     return await db.transaction(async (tx) => {
       try {
@@ -1971,11 +2242,14 @@ if (rule && rule !== "all") {
           .update(visitors)
           .set({
             ...data,
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
           .where(eq(visitors.id, id))
           .returning();
-        if (data.visitorCardId !== undefined && oldCardId !== data.visitorCardId) {
+        if (
+          data.visitorCardId !== undefined &&
+          oldCardId !== data.visitorCardId
+        ) {
           if (oldCardId) {
             await tx
               .update(visitorCards)
@@ -1983,8 +2257,8 @@ if (rule && rule !== "all") {
               .where(
                 or(
                   eq(visitorCards.id, Number(oldCardId)),
-                  eq(visitorCards.msId, Number(oldCardId))
-                )
+                  eq(visitorCards.msId, Number(oldCardId)),
+                ),
               );
           }
           if (data.visitorCardId) {
@@ -1994,15 +2268,17 @@ if (rule && rule !== "all") {
               .where(
                 or(
                   eq(visitorCards.id, Number(data.visitorCardId)),
-                  eq(visitorCards.msId, Number(data.visitorCardId))
-                )
+                  eq(visitorCards.msId, Number(data.visitorCardId)),
+                ),
               );
           }
         }
         return updated;
       } catch (pgErr: any) {
         tx.rollback();
-        throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+        throw new Error(
+          `Postgres transaction failed and rolled back: ${pgErr.message}`,
+        );
       }
     });
   }
@@ -2013,11 +2289,15 @@ if (rule && rule !== "all") {
       .where(eq(visitors.id, id))
       .limit(1);
     if (currentVisitor.length === 0) {
-      throw new Error(`Visitor deletion failed: Record with local ID '${id}' not found.`);
+      throw new Error(
+        `Visitor deletion failed: Record with local ID '${id}' not found.`,
+      );
     }
     const targetMsId = currentVisitor[0].msId;
     if (!targetMsId) {
-      throw new Error(`Visitor deletion failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+      throw new Error(
+        `Visitor deletion failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`,
+      );
     }
     return await db.transaction(async (tx) => {
       try {
@@ -2027,11 +2307,11 @@ if (rule && rule !== "all") {
         throw new Error(`Postgres Deletion Failed: ${pgErr.message}`);
       }
       try {
-        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
           await mssqlPool.connect();
         }
         const request = mssqlPool.request();
-        request.input('TargetMsId', mssql.Int, targetMsId);
+        request.input("TargetMsId", mssql.Int, targetMsId);
         await request.query(`
         DELETE FROM VisitorLogs 
         WHERE Id = @TargetMsId
@@ -2039,7 +2319,9 @@ if (rule && rule !== "all") {
       } catch (msSqlErr: any) {
         console.error("MS SQL Sync Delete Error inside transaction:", msSqlErr);
         tx.rollback();
-        throw new Error(`Sync Failed: MS SQL failed to delete. Postgres changes rolled back. Reason: ${msSqlErr.message}`);
+        throw new Error(
+          `Sync Failed: MS SQL failed to delete. Postgres changes rolled back. Reason: ${msSqlErr.message}`,
+        );
       }
     });
   }
@@ -2050,28 +2332,32 @@ if (rule && rule !== "all") {
       .where(eq(visitors.id, id))
       .limit(1);
     if (currentVisitor.length === 0) {
-      throw new Error(`Visitor checkout failed: Record with local ID '${id}' not found.`);
+      throw new Error(
+        `Visitor checkout failed: Record with local ID '${id}' not found.`,
+      );
     }
     const targetMsId = currentVisitor[0].msId;
     const cardIdToFree = currentVisitor[0].visitorCardId;
     const tzOffset = new Date().getTimezoneOffset() * 60000;
     const localISOTime = new Date(Date.now() - tzOffset).toISOString();
-    const currentIsoDate = localISOTime.slice(0, 19).replace('T', ' ');
+    const currentIsoDate = localISOTime.slice(0, 19).replace("T", " ");
     if (targetMsId) {
       try {
-        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
           await mssqlPool.connect();
         }
         const request = mssqlPool.request();
-        request.input('TargetMsId', mssql.Int, targetMsId);
-        request.input('OutDate', mssql.DateTime, currentIsoDate);
+        request.input("TargetMsId", mssql.Int, targetMsId);
+        request.input("OutDate", mssql.DateTime, currentIsoDate);
         await request.query(`
         UPDATE VisitorLogs 
         SET OutDate =GETDATE()
         WHERE Id = @TargetMsId
       `);
       } catch (msSqlErr: any) {
-        throw new Error(`MS SQL OutDate Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+        throw new Error(
+          `MS SQL OutDate Update Failed: ${msSqlErr.message || "Unknown Sync Error"}`,
+        );
       }
     }
     return await db.transaction(async (tx) => {
@@ -2080,7 +2366,9 @@ if (rule && rule !== "all") {
           .update(visitors)
           .set({
             permissionDateTo: currentIsoDate,
-            updatedAt: new Date(Date.now() - (new Date().getTimezoneOffset() * 60000))
+            updatedAt: new Date(
+              Date.now() - new Date().getTimezoneOffset() * 60000,
+            ),
           })
           .where(eq(visitors.id, id))
           .returning();
@@ -2090,19 +2378,23 @@ if (rule && rule !== "all") {
             .update(visitorCards)
             .set({
               isAssigned: false,
-              updatedAt: new Date(Date.now() - (new Date().getTimezoneOffset() * 60000))
+              updatedAt: new Date(
+                Date.now() - new Date().getTimezoneOffset() * 60000,
+              ),
             })
             .where(
               or(
                 eq(visitorCards.id, targetCardId),
-                eq(visitorCards.msId, targetCardId)
-              )
+                eq(visitorCards.msId, targetCardId),
+              ),
             );
         }
         return updated;
       } catch (pgErr: any) {
         tx.rollback();
-        throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+        throw new Error(
+          `Postgres transaction failed and rolled back: ${pgErr.message}`,
+        );
       }
     });
   }
@@ -2178,9 +2470,9 @@ if (rule && rule !== "all") {
         workingHours:
           logs.length > 1
             ? (
-              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-              3600000
-            ).toFixed(2)
+                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+                3600000
+              ).toFixed(2)
             : "0.00",
       };
     });
@@ -2353,7 +2645,7 @@ if (rule && rule !== "all") {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-                String(presentRow.status).toLowerCase() === "present"
+              String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -2375,16 +2667,16 @@ if (rule && rule !== "all") {
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
             : String(row.employeeCode)
-              .toLowerCase()
-              .includes(String(filters.employeeCode).toLowerCase()) ||
-            String(row.firstName)
-              .toLowerCase()
-              .includes(String(filters.employeeCode).toLowerCase());
+                .toLowerCase()
+                .includes(String(filters.employeeCode).toLowerCase()) ||
+              String(row.firstName)
+                .toLowerCase()
+                .includes(String(filters.employeeCode).toLowerCase());
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-            String(filters.status).toLowerCase();
+              String(filters.status).toLowerCase();
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => {
@@ -2407,7 +2699,7 @@ if (rule && rule !== "all") {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -2757,12 +3049,12 @@ if (rule && rule !== "all") {
   //   // 2. Fetch biometric logs from MS SQL
   //   const msSqlData = await mssqlPool.request().input("filterDate", date)
   //     .query(`
-  //     SELECT 
-  //       l.EmployeeCode, 
-  //       l.DeviceId, 
+  //     SELECT
+  //       l.EmployeeCode,
+  //       l.DeviceId,
   //       d.DeviceName,
-  //       l.Direction, 
-  //       l.LogDate 
+  //       l.Direction,
+  //       l.LogDate
   //     FROM DeviceLogs l
   //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
   //     WHERE CAST(l.LogDate AS DATE) = @filterDate
@@ -2853,7 +3145,6 @@ if (rule && rule !== "all") {
   //   return { machineFeed };
   // }
 
-
   // async getVisitorMachineAccessLogs(date: string) {
   //   const doorMappings = await db
   //     .select({
@@ -2865,12 +3156,12 @@ if (rule && rule !== "all") {
   //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
   //   const msSqlData = await mssqlPool.request().input("filterDate", date)
   //     .query(`
-  //     SELECT 
-  //       l.EmployeeCode, 
-  //       l.DeviceId, 
+  //     SELECT
+  //       l.EmployeeCode,
+  //       l.DeviceId,
   //       d.DeviceName,
-  //       l.Direction, 
-  //       l.LogDate 
+  //       l.Direction,
+  //       l.LogDate
   //     FROM DeviceLogs l
   //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
   //     WHERE CAST(l.LogDate AS DATE) = @filterDate
@@ -2905,7 +3196,7 @@ if (rule && rule !== "all") {
   //       Number(v.id) === Number(numericVisitorId)
   //     );
   //     return {
-  //       visitorName: dbVisitor ? dbVisitor.name : `Visitor ${numericVisitorId}`, 
+  //       visitorName: dbVisitor ? dbVisitor.name : `Visitor ${numericVisitorId}`,
   //       visitorId: numericVisitorId,
   //       visitorCode: log.EmployeeCode,
   //       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
@@ -2918,35 +3209,35 @@ if (rule && rule !== "all") {
   // }
 
   async getVisitorMachineAccessLogs(
-  date: string, 
-  filters?: { search?: string; fromDate?: string; toDate?: string }
-) {
-  // 1. Fetch Door and Device mappings
-  const doorMappings = await db
-    .select({
-      doorName: doors.name,
-      inIds: doorDevices.inDeviceIds,
-      outIds: doorDevices.outDeviceIds,
-    })
-    .from(doors)
-    .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+    date: string,
+    filters?: { search?: string; fromDate?: string; toDate?: string },
+  ) {
+    // 1. Fetch Door and Device mappings
+    const doorMappings = await db
+      .select({
+        doorName: doors.name,
+        inIds: doorDevices.inDeviceIds,
+        outIds: doorDevices.outDeviceIds,
+      })
+      .from(doors)
+      .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-  // 🛠️ Corrected Dynamic Date Selection Logic
-  let effectiveFromDate = date;
-  let effectiveToDate = date;
+    // 🛠️ Corrected Dynamic Date Selection Logic
+    let effectiveFromDate = date;
+    let effectiveToDate = date;
 
-  if (filters?.fromDate || filters?.toDate) {
-    // अगर सिर्फ fromDate है, तो effectiveFromDate वो बनेगी, वरना toDate या डिफ़ॉल्ट date
-    effectiveFromDate = filters.fromDate || filters.toDate || date;
-    // अगर toDate नहीं है, तो effectiveToDate को effectiveFromDate के बराबर रखेंगे ताकि सिर्फ उसी single date का डेटा आए
-    effectiveToDate = filters.toDate || effectiveFromDate;
-  }
+    if (filters?.fromDate || filters?.toDate) {
+      // अगर सिर्फ fromDate है, तो effectiveFromDate वो बनेगी, वरना toDate या डिफ़ॉल्ट date
+      effectiveFromDate = filters.fromDate || filters.toDate || date;
+      // अगर toDate नहीं है, तो effectiveToDate को effectiveFromDate के बराबर रखेंगे ताकि सिर्फ उसी single date का डेटा आए
+      effectiveToDate = filters.toDate || effectiveFromDate;
+    }
 
-  // 2. Fetch biometric logs from MS SQL (Using corrected Range filters)
-  const msSqlData = await mssqlPool.request()
-    .input("fromDate", effectiveFromDate)
-    .input("toDate", effectiveToDate)
-    .query(`
+    // 2. Fetch biometric logs from MS SQL (Using corrected Range filters)
+    const msSqlData = await mssqlPool
+      .request()
+      .input("fromDate", effectiveFromDate)
+      .input("toDate", effectiveToDate).query(`
     SELECT 
       l.EmployeeCode, 
       l.DeviceId, 
@@ -2960,290 +3251,311 @@ if (rule && rule !== "all") {
     ORDER BY l.LogDate DESC
   `);
 
-  const logs = msSqlData.recordset;
+    const logs = msSqlData.recordset;
 
-  // 3. Extract unique card identifiers
-  const cardIdentifiers = logs.map(l => {
-    if (!l.EmployeeCode) return null;
-    const matched = String(l.EmployeeCode).match(/\d+/);
-    return matched ? Number(matched[0]) : null;
-  }).filter((id): id is number => id !== null);
-
-  let visitorDetails: any[] = [];
-
-  // 4. Fetch all visitors mapped to these cards
-  if (cardIdentifiers.length > 0) {
-    const uniqueCardIds = [...new Set(cardIdentifiers)];
-
-    visitorDetails = await db
-      .select({
-        id: schema.visitors.id,
-        visitorName: schema.visitors.nameOfVisitor,
-        rfidCardNo: schema.visitors.rfidCardNo,
-        cardMsId: visitorCards.msId,
-        cardNo: visitorCards.cardNumber,
-        inTime: schema.visitors.permissionDateFrom, 
-        outTime: schema.visitors.permissionDateTo,  
+    // 3. Extract unique card identifiers
+    const cardIdentifiers = logs
+      .map((l) => {
+        if (!l.EmployeeCode) return null;
+        const matched = String(l.EmployeeCode).match(/\d+/);
+        return matched ? Number(matched[0]) : null;
       })
-      .from(schema.visitors)
-      .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
-      .where(
-        or(
-          inArray(visitorCards.msId, uniqueCardIds),
-          inArray(visitorCards.cardNumber, uniqueCardIds.map(String))
+      .filter((id): id is number => id !== null);
+
+    let visitorDetails: any[] = [];
+
+    // 4. Fetch all visitors mapped to these cards
+    if (cardIdentifiers.length > 0) {
+      const uniqueCardIds = [...new Set(cardIdentifiers)];
+
+      visitorDetails = await db
+        .select({
+          id: schema.visitors.id,
+          visitorName: schema.visitors.nameOfVisitor,
+          rfidCardNo: schema.visitors.rfidCardNo,
+          cardMsId: visitorCards.msId,
+          cardNo: visitorCards.cardNumber,
+          inTime: schema.visitors.permissionDateFrom,
+          outTime: schema.visitors.permissionDateTo,
+        })
+        .from(schema.visitors)
+        .leftJoin(
+          visitorCards,
+          eq(schema.visitors.visitorCardId, visitorCards.id),
         )
-      );
-  }
-
-  // ⭐ TIMEZONE-SAFE STRING CONVERTER
-  const toLocalString = (dateInput: any) => {
-    if (!dateInput) return "";
-    if (typeof dateInput === 'string') {
-      let cleanStr = dateInput.replace('T', ' ').split('.')[0];
-      if (cleanStr.length === 16) cleanStr += ":00";
-      return cleanStr;
+        .where(
+          or(
+            inArray(visitorCards.msId, uniqueCardIds),
+            inArray(visitorCards.cardNumber, uniqueCardIds.map(String)),
+          ),
+        );
     }
-    const d = new Date(dateInput);
-    if (isNaN(d.getTime())) return "";
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  };
 
-  const sortedVisitors = [...visitorDetails].sort((a, b) => {
-    return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
-  });
-
-  // 5. Map biometric logs using Pure Local String slotting
-  let machineFeed = logs.map((log) => {
-    const door = doorMappings.find(
-      (m) =>
-        (m.inIds || []).includes(log.DeviceId) ||
-        (m.outIds || []).includes(log.DeviceId),
-    );
-
-    const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
-    const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
-    const logTimeStr = toLocalString(log.LogDate);
-
-    const dbVisitor = sortedVisitors.find(v => {
-      const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-        (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier)) ||
-        (v.rfidCardNo !== null && String(v.rfidCardNo) === String(numericCardIdentifier));
-
-      if (!isCardMatch) return false;
-      if (!v.inTime) return false;
-      
-      const visitorInStr = toLocalString(v.inTime);
-      if (logTimeStr < visitorInStr) return false;
-
-      if (v.outTime) {
-        const visitorOutStr = toLocalString(v.outTime);
-        return logTimeStr <= visitorOutStr;
-      } else {
-        const nextVisitorOnSameCard = sortedVisitors.find(other => {
-          if (other.id === v.id) return false;
-          const otherCardMatch = (other.cardMsId !== null && Number(other.cardMsId) === Number(numericCardIdentifier)) ||
-            (other.cardNo !== null && String(other.cardNo) === String(numericCardIdentifier)) ||
-            (other.rfidCardNo !== null && String(other.rfidCardNo) === String(numericCardIdentifier));
-
-          if (!otherCardMatch || !other.inTime) return false;
-          return toLocalString(other.inTime) > visitorInStr;
-        });
-
-        if (nextVisitorOnSameCard) {
-          const nextVisitorInStr = toLocalString(nextVisitorOnSameCard.inTime);
-          return logTimeStr < nextVisitorInStr;
-        }
-        return true;
+    // ⭐ TIMEZONE-SAFE STRING CONVERTER
+    const toLocalString = (dateInput: any) => {
+      if (!dateInput) return "";
+      if (typeof dateInput === "string") {
+        let cleanStr = dateInput.replace("T", " ").split(".")[0];
+        if (cleanStr.length === 16) cleanStr += ":00";
+        return cleanStr;
       }
+      const d = new Date(dateInput);
+      if (isNaN(d.getTime())) return "";
+      const pad = (n: number) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    };
+
+    const sortedVisitors = [...visitorDetails].sort((a, b) => {
+      return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
     });
 
-    return {
-      visitorName: dbVisitor ? dbVisitor.visitorName : "Not Assigned",
-      visitorId: numericCardIdentifier,
-      visitorCode: log.EmployeeCode,
-      rfidCardNo: dbVisitor
-        ? (dbVisitor.cardNo || dbVisitor.rfidCardNo || "")
-        : (numericCardIdentifier ? String(numericCardIdentifier) : ""),
-      deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-      direction: log.Direction,
-      logDate: log.LogDate,
-      doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
-    };
-  });
+    // 5. Map biometric logs using Pure Local String slotting
+    let machineFeed = logs.map((log) => {
+      const door = doorMappings.find(
+        (m) =>
+          (m.inIds || []).includes(log.DeviceId) ||
+          (m.outIds || []).includes(log.DeviceId),
+      );
 
-  // 6. APPLY FILTERS (Search only - Date filtering is optimized at DB level)
-  if (filters && filters.search) {
-    const lowerSearch = filters.search.toLowerCase();
-    machineFeed = machineFeed.filter(item => 
-      item.visitorName.toLowerCase().includes(lowerSearch) ||
-      (item.rfidCardNo && item.rfidCardNo.toLowerCase().includes(lowerSearch))
-    );
+      const idMatch = log.EmployeeCode
+        ? String(log.EmployeeCode).match(/\d+/)
+        : null;
+      const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
+      const logTimeStr = toLocalString(log.LogDate);
+
+      const dbVisitor = sortedVisitors.find((v) => {
+        const isCardMatch =
+          (v.cardMsId !== null &&
+            Number(v.cardMsId) === Number(numericCardIdentifier)) ||
+          (v.cardNo !== null &&
+            String(v.cardNo) === String(numericCardIdentifier)) ||
+          (v.rfidCardNo !== null &&
+            String(v.rfidCardNo) === String(numericCardIdentifier));
+
+        if (!isCardMatch) return false;
+        if (!v.inTime) return false;
+
+        const visitorInStr = toLocalString(v.inTime);
+        if (logTimeStr < visitorInStr) return false;
+
+        if (v.outTime) {
+          const visitorOutStr = toLocalString(v.outTime);
+          return logTimeStr <= visitorOutStr;
+        } else {
+          const nextVisitorOnSameCard = sortedVisitors.find((other) => {
+            if (other.id === v.id) return false;
+            const otherCardMatch =
+              (other.cardMsId !== null &&
+                Number(other.cardMsId) === Number(numericCardIdentifier)) ||
+              (other.cardNo !== null &&
+                String(other.cardNo) === String(numericCardIdentifier)) ||
+              (other.rfidCardNo !== null &&
+                String(other.rfidCardNo) === String(numericCardIdentifier));
+
+            if (!otherCardMatch || !other.inTime) return false;
+            return toLocalString(other.inTime) > visitorInStr;
+          });
+
+          if (nextVisitorOnSameCard) {
+            const nextVisitorInStr = toLocalString(
+              nextVisitorOnSameCard.inTime,
+            );
+            return logTimeStr < nextVisitorInStr;
+          }
+          return true;
+        }
+      });
+
+      return {
+        visitorName: dbVisitor ? dbVisitor.visitorName : "Not Assigned",
+        visitorId: numericCardIdentifier,
+        visitorCode: log.EmployeeCode,
+        rfidCardNo: dbVisitor
+          ? dbVisitor.cardNo || dbVisitor.rfidCardNo || ""
+          : numericCardIdentifier
+            ? String(numericCardIdentifier)
+            : "",
+        deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+        direction: log.Direction,
+        logDate: log.LogDate,
+        doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+      };
+    });
+
+    // 6. APPLY FILTERS (Search only - Date filtering is optimized at DB level)
+    if (filters && filters.search) {
+      const lowerSearch = filters.search.toLowerCase();
+      machineFeed = machineFeed.filter(
+        (item) =>
+          item.visitorName.toLowerCase().includes(lowerSearch) ||
+          (item.rfidCardNo &&
+            item.rfidCardNo.toLowerCase().includes(lowerSearch)),
+      );
+    }
+
+    return { machineFeed };
   }
 
-  return { machineFeed };
-}
-  
-//   async getVisitorMachineAccessLogs(date: string) {
-//   // 1. Fetch Door and Device mappings
-//   const doorMappings = await db
-//     .select({
-//       doorName: doors.name,
-//       inIds: doorDevices.inDeviceIds,
-//       outIds: doorDevices.outDeviceIds,
-//     })
-//     .from(doors)
-//     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+  //   async getVisitorMachineAccessLogs(date: string) {
+  //   // 1. Fetch Door and Device mappings
+  //   const doorMappings = await db
+  //     .select({
+  //       doorName: doors.name,
+  //       inIds: doorDevices.inDeviceIds,
+  //       outIds: doorDevices.outDeviceIds,
+  //     })
+  //     .from(doors)
+  //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
 
-//   // 2. Fetch biometric logs from MS SQL (String format mapping)
-//   const msSqlData = await mssqlPool.request().input("filterDate", date)
-//     .query(`
-//     SELECT 
-//       l.EmployeeCode, 
-//       l.DeviceId, 
-//       d.DeviceName,
-//       l.Direction, 
-//       CONVERT(VARCHAR(19), l.LogDate, 120) AS LogDate  -- Direct 'YYYY-MM-DD HH:MM:SS' format
-//     FROM DeviceLogs l
-//     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-//     WHERE CAST(l.LogDate AS DATE) = @filterDate
-//       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
-//     ORDER BY l.LogDate DESC
-//   `);
+  //   // 2. Fetch biometric logs from MS SQL (String format mapping)
+  //   const msSqlData = await mssqlPool.request().input("filterDate", date)
+  //     .query(`
+  //     SELECT
+  //       l.EmployeeCode,
+  //       l.DeviceId,
+  //       d.DeviceName,
+  //       l.Direction,
+  //       CONVERT(VARCHAR(19), l.LogDate, 120) AS LogDate  -- Direct 'YYYY-MM-DD HH:MM:SS' format
+  //     FROM DeviceLogs l
+  //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+  //     WHERE CAST(l.LogDate AS DATE) = @filterDate
+  //       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
+  //     ORDER BY l.LogDate DESC
+  //   `);
 
-//   const logs = msSqlData.recordset;
+  //   const logs = msSqlData.recordset;
 
-//   // 3. Extract unique card identifiers
-//   const cardIdentifiers = logs.map(l => {
-//     if (!l.EmployeeCode) return null;
-//     const matched = String(l.EmployeeCode).match(/\d+/);
-//     return matched ? Number(matched[0]) : null;
-//   }).filter((id): id is number => id !== null);
+  //   // 3. Extract unique card identifiers
+  //   const cardIdentifiers = logs.map(l => {
+  //     if (!l.EmployeeCode) return null;
+  //     const matched = String(l.EmployeeCode).match(/\d+/);
+  //     return matched ? Number(matched[0]) : null;
+  //   }).filter((id): id is number => id !== null);
 
-//   let visitorDetails: any[] = [];
+  //   let visitorDetails: any[] = [];
 
-//   // 4. Fetch all visitors mapped to these cards
-//   if (cardIdentifiers.length > 0) {
-//     const uniqueCardIds = [...new Set(cardIdentifiers)];
+  //   // 4. Fetch all visitors mapped to these cards
+  //   if (cardIdentifiers.length > 0) {
+  //     const uniqueCardIds = [...new Set(cardIdentifiers)];
 
-//     visitorDetails = await db
-//       .select({
-//         id: schema.visitors.id,
-//         visitorName: schema.visitors.nameOfVisitor,
-//         rfidCardNo: schema.visitors.rfidCardNo,
-//         cardMsId: visitorCards.msId,
-//         cardNo: visitorCards.cardNumber,
-//         inTime: schema.visitors.permissionDateFrom, 
-//         outTime: schema.visitors.permissionDateTo,  
-//       })
-//       .from(schema.visitors)
-//       .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
-//       .where(
-//         or(
-//           inArray(visitorCards.msId, uniqueCardIds),
-//           inArray(visitorCards.cardNumber, uniqueCardIds.map(String))
-//         )
-//       );
-//   }
+  //     visitorDetails = await db
+  //       .select({
+  //         id: schema.visitors.id,
+  //         visitorName: schema.visitors.nameOfVisitor,
+  //         rfidCardNo: schema.visitors.rfidCardNo,
+  //         cardMsId: visitorCards.msId,
+  //         cardNo: visitorCards.cardNumber,
+  //         inTime: schema.visitors.permissionDateFrom,
+  //         outTime: schema.visitors.permissionDateTo,
+  //       })
+  //       .from(schema.visitors)
+  //       .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
+  //       .where(
+  //         or(
+  //           inArray(visitorCards.msId, uniqueCardIds),
+  //           inArray(visitorCards.cardNumber, uniqueCardIds.map(String))
+  //         )
+  //       );
+  //   }
 
-//   // ⭐ TIMEZONE-SAFE STRING CONVERTER
-//   const toLocalString = (dateInput: any) => {
-//     if (!dateInput) return "";
-    
-//     if (typeof dateInput === 'string') {
-//       let cleanStr = dateInput.replace('T', ' ').split('.')[0];
-//       if (cleanStr.length === 16) cleanStr += ":00"; // YYYY-MM-DD HH:MM -> HH:MM:SS
-//       return cleanStr;
-//     }
-    
-//     const d = new Date(dateInput);
-//     if (isNaN(d.getTime())) return "";
-//     const pad = (n: number) => String(n).padStart(2, '0');
-//     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-//   };
+  //   // ⭐ TIMEZONE-SAFE STRING CONVERTER
+  //   const toLocalString = (dateInput: any) => {
+  //     if (!dateInput) return "";
 
-//   // 🚨 Sort visitors by local string format ascending order
-//   const sortedVisitors = [...visitorDetails].sort((a, b) => {
-//     return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
-//   });
+  //     if (typeof dateInput === 'string') {
+  //       let cleanStr = dateInput.replace('T', ' ').split('.')[0];
+  //       if (cleanStr.length === 16) cleanStr += ":00"; // YYYY-MM-DD HH:MM -> HH:MM:SS
+  //       return cleanStr;
+  //     }
 
-//   // 5. Map biometric logs using Pure Local String slotting
-//   const machineFeed = logs.map((log) => {
-//     const door = doorMappings.find(
-//       (m) =>
-//         (m.inIds || []).includes(log.DeviceId) ||
-//         (m.outIds || []).includes(log.DeviceId),
-//     );
+  //     const d = new Date(dateInput);
+  //     if (isNaN(d.getTime())) return "";
+  //     const pad = (n: number) => String(n).padStart(2, '0');
+  //     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  //   };
 
-//     const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
-//     const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
+  //   // 🚨 Sort visitors by local string format ascending order
+  //   const sortedVisitors = [...visitorDetails].sort((a, b) => {
+  //     return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
+  //   });
 
-//     // Log Date is already a clean string from SQL
-//     const logTimeStr = toLocalString(log.LogDate);
+  //   // 5. Map biometric logs using Pure Local String slotting
+  //   const machineFeed = logs.map((log) => {
+  //     const door = doorMappings.find(
+  //       (m) =>
+  //         (m.inIds || []).includes(log.DeviceId) ||
+  //         (m.outIds || []).includes(log.DeviceId),
+  //     );
 
-//     const dbVisitor = sortedVisitors.find(v => {
-//       // Card Mappings Check
-//       const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-//         (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier)) ||
-//         (v.rfidCardNo !== null && String(v.rfidCardNo) === String(numericCardIdentifier));
+  //     const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
+  //     const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
 
-//       if (!isCardMatch) return false;
-//       if (!v.inTime) return false;
-      
-//       const visitorInStr = toLocalString(v.inTime);
+  //     // Log Date is already a clean string from SQL
+  //     const logTimeStr = toLocalString(log.LogDate);
 
-//       // Boundary 1: Log time cannot be before check-in time
-//       if (logTimeStr < visitorInStr) return false;
+  //     const dbVisitor = sortedVisitors.find(v => {
+  //       // Card Mappings Check
+  //       const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
+  //         (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier)) ||
+  //         (v.rfidCardNo !== null && String(v.rfidCardNo) === String(numericCardIdentifier));
 
-//       // Boundary 2: If Visitor has Checked Out (outTime exists)
-//       if (v.outTime) {
-//         const visitorOutStr = toLocalString(v.outTime);
-//         // STRICT CHECK: Punch MUST happen before or exactly at checkout time
-//         // If punch time crosses checkout time, this visitor is completely rejected
-//         return logTimeStr <= visitorOutStr;
-//       } 
-      
-//       // Boundary 3: If Visitor is still Active (outTime is null)
-//       else {
-//         // Check if this card was passed to another visitor later
-//         const nextVisitorOnSameCard = sortedVisitors.find(other => {
-//           if (other.id === v.id) return false;
-//           const otherCardMatch = (other.cardMsId !== null && Number(other.cardMsId) === Number(numericCardIdentifier)) ||
-//             (other.cardNo !== null && String(other.cardNo) === String(numericCardIdentifier)) ||
-//             (other.rfidCardNo !== null && String(other.rfidCardNo) === String(numericCardIdentifier));
+  //       if (!isCardMatch) return false;
+  //       if (!v.inTime) return false;
 
-//           if (!otherCardMatch || !other.inTime) return false;
-//           return toLocalString(other.inTime) > visitorInStr;
-//         });
+  //       const visitorInStr = toLocalString(v.inTime);
 
-//         if (nextVisitorOnSameCard) {
-//           const nextVisitorInStr = toLocalString(nextVisitorOnSameCard.inTime);
-//           return logTimeStr < nextVisitorInStr;
-//         }
+  //       // Boundary 1: Log time cannot be before check-in time
+  //       if (logTimeStr < visitorInStr) return false;
 
-//         // Active visitor and no next visitor took the card yet
-//         return true;
-//       }
-//     });
+  //       // Boundary 2: If Visitor has Checked Out (outTime exists)
+  //       if (v.outTime) {
+  //         const visitorOutStr = toLocalString(v.outTime);
+  //         // STRICT CHECK: Punch MUST happen before or exactly at checkout time
+  //         // If punch time crosses checkout time, this visitor is completely rejected
+  //         return logTimeStr <= visitorOutStr;
+  //       }
 
-//     return {
-      
-//       visitorName: dbVisitor ? dbVisitor.visitorName : "Not Assigned",
-//       visitorId: numericCardIdentifier,
-//       visitorCode: log.EmployeeCode,
-//       rfidCardNo: dbVisitor
-//         ? (dbVisitor.cardNo || dbVisitor.rfidCardNo || "")
-//         : (numericCardIdentifier ? String(numericCardIdentifier) : ""),
-//       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-//       direction: log.Direction,
-//       logDate: log.LogDate,
-//       doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
-//     };
-//   });
+  //       // Boundary 3: If Visitor is still Active (outTime is null)
+  //       else {
+  //         // Check if this card was passed to another visitor later
+  //         const nextVisitorOnSameCard = sortedVisitors.find(other => {
+  //           if (other.id === v.id) return false;
+  //           const otherCardMatch = (other.cardMsId !== null && Number(other.cardMsId) === Number(numericCardIdentifier)) ||
+  //             (other.cardNo !== null && String(other.cardNo) === String(numericCardIdentifier)) ||
+  //             (other.rfidCardNo !== null && String(other.rfidCardNo) === String(numericCardIdentifier));
 
-//   return { machineFeed };
-// }
-  
+  //           if (!otherCardMatch || !other.inTime) return false;
+  //           return toLocalString(other.inTime) > visitorInStr;
+  //         });
+
+  //         if (nextVisitorOnSameCard) {
+  //           const nextVisitorInStr = toLocalString(nextVisitorOnSameCard.inTime);
+  //           return logTimeStr < nextVisitorInStr;
+  //         }
+
+  //         // Active visitor and no next visitor took the card yet
+  //         return true;
+  //       }
+  //     });
+
+  //     return {
+
+  //       visitorName: dbVisitor ? dbVisitor.visitorName : "Not Assigned",
+  //       visitorId: numericCardIdentifier,
+  //       visitorCode: log.EmployeeCode,
+  //       rfidCardNo: dbVisitor
+  //         ? (dbVisitor.cardNo || dbVisitor.rfidCardNo || "")
+  //         : (numericCardIdentifier ? String(numericCardIdentifier) : ""),
+  //       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+  //       direction: log.Direction,
+  //       logDate: log.LogDate,
+  //       doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+  //     };
+  //   });
+
+  //   return { machineFeed };
+  // }
+
   async getMachineAccessLogs(date: string) {
     const doorMappings = await db
       .select({
@@ -3358,7 +3670,6 @@ if (rule && rule !== "all") {
       .orderBy(desc(doorDevices.createdAt));
   }
   async createDoorDevice(data: InsertDoorDevice): Promise<DoorDevice> {
-
     console.log("Creating Door Device with data:", data);
     const [newMapping] = await db.insert(doorDevices).values(data).returning();
     return newMapping;
@@ -3368,7 +3679,6 @@ if (rule && rule !== "all") {
     id: number,
     data: Partial<InsertDoorDevice>,
   ): Promise<DoorDevice> {
-
     const [updatedMapping] = await db
       .update(doorDevices)
       .set({
@@ -3379,13 +3689,10 @@ if (rule && rule !== "all") {
       .where(eq(doorDevices.id, id))
       .returning();
 
-
-
     if (!updatedMapping) throw new Error("Mapping not found");
 
     try {
       if (updatedMapping.doorId) {
-
         const [doorDetail] = await db
           .select({
             doorCode: schema.doors.code,
@@ -3395,7 +3702,6 @@ if (rule && rule !== "all") {
           .execute();
 
         if (doorDetail && doorDetail.doorCode === MAIN_GATE_SYNC.CODE) {
-
           const allPeople = await db
             .select({
               employeeCode: schema.people.employeeCode,
@@ -3409,18 +3715,14 @@ if (rule && rule !== "all") {
             updatedMapping.inDeviceIds &&
             Array.isArray(updatedMapping.inDeviceIds)
           ) {
-            targetDeviceIds.push(
-              ...updatedMapping.inDeviceIds.map(Number),
-            );
+            targetDeviceIds.push(...updatedMapping.inDeviceIds.map(Number));
           }
 
           if (
             updatedMapping.outDeviceIds &&
             Array.isArray(updatedMapping.outDeviceIds)
           ) {
-            targetDeviceIds.push(
-              ...updatedMapping.outDeviceIds.map(Number),
-            );
+            targetDeviceIds.push(...updatedMapping.outDeviceIds.map(Number));
           }
 
           if (targetDeviceIds.length > 0) {
@@ -3447,13 +3749,11 @@ if (rule && rule !== "all") {
                 if (!empCode) continue;
 
                 try {
-
-                  const response =
-                    await esslService.syncUserBlockStatus(
-                      empCode,
-                      deviceSerial,
-                      false,
-                    );
+                  const response = await esslService.syncUserBlockStatus(
+                    empCode,
+                    deviceSerial,
+                    false,
+                  );
 
                   await db.insert(blockUnblockLogs).values({
                     employeeCode: empCode,
@@ -3461,12 +3761,8 @@ if (rule && rule !== "all") {
                     type: "unblock",
                     updatedAt: new Date(),
                   });
-
                 } catch (err) {
-                  console.error(
-                    `FAILED -> ${empCode} ${deviceSerial}`,
-                    err,
-                  );
+                  console.error(`FAILED -> ${empCode} ${deviceSerial}`, err);
                 }
               }
             }
@@ -3475,7 +3771,7 @@ if (rule && rule !== "all") {
         } else {
         }
       }
-    } catch (err) { }
+    } catch (err) {}
 
     return updatedMapping;
   }
@@ -4086,9 +4382,10 @@ if (rule && rule !== "all") {
     employeeCode: string;
     doorIds: number[];
   }) {
-    console.log(`Upsert Request for Employee ${data.employeeCode} with Doors: ${data.doorIds.join(
-      ",",
-    )}`,
+    console.log(
+      `Upsert Request for Employee ${data.employeeCode} with Doors: ${data.doorIds.join(
+        ",",
+      )}`,
     );
     const result = await db.transaction(async (tx: any) => {
       const uniqueDoorIds = [...new Set(data.doorIds.map((id) => Number(id)))];
@@ -4160,10 +4457,10 @@ if (rule && rule !== "all") {
           eq(dailyAttendanceSummary.workDate, date),
           employeeCode
             ? or(
-              ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
-              sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
           ILIKE ${`%${employeeCode}%`}`,
-            )
+              )
             : undefined,
         ),
       );
@@ -4190,10 +4487,10 @@ if (rule && rule !== "all") {
           between(dailyAttendanceSummary.workDate, startDate, endDate),
           employeeCode
             ? or(
-              ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
-              sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
           ILIKE ${`%${employeeCode}%`}`,
-            )
+              )
             : undefined,
         ),
       )
@@ -4377,12 +4674,7 @@ if (rule && rule !== "all") {
         const existingRole = await tx
           .select()
           .from(roles)
-          .where(
-            and(
-              eq(roles.code, roleData.code),
-              not(eq(roles.id, roleId)),
-            ),
-          )
+          .where(and(eq(roles.code, roleData.code), not(eq(roles.id, roleId))))
           .limit(1);
         if (existingRole.length > 0) {
           throw new Error(
@@ -4550,8 +4842,7 @@ if (rule && rule !== "all") {
             if (!stack[doorKey]) {
               stack[doorKey] = log;
             }
-          }
-          else if (log.direction === "OUT") {
+          } else if (log.direction === "OUT") {
             const inLog = stack[doorKey];
             if (!inLog) {
               continue;
@@ -4784,21 +5075,31 @@ ${fromDate} || ' to ' || ${toDate}
   ) {
     try {
       const rows = await db
-        .select()
+        .select({
+          attendance: dailyAttendanceSummary,
+          perDayRate: peopleAdditionalDetails.perDayRate, // actual column name
+        })
         .from(dailyAttendanceSummary)
+        .leftJoin(
+          peopleAdditionalDetails,
+          eq(
+            dailyAttendanceSummary.employeeCode,
+            peopleAdditionalDetails.employeeCode,
+          ),
+        )
         .where(
           and(
             gte(dailyAttendanceSummary.workDate, filters.dateFrom),
             lte(dailyAttendanceSummary.workDate, filters.dateTo),
             filters.employeeCode
               ? or(
-                ilike(
-                  dailyAttendanceSummary.employeeName,
-                  `%${filters.employeeCode}%`,
-                ),
-                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
-          ILIKE ${`%${filters.employeeCode}%`}`,
-              )
+                  ilike(
+                    dailyAttendanceSummary.employeeName,
+                    `%${filters.employeeCode}%`,
+                  ),
+                  sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+                ILIKE ${`%${filters.employeeCode}%`}`,
+                )
               : undefined,
           ),
         );
@@ -4818,13 +5119,16 @@ ${fromDate} || ' to ' || ${toDate}
       let grandOTAmount = 0;
       let grandTotalWages = 0;
       for (const row of rows) {
-        const empCode = row.employeeCode;
+        const attendance = row.attendance;
+
+        const empCode = attendance.employeeCode;
+
         if (!employeeMap.has(empCode)) {
           employeeMap.set(empCode, {
-            employeeCode: row.employeeCode,
-            employeeName: row.employeeName || "",
+            employeeCode: attendance.employeeCode,
+            employeeName: attendance.employeeName || "",
             contractorName: "-",
-            perDayRate: 700,
+            perDayRate: Number(row.perDayRate),
             departments: {},
             totalWorking: {
               duty: 0,
@@ -4837,20 +5141,27 @@ ${fromDate} || ' to ' || ${toDate}
             },
           });
         }
+
         const emp = employeeMap.get(empCode);
-        const dept = row.departmentName?.trim();
+
+        const dept = attendance.departmentName?.trim();
+
         if (!dept || dept === "N/A" || dept === "NA" || dept === "-") {
           continue;
         }
+
         if (!emp.departments[dept]) {
           emp.departments[dept] = {
             duty: 0,
             otHours: 0,
           };
         }
+
         emp.departments[dept].duty += 1;
         emp.totalWorking.duty += 1;
-        const otHours = Number(row.otHours || 0);
+
+        const otHours = Number(attendance.otHours || 0);
+
         emp.departments[dept].otHours += otHours;
         emp.totalWorking.otHours += otHours;
       }
@@ -5059,8 +5370,7 @@ ${fromDate} || ' to ' || ${toDate}
               stack[doorKey] = [];
             }
             stack[doorKey].push(row);
-          }
-          else if (log.direction === "OUT") {
+          } else if (log.direction === "OUT") {
             const openRows = stack[doorKey];
             if (openRows?.length) {
               const row = openRows.shift();
@@ -5143,8 +5453,8 @@ ${fromDate} || ' to ' || ${toDate}
           or(
             ilike(contractors.nameOfAgencyOwner, `%${search}%`),
             ilike(contractors.contractorCode, `%${search}%`),
-            ilike(contractors.nameOfTheAgency, `%${search}%`)
-          )
+            ilike(contractors.nameOfTheAgency, `%${search}%`),
+          ),
         );
       }
       const whereClause = conditions.length ? and(...conditions) : undefined;
@@ -5169,9 +5479,21 @@ ${fromDate} || ' to ' || ${toDate}
         return formattedData;
       }
       if (search && search.trim() !== "") {
-        return await withPagination(db, contractors, formattedData, page, pageSize);
+        return await withPagination(
+          db,
+          contractors,
+          formattedData,
+          page,
+          pageSize,
+        );
       }
-      return await withPagination(db, contractors, formattedData, page, pageSize);
+      return await withPagination(
+        db,
+        contractors,
+        formattedData,
+        page,
+        pageSize,
+      );
     } catch (dbError: any) {
       console.error("Error in getContractors storage method:", dbError);
       throw dbError;
@@ -5188,18 +5510,29 @@ ${fromDate} || ' to ' || ${toDate}
     const cleanData = {
       ...data,
       contractorCode: data.contractorCode ? data.contractorCode.trim() : "",
-      nameOfAgencyOwner: data.nameOfAgencyOwner ? data.nameOfAgencyOwner.trim() : "",
+      nameOfAgencyOwner: data.nameOfAgencyOwner
+        ? data.nameOfAgencyOwner.trim()
+        : "",
       nameOfTheAgency: data.nameOfTheAgency ? data.nameOfTheAgency.trim() : "",
       contactNoOwner: data.contactNoOwner ? data.contactNoOwner.trim() : "",
-      aadhaarNumber: data.aadhaarNumber && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : undefined,
-      email: data.email && data.email.trim() !== "" ? data.email.trim() : undefined,
-      biometricId: data.biometricId && data.biometricId.trim() !== "" ? data.biometricId.trim() : undefined,
+      aadhaarNumber:
+        data.aadhaarNumber && data.aadhaarNumber.trim() !== ""
+          ? data.aadhaarNumber.trim()
+          : undefined,
+      email:
+        data.email && data.email.trim() !== "" ? data.email.trim() : undefined,
+      biometricId:
+        data.biometricId && data.biometricId.trim() !== ""
+          ? data.biometricId.trim()
+          : undefined,
     };
     if (!cleanData.contractorCode) {
       throw new Error("VALIDATION_ERROR: Contractor Code is required.");
     }
     if (!cleanData.nameOfAgencyOwner) {
-      throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) is required.");
+      throw new Error(
+        "VALIDATION_ERROR: Contractor Name (Owner Name) is required.",
+      );
     }
     if (!cleanData.nameOfTheAgency) {
       throw new Error("VALIDATION_ERROR: Agency Name is required.");
@@ -5209,12 +5542,16 @@ ${fromDate} || ' to ' || ${toDate}
     }
     const mobileRegex = /^[6-9]\d{9}$/;
     if (!mobileRegex.test(cleanData.contactNoOwner)) {
-      throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+      throw new Error(
+        "VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.",
+      );
     }
     if (cleanData.email) {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(cleanData.email)) {
-        throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+        throw new Error(
+          "VALIDATION_ERROR: Please provide a valid email address format.",
+        );
       }
     }
     if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
@@ -5227,7 +5564,10 @@ ${fromDate} || ' to ' || ${toDate}
     if (existing) {
       throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
     }
-    const [created] = await db.insert(contractors).values(cleanData as any).returning();
+    const [created] = await db
+      .insert(contractors)
+      .values(cleanData as any)
+      .returning();
     return created;
   }
   // async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
@@ -5298,101 +5638,151 @@ ${fromDate} || ' to ' || ${toDate}
   //   return updated;
   // }
 
-  async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
-  const formatDbDate = (dateVal: any) => {
-    if (dateVal === undefined) return undefined;
-    if (!dateVal || dateVal === "") return null;
-    
-    // Agar Date object hai to seedha ISO string se extract kar lo
-    if (dateVal instanceof Date) {
-      return dateVal.toISOString().split('T')[0];
-    }
+  async updateContractor(
+    id: number,
+    data: Partial<InsertContractor>,
+  ): Promise<Contractor> {
+    const formatDbDate = (dateVal: any) => {
+      if (dateVal === undefined) return undefined;
+      if (!dateVal || dateVal === "") return null;
 
-    if (typeof dateVal === 'string') {
-      // Agar string pehle se ISO format me hai (e.g., 2026-07-16T...)
-      if (dateVal.includes('T')) {
-        return dateVal.split('T')[0];
+      // Agar Date object hai to seedha ISO string se extract kar lo
+      if (dateVal instanceof Date) {
+        return dateVal.toISOString().split("T")[0];
       }
-      
-      // Agar format "01-Jan-2020" ya "31-Dec-2026" jaisa hai, to use convert karein
-      const parsedDate = Date.parse(dateVal);
-      if (!isNaN(parsedDate)) {
-        return new Date(parsedDate).toISOString().split('T')[0];
+
+      if (typeof dateVal === "string") {
+        // Agar string pehle se ISO format me hai (e.g., 2026-07-16T...)
+        if (dateVal.includes("T")) {
+          return dateVal.split("T")[0];
+        }
+
+        // Agar format "01-Jan-2020" ya "31-Dec-2026" jaisa hai, to use convert karein
+        const parsedDate = Date.parse(dateVal);
+        if (!isNaN(parsedDate)) {
+          return new Date(parsedDate).toISOString().split("T")[0];
+        }
+
+        return dateVal; // standard YYYY-MM-DD string ke liye fallback
       }
-      
-      return dateVal; // standard YYYY-MM-DD string ke liye fallback
+      return null;
+    };
+
+    const cleanData = {
+      ...data,
+      contractorCode:
+        typeof data.contractorCode === "string"
+          ? data.contractorCode.trim()
+          : data.contractorCode === null
+            ? ""
+            : undefined,
+      nameOfAgencyOwner:
+        typeof data.nameOfAgencyOwner === "string"
+          ? data.nameOfAgencyOwner.trim()
+          : data.nameOfAgencyOwner === null
+            ? ""
+            : undefined,
+      nameOfTheAgency:
+        typeof data.nameOfTheAgency === "string"
+          ? data.nameOfTheAgency.trim()
+          : data.nameOfTheAgency === null
+            ? ""
+            : undefined,
+      contactNoOwner:
+        typeof data.contactNoOwner === "string"
+          ? data.contactNoOwner.trim()
+          : data.contactNoOwner === null
+            ? ""
+            : undefined,
+      aadhaarNumber:
+        typeof data.aadhaarNumber === "string" &&
+        data.aadhaarNumber.trim() !== ""
+          ? data.aadhaarNumber.trim()
+          : data.aadhaarNumber === "" || data.aadhaarNumber === null
+            ? null
+            : data.aadhaarNumber,
+
+      // YAHAN DHAYAN DEIN: Aapke logs me column name "email_address" hai, to object property ensure karein schema ke mutabik ho
+      email:
+        typeof data.email === "string" && data.email.trim() !== ""
+          ? data.email.trim()
+          : data.email === "" || data.email === null
+            ? null
+            : data.email,
+
+      biometricId:
+        typeof data.biometricId === "string" && data.biometricId.trim() !== ""
+          ? data.biometricId.trim()
+          : data.biometricId === "" || data.biometricId === null
+            ? null
+            : data.biometricId,
+      commencementDate: formatDbDate(data.commencementDate),
+      agreementFromDate: formatDbDate(data.agreementFromDate),
+      agreementValidUpto: formatDbDate(data.agreementValidUpto),
+      licenseValidity: formatDbDate(data.licenseValidity),
+    };
+
+    // Validations
+    if (cleanData.contractorCode === "") {
+      throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
     }
-    return null;
-  };
-
-  const cleanData = {
-    ...data,
-    contractorCode: typeof data.contractorCode === 'string' ? data.contractorCode.trim() : (data.contractorCode === null ? "" : undefined),
-    nameOfAgencyOwner: typeof data.nameOfAgencyOwner === 'string' ? data.nameOfAgencyOwner.trim() : (data.nameOfAgencyOwner === null ? "" : undefined),
-    nameOfTheAgency: typeof data.nameOfTheAgency === 'string' ? data.nameOfTheAgency.trim() : (data.nameOfTheAgency === null ? "" : undefined),
-    contactNoOwner: typeof data.contactNoOwner === 'string' ? data.contactNoOwner.trim() : (data.contactNoOwner === null ? "" : undefined),
-    aadhaarNumber: typeof data.aadhaarNumber === 'string' && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : (data.aadhaarNumber === "" || data.aadhaarNumber === null ? null : data.aadhaarNumber),
-    
-    // YAHAN DHAYAN DEIN: Aapke logs me column name "email_address" hai, to object property ensure karein schema ke mutabik ho
-    email: typeof data.email === 'string' && data.email.trim() !== "" ? data.email.trim() : (data.email === "" || data.email === null ? null : data.email),
-    
-    biometricId: typeof data.biometricId === 'string' && data.biometricId.trim() !== "" ? data.biometricId.trim() : (data.biometricId === "" || data.biometricId === null ? null : data.biometricId),
-    commencementDate: formatDbDate(data.commencementDate),
-    agreementFromDate: formatDbDate(data.agreementFromDate),
-    agreementValidUpto: formatDbDate(data.agreementValidUpto),
-    licenseValidity: formatDbDate(data.licenseValidity),
-  };
-
-  // Validations
-  if (cleanData.contractorCode === "") {
-    throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
-  }
-  if (cleanData.nameOfAgencyOwner === "") {
-    throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.");
-  }
-  if (cleanData.nameOfTheAgency === "") {
-    throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
-  }
-  if (cleanData.contactNoOwner === "") {
-    throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
-  }
-  if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
-    const mobileRegex = /^[6-9]\d{9}$/;
-    if (!mobileRegex.test(cleanData.contactNoOwner)) {
-      throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
+    if (cleanData.nameOfAgencyOwner === "") {
+      throw new Error(
+        "VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.",
+      );
     }
-  }
-  if (cleanData.email) {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(cleanData.email)) {
-      throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
+    if (cleanData.nameOfTheAgency === "") {
+      throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
     }
-  }
-  if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
-    throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
-  }
-
-  // Duplicate Code Check
-  if (cleanData.contractorCode) {
-    const [existing] = await db
-      .select()
-      .from(contractors)
-      .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
-    if (existing) {
-      throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
+    if (cleanData.contactNoOwner === "") {
+      throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
     }
+    if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
+      const mobileRegex = /^[6-9]\d{9}$/;
+      if (!mobileRegex.test(cleanData.contactNoOwner)) {
+        throw new Error(
+          "VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.",
+        );
+      }
+    }
+    if (cleanData.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(cleanData.email)) {
+        throw new Error(
+          "VALIDATION_ERROR: Please provide a valid email address format.",
+        );
+      }
+    }
+    if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
+      throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
+    }
+
+    // Duplicate Code Check
+    if (cleanData.contractorCode) {
+      const [existing] = await db
+        .select()
+        .from(contractors)
+        .where(
+          and(
+            eq(contractors.contractorCode, cleanData.contractorCode),
+            ne(contractors.id, id),
+          ),
+        );
+      if (existing) {
+        throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
+      }
+    }
+
+    // Update query execution
+    const [updated] = await db
+      .update(contractors)
+      .set(cleanData as any)
+      .where(eq(contractors.id, id))
+      .returning();
+
+    if (!updated) throw new Error("Contractor not found");
+    return updated;
   }
-
-  // Update query execution
-  const [updated] = await db
-    .update(contractors)
-    .set(cleanData as any)
-    .where(eq(contractors.id, id))
-    .returning();
-
-  if (!updated) throw new Error("Contractor not found");
-  return updated;
-}
 
   async deleteContractor(id: number): Promise<boolean> {
     const result = await db.delete(contractors).where(eq(contractors.id, id));
@@ -5417,13 +5807,16 @@ ${fromDate} || ' to ' || ${toDate}
             ilike(auditLogs.tableName, searchPattern),
             ilike(auditLogs.action, searchPattern),
             ilike(auditLogs.userId, searchPattern),
-            ilike(users.username, searchPattern)
-          )
+            ilike(users.username, searchPattern),
+          ),
         );
       }
       if (performedBy && performedBy.trim() !== "" && performedBy !== "all") {
         conditions.push(
-          eq(sql`cast(${auditLogs.userId} as text)`, sql`cast(${performedBy.trim()} as text)`)
+          eq(
+            sql`cast(${auditLogs.userId} as text)`,
+            sql`cast(${performedBy.trim()} as text)`,
+          ),
         );
       }
       if (module && module.trim() !== "" && module !== "all") {
@@ -5461,11 +5854,21 @@ ${fromDate} || ' to ' || ${toDate}
         .from(auditLogs)
         .leftJoin(
           users,
-          eq(sql`cast(${auditLogs.userId} as text)`, sql`cast(${users.id} as text)`)
+          eq(
+            sql`cast(${auditLogs.userId} as text)`,
+            sql`cast(${users.id} as text)`,
+          ),
         )
         .where(whereClause)
         .orderBy(desc(auditLogs.id));
-      return await withPagination(db, auditLogs, baseQuery, page, pageSize, whereClause);
+      return await withPagination(
+        db,
+        auditLogs,
+        baseQuery,
+        page,
+        pageSize,
+        whereClause,
+      );
     } catch (dbError: any) {
       console.error("Error in getAuditLogs storage method:", dbError);
       throw dbError;
@@ -5504,13 +5907,16 @@ ${fromDate} || ' to ' || ${toDate}
             ilike(sessions.ipAddress, searchPattern),
             ilike(sessions.status, searchPattern),
             ilike(sessions.userId, searchPattern),
-            ilike(sessions.userAgent, searchPattern)
-          )
+            ilike(sessions.userAgent, searchPattern),
+          ),
         );
       }
       if (userId && userId.trim() !== "") {
         conditions.push(
-          eq(sql`cast(${sessions.userId} as text)`, sql`cast(${userId.trim()} as text)`)
+          eq(
+            sql`cast(${sessions.userId} as text)`,
+            sql`cast(${userId.trim()} as text)`,
+          ),
         );
       }
       if (status && status.trim() !== "") {
@@ -5543,7 +5949,14 @@ ${fromDate} || ' to ' || ${toDate}
         .from(sessions)
         .where(whereClause)
         .orderBy(desc(sessions.createdAt));
-      return await withPagination(db, sessions, baseQuery, page, pageSize, whereClause);
+      return await withPagination(
+        db,
+        sessions,
+        baseQuery,
+        page,
+        pageSize,
+        whereClause,
+      );
     } catch (dbError: any) {
       console.error("Error in getLoginLogs storage method:", dbError);
       throw dbError;
@@ -5557,7 +5970,13 @@ ${fromDate} || ' to ' || ${toDate}
           username: users.username,
         })
         .from(users)
-        .innerJoin(auditLogs, eq(sql`cast(${auditLogs.userId} as text)`, sql`cast(${users.id} as text)`));
+        .innerJoin(
+          auditLogs,
+          eq(
+            sql`cast(${auditLogs.userId} as text)`,
+            sql`cast(${users.id} as text)`,
+          ),
+        );
     } catch (error) {
       console.error("Error fetching audit users dropdown:", error);
       return [];
@@ -5584,13 +6003,15 @@ ${fromDate} || ' to ' || ${toDate}
         .where(eq(users.id, userId));
       if (!user) throw new Error("User not found");
       const newStatus = !user.isAccountActive;
-      await tx.update(users)
+      await tx
+        .update(users)
         .set({
           isAccountActive: newStatus,
-          failedLoginAttempts: 0
+          failedLoginAttempts: 0,
         })
         .where(eq(users.id, userId));
-      await tx.update(userProfiles)
+      await tx
+        .update(userProfiles)
         .set({ isActive: newStatus })
         .where(eq(userProfiles.userId, userId));
       return newStatus;
@@ -5599,9 +6020,13 @@ ${fromDate} || ' to ' || ${toDate}
   async logLoginAttempt(data: InsertLoginAttempt): Promise<void> {
     await db.insert(loginAttempts).values(data);
     if (data.status === "FAILED") {
-      const [user] = await db.select().from(users).where(eq(users.username, data.username));
+      const [user] = await db
+        .select()
+        .from(users)
+        .where(eq(users.username, data.username));
       if (user) {
-        await db.update(users)
+        await db
+          .update(users)
           .set({ failedLoginAttempts: (user.failedLoginAttempts || 0) + 1 })
           .where(eq(users.id, user.id));
       }
@@ -5614,18 +6039,21 @@ ${fromDate} || ' to ' || ${toDate}
   ): Promise<any> {
     try {
       const searchText = search?.toLowerCase().trim();
-      const baseQuery = db.select().from(visitorCards).orderBy(asc(visitorCards.id));
+      const baseQuery = db
+        .select()
+        .from(visitorCards)
+        .orderBy(asc(visitorCards.id));
       const finalQuery = searchText
         ? db
-          .select()
-          .from(visitorCards)
-          .where(
-            or(
-              ilike(visitorCards.name, `%${searchText}%`),
-              ilike(visitorCards.cardNumber, `%${searchText}%`),
-            ),
-          )
-          .orderBy(asc(visitorCards.id))
+            .select()
+            .from(visitorCards)
+            .where(
+              or(
+                ilike(visitorCards.name, `%${searchText}%`),
+                ilike(visitorCards.cardNumber, `%${searchText}%`),
+              ),
+            )
+            .orderBy(asc(visitorCards.id))
         : baseQuery;
       return await withPagination(db, visitorCards, finalQuery, page, pageSize);
     } catch (error) {
@@ -5640,7 +6068,10 @@ ${fromDate} || ' to ' || ${toDate}
     }
   }
   async getVisitorCardById(id: number) {
-    const [card] = await db.select().from(visitorCards).where(eq(visitorCards.id, id));
+    const [card] = await db
+      .select()
+      .from(visitorCards)
+      .where(eq(visitorCards.id, id));
     return card;
   }
   async updateVisitorCard(id: number, card: any) {
@@ -5651,36 +6082,54 @@ ${fromDate} || ' to ' || ${toDate}
       .where(eq(visitorCards.id, id))
       .limit(1);
     if (currentCard.length === 0) {
-      throw new Error(`Card update failed: Record with local ID '${id}' not found.`);
+      throw new Error(
+        `Card update failed: Record with local ID '${id}' not found.`,
+      );
     }
     const targetMsId = currentCard[0].msId;
     if (!targetMsId) {
-      throw new Error(`Card update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`);
+      throw new Error(
+        `Card update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`,
+      );
     }
     try {
       if (mssqlPool) {
-        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
           await mssqlPool.connect();
         }
-        const finalCardNumber = cardData.cardNumber || currentCard[0].cardNumber;
+        const finalCardNumber =
+          cardData.cardNumber || currentCard[0].cardNumber;
         const finalName = cardData.name || currentCard[0].name;
-        const finalLocationId = cardData.locationId !== undefined ? cardData.locationId : currentCard[0].locationId;
-        const finalExpiryFrom = cardData.expiryFrom !== undefined ? cardData.expiryFrom : currentCard[0].expiryFrom;
-        const finalExpiryTo = cardData.expiryTo !== undefined ? cardData.expiryTo : currentCard[0].expiryTo;
+        const finalLocationId =
+          cardData.locationId !== undefined
+            ? cardData.locationId
+            : currentCard[0].locationId;
+        const finalExpiryFrom =
+          cardData.expiryFrom !== undefined
+            ? cardData.expiryFrom
+            : currentCard[0].expiryFrom;
+        const finalExpiryTo =
+          cardData.expiryTo !== undefined
+            ? cardData.expiryTo
+            : currentCard[0].expiryTo;
         const msSqlData = VisitorCardAdapter.toMsSql({
           name: finalName,
           cardNumber: finalCardNumber,
           locationId: finalLocationId,
           expiryFrom: finalExpiryFrom,
-          expiryTo: finalExpiryTo
+          expiryTo: finalExpiryTo,
         });
         const request = mssqlPool.request();
-        request.input('TargetMsId', mssql.Int, targetMsId);
-        request.input('Name', mssql.NVarChar, msSqlData.Name);
-        request.input('CardNumber', mssql.NVarChar, msSqlData.CardNumber);
-        request.input('LocationId', mssql.Int, msSqlData.LocationId || 0);
-        request.input('ExpiryFrom', mssql.DateTime, msSqlData.ExpiryFrom || null);
-        request.input('ExpiryTo', mssql.DateTime, msSqlData.ExpiryTo || null);
+        request.input("TargetMsId", mssql.Int, targetMsId);
+        request.input("Name", mssql.NVarChar, msSqlData.Name);
+        request.input("CardNumber", mssql.NVarChar, msSqlData.CardNumber);
+        request.input("LocationId", mssql.Int, msSqlData.LocationId || 0);
+        request.input(
+          "ExpiryFrom",
+          mssql.DateTime,
+          msSqlData.ExpiryFrom || null,
+        );
+        request.input("ExpiryTo", mssql.DateTime, msSqlData.ExpiryTo || null);
         await request.query(`
         UPDATE VisitorCards 
         SET Name = @Name, 
@@ -5694,7 +6143,9 @@ ${fromDate} || ' to ' || ${toDate}
         throw new Error("mssqlPool configuration is missing.");
       }
     } catch (msSqlErr: any) {
-      throw new Error(`MS SQL Update Failed: ${msSqlErr.message || 'Unknown Sync Error'}`);
+      throw new Error(
+        `MS SQL Update Failed: ${msSqlErr.message || "Unknown Sync Error"}`,
+      );
     }
     return await db.transaction(async (tx) => {
       try {
@@ -5705,16 +6156,22 @@ ${fromDate} || ' to ' || ${toDate}
             cardNumber: cardData.cardNumber,
             locationId: cardData.locationId,
             location: cardData.location,
-            expiryFrom: cardData.expiryFrom ? new Date(cardData.expiryFrom) : undefined,
-            expiryTo: cardData.expiryTo ? new Date(cardData.expiryTo) : undefined,
-            updatedAt: new Date()
+            expiryFrom: cardData.expiryFrom
+              ? new Date(cardData.expiryFrom)
+              : undefined,
+            expiryTo: cardData.expiryTo
+              ? new Date(cardData.expiryTo)
+              : undefined,
+            updatedAt: new Date(),
           })
           .where(eq(visitorCards.id, id))
           .returning();
         return updatedCard;
       } catch (pgErr: any) {
         tx.rollback();
-        throw new Error(`Postgres transaction failed and rolled back: ${pgErr.message}`);
+        throw new Error(
+          `Postgres transaction failed and rolled back: ${pgErr.message}`,
+        );
       }
     });
   }
@@ -5730,11 +6187,11 @@ ${fromDate} || ' to ' || ${toDate}
     const targetMsId = currentCard[0].msId;
     if (targetMsId && mssqlPool) {
       try {
-        if (!mssqlPool.connected && typeof mssqlPool.connect === 'function') {
+        if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
           await mssqlPool.connect();
         }
         const request = mssqlPool.request();
-        request.input('TargetMsId', mssql.Int, targetMsId);
+        request.input("TargetMsId", mssql.Int, targetMsId);
         await request.query(`DELETE FROM VisitorCards WHERE Id = @TargetMsId`);
       } catch (msSqlErr) {
         console.error("MS SQL Sync Delete Failed:", msSqlErr);
@@ -5756,7 +6213,7 @@ ${fromDate} || ' to ' || ${toDate}
         msId: visitorCards.msId,
         cardNumber: visitorCards.cardNumber,
         name: visitorCards.name,
-        isAssigned: visitorCards.isAssigned
+        isAssigned: visitorCards.isAssigned,
       })
       .from(visitorCards)
       .where(eq(visitorCards.isAssigned, false))
@@ -5911,227 +6368,296 @@ ${fromDate} || ' to ' || ${toDate}
   //   }
   // }
 
- 
-  async getDevices(page?: number | string, pageSize?: number | string, search?: string): Promise<any> {
-  try {
-    // -------------------------------------------------------------
-    // 🛠️ STEP 1: MS SQL से रॉ डेटा लाना
-    // -------------------------------------------------------------
-    const msDataRaw = await dbMsSql.select().from({ dbName: "Devices" }).execute();
-    if (!msDataRaw || msDataRaw.length === 0) {
-      return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
-    }
-
-    const currentTime = new Date();
-    let onlineCount = 0;
-    let offlineCount = 0;
-
-    // -------------------------------------------------------------
-    // 🔒 STEP 2: DYNAMIC SYNC & AUTO-ENCRYPTION FOR SECURE SERIALS
-    // -------------------------------------------------------------
-    const filePath = path.join(process.cwd(), "server", "Config", "secure_serials.json");
-    const allowedSerials = new Set<string>();
-
+  async getDevices(
+    page?: number | string,
+    pageSize?: number | string,
+    search?: string,
+  ): Promise<any> {
     try {
-      let encryptedSerials: string[] = [];
+      // -------------------------------------------------------------
+      // 🛠️ STEP 1: MS SQL से रॉ डेटा लाना
+      // -------------------------------------------------------------
+      const msDataRaw = await dbMsSql
+        .select()
+        .from({ dbName: "Devices" })
+        .execute();
+      if (!msDataRaw || msDataRaw.length === 0) {
+        return {
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+          onlineCount: 0,
+          offlineCount: 0,
+        };
+      }
 
-      // 1. Agar JSON file majood hai toh uske tokens check karein
-      if (fs.existsSync(filePath)) {
-        const fileContent = fs.readFileSync(filePath, "utf-8").trim();
-        if (fileContent) {
-          encryptedSerials = JSON.parse(fileContent);
+      const currentTime = new Date();
+      let onlineCount = 0;
+      let offlineCount = 0;
 
-          if (Array.isArray(encryptedSerials)) {
-            for (const cipherText of encryptedSerials) {
-              if (!cipherText || typeof cipherText !== "string" || !cipherText.includes(':')) continue;
-              
-              try {
-                const decrypted = decryptSerialNumber(cipherText); 
-                if (decrypted) {
-                  const cleanDecrypted = decrypted.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
-                  allowedSerials.add(cleanDecrypted);
+      // -------------------------------------------------------------
+      // 🔒 STEP 2: DYNAMIC SYNC & AUTO-ENCRYPTION FOR SECURE SERIALS
+      // -------------------------------------------------------------
+      const filePath = path.join(
+        process.cwd(),
+        "server",
+        "Config",
+        "secure_serials.json",
+      );
+      const allowedSerials = new Set<string>();
+
+      try {
+        let encryptedSerials: string[] = [];
+
+        // 1. Agar JSON file majood hai toh uske tokens check karein
+        if (fs.existsSync(filePath)) {
+          const fileContent = fs.readFileSync(filePath, "utf-8").trim();
+          if (fileContent) {
+            encryptedSerials = JSON.parse(fileContent);
+
+            if (Array.isArray(encryptedSerials)) {
+              for (const cipherText of encryptedSerials) {
+                if (
+                  !cipherText ||
+                  typeof cipherText !== "string" ||
+                  !cipherText.includes(":")
+                )
+                  continue;
+
+                try {
+                  const decrypted = decryptSerialNumber(cipherText);
+                  if (decrypted) {
+                    const cleanDecrypted = decrypted
+                      .trim()
+                      .toLowerCase()
+                      .replace(/[^a-zA-Z0-9]/g, "");
+                    allowedSerials.add(cleanDecrypted);
+                  }
+                } catch (decErr) {
+                  // Individual token decryption error catch hoga taaki loop na toote
                 }
-              } catch (decErr) {
-                // Individual token decryption error catch hoga taaki loop na toote
               }
             }
           }
         }
+
+        // 🚨 DYNAMIC AUTO-HEALING: Agar decryption fail hua (bad decrypt/empty set) ya file missing hai
+        if (allowedSerials.size === 0) {
+          console.log(
+            "🔄 [AUTO-CONFIG] 'Bad Decrypt' or file missing. Generating secure_serials.json dynamically from active MS SQL devices...",
+          );
+
+          const newEncryptedList: string[] = [];
+          const uniqueSerialsFromDb = new Set<string>();
+
+          // MS SQL ke raw data se dynamic unique serials nikalna (Zero Hardcoding)
+          for (const d of msDataRaw) {
+            const rawSerial = String(d.SerialNumber || d.serialno || "").trim();
+            const cleanSerial = rawSerial
+              .toLowerCase()
+              .replace(/[^a-zA-Z0-9]/g, "");
+
+            if (cleanSerial && !uniqueSerialsFromDb.has(cleanSerial)) {
+              uniqueSerialsFromDb.add(cleanSerial);
+
+              // Runtime environment key se encrypt karna
+              const newToken = encryptSerialNumber(cleanSerial);
+              newEncryptedList.push(newToken);
+              allowedSerials.add(cleanSerial); // Current loop bypass na ho
+            }
+          }
+
+          // Config folder verify karke nayi updated JSON file write karna
+          const dirPath = path.dirname(filePath);
+          if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+          }
+
+          fs.writeFileSync(
+            filePath,
+            JSON.stringify(newEncryptedList, null, 2),
+            "utf-8",
+          );
+          console.log(
+            `✅ [AUTO-CONFIG] secure_serials.json generated dynamically with ${allowedSerials.size} serials. Bad decrypt fixed!`,
+          );
+        } else {
+          console.log(
+            `🔒 Loaded ${allowedSerials.size} authorized serials from JSON.`,
+          );
+        }
+      } catch (err: any) {
+        console.error(
+          "❌ Critical Dynamic Auto-Auth Config Error:",
+          err.message || err,
+        );
       }
 
-      // 🚨 DYNAMIC AUTO-HEALING: Agar decryption fail hua (bad decrypt/empty set) ya file missing hai
-      if (allowedSerials.size === 0) {
-        console.log("🔄 [AUTO-CONFIG] 'Bad Decrypt' or file missing. Generating secure_serials.json dynamically from active MS SQL devices...");
-        
-        const newEncryptedList: string[] = [];
-        const uniqueSerialsFromDb = new Set<string>();
+      // -------------------------------------------------------------
+      // 🔍 STEP 3: डेटा वैलिडेट करना (STRICT MATCHING)
+      // -------------------------------------------------------------
+      const allValidDevices: any[] = [];
+      const currentMsIds: number[] = [];
 
-        // MS SQL ke raw data se dynamic unique serials nikalna (Zero Hardcoding)
-        for (const d of msDataRaw) {
-          const rawSerial = String(d.SerialNumber || d.serialno || "").trim();
-          const cleanSerial = rawSerial.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
-          
-          if (cleanSerial && !uniqueSerialsFromDb.has(cleanSerial)) {
-            uniqueSerialsFromDb.add(cleanSerial);
-            
-            // Runtime environment key se encrypt karna
-            const newToken = encryptSerialNumber(cleanSerial);
-            newEncryptedList.push(newToken);
-            allowedSerials.add(cleanSerial); // Current loop bypass na ho
+      for (const d of msDataRaw) {
+        const rawSerial = String(d.SerialNumber || d.serialno || "").trim();
+        const cleanSerial = rawSerial
+          .toLowerCase()
+          .replace(/[^a-zA-Z0-9]/g, "");
+        const deviceId = d.DeviceId || d.DeviceID;
+        const deviceName = d.DeviceName || "Unnamed Device";
+
+        // 🛑 STRICT CHECK: Agar serial authorized set me nahi h, toh seedhe block krke log record hoga
+        if (!allowedSerials.has(cleanSerial)) {
+          console.warn(
+            `🚨 Unauthorized Serial Blocked: ${rawSerial} (Device: ${deviceName})`,
+          );
+
+          try {
+            await db.insert(unauthorizedDeviceLogs).values({
+              deviceId:
+                deviceId && !isNaN(Number(deviceId)) ? Number(deviceId) : null,
+              deviceName: deviceName.slice(0, 255),
+              serialNumber: rawSerial.slice(0, 255),
+              ipAddress: (d.IpAddress || "").slice(0, 50),
+              attemptedAt: currentTime,
+              statusMessage:
+                "Access Denied: Serial signature verification failed or token invalid.",
+            });
+          } catch (e) {
+            console.error("❌ Failed to write threat log to DB:", e);
+          }
+
+          continue; // Postgres sync completely skip karein, next loop par badhein
+        }
+
+        // 🟢 Pass matching -> Status Calculation
+        let calculatedStatus = "offline";
+        if (d.LastPing) {
+          const diffInMin = Math.abs(
+            (currentTime.getTime() - new Date(d.LastPing).getTime()) / 60000,
+          );
+          if (diffInMin <= 1 || Math.abs(diffInMin - 330) <= 1) {
+            calculatedStatus = "online";
           }
         }
 
-        // Config folder verify karke nayi updated JSON file write karna
-        const dirPath = path.dirname(filePath);
-        if (!fs.existsSync(dirPath)) {
-          fs.mkdirSync(dirPath, { recursive: true });
-        }
-        
-        fs.writeFileSync(filePath, JSON.stringify(newEncryptedList, null, 2), "utf-8");
-        console.log(`✅ [AUTO-CONFIG] secure_serials.json generated dynamically with ${allowedSerials.size} serials. Bad decrypt fixed!`);
-      } else {
-        console.log(`🔒 Loaded ${allowedSerials.size} authorized serials from JSON.`);
+        if (calculatedStatus === "online") onlineCount++;
+        else offlineCount++;
+
+        const formatted = {
+          msId: Number(deviceId),
+          name: deviceName,
+          deviceDirection: d.DeviceDirection || null,
+          serialNumber: rawSerial,
+          opstamp: d.OpStamp ? String(d.OpStamp) : null,
+          lastPing: d.LastPing ? new Date(d.LastPing) : null,
+          lastreset: d.LastReset ? new Date(d.LastReset) : null,
+          activationCode: d.ActivationCode || "",
+          isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
+          deviceType: String(d.DeviceType || "-").toLowerCase(),
+          locationId: d.LocationId || null,
+          ipAddress: d.IpAddress || "",
+          lastHeartbeat: d.LastPing ? new Date(d.LastPing) : null,
+          status: calculatedStatus,
+          isActive: true,
+        };
+
+        allValidDevices.push(formatted);
+        if (deviceId) currentMsIds.push(Number(deviceId));
       }
 
-    } catch (err: any) {
-      console.error("❌ Critical Dynamic Auto-Auth Config Error:", err.message || err);
-    }
-
-    // -------------------------------------------------------------
-    // 🔍 STEP 3: डेटा वैलिडेट करना (STRICT MATCHING)
-    // -------------------------------------------------------------
-    const allValidDevices: any[] = [];
-    const currentMsIds: number[] = [];
-
-    for (const d of msDataRaw) {
-      const rawSerial = String(d.SerialNumber || d.serialno || "").trim();
-      const cleanSerial = rawSerial.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
-      const deviceId = d.DeviceId || d.DeviceID;
-      const deviceName = d.DeviceName || "Unnamed Device";
-
-      // 🛑 STRICT CHECK: Agar serial authorized set me nahi h, toh seedhe block krke log record hoga
-      if (!allowedSerials.has(cleanSerial)) {
-        console.warn(`🚨 Unauthorized Serial Blocked: ${rawSerial} (Device: ${deviceName})`);
-
-        try {
-          await db.insert(unauthorizedDeviceLogs).values({
-            deviceId: deviceId && !isNaN(Number(deviceId)) ? Number(deviceId) : null,
-            deviceName: deviceName.slice(0, 255),
-            serialNumber: rawSerial.slice(0, 255),
-            ipAddress: (d.IpAddress || "").slice(0, 50),
-            attemptedAt: currentTime,
-            statusMessage: "Access Denied: Serial signature verification failed or token invalid."
+      // -------------------------------------------------------------
+      // 🔄 STEP 4: Postgres DB के साथ सिंक और क्लीनअप (Upsert Logic)
+      // -------------------------------------------------------------
+      for (const dev of allValidDevices) {
+        await db
+          .insert(devices)
+          .values(dev)
+          .onConflictDoUpdate({
+            target: devices.msId,
+            set: {
+              name: dev.name,
+              deviceDirection: dev.deviceDirection,
+              serialNumber: dev.serialNumber,
+              opstamp: dev.opstamp,
+              lastPing: dev.lastPing,
+              lastreset: dev.lastreset,
+              activationCode: dev.activationCode,
+              isAttendanceDevice: dev.isAttendanceDevice,
+              deviceType: dev.deviceType,
+              locationId: dev.locationId,
+              ipAddress: dev.ipAddress,
+              lastHeartbeat: dev.lastHeartbeat,
+              status: dev.status,
+              isActive: dev.isActive,
+            },
           });
-        } catch (e) {
-          console.error("❌ Failed to write threat log to DB:", e);
-        }
-
-        continue; // Postgres sync completely skip karein, next loop par badhein
       }
 
-      // 🟢 Pass matching -> Status Calculation
-      let calculatedStatus = "offline";
-      if (d.LastPing) {
-        const diffInMin = Math.abs((currentTime.getTime() - new Date(d.LastPing).getTime()) / 60000);
-        if (diffInMin <= 1 || Math.abs(diffInMin - 330) <= 1) {
-          calculatedStatus = "online";
-        }
+      if (currentMsIds.length > 0) {
+        await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
       }
 
-      if (calculatedStatus === "online") onlineCount++;
-      else offlineCount++;
+      // -------------------------------------------------------------
+      // 📄 STEP 5: सर्च फ़िल्टर और पंगिनेशन
+      // -------------------------------------------------------------
+      let finalData = [...allValidDevices];
+      if (search && search.trim()) {
+        const s = search.toLowerCase();
+        finalData = finalData.filter(
+          (d) =>
+            d.name?.toLowerCase().includes(s) ||
+            d.ipAddress?.toLowerCase().includes(s) ||
+            d.serialNumber?.toLowerCase().includes(s),
+        );
+      }
 
-      const formatted = {
-        msId: Number(deviceId),
-        name: deviceName,
-        deviceDirection: d.DeviceDirection || null,
-        serialNumber: rawSerial,
-        opstamp: d.OpStamp ? String(d.OpStamp) : null,
-        lastPing: d.LastPing ? new Date(d.LastPing) : null,
-        lastreset: d.LastReset ? new Date(d.LastReset) : null,
-        activationCode: d.ActivationCode || "",
-        isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
-        deviceType: String(d.DeviceType || "-").toLowerCase(),
-        locationId: d.LocationId || null,
-        ipAddress: d.IpAddress || "",
-        lastHeartbeat: d.LastPing ? new Date(d.LastPing) : null,
-        status: calculatedStatus,
-        isActive: true,
-      };
+      if (!pageSize) return finalData;
 
-      allValidDevices.push(formatted);
-      if (deviceId) currentMsIds.push(Number(deviceId));
-    }
+      if (pageSize === -1 || pageSize === "-1") {
+        return {
+          data: finalData,
+          totalCount: finalData.length,
+          totalPages: 1,
+          currentPage: 1,
+          pageSize: finalData.length,
+          onlineCount,
+          offlineCount,
+        };
+      }
 
-    // -------------------------------------------------------------
-    // 🔄 STEP 4: Postgres DB के साथ सिंक और क्लीनअप (Upsert Logic)
-    // -------------------------------------------------------------
-    for (const dev of allValidDevices) {
-      await db.insert(devices)
-        .values(dev)
-        .onConflictDoUpdate({
-          target: devices.msId,
-          set: {
-            name: dev.name,
-            deviceDirection: dev.deviceDirection,
-            serialNumber: dev.serialNumber,
-            opstamp: dev.opstamp,
-            lastPing: dev.lastPing,
-            lastreset: dev.lastreset,
-            activationCode: dev.activationCode,
-            isAttendanceDevice: dev.isAttendanceDevice,
-            deviceType: dev.deviceType,
-            locationId: dev.locationId,
-            ipAddress: dev.ipAddress,
-            lastHeartbeat: dev.lastHeartbeat,
-            status: dev.status,
-            isActive: dev.isActive
-          },
-        });
-    }
-
-    if (currentMsIds.length > 0) {
-      await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
-    }
-
-    // -------------------------------------------------------------
-    // 📄 STEP 5: सर्च फ़िल्टर और पंगिनेशन
-    // -------------------------------------------------------------
-    let finalData = [...allValidDevices];
-    if (search && search.trim()) {
-      const s = search.toLowerCase();
-      finalData = finalData.filter(d =>
-        d.name?.toLowerCase().includes(s) ||
-        d.ipAddress?.toLowerCase().includes(s) ||
-        d.serialNumber?.toLowerCase().includes(s)
+      const p = page && Number(page) > 0 ? Number(page) : 1;
+      const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+      const paginatedData = finalData.slice(
+        (p - 1) * size,
+        (p - 1) * size + size,
       );
+
+      return {
+        data: paginatedData,
+        totalCount: finalData.length,
+        totalPages: Math.ceil(finalData.length / size),
+        currentPage: p,
+        pageSize: size,
+        onlineCount,
+        offlineCount,
+      };
+    } catch (error) {
+      console.error("🚨 Device Sync Error:", error);
+      return {
+        data: [],
+        totalCount: 0,
+        totalPages: 0,
+        currentPage: 1,
+        pageSize: 0,
+        onlineCount: 0,
+        offlineCount: 0,
+      };
     }
-
-    if (!pageSize) return finalData;
-
-    if (pageSize === -1 || pageSize === "-1") {
-      return { data: finalData, totalCount: finalData.length, totalPages: 1, currentPage: 1, pageSize: finalData.length, onlineCount, offlineCount };
-    }
-
-    const p = page && Number(page) > 0 ? Number(page) : 1;
-    const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-    const paginatedData = finalData.slice((p - 1) * size, ((p - 1) * size) + size);
-
-    return {
-      data: paginatedData,
-      totalCount: finalData.length,
-      totalPages: Math.ceil(finalData.length / size),
-      currentPage: p,
-      pageSize: size,
-      onlineCount,
-      offlineCount,
-    };
-
-  } catch (error) {
-    console.error("🚨 Device Sync Error:", error);
-    return { data: [], totalCount: 0, totalPages: 0, currentPage: 1, pageSize: 0, onlineCount: 0, offlineCount: 0 };
   }
-}
   // async executeNewDevicebulkBlock(
   //   userId: string,
   //   userName: string,
@@ -6220,7 +6746,6 @@ ${fromDate} || ' to ' || ${toDate}
     userId: string,
     userName: string,
   ): Promise<any> {
-
     // Safe fallback to prevent undefined inputs
     const safeUserId = userId || "SYSTEM";
     const safeUserName = userName || "System Admin";
@@ -6230,42 +6755,39 @@ ${fromDate} || ' to ' || ${toDate}
     // ==========================================
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
-    const allOnlineDevices = (await db
-      .select()
-      .from(devices)
-      .where(
-        and(
-          eq(devices.isActive, true),
-          gt(devices.lastPing, fiveMinutesAgo)
-        )
-      )) ?? [];
+    const allOnlineDevices =
+      (await db
+        .select()
+        .from(devices)
+        .where(
+          and(eq(devices.isActive, true), gt(devices.lastPing, fiveMinutesAgo)),
+        )) ?? [];
 
     const onlineDeviceIds = new Set(
       allOnlineDevices
-        .filter(d => d && d.msId !== null && d.msId !== undefined)
-        .map(d => Number(d.msId))
+        .filter((d) => d && d.msId !== null && d.msId !== undefined)
+        .map((d) => Number(d.msId)),
     );
 
-    const allActiveDevices = (await db
-      .select()
-      .from(devices)
-      .where(eq(devices.isActive, true))) ?? [];
+    const allActiveDevices =
+      (await db.select().from(devices).where(eq(devices.isActive, true))) ?? [];
 
     // ==========================================
     // STEP 2: EXTRACT GLOBAL DOOR-TO-DEVICE MAPS
     // ==========================================
-    const allDoorDevicesRelations = (await db
-      .select({
-        doorId: doorDevices.doorId,
-        inDeviceIds: doorDevices.inDeviceIds,
-        outDeviceIds: doorDevices.outDeviceIds,
-        isActive: doorDevices.isActive,
-        doorType: doors.doorType,
-        code: doors.code
-      })
-      .from(doorDevices)
-      .leftJoin(doors, eq(doorDevices.doorId, doors.id))
-      .where(eq(doorDevices.isActive, true))) ?? [];
+    const allDoorDevicesRelations =
+      (await db
+        .select({
+          doorId: doorDevices.doorId,
+          inDeviceIds: doorDevices.inDeviceIds,
+          outDeviceIds: doorDevices.outDeviceIds,
+          isActive: doorDevices.isActive,
+          doorType: doors.doorType,
+          code: doors.code,
+        })
+        .from(doorDevices)
+        .leftJoin(doors, eq(doorDevices.doorId, doors.id))
+        .where(eq(doorDevices.isActive, true))) ?? [];
 
     const globalAssignedDeviceIds = new Set<number>();
     const gateDeviceIds = new Set<number>();
@@ -6303,10 +6825,8 @@ ${fromDate} || ' to ' || ${toDate}
     }
 
     // Fetch all active personnel
-    const allPeople = (await db
-      .select()
-      .from(people)
-      .where(eq(people.status, "active"))) ?? [];
+    const allPeople =
+      (await db.select().from(people).where(eq(people.status, "active"))) ?? [];
 
     const taskQueue: Array<{
       employeeCode: string;
@@ -6336,8 +6856,8 @@ ${fromDate} || ' to ' || ${toDate}
             .where(
               and(
                 eq(blockUnblockLogs.employeeCode, person.employeeCode),
-                eq(blockUnblockLogs.deviceId, currentDevId)
-              )
+                eq(blockUnblockLogs.deviceId, currentDevId),
+              ),
             )
             .orderBy(desc(blockUnblockLogs.createdAt))
             .limit(1);
@@ -6370,8 +6890,8 @@ ${fromDate} || ' to ' || ${toDate}
               .where(
                 and(
                   eq(blockUnblockLogs.employeeCode, person.employeeCode),
-                  eq(blockUnblockLogs.deviceId, currentDevId)
-                )
+                  eq(blockUnblockLogs.deviceId, currentDevId),
+                ),
               )
               .orderBy(desc(blockUnblockLogs.createdAt))
               .limit(1);
@@ -6418,7 +6938,10 @@ ${fromDate} || ' to ' || ${toDate}
       })
       .returning();
 
-    const alertEntry = Array.isArray(alertResult) && alertResult.length > 0 ? alertResult[0] : null;
+    const alertEntry =
+      Array.isArray(alertResult) && alertResult.length > 0
+        ? alertResult[0]
+        : null;
 
     // ==========================================
     // STEP 5: BATCHED DISPATCH & HARDWARE SYNC
@@ -6446,7 +6969,10 @@ ${fromDate} || ' to ' || ${toDate}
               esslService
                 .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
                 .catch((err) =>
-                  console.error(`API Sync Fail for ${task.employeeCode} on device ${task.deviceMsId}:`, err),
+                  console.error(
+                    `API Sync Fail for ${task.employeeCode} on device ${task.deviceMsId}:`,
+                    err,
+                  ),
                 );
             }
 

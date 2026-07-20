@@ -976,8 +976,7 @@ export default function PeoplePage() {
                         ? latestLog.type === "unblock"
                         : isDoorAssigned;
 
-                      // 🟢 1. यहाँ चेक करें कि डिवाइस ऑनलाइन है या नहीं
-                      // (अगर आपकी API में की का नाम अलग है, तो यहाँ 'dev.status === "online"' को बदल लें)
+                      // 🟢 डिवाइस ऑनलाइन स्टेटस
                       const isOnline = dev.status === "online";
 
                       return (
@@ -985,7 +984,6 @@ export default function PeoplePage() {
                           {/* DEVICE INFO */}
                           <td className="p-3">
                             <div className="flex items-center gap-1.5">
-                              {/* छोटा सा विजुअल इंडिकेटर (ग्रीन/ग्रे डॉट) */}
                               <span
                                 className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-300"}`}
                                 title={isOnline ? "Online" : "Offline"}
@@ -998,26 +996,38 @@ export default function PeoplePage() {
                               SN: {dev.serialNumber || "N/A"}
                             </p>
                           </td>
-                          {/* STATUS */}
+                          
+                          {/* STATUS COLUMN */}
                           <td className="p-3 text-center">
-                            <Badge
-                              variant={isUnblocked ? "outline" : "destructive"}
-                              className={`text-[9px] font-bold px-2 ${
-                                isUnblocked
-                                  ? "border-green-500 text-green-600 bg-green-50"
-                                  : ""
-                              }`}
-                            >
-                              {isUnblocked ? "ALLOWED" : "BLOCKED"}
-                            </Badge>
+                            {!isOnline ? (
+                              // अगर डिवाइस ऑफलाइन है तो सिर्फ रेड कलर में OFFLINE दिखेगा
+                              <Badge
+                                variant="destructive"
+                                className="text-[9px] font-bold px-2 bg-red-600 border-red-600 text-white"
+                              >
+                                OFFLINE
+                              </Badge>
+                            ) : (
+                              // अगर ऑनलाइन है तो ALLOWED या BLOCKED दिखेगा
+                              <Badge
+                                variant={isUnblocked ? "outline" : "destructive"}
+                                className={`text-[9px] font-bold px-2 ${
+                                  isUnblocked
+                                    ? "border-green-500 text-green-600 bg-green-50"
+                                    : ""
+                                }`}
+                              >
+                                {isUnblocked ? "ALLOWED" : "BLOCKED"}
+                              </Badge>
+                            )}
                           </td>
-                          {/* ACTION */}
+                          
+                          {/* ACTION BUTTON COLUMN */}
                           <td className="p-3 text-right">
                             <Button
                               size="sm"
                               variant={isUnblocked ? "destructive" : "outline"}
                               className="h-7 text-[10px] font-bold min-w-[80px]"
-                              // 🟢 2. म्यूटेशन पेंडिंग होने पर या डिवाइस ऑफ़लाइन होने पर बटन डिसेबल हो जाएगा
                               disabled={
                                 emergencyToggleMut.isPending || !isOnline
                               }
@@ -1033,7 +1043,7 @@ export default function PeoplePage() {
                               {emergencyToggleMut.isPending
                                 ? "..."
                                 : !isOnline
-                                  ? "OFFLINE" // ऑफ़लाइन होने पर बटन पर OFFLINE दिखेगा (ऑप्शनल)
+                                  ? "OFFLINE" 
                                   : isUnblocked
                                     ? "BLOCK"
                                     : "UNBLOCK"}
