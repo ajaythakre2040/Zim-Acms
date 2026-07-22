@@ -396,9 +396,9 @@ export const visitors = pgTable("visitors", {
   nameOfVisitor: text("name_of_visitor").notNull(),
   rfidCardNo: text("rfid_card_no"),
   contactNo: text("contact_no").notNull(),
-  emailAddress: text("email_address"), 
+  emailAddress: text("email_address"),
   visitorsCompanyName: text("visitors_company_name"),
-  designation: text("designation"), 
+  designation: text("designation"),
   address1: text("address_1"),
   address2: text("address_2"),
   district: text("district"),
@@ -407,14 +407,14 @@ export const visitors = pgTable("visitors", {
   whomToMeet: text("whom_to_meet").notNull(), // ZIM Employee name
   department: text("department"),
   purpose: text("purpose"),
-  permissionDateFrom: text("permission_date_from"), 
-  permissionDateTo: text("permission_date_to"),     
-  
-  locationId: integer("location_id"),        
-  visitorCardId: integer("visitor_card_id"),   
-  visitorDeskId: integer("visitor_desk_id"),   
-  remark: text("remark"),                     
-  
+  permissionDateFrom: text("permission_date_from"),
+  permissionDateTo: text("permission_date_to"),
+
+  locationId: integer("location_id"),
+  visitorCardId: integer("visitor_card_id"),
+  visitorDeskId: integer("visitor_desk_id"),
+  remark: text("remark"),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -438,22 +438,22 @@ export const visitorCardLogs = pgTable("visitor_card_logs", {
   msId: integer("ms_id"),
   deviceId: integer("device_id").notNull(),
   visitorCardId: integer("visitor_card_id").notNull(),
-  command: text("command").notNull(),    
-  status: text("status").notNull(),                 
-  syncDate: timestamp("sync_date"),                 
+  command: text("command").notNull(),
+  status: text("status").notNull(),
+  syncDate: timestamp("sync_date"),
   visitorCardCode: text("visitor_card_code"),
-  isDirtyDateTime: timestamp("is_dirty_date_time"),  
+  isDirtyDateTime: timestamp("is_dirty_date_time"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
 export const visitorDesks = pgTable("visitor_desks", {
   id: serial("id").primaryKey(),
-  name: text("name").notNull(),           
-  loginName: text("login_name").notNull(), 
-  password: text("password").notNull(),    
-  locationId: integer("location_id"),   
-  uuid: text("uuid"),                      
+  name: text("name").notNull(),
+  loginName: text("login_name").notNull(),
+  password: text("password").notNull(),
+  locationId: integer("location_id"),
+  uuid: text("uuid"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -636,7 +636,7 @@ export const alertsRelations = relations(alerts, ({ one }) => ({
 }));
 export const blockUnblockLogs = pgTable("user_block_unblock_logs", {
   id: serial("id").primaryKey(),
-  employeeCode: varchar("employee_code", { length: 20 }).notNull(),
+  employeeCode: varchar("employee_code", { length: 50 }).notNull(),
   deviceId: integer("device_id").notNull(),
   type: text("type", { enum: ["block", "unblock"] }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
