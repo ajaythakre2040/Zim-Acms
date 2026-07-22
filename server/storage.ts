@@ -755,14 +755,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     return currentSites;
@@ -836,7 +836,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) {}
+        } catch (e) { }
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -1015,12 +1015,12 @@ export class DatabaseStorage implements IStorage {
       const searchText = search?.toLowerCase().trim();
       const filteredDoors = searchText
         ? resolvedDoors.filter((door) => {
-            return (
-              door.name?.toLowerCase().includes(searchText) ||
-              door.code?.toLowerCase().includes(searchText) ||
-              door.doorType?.toLowerCase().includes(searchText)
-            );
-          })
+          return (
+            door.name?.toLowerCase().includes(searchText) ||
+            door.code?.toLowerCase().includes(searchText) ||
+            door.doorType?.toLowerCase().includes(searchText)
+          );
+        })
         : resolvedDoors;
       if (!pageSize) {
         return filteredDoors;
@@ -1050,12 +1050,12 @@ export class DatabaseStorage implements IStorage {
       console.error("getDoors Error:", error);
       return pageSize
         ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-          }
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+        }
         : [];
     }
   }
@@ -1652,15 +1652,15 @@ export class DatabaseStorage implements IStorage {
       const baseQuery = db.select().from(shifts).orderBy(asc(shifts.id));
       const finalQuery = searchText
         ? db
-            .select()
-            .from(shifts)
-            .where(
-              or(
-                ilike(shifts.name, `%${searchText}%`),
-                ilike(shifts.code, `%${searchText}%`),
-              ),
-            )
-            .orderBy(asc(shifts.id))
+          .select()
+          .from(shifts)
+          .where(
+            or(
+              ilike(shifts.name, `%${searchText}%`),
+              ilike(shifts.code, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(shifts.id))
         : baseQuery;
       return await withPagination(db, shifts, finalQuery, page, pageSize);
     } catch (error) {
@@ -2470,9 +2470,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-                3600000
-              ).toFixed(2)
+              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+              3600000
+            ).toFixed(2)
             : "0.00",
       };
     });
@@ -2645,7 +2645,7 @@ export class DatabaseStorage implements IStorage {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-              String(presentRow.status).toLowerCase() === "present"
+                String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -2667,16 +2667,16 @@ export class DatabaseStorage implements IStorage {
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
             : String(row.employeeCode)
-                .toLowerCase()
-                .includes(String(filters.employeeCode).toLowerCase()) ||
-              String(row.firstName)
-                .toLowerCase()
-                .includes(String(filters.employeeCode).toLowerCase());
+              .toLowerCase()
+              .includes(String(filters.employeeCode).toLowerCase()) ||
+            String(row.firstName)
+              .toLowerCase()
+              .includes(String(filters.employeeCode).toLowerCase());
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-              String(filters.status).toLowerCase();
+            String(filters.status).toLowerCase();
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => {
@@ -2699,7 +2699,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -3771,7 +3771,7 @@ export class DatabaseStorage implements IStorage {
         } else {
         }
       }
-    } catch (err) {}
+    } catch (err) { }
 
     return updatedMapping;
   }
@@ -4095,49 +4095,116 @@ export class DatabaseStorage implements IStorage {
       console.error("💀 Engine Failure:", error.message);
     }
   }
+  // async executeEmergencybulkUnblock(
+  //   userId: string,
+  //   userName: string,
+  // ): Promise<any> {
+  //   const allPeople = await db
+  //     .select()
+  //     .from(people)
+  //     .where(eq(people.status, "active"));
+  //   const allDevices = await db
+  //     .select()
+  //     .from(devices)
+  //     .where(eq(devices.isActive, true));
+  //   const taskQueue = [];
+  //   for (const person of allPeople) {
+  //     if (!person.employeeCode) continue;
+  //     for (const device of allDevices) {
+  //       if (
+  //         device.serialNumber &&
+  //         device.msId !== null &&
+  //         device.msId !== undefined
+  //       ) {
+  //         taskQueue.push({
+  //           employeeCode: person.employeeCode,
+  //           deviceMsId: Number(device.msId),
+  //           serialNumber: device.serialNumber,
+  //         });
+  //       }
+  //     }
+  //   }
+  //   if (taskQueue.length === 0) {
+  //     return {
+  //       status: "Empty",
+  //       processedCount: 0,
+  //       message: "No active records found.",
+  //     };
+  //   }
+  //   const [alertEntry] = await db
+  //     .insert(alerts)
+  //     .values({
+  //       alertType: "security",
+  //       severity: "critical",
+  //       title: "🚨 EMERGENCY BULK UNBLOCK",
+  //       message: `System-wide unblock triggered by ${userName} for ${taskQueue.length} records.`,
+  //       createdBy: userId,
+  //       resolvedBy: userName,
+  //       isRead: false,
+  //       isResolved: true,
+  //       resolvedAt: new Date(),
+  //       createdAt: new Date(),
+  //     })
+  //     .returning();
+  //   const BATCH_SIZE = 50;
+  //   let processedCount = 0;
+  //   for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
+  //     const batch = taskQueue.slice(i, i + BATCH_SIZE);
+  //     await Promise.all(
+  //       batch.map(async (task) => {
+  //         try {
+  //           await db.insert(blockUnblockLogs).values({
+  //             employeeCode: task.employeeCode,
+  //             deviceId: task.deviceMsId,
+  //             type: "unblock",
+  //             createdAt: new Date(),
+  //             updatedAt: new Date(),
+  //           });
+  //           esslService
+  //             .syncUserBlockStatus(task.employeeCode, task.serialNumber, false)
+  //             .catch((err) =>
+  //               console.error(`API Sync Fail for ${task.employeeCode}:`, err),
+  //             );
+  //           processedCount++;
+  //         } catch (err) {
+  //           console.error(`PG Log Error for ${task.employeeCode}:`, err);
+  //         }
+  //       }),
+  //     );
+  //     await new Promise((res) => setTimeout(res, 100));
+  //   }
+  //   return {
+  //     status: "Success",
+  //     processedCount: processedCount,
+  //     alertId: alertEntry.id,
+  //   };
+  // }
   async executeEmergencybulkUnblock(
     userId: string,
     userName: string,
   ): Promise<any> {
-    const allPeople = await db
-      .select()
-      .from(people)
-      .where(eq(people.status, "active"));
+    // 1. Sirf Active Devices fetch karein
     const allDevices = await db
       .select()
       .from(devices)
       .where(eq(devices.isActive, true));
-    const taskQueue = [];
-    for (const person of allPeople) {
-      if (!person.employeeCode) continue;
-      for (const device of allDevices) {
-        if (
-          device.serialNumber &&
-          device.msId !== null &&
-          device.msId !== undefined
-        ) {
-          taskQueue.push({
-            employeeCode: person.employeeCode,
-            deviceMsId: Number(device.msId),
-            serialNumber: device.serialNumber,
-          });
-        }
-      }
-    }
-    if (taskQueue.length === 0) {
+
+    if (allDevices.length === 0) {
       return {
         status: "Empty",
         processedCount: 0,
-        message: "No active records found.",
+        message: "No active devices found.",
       };
     }
+
+    // 2. Alert Log Entry
     const [alertEntry] = await db
       .insert(alerts)
       .values({
         alertType: "security",
         severity: "critical",
-        title: "🚨 EMERGENCY BULK UNBLOCK",
-        message: `System-wide unblock triggered by ${userName} for ${taskQueue.length} records.`,
+        title: "🚨 EMERGENCY DOOR UNLOCK",
+        message: `Emergency door unlock triggered by ${userName} for ${allDevices.length} devices.`,
         createdBy: userId,
         resolvedBy: userName,
         isRead: false,
@@ -4146,36 +4213,40 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
       })
       .returning();
-    const BATCH_SIZE = 50;
-    let processedCount = 0;
-    for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
-      const batch = taskQueue.slice(i, i + BATCH_SIZE);
-      await Promise.all(
-        batch.map(async (task) => {
-          try {
+
+    let unlockedCount = 0;
+
+    // 3. Direct Sabhi Active Devices par `unlockDoor` API Command Call Karein
+    await Promise.all(
+      allDevices.map(async (device) => {
+        if (!device.serialNumber) return;
+
+        try {
+          // Direct Door Unlock Command
+          await esslService.unlockDoor(device.serialNumber.trim());
+
+          // Optional: DB Log for Device Command
+          if (device.msId !== null && device.msId !== undefined) {
             await db.insert(blockUnblockLogs).values({
-              employeeCode: task.employeeCode,
-              deviceId: task.deviceMsId,
+              employeeCode: "EMERGENCY_DOOR_UNLOCK",
+              deviceId: Number(device.msId),
               type: "unblock",
               createdAt: new Date(),
               updatedAt: new Date(),
             });
-            esslService
-              .syncUserBlockStatus(task.employeeCode, task.serialNumber, false)
-              .catch((err) =>
-                console.error(`API Sync Fail for ${task.employeeCode}:`, err),
-              );
-            processedCount++;
-          } catch (err) {
-            console.error(`PG Log Error for ${task.employeeCode}:`, err);
           }
-        }),
-      );
-      await new Promise((res) => setTimeout(res, 100));
-    }
+
+          unlockedCount++;
+        } catch (err) {
+          console.error(`Door Unlock Error for Serial [${device.serialNumber}]:`, err);
+        }
+      })
+    );
+
     return {
       status: "Success",
-      processedCount: processedCount,
+      unlockedDevicesCount: unlockedCount,
+      totalDevicesCount: allDevices.length,
       alertId: alertEntry.id,
     };
   }
@@ -4458,10 +4529,10 @@ export class DatabaseStorage implements IStorage {
           eq(dailyAttendanceSummary.workDate, date),
           employeeCode
             ? or(
-                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
-                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+              ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+              sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
           ILIKE ${`%${employeeCode}%`}`,
-              )
+            )
             : undefined,
         ),
       );
@@ -4488,10 +4559,10 @@ export class DatabaseStorage implements IStorage {
           between(dailyAttendanceSummary.workDate, startDate, endDate),
           employeeCode
             ? or(
-                ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
-                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+              ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
+              sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
           ILIKE ${`%${employeeCode}%`}`,
-              )
+            )
             : undefined,
         ),
       )
@@ -5094,13 +5165,13 @@ ${fromDate} || ' to ' || ${toDate}
             lte(dailyAttendanceSummary.workDate, filters.dateTo),
             filters.employeeCode
               ? or(
-                  ilike(
-                    dailyAttendanceSummary.employeeName,
-                    `%${filters.employeeCode}%`,
-                  ),
-                  sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
+                ilike(
+                  dailyAttendanceSummary.employeeName,
+                  `%${filters.employeeCode}%`,
+                ),
+                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
                 ILIKE ${`%${filters.employeeCode}%`}`,
-                )
+              )
               : undefined,
           ),
         );
@@ -5697,7 +5768,7 @@ ${fromDate} || ' to ' || ${toDate}
             : undefined,
       aadhaarNumber:
         typeof data.aadhaarNumber === "string" &&
-        data.aadhaarNumber.trim() !== ""
+          data.aadhaarNumber.trim() !== ""
           ? data.aadhaarNumber.trim()
           : data.aadhaarNumber === "" || data.aadhaarNumber === null
             ? null
@@ -6046,15 +6117,15 @@ ${fromDate} || ' to ' || ${toDate}
         .orderBy(asc(visitorCards.id));
       const finalQuery = searchText
         ? db
-            .select()
-            .from(visitorCards)
-            .where(
-              or(
-                ilike(visitorCards.name, `%${searchText}%`),
-                ilike(visitorCards.cardNumber, `%${searchText}%`),
-              ),
-            )
-            .orderBy(asc(visitorCards.id))
+          .select()
+          .from(visitorCards)
+          .where(
+            or(
+              ilike(visitorCards.name, `%${searchText}%`),
+              ilike(visitorCards.cardNumber, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(visitorCards.id))
         : baseQuery;
       return await withPagination(db, visitorCards, finalQuery, page, pageSize);
     } catch (error) {

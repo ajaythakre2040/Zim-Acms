@@ -38,6 +38,16 @@ class EsslApiService extends EsslBaseHelper {
 
         return await this.soapRequest("GetEmployeePunchLogs", innerXml);
     }
+
+    /**
+ * Direct Door Unlock Command
+ * @param deviceSerial - Target Device Serial Number (e.g. NES1255300196)
+ */
+    async unlockDoor(deviceSerial: string) {
+        const innerXml = `<DeviceCommand_UnlockDoor xmlns="http://tempuri.org/"><UserName>${this.auth.user}</UserName><Password>${this.auth.pass}</Password><DeviceSerialNumber>${deviceSerial.trim()}</DeviceSerialNumber></DeviceCommand_UnlockDoor>`;
+
+        return await this.soapRequest("DeviceCommand_UnlockDoor", innerXml);
+    }
 }
 
 export const esslService = new EsslApiService();
