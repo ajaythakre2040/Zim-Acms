@@ -403,6 +403,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     res.status(500).json({ message: e.message });
   }
 });
+  app.get("/api/syncpeople", requireAuth, async (req, res) => {
+    try {
+        res.json(
+        await storage.syncPeople()
+      );
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
   app.get("/api/people/:id", requireAuth, async (req, res) => {
     try {
       const person = await storage.getPerson(parseInt(req.params.id));

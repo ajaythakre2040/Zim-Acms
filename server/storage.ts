@@ -1181,7 +1181,7 @@ export class DatabaseStorage implements IStorage {
       await db.delete(devices).where(eq(devices.msId, msId));
     }
   }
-  async getPeople(
+  async syncPeople(
     search?: string,
     page?: number | string,
     pageSize?: number | string,
@@ -1377,6 +1377,139 @@ export class DatabaseStorage implements IStorage {
     const start = (p - 1) * size;
     const end = start + size;
     const paginatedData = uniquePeople.slice(start, end);
+    return {
+      data: paginatedData,
+      totalCount: uniquePeople.length,
+      totalPages: Math.ceil(uniquePeople.length / size),
+      currentPage: p,
+      pageSize: size,
+    };
+  }
+  async getPeople(
+    search?: string,
+    page?: number | string,
+    pageSize?: number | string,
+    dept?: string,
+    status?: string,
+    lockout?: string,
+    rule?: string,
+  ): Promise<any> {
+    // 1. Direct PostgreSQL se Data Join karke Fetch Karein
+    const pgDataRaw = await db
+      .select({
+        person: {
+          ...people,
+          lastSeenTime: sql<string>`
+          TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')
+        `,
+        },
+        departmentName: departments.name,
+        designationName: designations.name,
+        lastPunchDoorName: doors.name,
+        additionalDetails: peopleAdditionalDetails,
+      })
+      .from(people)
+      .leftJoin(departments, eq(people.departmentId, departments.id))
+      .leftJoin(designations, eq(people.designationId, designations.id))
+      .leftJoin(doors, eq(people.lastPunchDoorId, doors.id))
+      .leftJoin(
+        peopleAdditionalDetails,
+        eq(people.employeeCode, peopleAdditionalDetails.employeeCode),
+      );
+
+    const ruleIdToName = Object.fromEntries(
+      Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
+    );
+
+    // 2. Data Formatting
+    let results = pgDataRaw.map((row) => {
+      const {
+        id: _detailId,
+        employeeCode: _detailCode,
+        createdAt: _detailCreated,
+        updatedAt: _detailUpdated,
+        ...restOfAdditionalDetails
+      } = row.additionalDetails || {};
+
+      return {
+        ...row.person,
+        ...restOfAdditionalDetails,
+        departmentName: row.departmentName || "N/A",
+        designationName: row.designationName || "N/A",
+        lastPunchDoorName: row.lastPunchDoorName || "No Door",
+        ruleName:
+          row.person.ruleid !== null
+            ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
+            : "NO_RULE",
+      };
+    });
+
+    // 3. Search Filter
+    if (search?.trim()) {
+      const term = search.toLowerCase();
+      results = results.filter(
+        (p) =>
+          p.employeeName?.toLowerCase().includes(term) ||
+          p.employeeCode?.toLowerCase().includes(term) ||
+          p.departmentName?.toLowerCase().includes(term) ||
+          p.ruleName?.toLowerCase().includes(term),
+      );
+    }
+
+    // 4. Department Filter
+    if (dept && dept !== "all") {
+      results = results.filter((p) => String(p.departmentId) === String(dept));
+    }
+
+    // 5. Status Filter
+    if (status && status !== "all") {
+      results = results.filter((p) => p.status === status);
+    }
+
+    // 6. Lockout Filter
+    if (lockout && lockout !== "all") {
+      const isLocked = lockout === "true";
+      results = results.filter(
+        (p) => Boolean(p.is_lockout_enabled) === isLocked,
+      );
+    }
+
+    // 7. Access Rule Filter
+    if (rule && rule !== "all") {
+      results = results.filter((p) => String(p.ruleid) === String(rule));
+    }
+
+    // 8. Sorting (Newest/Highest ID First)
+    results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+
+    // 9. Uniqueness Check
+    const uniquePeople = Array.from(
+      new Map(
+        results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
+      ).values(),
+    );
+
+    // 10. Pagination & Response
+    if (!pageSize) {
+      return uniquePeople;
+    }
+
+    if (pageSize === -1 || pageSize === "-1") {
+      return {
+        data: uniquePeople,
+        totalCount: uniquePeople.length,
+        totalPages: 1,
+        currentPage: 1,
+        pageSize: uniquePeople.length,
+      };
+    }
+
+    const p = page && Number(page) > 0 ? Number(page) : 1;
+    const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+    const start = (p - 1) * size;
+    const end = start + size;
+    const paginatedData = uniquePeople.slice(start, end);
+
     return {
       data: paginatedData,
       totalCount: uniquePeople.length,

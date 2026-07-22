@@ -280,6 +280,31 @@ export default function PeoplePage() {
         variant: "destructive",
       }),
   });
+  // Sync API Mutation
+  const syncMut = useMutation({
+    mutationFn: async () => {
+      // Aapki exact GET API route
+      const res = await apiRequest("GET", "/api/syncpeople");
+      return res.json();
+    },
+    onSuccess: async () => {
+      // Sync ke baad local list refresh karne ke liye
+      await queryClient.invalidateQueries({
+        queryKey: ["/api/people"],
+      });
+      toast({
+        title: "Sync Successful",
+        description: "People data synced successfully.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to sync people data.",
+        variant: "destructive",
+      });
+    },
+  });
   const createMut = useMutation({
     mutationFn: async (data: any) => {
       const r = await apiRequest("POST", "/api/people", data);
@@ -449,11 +474,10 @@ export default function PeoplePage() {
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
-            className={`text-xs font-bold ${
-              isEnabled
+            className={`text-xs font-bold ${isEnabled
                 ? "bg-red-50 text-red-600 border-red-300"
                 : "bg-green-50 text-green-600 border-green-300"
-            }`}
+              }`}
           >
             {isEnabled ? "ACTIVE" : "INACTIVE"}
           </Badge>
@@ -659,33 +683,69 @@ export default function PeoplePage() {
       <PageHeader
         title="Employees"
         description="Manage employees, their access levels, and associated details."
+        // action={
+        //   <div className="flex gap-2">
+        //     <Button
+        //       variant="default"
+        //       className="w-[140px] flex items-center justify-center gap-2"
+        //       onClick={async () => {
+        //         try {
+        //           await refetch();
+        //           toast({
+        //             title: "Data Synced",
+        //             description: "The people list has been refreshed successfully.",
+        //           });
+        //         } catch (error) {
+        //           toast({
+        //             title: "Sync Failed",
+        //             description: "Could not refresh data.",
+        //             variant: "destructive",
+        //           });
+        //         }
+        //       }}
+        //       disabled={isFetching}
+        //     >
+        //       <RefreshCw
+        //         className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
+        //       />
+        //       <span className="w-[80px] text-center">Sync</span>
+        //     </Button>
+        //   </div>
+        // }
         action={
           <div className="flex gap-2">
             <Button
-  variant="default" /* outline से बदलकर default कर दिया */
-  className="w-[140px] flex items-center justify-center gap-2"
-  onClick={async () => {
-    try {
-      await refetch();
-      toast({
-        title: "Data Synced",
-        description: "The people list has been refreshed successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Sync Failed",
-        description: "Could not refresh data.",
-        variant: "destructive",
-      });
-    }
-  }}
-  disabled={isFetching}
->
-  <RefreshCw
-    className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
-  />
-  <span className="w-[80px] text-center">Sync</span>
-</Button>
+              variant="default"
+              className="w-[140px] flex items-center justify-center gap-2"
+              onClick={async () => {
+                try {
+                  // 1. Sync API call karein
+                  await apiRequest("GET", "/api/syncpeople");
+
+                  // 2. Fresh data fetch karne ke liye UI table ko refresh karein
+                  await refetch();
+
+                  toast({
+                    title: "Data Synced",
+                    description: "People data synchronized and refreshed successfully.",
+                  });
+                } catch (error: any) {
+                  toast({
+                    title: "Sync Failed",
+                    description: error.message || "Could not sync people data.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+              disabled={isFetching}
+            >
+              <RefreshCw
+                className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
+              />
+              <span className="w-[80px] text-center">
+                {isFetching ? "Syncing..." : "Sync"}
+              </span>
+            </Button>
           </div>
         }
       />
@@ -715,14 +775,14 @@ export default function PeoplePage() {
           {canExport && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                variant="default" /* outline से बदलकर default कर दिया */
-                size="sm" 
-                className="bg-green-600 text-white hover:bg-green-700" /* सॉलिड ग्रीन बैकग्राउंड और वाइट टेक्स्ट */
-                onClick={handleExport} // यहाँ आपका एक्सपोर्ट फंक्शन आएगा
-              >
-                <Download className="w-4 h-4 mr-2" /> Export
-              </Button>
+                <Button
+                  variant="default" /* outline से बदलकर default कर दिया */
+                  size="sm"
+                  className="bg-green-600 text-white hover:bg-green-700" /* सॉलिड ग्रीन बैकग्राउंड और वाइट टेक्स्ट */
+                  onClick={handleExport} // यहाँ आपका एक्सपोर्ट फंक्शन आएगा
+                >
+                  <Download className="w-4 h-4 mr-2" /> Export
+                </Button>
               </DropdownMenuTrigger>
 
               <DropdownMenuContent align="end">
@@ -996,7 +1056,7 @@ export default function PeoplePage() {
                               SN: {dev.serialNumber || "N/A"}
                             </p>
                           </td>
-                          
+
                           {/* STATUS COLUMN */}
                           <td className="p-3 text-center">
                             {!isOnline ? (
@@ -1011,17 +1071,16 @@ export default function PeoplePage() {
                               // अगर ऑनलाइन है तो ALLOWED या BLOCKED दिखेगा
                               <Badge
                                 variant={isUnblocked ? "outline" : "destructive"}
-                                className={`text-[9px] font-bold px-2 ${
-                                  isUnblocked
+                                className={`text-[9px] font-bold px-2 ${isUnblocked
                                     ? "border-green-500 text-green-600 bg-green-50"
                                     : ""
-                                }`}
+                                  }`}
                               >
                                 {isUnblocked ? "ALLOWED" : "BLOCKED"}
                               </Badge>
                             )}
                           </td>
-                          
+
                           {/* ACTION BUTTON COLUMN */}
                           <td className="p-3 text-right">
                             <Button
@@ -1043,7 +1102,7 @@ export default function PeoplePage() {
                               {emergencyToggleMut.isPending
                                 ? "..."
                                 : !isOnline
-                                  ? "OFFLINE" 
+                                  ? "OFFLINE"
                                   : isUnblocked
                                     ? "BLOCK"
                                     : "UNBLOCK"}
@@ -1062,15 +1121,15 @@ export default function PeoplePage() {
                         .toLowerCase()
                         .includes(deviceSearch.toLowerCase()),
                   ).length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={3}
-                        className="text-center p-6 text-muted-foreground"
-                      >
-                        No devices found
-                      </td>
-                    </tr>
-                  )}
+                      <tr>
+                        <td
+                          colSpan={3}
+                          className="text-center p-6 text-muted-foreground"
+                        >
+                          No devices found
+                        </td>
+                      </tr>
+                    )}
                 </tbody>
               </table>
             </div>
@@ -1096,28 +1155,28 @@ export default function PeoplePage() {
           initialData={
             editing
               ? {
-                  ...editing,
-                  departmentId: editing.departmentId
-                    ? String(editing.departmentId)
-                    : "",
-                  shiftId: editing.shiftId ? String(editing.shiftId) : "",
-                  designationId: editing.designationId
-                    ? String(editing.designationId)
-                    : "",
-                  companyId: editing.companyId ? String(editing.companyId) : "",
-                  locationId: editing.locationId
-                    ? String(editing.locationId)
-                    : "",
-                  riskTier: editing.riskTier ?? 1,
-                }
+                ...editing,
+                departmentId: editing.departmentId
+                  ? String(editing.departmentId)
+                  : "",
+                shiftId: editing.shiftId ? String(editing.shiftId) : "",
+                designationId: editing.designationId
+                  ? String(editing.designationId)
+                  : "",
+                companyId: editing.companyId ? String(editing.companyId) : "",
+                locationId: editing.locationId
+                  ? String(editing.locationId)
+                  : "",
+                riskTier: editing.riskTier ?? 1,
+              }
               : {
-                  companyId: String(
-                    companies.find((c) => c.name.toLowerCase().includes("zim"))
-                      ?.id || "",
-                  ),
-                  status: "active",
-                  personType: "employee",
-                }
+                companyId: String(
+                  companies.find((c) => c.name.toLowerCase().includes("zim"))
+                    ?.id || "",
+                ),
+                status: "active",
+                personType: "employee",
+              }
           }
           onSubmit={(data) => {
             setFieldErrors({});
@@ -1204,11 +1263,10 @@ export default function PeoplePage() {
                   .map((door) => (
                     <div
                       key={door.id}
-                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${
-                        selectedDoorIds.includes(door.id)
+                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id)
                           ? "bg-white border-blue-200 shadow-sm"
                           : "border-transparent hover:bg-white hover:border-slate-200"
-                      }`}
+                        }`}
                       onClick={() =>
                         setSelectedDoorIds((prev) => {
                           const safePrev = Array.isArray(prev) ? prev : [];
@@ -1228,11 +1286,10 @@ export default function PeoplePage() {
                       />
                       {/* DOOR NAME */}
                       <span
-                        className={`text-sm ${
-                          selectedDoorIds.includes(door.id)
+                        className={`text-sm ${selectedDoorIds.includes(door.id)
                             ? "font-bold text-blue-700"
                             : "text-slate-600"
-                        }`}
+                          }`}
                       >
                         {door.name}
                       </span>
