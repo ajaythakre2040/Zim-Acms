@@ -4312,15 +4312,21 @@ export class DatabaseStorage implements IStorage {
   //     alertId: alertEntry.id,
   //   };
   // }
+ 
   async executeEmergencybulkUnblock(
     userId: string,
     userName: string,
   ): Promise<any> {
-    // 1. Sirf Active Devices fetch karein
+    // 1. Fetch All Active Devices & All Active People
     const allDevices = await db
       .select()
       .from(devices)
       .where(eq(devices.isActive, true));
+
+    const allPeople = await db
+      .select()
+      .from(people)
+      .where(eq(people.status, "active"));
 
     if (allDevices.length === 0) {
       return {
@@ -4330,14 +4336,44 @@ export class DatabaseStorage implements IStorage {
       };
     }
 
-    // 2. Alert Log Entry
+    // 2. MAIN GATE DEVICES IDENTIFICATION VIA MAIN_GATE_SYNC.CODE & doorDevices
+    // Step A: Main Gate Doors fetch karein door code ("MG_SYNC_01") se
+    const mainGateDoorsList = await db
+      .select()
+      .from(doors)
+      .where(eq(doors.code, MAIN_GATE_SYNC.CODE));
+
+    const mainGateDoorIds = mainGateDoorsList.map((d) => d.id);
+
+    let mainGateDeviceMsIds = new Set<number>();
+
+    if (mainGateDoorIds.length > 0) {
+      // Step B: doorDevices table se matching doors ke inDeviceIds aur outDeviceIds fetch karein
+      const doorDeviceMappings = await db
+        .select()
+        .from(doorDevices)
+        .where(inArray(doorDevices.doorId, mainGateDoorIds));
+
+      // Array arrays ko flatten karke IDs collect karein
+      doorDeviceMappings.forEach((mapping) => {
+        (mapping.inDeviceIds || []).forEach((id) => mainGateDeviceMsIds.add(id));
+        (mapping.outDeviceIds || []).forEach((id) => mainGateDeviceMsIds.add(id));
+      });
+    }
+
+    // Step C: allDevices me se unhi devices ko filter karein jinke msId Main Gate se linked hain
+    const mainGateDevices = allDevices.filter(
+      (dev) => dev.msId !== null && dev.msId !== undefined && mainGateDeviceMsIds.has(Number(dev.msId))
+    );
+
+    // 3. Create Alert Entry
     const [alertEntry] = await db
       .insert(alerts)
       .values({
         alertType: "security",
         severity: "critical",
-        title: "🚨 EMERGENCY DOOR UNLOCK",
-        message: `Emergency door unlock triggered by ${userName} for ${allDevices.length} devices.`,
+        title: "🚨 EMERGENCY DOOR UNLOCK & MAIN GATE UNBLOCK",
+        message: `Emergency unlock triggered by ${userName} for ${allDevices.length} devices and main gate unblock for ${allPeople.length} employees.`,
         createdBy: userId,
         resolvedBy: userName,
         isRead: false,
@@ -4347,20 +4383,21 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
 
-    let unlockedCount = 0;
+    // -------------------------------------------------------------
+    // TASK A: Hardware-level Direct Door Unlock on ALL Active Devices
+    // -------------------------------------------------------------
+    let unlockedDevicesCount = 0;
+    const generalLogsToInsert: any[] = [];
 
-    // 3. Direct Sabhi Active Devices par `unlockDoor` API Command Call Karein
     await Promise.all(
       allDevices.map(async (device) => {
         if (!device.serialNumber) return;
 
         try {
-          // Direct Door Unlock Command
           await esslService.unlockDoor(device.serialNumber.trim());
 
-          // Optional: DB Log for Device Command
           if (device.msId !== null && device.msId !== undefined) {
-            await db.insert(blockUnblockLogs).values({
+            generalLogsToInsert.push({
               employeeCode: "EMERGENCY_DOOR_UNLOCK",
               deviceId: Number(device.msId),
               type: "unblock",
@@ -4368,21 +4405,175 @@ export class DatabaseStorage implements IStorage {
               updatedAt: new Date(),
             });
           }
-
-          unlockedCount++;
+          unlockedDevicesCount++;
         } catch (err) {
           console.error(`Door Unlock Error for Serial [${device.serialNumber}]:`, err);
         }
       })
     );
 
+    if (generalLogsToInsert.length > 0) {
+      try {
+        await db.insert(blockUnblockLogs).values(generalLogsToInsert);
+      } catch (err) {
+        console.error("Failed to insert door unlock logs:", err);
+      }
+    }
+
+    // -------------------------------------------------------------
+    // TASK B: Unblock ALL Active Employees on Main Gate Devices ONLY
+    // -------------------------------------------------------------
+    let mainGateUnblockedCount = 0;
+
+    if (mainGateDevices.length > 0 && allPeople.length > 0) {
+      const userUnblockQueue: Array<{
+        employeeCode: string;
+        deviceMsId: number;
+        serialNumber: string;
+      }> = [];
+
+      for (const person of allPeople) {
+        if (!person.employeeCode) continue;
+        for (const device of mainGateDevices) {
+          if (device.serialNumber && device.msId !== null && device.msId !== undefined) {
+            userUnblockQueue.push({
+              employeeCode: person.employeeCode,
+              deviceMsId: Number(device.msId),
+              serialNumber: device.serialNumber.trim(),
+            });
+          }
+        }
+      }
+
+      // Processing in Batches of 50
+      const BATCH_SIZE = 50;
+      for (let i = 0; i < userUnblockQueue.length; i += BATCH_SIZE) {
+        const batch = userUnblockQueue.slice(i, i + BATCH_SIZE);
+        const batchLogs: any[] = [];
+
+        await Promise.all(
+          batch.map(async (task) => {
+            try {
+              await esslService.syncUserBlockStatus(
+                task.employeeCode,
+                task.serialNumber,
+                false // unblock
+              );
+
+              batchLogs.push({
+                employeeCode: task.employeeCode,
+                deviceId: task.deviceMsId,
+                type: "unblock",
+                createdAt: new Date(),
+                updatedAt: new Date(),
+              });
+
+              mainGateUnblockedCount++;
+            } catch (err) {
+              console.error(
+                `Main Gate Unblock Sync Fail for ${task.employeeCode} on ${task.serialNumber}:`,
+                err
+              );
+            }
+          })
+        );
+
+        if (batchLogs.length > 0) {
+          try {
+            await db.insert(blockUnblockLogs).values(batchLogs);
+          } catch (err) {
+            console.error("Batch log insert error:", err);
+          }
+        }
+
+        await new Promise((res) => setTimeout(res, 50));
+      }
+    }
+
     return {
       status: "Success",
-      unlockedDevicesCount: unlockedCount,
+      unlockedDevicesCount,
       totalDevicesCount: allDevices.length,
+      mainGateUnblockedRecords: mainGateUnblockedCount,
       alertId: alertEntry.id,
     };
   }
+ 
+ 
+ 
+ 
+ 
+  // async executeEmergencybulkUnblock(
+  //   userId: string,
+  //   userName: string,
+  // ): Promise<any> {
+  //   // 1. Sirf Active Devices fetch karein
+  //   const allDevices = await db
+  //     .select()
+  //     .from(devices)
+  //     .where(eq(devices.isActive, true));
+
+  //   if (allDevices.length === 0) {
+  //     return {
+  //       status: "Empty",
+  //       processedCount: 0,
+  //       message: "No active devices found.",
+  //     };
+  //   }
+
+  //   // 2. Alert Log Entry
+  //   const [alertEntry] = await db
+  //     .insert(alerts)
+  //     .values({
+  //       alertType: "security",
+  //       severity: "critical",
+  //       title: "🚨 EMERGENCY DOOR UNLOCK",
+  //       message: `Emergency door unlock triggered by ${userName} for ${allDevices.length} devices.`,
+  //       createdBy: userId,
+  //       resolvedBy: userName,
+  //       isRead: false,
+  //       isResolved: true,
+  //       resolvedAt: new Date(),
+  //       createdAt: new Date(),
+  //     })
+  //     .returning();
+
+  //   let unlockedCount = 0;
+
+  //   // 3. Direct Sabhi Active Devices par `unlockDoor` API Command Call Karein
+  //   await Promise.all(
+  //     allDevices.map(async (device) => {
+  //       if (!device.serialNumber) return;
+
+  //       try {
+  //         // Direct Door Unlock Command
+  //         await esslService.unlockDoor(device.serialNumber.trim());
+
+  //         // Optional: DB Log for Device Command
+  //         if (device.msId !== null && device.msId !== undefined) {
+  //           await db.insert(blockUnblockLogs).values({
+  //             employeeCode: "EMERGENCY_DOOR_UNLOCK",
+  //             deviceId: Number(device.msId),
+  //             type: "unblock",
+  //             createdAt: new Date(),
+  //             updatedAt: new Date(),
+  //           });
+  //         }
+
+  //         unlockedCount++;
+  //       } catch (err) {
+  //         console.error(`Door Unlock Error for Serial [${device.serialNumber}]:`, err);
+  //       }
+  //     })
+  //   );
+
+  //   return {
+  //     status: "Success",
+  //     unlockedDevicesCount: unlockedCount,
+  //     totalDevicesCount: allDevices.length,
+  //     alertId: alertEntry.id,
+  //   };
+  // }
   
   async getDoorWiseCount(filters: {
     dateFrom?: string;
