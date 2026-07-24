@@ -374,7 +374,7 @@ function AuthenticatedApp() {
                       className="bg-red-600 text-white hover:bg-red-700"
                       onClick={() => setIsEmergencyBlockOpen(true)}
                     >
-                      <Lock className="w-4 h-4 mr-2" /> Block Devices
+                      <Lock className="w-4 h-4 mr-2" /> Refresh Doors
                     </Button>
                   )}
                   </>
