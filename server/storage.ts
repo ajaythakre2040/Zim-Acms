@@ -4088,6 +4088,8 @@ export class DatabaseStorage implements IStorage {
       });
     return logEntry;
   }
+
+
   async getLockoutEligibleDoors(search?: string): Promise<any[]> {
     const mainGateCode = MAIN_GATE_SYNC.CODE;
     const query = db
