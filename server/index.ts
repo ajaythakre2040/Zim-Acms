@@ -104,7 +104,7 @@ app.use((req, res, next) => {
     } catch (e) {
       log("Cron reset failed: " + e, "error");
     }
-    // startAttendanceCron();
+    startAttendanceCron();
     // initAutoSuspendScheduler();
     // initSyncVisitorLogsCron();
 

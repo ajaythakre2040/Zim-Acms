@@ -30,6 +30,7 @@ import {
   Settings2,
   ChevronDown,
   Check,
+  LockOpen,
 } from "lucide-react";
 import {
   Tooltip,
@@ -501,80 +502,105 @@ export default function ZonesDoorsPage() {
       ),
     },
     {
-      key: "actions",
-      label: "Actions",
-      headerClassName: "text-left",
-      className: "text-left",
-      render: (d: Door) => (
-        <div className="flex gap-1 justify-start items-center">
-          <TooltipProvider delayDuration={300}>
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedDoorForMapping(d);
-                      setMappingDialog(true);
-                    }}
-                  >
-                    <MonitorSmartphone className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Assign Hardware</TooltipContent>
-              </Tooltip>
-            )}
-            {canEdit && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingDoor(d);
-                      setDoorDialog(true);
-                    }}
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Edit Door</TooltipContent>
-              </Tooltip>
-            )}
-            {canDelete && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                    onClick={async (e) => {
-                      e.stopPropagation();
+  key: "actions",
+  label: "Actions",
+  headerClassName: "text-left",
+  className: "text-left",
+  render: (d: Door) => (
+    <div className="flex gap-1 justify-start items-center">
+      <TooltipProvider delayDuration={300}>
+        {/* 🔓 EMERGENCY UNLOCK BUTTON */}
+        {canEdit && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // 💡 Emergency Unlock ka action handler yahan lagao
+                }}
+              >
+                <LockOpen className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Emergency Unlock</TooltipContent>
+          </Tooltip>
+        )}
 
-                      if (window.confirm("Delete this door?")) {
-                        await doorCrud.remove(d.id);
+        {/* 📱 ASSIGN HARDWARE */}
+        {canEdit && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedDoorForMapping(d);
+                  setMappingDialog(true);
+                }}
+              >
+                <MonitorSmartphone className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Assign Hardware</TooltipContent>
+          </Tooltip>
+        )}
 
-                        setTimeout(async () => {
-                          await fetchDoors();
-                        }, 300);
-                      }
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete Door</TooltipContent>
-              </Tooltip>
-            )}
-          </TooltipProvider>
-        </div>
-      ),
-    },
+        {/* ✏️ EDIT DOOR */}
+        {canEdit && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingDoor(d);
+                  setDoorDialog(true);
+                }}
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Edit Door</TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* 🗑️ DELETE DOOR */}
+        {canDelete && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                onClick={async (e) => {
+                  e.stopPropagation();
+
+                  if (window.confirm("Delete this door?")) {
+                    await doorCrud.remove(d.id);
+
+                    setTimeout(async () => {
+                      await fetchDoors();
+                    }, 300);
+                  }
+                }}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Delete Door</TooltipContent>
+          </Tooltip>
+        )}
+      </TooltipProvider>
+    </div>
+  ),
+}
   ].filter((col) => {
     // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
     if (col.key === "actions") {
