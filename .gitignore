@@ -1,6 +1,14 @@
+# Dependencies & Build
 node_modules
 dist
 .DS_Store
 server/public
 vite.config.ts.*
+
+# Compressed / Archive Files
+*.zip
+*.tar
 *.tar.gz
+*.gz
+*.rar
+*.7z

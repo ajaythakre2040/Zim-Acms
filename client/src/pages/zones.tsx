@@ -41,7 +41,7 @@ import type { Zone, Door, Site } from "@shared/schema";
 import { useQueryClient } from "@tanstack/react-query";
 import { validateNoHtml } from "../lib/validation";
 import { usePermission } from "@/hooks/use-permission";
-import { MENU_CONFIG } from "../../../server/constant";
+import { MENU_CONFIG, UNIT_TYPE } from "../../../server/constant";
 import { PaginationSize } from "@/components/ui/pagination";
 type PaginatedResponse<T> = {
   data: T[];
@@ -298,21 +298,17 @@ export default function ZonesDoorsPage() {
         required: true,
         disabled: !!editingDoor,
       },
-      // {
-      //   key: "locationId",
-      //   label: "Site",
-      //   type: "select",
-      //   options: sites.map((s) => ({ value: String(s.id), label: s.name })),
-      // },
-      // {
-      //   key: "zoneId",
-      //   label: "Zone",
-      //   type: "select",
-      //   options: zoneCrud.data.map((z) => ({
-      //     value: String(z.id),
-      //     label: z.name,
-      //   })),
-      // },
+      {
+        key: "unit",
+        label: "Unit",
+        type: "select",
+        options: Object.values(UNIT_TYPE).map((unit) => ({
+          value: unit,
+          label: unit.replace("_", " "), // e.g. "UNIT_1" -> "UNIT 1" (UI format)
+        })),
+        defaultValue: UNIT_TYPE.UNIT_1, // ya simple "UNIT_1"
+      },
+
       {
         key: "doorType",
         label: "Type",
@@ -430,30 +426,34 @@ export default function ZonesDoorsPage() {
     },
     { key: "code", label: "Code", hideOnMobile: true },
     {
-      key: "doorType",
-      label: "Type",
+      key: "unit",
+      label: "Unit",
       render: (d: Door) => (
         <Badge variant="secondary" className="capitalize">
-          {d.doorType}
+          {d.unit}
         </Badge>
       ),
     },
-    // {
-    //   key: "zone",
-    //   label: "Zone",
-    //   hideOnMobile: true,
-    //   render: (d: Door) =>
-    //     zoneCrud.data.find((z) => z.id === d.zoneId)?.name || "-",
-    // },
+
     {
-      key: "status",
-      label: "Status",
-      render: (d: Door) => (
-        <Badge variant={doorStatusColors[d.status || ""] as any}>
-          {d.status}
-        </Badge>
-      ),
+      key: "isactive",
+      label: "IsActive",
+      render: (d: Door) => {
+        const activeKey = d.isActive ? "active" : "inactive";
+
+        return (
+          <Badge
+            variant={
+              (doorStatusColors[activeKey] ||
+                (d.isActive ? "default" : "destructive")) as any
+            }
+          >
+            {d.isActive ? "Active" : "Inactive"}
+          </Badge>
+        );
+      },
     },
+
     {
       key: "inDevices",
       label: "IN Devices",
@@ -854,12 +854,12 @@ export default function ZonesDoorsPage() {
           initialData={
             editingDoor
               ? {
-                  ...editingDoor,
-                  locationId: editingDoor.locationId
-                    ? String(editingDoor.locationId)
-                    : "",
-                  zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "",
-                }
+                ...editingDoor,
+                locationId: editingDoor.locationId
+                  ? String(editingDoor.locationId)
+                  : "",
+                zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "",
+              }
               : undefined
           }
           onSubmit={async (data) => {

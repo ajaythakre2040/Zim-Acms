@@ -232,5 +232,11 @@ export const RFID_CARDS = [
   { id: 9, name: "RFID Card 9", cardNumber: "1192837", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
   { id: 10, name: "RFID Card 10", cardNumber: "4475629", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
 ];
-
+export const UNIT_TYPE = {
+  UNIT_1: "UNIT_1",
+  UNIT_2: "UNIT_2",
+  UNIT_3: "UNIT_3",
+  UNIT_4: "UNIT_4",
+  UNIT_5: "UNIT_5"
+};
 export type TableNames = typeof TABLES[keyof typeof TABLES];

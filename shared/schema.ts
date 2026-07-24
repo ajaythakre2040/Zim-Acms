@@ -135,6 +135,7 @@ export const doors = pgTable("doors", {
   zoneId: integer("zone_id"),
   locationId: integer("location_id"),
   doorType: text("door_type", { enum: ["standard", "turnstile", "barrier", "gate", "emergency"] }).default("standard"),
+  unit: text("unit"),
   isHighRisk: boolean("is_high_risk").default(false),
   requires2FA: boolean("requires_2fa").default(false),
   inReaderId: integer("in_reader_id"),
