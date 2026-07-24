@@ -4678,6 +4678,125 @@ export class DatabaseStorage implements IStorage {
   //     alertId: alertEntry.id,
   //   };
   // }
+  async unlockSpecificDoor(
+  doorId: number,
+  userId: string,
+  userName: string,
+): Promise<any> {
+  // 1. Specific Door ka detail fetch karein
+  const [door] = await db
+    .select()
+    .from(doors)
+    .where(eq(doors.id, doorId));
+
+  if (!door) {
+    throw new Error(`Door with ID ${doorId} not found.`);
+  }
+
+  // 2. Door ke sath mapped In & Out Devices (doorDevices) fetch karein
+  const doorDeviceMappings = await db
+    .select()
+    .from(doorDevices)
+    .where(eq(doorDevices.doorId, doorId));
+
+  const targetDeviceMsIds = new Set<number>();
+  doorDeviceMappings.forEach((mapping) => {
+    (mapping.inDeviceIds || []).forEach((id) => targetDeviceMsIds.add(Number(id)));
+    (mapping.outDeviceIds || []).forEach((id) => targetDeviceMsIds.add(Number(id)));
+  });
+
+  if (targetDeviceMsIds.size === 0) {
+    return {
+      status: "Empty",
+      unlockedDevicesCount: 0,
+      message: `No devices assigned/mapped to door: ${door.name}`,
+    };
+  }
+
+  // 3. Devices table se unhi active devices ko fetch karein jinke msId mapped hain
+  const targetDevices = await db
+    .select()
+    .from(devices)
+    .where(
+      and(
+        eq(devices.isActive, true),
+        inArray(devices.msId, Array.from(targetDeviceMsIds))
+      )
+    );
+
+  if (targetDevices.length === 0) {
+    return {
+      status: "Empty",
+      unlockedDevicesCount: 0,
+      message: `No active devices found for door: ${door.name}`,
+    };
+  }
+
+  // 4. Emergency Alert Entry
+  const [alertEntry] = await db
+    .insert(alerts)
+    .values({
+      alertType: "security",
+      severity: "critical",
+      title: `🚨 EMERGENCY DOOR UNLOCK: ${door.name.toUpperCase()}`,
+      message: `Emergency unlock triggered by ${userName} for Door "${door.name}" (${targetDevices.length} devices).`,
+      createdBy: userId,
+      resolvedBy: userName,
+      isRead: false,
+      isResolved: true,
+      resolvedAt: new Date(),
+      createdAt: new Date(),
+    })
+    .returning();
+
+  // 5. Hardware Direct Unlock (MSSQL devicecommands entry via esslService)
+  let unlockedDevicesCount = 0;
+  const logsToInsert: any[] = [];
+
+  await Promise.all(
+    targetDevices.map(async (device) => {
+      if (!device.serialNumber) return;
+
+      try {
+        // eSSL Service command -> MSSQL devicecommands table insert
+        await esslService.unlockDoor(device.serialNumber.trim());
+
+        if (device.msId !== null && device.msId !== undefined) {
+          logsToInsert.push({
+            employeeCode: "EMERGENCY_DOOR_UNLOCK",
+            deviceId: Number(device.msId),
+            type: "unblock",
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+        unlockedDevicesCount++;
+      } catch (err) {
+        console.error(
+          `Door Unlock Error for Serial [${device.serialNumber}] on Door [${door.name}]:`,
+          err,
+        );
+      }
+    }),
+  );
+
+  // 6. PG blockUnblockLogs table mein insert
+  if (logsToInsert.length > 0) {
+    try {
+      await db.insert(blockUnblockLogs).values(logsToInsert);
+    } catch (err) {
+      console.error("Failed to insert single door unlock logs into PG:", err);
+    }
+  }
+
+  return {
+    status: "Success",
+    doorName: door.name,
+    unlockedDevicesCount,
+    totalDevicesCount: targetDevices.length,
+    alertId: alertEntry.id,
+  };
+}
 
   // async executeEmergencybulkUnblock(
   //   userId: string,

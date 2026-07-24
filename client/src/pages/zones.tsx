@@ -7,6 +7,8 @@ import { CrudDialog, type FieldConfig } from "@/components/crud-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+
 import {
   Dialog,
   DialogContent,
@@ -60,7 +62,7 @@ export default function ZonesDoorsPage() {
       </div>
     );
   }
-
+  const { toast } = useToast();
   const queryClient = useQueryClient();
   const [zoneDialog, setZoneDialog] = useState(false);
   const [doorDialog, setDoorDialog] = useState(false);
@@ -241,20 +243,7 @@ export default function ZonesDoorsPage() {
         required: true,
         disabled: !!editingZone,
       },
-      // {
-      //   key: "locationId",
-      //   label: "Site",
-      //   type: "select",
-      //   required: true,
-      //   defaultValue: "placeholder", // 👈 empty nahi
-      //   options: [
-      //     { value: "placeholder", label: "Select Site" }, // 👈 change here
-      //     ...sites.map((s) => ({
-      //       value: String(s.id),
-      //       label: s.name,
-      //     })),
-      //   ],
-      // },
+
       {
         key: "locationId",
         label: "Site",
@@ -323,21 +312,21 @@ export default function ZonesDoorsPage() {
         ],
         defaultValue: "standard",
       },
-      { key: "requires2FA", label: "Requires 2FA", type: "switch" },
-      { key: "isHighRisk", label: "High Risk", type: "switch" },
-      {
-        key: "status",
-        label: "Status",
-        type: "select",
-        options: [
-          { value: "normal", label: "Normal" },
-          { value: "locked", label: "Locked" },
-          { value: "unlocked", label: "Unlocked" },
-          { value: "alarm", label: "Alarm" },
-          { value: "maintenance", label: "Maintenance" },
-        ],
-        defaultValue: "normal",
-      },
+      // { key: "requires2FA", label: "Requires 2FA", type: "switch" },
+      // { key: "isHighRisk", label: "High Risk", type: "switch" },
+      // {
+      //   key: "status",
+      //   label: "Status",
+      //   type: "select",
+      //   options: [
+      //     { value: "normal", label: "Normal" },
+      //     { value: "locked", label: "Locked" },
+      //     { value: "unlocked", label: "Unlocked" },
+      //     { value: "alarm", label: "Alarm" },
+      //     { value: "maintenance", label: "Maintenance" },
+      //   ],
+      //   defaultValue: "normal",
+      // },
       { key: "isActive", label: "Active", type: "switch", defaultValue: true },
     ],
     [sites, zoneCrud.data, editingDoor],
@@ -502,105 +491,179 @@ export default function ZonesDoorsPage() {
       ),
     },
     {
-  key: "actions",
-  label: "Actions",
-  headerClassName: "text-left",
-  className: "text-left",
-  render: (d: Door) => (
-    <div className="flex gap-1 justify-start items-center">
-      <TooltipProvider delayDuration={300}>
-        {/* 🔓 EMERGENCY UNLOCK BUTTON */}
-        {canEdit && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // 💡 Emergency Unlock ka action handler yahan lagao
-                }}
-              >
-                <LockOpen className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Emergency Unlock</TooltipContent>
-          </Tooltip>
-        )}
+      key: "actions",
+      label: "Actions",
+      headerClassName: "text-left",
+      className: "text-left",
+      render: (d: Door) => (
+        <div className="flex gap-1 justify-start items-center">
+          <TooltipProvider delayDuration={300}>
+            {/* 🔓 EMERGENCY UNLOCK BUTTON */}
+            {canEdit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
 
-        {/* 📱 ASSIGN HARDWARE */}
-        {canEdit && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedDoorForMapping(d);
-                  setMappingDialog(true);
-                }}
-              >
-                <MonitorSmartphone className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Assign Hardware</TooltipContent>
-          </Tooltip>
-        )}
+                      const { dismiss } = toast({
+                        // 🎯 Top-Center Position & Clean Neutral Border
+                        className:
+                          "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-slate-200 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
+                        description: (
+                          <div className="w-full flex flex-col gap-3">
+                            {/* 1. TOP LINE: Bold Black Title + Normal Message */}
+                            <div className="text-sm text-slate-800 dark:text-slate-200">
+                              <span className="font-bold text-slate-900 dark:text-white mr-1.5">
+                                Emergency Unlock:
+                              </span>
+                              <span>
+                                Are you sure you want to unlock{" "}
+                                <strong className="text-slate-900 dark:text-white font-semibold">
+                                  "{d.name}"
+                                </strong>
+                                ?
+                              </span>
+                            </div>
 
-        {/* ✏️ EDIT DOOR */}
-        {canEdit && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingDoor(d);
-                  setDoorDialog(true);
-                }}
-              >
-                <Pencil className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Edit Door</TooltipContent>
-          </Tooltip>
-        )}
+                            {/* 2. BOTTOM LINE: Right-Aligned Buttons (Blue Unlock Button) */}
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
+                                onClick={() => dismiss()}
+                              >
+                                Cancel
+                              </Button>
 
-        {/* 🗑️ DELETE DOOR */}
-        {canDelete && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                onClick={async (e) => {
-                  e.stopPropagation();
+                              {/* 🔵 BLUE UNLOCK BUTTON */}
+                              <Button
+                                size="sm"
+                                className="h-8 px-4 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                onClick={async () => {
+                                  dismiss();
+                                  try {
+                                    const response = await fetch(
+                                      `/api/doors/${d.id}/emergency-unlock`,
+                                      { method: "POST" },
+                                    );
+                                    const data = await response.json();
 
-                  if (window.confirm("Delete this door?")) {
-                    await doorCrud.remove(d.id);
+                                    if (response.ok) {
+                                      toast({
+                                        title: "Success",
+                                        description: `Door "${d.name}" unlocked successfully!`,
+                                      });
+                                    } else {
+                                      toast({
+                                        title: "Unlock Failed",
+                                        description:
+                                          data.message ||
+                                          "Failed to unlock door.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  } catch (err) {
+                                    toast({
+                                      title: "Error",
+                                      description:
+                                        "Error sending unlock command.",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                              >
+                                Unlock
+                              </Button>
+                            </div>
+                          </div>
+                        ),
+                      });
+                    }}
+                  >
+                    <LockOpen className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Emergency Unlock</TooltipContent>
+              </Tooltip>
+            )}
 
-                    setTimeout(async () => {
-                      await fetchDoors();
-                    }, 300);
-                  }
-                }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Delete Door</TooltipContent>
-          </Tooltip>
-        )}
-      </TooltipProvider>
-    </div>
-  ),
-}
+            {/* 📱 ASSIGN HARDWARE */}
+            {canEdit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDoorForMapping(d);
+                      setMappingDialog(true);
+                    }}
+                  >
+                    <MonitorSmartphone className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Assign Hardware</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* ✏️ EDIT DOOR */}
+            {canEdit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingDoor(d);
+                      setDoorDialog(true);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit Door</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* 🗑️ DELETE DOOR */}
+            {canDelete && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+
+                      if (window.confirm("Delete this door?")) {
+                        await doorCrud.remove(d.id);
+
+                        setTimeout(async () => {
+                          await fetchDoors();
+                        }, 300);
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete Door</TooltipContent>
+              </Tooltip>
+            )}
+          </TooltipProvider>
+        </div>
+      ),
+    },
   ].filter((col) => {
     // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
     if (col.key === "actions") {
@@ -880,12 +943,12 @@ export default function ZonesDoorsPage() {
           initialData={
             editingDoor
               ? {
-                ...editingDoor,
-                locationId: editingDoor.locationId
-                  ? String(editingDoor.locationId)
-                  : "",
-                zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "",
-              }
+                  ...editingDoor,
+                  locationId: editingDoor.locationId
+                    ? String(editingDoor.locationId)
+                    : "",
+                  zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "",
+                }
               : undefined
           }
           onSubmit={async (data) => {
@@ -994,41 +1057,53 @@ export default function ZonesDoorsPage() {
                     </button>
                   </div>
                   <div className="max-h-[250px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                    {devices.map((device) => {
-                      const isSelected = pendingMapping.inDeviceIds.includes(
-                        device.msId,
-                      );
-                      return (
-                        <div
-                          key={device.msId}
-                          className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-slate-50"}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleDevice(device.msId, "in");
-                          }}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={isSelected}
-                              className="border-slate-300"
-                              onCheckedChange={() =>
-                                toggleDevice(device.msId, "in")
-                              }
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <span className="text-sm font-medium">
-                              {device.name}{" "}
-                              {device.ipAddress && (
-                                <span className="text-[10px] text-slate-400 font-normal ml-1">
-                                  ({device.ipAddress})
-                                </span>
-                              )}
-                            </span>
+                    {/* 💡 FILTER APPLIED: Only Online Devices */}
+                    {devices
+                      ?.filter(
+                        (device: any) =>
+                          device.status === "online" ||
+                          device.isOnline === true ||
+                          device.deviceStatus === "online",
+                      )
+                      .map((device) => {
+                        const isSelected = pendingMapping.inDeviceIds.includes(
+                          device.msId,
+                        );
+                        return (
+                          <div
+                            key={device.msId}
+                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                              isSelected
+                                ? "bg-primary/5 text-primary"
+                                : "hover:bg-slate-50"
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleDevice(device.msId, "in");
+                            }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                checked={isSelected}
+                                className="border-slate-300"
+                                onCheckedChange={() =>
+                                  toggleDevice(device.msId, "in")
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <span className="text-sm font-medium">
+                                {device.name}{" "}
+                                {device.ipAddress && (
+                                  <span className="text-[10px] text-slate-400 font-normal ml-1">
+                                    ({device.ipAddress})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4" />}
                           </div>
-                          {isSelected && <Check className="w-4 h-4" />}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -1096,41 +1171,53 @@ export default function ZonesDoorsPage() {
                     </button>
                   </div>
                   <div className="max-h-[250px] overflow-y-auto space-y-1 pr-1 custom-scrollbar">
-                    {devices.map((device) => {
-                      const isSelected = pendingMapping.outDeviceIds.includes(
-                        device.msId,
-                      );
-                      return (
-                        <div
-                          key={device.msId}
-                          className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${isSelected ? "bg-primary/5 text-primary" : "hover:bg-slate-50"}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleDevice(device.msId, "out");
-                          }}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Checkbox
-                              checked={isSelected}
-                              className="border-slate-300"
-                              onCheckedChange={() =>
-                                toggleDevice(device.msId, "out")
-                              }
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                            <span className="text-sm font-medium">
-                              {device.name}{" "}
-                              {device.ipAddress && (
-                                <span className="text-[10px] text-slate-400 font-normal ml-1">
-                                  ({device.ipAddress})
-                                </span>
-                              )}
-                            </span>
+                    {/* 💡 FILTER APPLIED: Only Online Devices */}
+                    {devices
+                      ?.filter(
+                        (device: any) =>
+                          device.status === "online" ||
+                          device.isOnline === true ||
+                          device.deviceStatus === "online",
+                      )
+                      .map((device) => {
+                        const isSelected = pendingMapping.outDeviceIds.includes(
+                          device.msId,
+                        );
+                        return (
+                          <div
+                            key={device.msId}
+                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
+                              isSelected
+                                ? "bg-primary/5 text-primary"
+                                : "hover:bg-slate-50"
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleDevice(device.msId, "out");
+                            }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Checkbox
+                                checked={isSelected}
+                                className="border-slate-300"
+                                onCheckedChange={() =>
+                                  toggleDevice(device.msId, "out")
+                                }
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                              <span className="text-sm font-medium">
+                                {device.name}{" "}
+                                {device.ipAddress && (
+                                  <span className="text-[10px] text-slate-400 font-normal ml-1">
+                                    ({device.ipAddress})
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            {isSelected && <Check className="w-4 h-4" />}
                           </div>
-                          {isSelected && <Check className="w-4 h-4" />}
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
                   </div>
                 </PopoverContent>
               </Popover>

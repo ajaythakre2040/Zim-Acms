@@ -1094,6 +1094,28 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return { success: true, message: `Emergency unblock initiated for ${result.processedCount} records.`, audit: { performedBy: user?.username || "Admin User", alertId: result.alertId } };
   }, 200));
 
+  app.post("/api/doors/:id/emergency-unlock", isAuthenticated, withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, "EMERGENCY_UNBLOCK", async (req) => {
+    const loginId = req.session?.userId;
+    if (!loginId) throw new Error("User session not found. Please re-login.");
+
+    const doorId = Number(req.params.id);
+    if (isNaN(doorId)) throw new Error("Invalid Door ID provided.");
+
+    const user = await storage.getUser(loginId.toString());
+    const result = await storage.unlockSpecificDoor(doorId, loginId, user?.username || "Admin User");
+
+    return { 
+      success: true, 
+      message: `Emergency unlock initiated for door "${result.doorName}" (${result.unlockedDevicesCount} devices).`, 
+      audit: { 
+        doorId,
+        doorName: result.doorName,
+        performedBy: user?.username || "Admin User", 
+        alertId: result.alertId 
+      } 
+    };
+  }, 200));
+
   app.post("/api/newDevice/bulk-block", isAuthenticated, withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, "EMERGENCY_BLOCK_ALL", async (req) => {
     const loginId = req.session?.userId;
     if (!loginId) throw new Error("User session not found. Please re-login.");

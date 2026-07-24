@@ -108,13 +108,13 @@ export default function DesignationPage() {
         <span className="text-muted-foreground">{item.code || "-"}</span>
       ),
     },
-    {
-      key: "level",
-      label: "Level",
-      render: (item: any) => (
-        <Badge variant="outline">{item.level ?? "-"}</Badge>
-      ),
-    },
+    // {
+    //   key: "level",
+    //   label: "Level",
+    //   render: (item: any) => (
+    //     <Badge variant="outline">{item.level ?? "-"}</Badge>
+    //   ),
+    // },
     {
       key: "description",
       label: "Description",
@@ -449,7 +449,7 @@ export default function DesignationPage() {
             },
           },
 
-          { key: "level", label: "Level", type: "number" },
+          // { key: "level", label: "Level", type: "number" },
           { key: "description", label: "Description", type: "textarea" },
           {
             key: "isActive",
