@@ -132,7 +132,7 @@ export default function ZonesDoorsPage() {
   const doors = pagedDoors?.data || [];
   const doorTotalPages = pagedDoors?.totalPages || 1;
   const doorTotalCount = pagedDoors?.totalCount || 0;
-  
+
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: devices = [] } = useQuery<any[]>({
     queryKey: ["/api/devices"],
@@ -503,87 +503,90 @@ export default function ZonesDoorsPage() {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
-  size="icon"
-  variant="ghost"
-  className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-  onClick={(e) => {
-    e.stopPropagation();
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
 
-    const { dismiss } = toast({
-      // 🎯 Sirf Confirmation Prompt Top-Center rahega
-      className:
-        "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-amber-300 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
-      description: (
-        <div className="w-full flex flex-col gap-3">
-          {/* 1. TOP LINE: Clean Title + Message */}
-          <div className="text-sm text-slate-800 dark:text-slate-200">
-            <span className="font-bold text-amber-600 mr-1.5">Emergency Unlock:</span>
-            <span>
-              Are you sure you want to unlock{" "}
-              <strong className="text-slate-900 dark:text-white font-semibold">
-                "{d.name}"
-              </strong>
-              ?
-            </span>
-          </div>
+                      const { dismiss } = toast({
+                        // 🎯 Top-Center Position & Clean Neutral Border
+                        className:
+                          "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-slate-200 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
+                        description: (
+                          <div className="w-full flex flex-col gap-3">
+                            {/* 1. TOP LINE: Bold Black Title + Normal Message */}
+                            <div className="text-sm text-slate-800 dark:text-slate-200">
+                              <span className="font-bold text-slate-900 dark:text-white mr-1.5">
+                                Emergency Unlock:
+                              </span>
+                              <span>
+                                Are you sure you want to unlock{" "}
+                                <strong className="text-slate-900 dark:text-white font-semibold">
+                                  "{d.name}"
+                                </strong>
+                                ?
+                              </span>
+                            </div>
 
-          {/* 2. BOTTOM LINE: Right-Aligned Buttons */}
-          <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
-              onClick={() => dismiss()}
-            >
-              Cancel
-            </Button>
+                            {/* 2. BOTTOM LINE: Right-Aligned Buttons (Blue Unlock Button) */}
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
+                                onClick={() => dismiss()}
+                              >
+                                Cancel
+                              </Button>
 
-            <Button
-              size="sm"
-              className="h-8 px-4 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
-              onClick={async () => {
-                dismiss();
-                try {
-                  const response = await fetch(
-                    `/api/doors/${d.id}/emergency-unlock`,
-                    { method: "POST" }
-                  );
-                  const data = await response.json();
+                              {/* 🔵 BLUE UNLOCK BUTTON */}
+                              <Button
+                                size="sm"
+                                className="h-8 px-4 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                onClick={async () => {
+                                  dismiss();
+                                  try {
+                                    const response = await fetch(
+                                      `/api/doors/${d.id}/emergency-unlock`,
+                                      { method: "POST" },
+                                    );
+                                    const data = await response.json();
 
-                  if (response.ok) {
-                    // 🎯 Standard Success Toast (Niche Bottom-Right Corner me dikhega)
-                    toast({
-                      title: "Success",
-                      description: `Door "${d.name}" unlocked successfully!`,
-                    });
-                  } else {
-                    // 🎯 Standard Failed Toast (Bottom-Right Corner)
-                    toast({
-                      title: "Unlock Failed",
-                      description: data.message || "Failed to unlock door.",
-                      variant: "destructive",
-                    });
-                  }
-                } catch (err) {
-                  // 🎯 Standard Error Toast (Bottom-Right Corner)
-                  toast({
-                    title: "Error",
-                    description: "Error sending unlock command.",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              Unlock
-            </Button>
-          </div>
-        </div>
-      ),
-    });
-  }}
->
-  <LockOpen className="w-4 h-4" />
-</Button>
+                                    if (response.ok) {
+                                      toast({
+                                        title: "Success",
+                                        description: `Door "${d.name}" unlocked successfully!`,
+                                      });
+                                    } else {
+                                      toast({
+                                        title: "Unlock Failed",
+                                        description:
+                                          data.message ||
+                                          "Failed to unlock door.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  } catch (err) {
+                                    toast({
+                                      title: "Error",
+                                      description:
+                                        "Error sending unlock command.",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                              >
+                                Unlock
+                              </Button>
+                            </div>
+                          </div>
+                        ),
+                      });
+                    }}
+                  >
+                    <LockOpen className="w-4 h-4" />
+                  </Button>
                 </TooltipTrigger>
                 <TooltipContent>Emergency Unlock</TooltipContent>
               </Tooltip>
