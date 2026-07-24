@@ -7320,6 +7320,259 @@ ${fromDate} || ' to ' || ${toDate}
     }
   }
 
+  // async executeNewDevicebulkBlock(
+  //   userId: string,
+  //   userName: string,
+  // ): Promise<any> {
+  //   // Safe fallback to prevent undefined inputs
+  //   const safeUserId = userId || "SYSTEM";
+  //   const safeUserName = userName || "System Admin";
+
+  //   // ==========================================
+  //   // STEP 1: COMPUTE LIVE HARDWARE TELEMETRY
+  //   // ==========================================
+  //   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
+  //   const allOnlineDevices =
+  //     (await db
+  //       .select()
+  //       .from(devices)
+  //       .where(
+  //         and(eq(devices.isActive, true), gt(devices.lastPing, fiveMinutesAgo)),
+  //       )) ?? [];
+  //   console.log("demo");
+  //   console.log(
+  //     `[INFO] Fetched ${allOnlineDevices.length} online devices from DB.`,
+  //   );
+  //   const onlineDeviceIds = new Set(
+  //     allOnlineDevices
+  //       .filter((d) => d && d.msId !== null && d.msId !== undefined)
+  //       .map((d) => Number(d.msId)),
+  //   );
+
+  //   // const allActiveDevices =
+  //   //   (await db.select().from(devices).where(eq(devices.isActive, true))) ?? [];
+
+  //   // ==========================================
+  //   // STEP 2: EXTRACT GLOBAL DOOR-TO-DEVICE MAPS
+  //   // ==========================================
+  //   const allDoorDevicesRelations =
+  //     (await db
+  //       .select({
+  //         doorId: doorDevices.doorId,
+  //         inDeviceIds: doorDevices.inDeviceIds,
+  //         outDeviceIds: doorDevices.outDeviceIds,
+  //         isActive: doorDevices.isActive,
+  //         doorType: doors.doorType,
+  //         code: doors.code,
+  //       })
+  //       .from(doorDevices)
+  //       .leftJoin(doors, eq(doorDevices.doorId, doors.id))
+  //       .where(eq(doorDevices.isActive, true))) ?? [];
+
+  //   const globalAssignedDeviceIds = new Set<number>();
+  //   const gateDeviceIds = new Set<number>();
+
+  //   for (const dd of allDoorDevicesRelations) {
+  //     if (!dd) continue;
+
+  //     const isMainGate =
+  //       dd.code === MAIN_GATE_SYNC.CODE ||
+  //       dd.doorType === MAIN_GATE_SYNC.DOOR_TYPE;
+
+  //     const inIds = Array.isArray(dd.inDeviceIds) ? dd.inDeviceIds : [];
+  //     for (const id of inIds) {
+  //       if (id !== null && id !== undefined) {
+  //         globalAssignedDeviceIds.add(Number(id));
+  //         if (isMainGate) gateDeviceIds.add(Number(id));
+  //       }
+  //     }
+
+  //     const outIds = Array.isArray(dd.outDeviceIds) ? dd.outDeviceIds : [];
+  //     for (const id of outIds) {
+  //       if (id !== null && id !== undefined) {
+  //         globalAssignedDeviceIds.add(Number(id));
+  //         if (isMainGate) gateDeviceIds.add(Number(id));
+  //       }
+  //     }
+  //   }
+
+  //   // Isolate rogue or extra online endpoints
+  //   const onlineButNotAssignedToAnyDoor = new Set<number>();
+  //   for (const onlineId of onlineDeviceIds) {
+  //     if (!globalAssignedDeviceIds.has(onlineId)) {
+  //       onlineButNotAssignedToAnyDoor.add(onlineId);
+  //     }
+  //   }
+
+  //   // Fetch all active personnel
+  //   const allPeople =
+  //     (await db.select().from(people).where(eq(people.status, "active"))) ?? [];
+
+  //   const taskQueue: Array<{
+  //     employeeCode: string;
+  //     deviceMsId: number;
+  //     serialNumber: string;
+  //   }> = [];
+
+  //   // ==========================================
+  //   // STEP 3: TRANSACTIONAL MATRIX EVALUATION
+  //   // ==========================================
+  //   for (const person of allPeople) {
+  //     if (!person?.employeeCode) continue;
+
+  //     // CASE A: Personnel currently located in outer boundaries (OUT zone)
+  //     if (person.currentZone === "OUT") {
+  //       for (const dev of allOnlineDevices) {
+  //         if (!dev?.msId || !dev?.serialNumber) continue;
+  //         const currentDevId = Number(dev.msId);
+
+  //         if (gateDeviceIds.has(currentDevId)) {
+  //           continue;
+  //         }
+
+  //         const lastLog = await db
+  //           .select()
+  //           .from(blockUnblockLogs)
+  //           .where(
+  //             and(
+  //               eq(blockUnblockLogs.employeeCode, person.employeeCode),
+  //               eq(blockUnblockLogs.deviceId, currentDevId),
+  //             ),
+  //           )
+  //           .orderBy(desc(blockUnblockLogs.createdAt))
+  //           .limit(1);
+
+  //         if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
+  //           continue;
+  //         }
+
+  //         taskQueue.push({
+  //           employeeCode: person.employeeCode,
+  //           deviceMsId: currentDevId,
+  //           serialNumber: dev.serialNumber,
+  //         });
+  //       }
+  //     }
+  //     // CASE B: Personnel located within inner secure parameters (IN/CABIN zone)
+  //     else {
+  //       for (const dev of allOnlineDevices) {
+  //         if (!dev?.msId || !dev?.serialNumber) continue;
+  //         const currentDevId = Number(dev.msId);
+
+  //         if (gateDeviceIds.has(currentDevId)) {
+  //           continue;
+  //         }
+
+  //         if (onlineButNotAssignedToAnyDoor.has(currentDevId)) {
+  //           const lastLog = await db
+  //             .select()
+  //             .from(blockUnblockLogs)
+  //             .where(
+  //               and(
+  //                 eq(blockUnblockLogs.employeeCode, person.employeeCode),
+  //                 eq(blockUnblockLogs.deviceId, currentDevId),
+  //               ),
+  //             )
+  //             .orderBy(desc(blockUnblockLogs.createdAt))
+  //             .limit(1);
+
+  //           if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
+  //             continue;
+  //           }
+
+  //           taskQueue.push({
+  //             employeeCode: person.employeeCode,
+  //             deviceMsId: currentDevId,
+  //             serialNumber: dev.serialNumber,
+  //           });
+  //         }
+  //       }
+  //     }
+  //   }
+
+  //   // ==========================================
+  //   // STEP 4: AUDIT LOGGING & SECURITY ALERTS
+  //   // ==========================================
+  //   if (taskQueue.length === 0) {
+  //     return {
+  //       status: "Empty",
+  //       processedCount: 0,
+  //       message: "No records found matching the security block conditions.",
+  //     };
+  //   }
+
+  //   // FIX: Destructuring array safely to prevent "Cannot convert undefined or null to object"
+  //   const alertResult = await db
+  //     .insert(alerts)
+  //     .values({
+  //       alertType: "security",
+  //       severity: "critical",
+  //       title: "🚨 EMERGENCY BULK BLOCK",
+  //       message: `Conditional system-wide block triggered by ${safeUserName} for ${taskQueue.length} records. Main Gate peripherals left untouched.`,
+  //       createdBy: safeUserId,
+  //       resolvedBy: safeUserName,
+  //       isRead: false,
+  //       isResolved: true,
+  //       resolvedAt: new Date(),
+  //       createdAt: new Date(),
+  //     })
+  //     .returning();
+
+  //   const alertEntry =
+  //     Array.isArray(alertResult) && alertResult.length > 0
+  //       ? alertResult[0]
+  //       : null;
+
+  //   // ==========================================
+  //   // STEP 5: BATCHED DISPATCH & HARDWARE SYNC
+  //   // ==========================================
+  //   const BATCH_SIZE = 50;
+  //   let processedCount = 0;
+
+  //   for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
+  //     const batch = taskQueue.slice(i, i + BATCH_SIZE);
+
+  //     await Promise.all(
+  //       batch.map(async (task) => {
+  //         try {
+  //           if (!task?.employeeCode || !task?.deviceMsId) return;
+
+  //           await db.insert(blockUnblockLogs).values({
+  //             employeeCode: task.employeeCode,
+  //             deviceId: task.deviceMsId,
+  //             type: "block",
+  //             createdAt: new Date(),
+  //             updatedAt: new Date(),
+  //           });
+
+  //           if (esslService?.syncUserBlockStatus) {
+  //             esslService
+  //               .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
+  //               .catch((err) =>
+  //                 console.error(
+  //                   `API Sync Fail for ${task.employeeCode} on device ${task.deviceMsId}:`,
+  //                   err,
+  //                 ),
+  //               );
+  //           }
+
+  //           processedCount++;
+  //         } catch (err) {
+  //           console.error(`PG Log Error for ${task.employeeCode}:`, err);
+  //         }
+  //       }),
+  //     );
+
+  //     await new Promise((res) => setTimeout(res, 100));
+  //   }
+
+  //   return {
+  //     status: "Success",
+  //     processedCount: processedCount,
+  //     alertId: alertEntry ? alertEntry.id : null,
+  //   };
+  // }
   async executeNewDevicebulkBlock(
     userId: string,
     userName: string,
@@ -7350,12 +7603,10 @@ ${fromDate} || ' to ' || ${toDate}
         .map((d) => Number(d.msId)),
     );
 
-    // const allActiveDevices =
-    //   (await db.select().from(devices).where(eq(devices.isActive, true))) ?? [];
-
     // ==========================================
     // STEP 2: EXTRACT GLOBAL DOOR-TO-DEVICE MAPS
     // ==========================================
+    // Added doors.isActive === true filter
     const allDoorDevicesRelations =
       (await db
         .select({
@@ -7368,7 +7619,12 @@ ${fromDate} || ' to ' || ${toDate}
         })
         .from(doorDevices)
         .leftJoin(doors, eq(doorDevices.doorId, doors.id))
-        .where(eq(doorDevices.isActive, true))) ?? [];
+        .where(
+          and(
+            eq(doorDevices.isActive, true),
+            eq(doors.isActive, true) // Only active doors
+          )
+        )) ?? [];
 
     const globalAssignedDeviceIds = new Set<number>();
     const gateDeviceIds = new Set<number>();
