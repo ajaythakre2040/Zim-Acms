@@ -410,16 +410,7 @@ export class DatabaseStorage implements IStorage {
       }
       if (filters?.employeeCode) {
         conditions.push(
-          or(
-            ilike(
-              schema.employeeActivityLogs.employeeName,
-              `%${filters.employeeCode}%`,
-            ),
-            ilike(
-              schema.employeeActivityLogs.employeeCode,
-              `%${filters.employeeCode}%`,
-            ),
-          ),
+          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
         );
       }
       const doorFilter = filters?.doorId;
@@ -755,14 +746,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) { }
+        } catch (e) {}
       }
     }
     return currentSites;
@@ -836,7 +827,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) { }
+        } catch (e) {}
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -1015,12 +1006,12 @@ export class DatabaseStorage implements IStorage {
       const searchText = search?.toLowerCase().trim();
       const filteredDoors = searchText
         ? resolvedDoors.filter((door) => {
-          return (
-            door.name?.toLowerCase().includes(searchText) ||
-            door.code?.toLowerCase().includes(searchText) ||
-            door.doorType?.toLowerCase().includes(searchText)
-          );
-        })
+            return (
+              door.name?.toLowerCase().includes(searchText) ||
+              door.code?.toLowerCase().includes(searchText) ||
+              door.doorType?.toLowerCase().includes(searchText)
+            );
+          })
         : resolvedDoors;
       if (!pageSize) {
         return filteredDoors;
@@ -1050,12 +1041,12 @@ export class DatabaseStorage implements IStorage {
       console.error("getDoors Error:", error);
       return pageSize
         ? {
-          data: [],
-          totalCount: 0,
-          totalPages: 0,
-          currentPage: 1,
-          pageSize: 0,
-        }
+            data: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: 1,
+            pageSize: 0,
+          }
         : [];
     }
   }
@@ -1785,15 +1776,15 @@ export class DatabaseStorage implements IStorage {
       const baseQuery = db.select().from(shifts).orderBy(asc(shifts.id));
       const finalQuery = searchText
         ? db
-          .select()
-          .from(shifts)
-          .where(
-            or(
-              ilike(shifts.name, `%${searchText}%`),
-              ilike(shifts.code, `%${searchText}%`),
-            ),
-          )
-          .orderBy(asc(shifts.id))
+            .select()
+            .from(shifts)
+            .where(
+              or(
+                ilike(shifts.name, `%${searchText}%`),
+                ilike(shifts.code, `%${searchText}%`),
+              ),
+            )
+            .orderBy(asc(shifts.id))
         : baseQuery;
       return await withPagination(db, shifts, finalQuery, page, pageSize);
     } catch (error) {
@@ -2603,9 +2594,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-              3600000
-            ).toFixed(2)
+                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+                3600000
+              ).toFixed(2)
             : "0.00",
       };
     });
@@ -2731,12 +2722,14 @@ export class DatabaseStorage implements IStorage {
     const todayStr = new Date().toISOString().split("T")[0];
     const fromDate = filters.dateFrom || todayStr;
     const toDate = filters.dateTo || todayStr;
+
     const allEmployees = await db
       .select({
         employeeCode: people.employeeCode,
         employeeName: people.employeeName,
       })
       .from(people);
+
     const presentRecords = await db
       .select({
         employeeCode: dailyAttendanceSummary.employeeCode,
@@ -2752,11 +2745,13 @@ export class DatabaseStorage implements IStorage {
           lte(dailyAttendanceSummary.workDate, toDate),
         ),
       );
+
     const presentMap = new Map<string, any>();
     presentRecords.forEach((rec) => {
       const key = `${rec.employeeCode}_${rec.date}`;
       presentMap.set(key, rec);
     });
+
     const reportDates: string[] = [];
     let dStart = new Date(fromDate);
     const dEnd = new Date(toDate);
@@ -2764,6 +2759,7 @@ export class DatabaseStorage implements IStorage {
       reportDates.push(dStart.toISOString().split("T")[0]);
       dStart.setDate(dStart.getDate() + 1);
     }
+
     const finalReport: any[] = [];
     allEmployees.forEach((emp) => {
       reportDates.forEach((dateStr) => {
@@ -2778,7 +2774,7 @@ export class DatabaseStorage implements IStorage {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-                String(presentRow.status).toLowerCase() === "present"
+              String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -2794,22 +2790,22 @@ export class DatabaseStorage implements IStorage {
         }
       });
     });
+
     const processedData = finalReport
       .filter((row) => {
+        // ✅ FIX: .includes() hata kar Strict Exact Match (===) kiya hai
         const matchesEmployee =
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
-            : String(row.employeeCode)
-              .toLowerCase()
-              .includes(String(filters.employeeCode).toLowerCase()) ||
-            String(row.firstName)
-              .toLowerCase()
-              .includes(String(filters.employeeCode).toLowerCase());
+            : String(row.employeeCode).trim().toLowerCase() ===
+              String(filters.employeeCode).trim().toLowerCase();
+
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-            String(filters.status).toLowerCase();
+              String(filters.status).toLowerCase();
+
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => {
@@ -2823,6 +2819,7 @@ export class DatabaseStorage implements IStorage {
           { numeric: true },
         );
       });
+
     return withPagination(null, null, processedData, page, pageSize);
   }
   async getAccessLogReport(
@@ -2832,7 +2829,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -3904,7 +3901,7 @@ export class DatabaseStorage implements IStorage {
         } else {
         }
       }
-    } catch (err) { }
+    } catch (err) {}
 
     return updatedMapping;
   }
@@ -4312,7 +4309,7 @@ export class DatabaseStorage implements IStorage {
   //     alertId: alertEntry.id,
   //   };
   // }
- 
+
   async executeEmergencybulkUnblock(
     userId: string,
     userName: string,
@@ -4356,14 +4353,21 @@ export class DatabaseStorage implements IStorage {
 
       // Array arrays ko flatten karke IDs collect karein
       doorDeviceMappings.forEach((mapping) => {
-        (mapping.inDeviceIds || []).forEach((id) => mainGateDeviceMsIds.add(id));
-        (mapping.outDeviceIds || []).forEach((id) => mainGateDeviceMsIds.add(id));
+        (mapping.inDeviceIds || []).forEach((id) =>
+          mainGateDeviceMsIds.add(id),
+        );
+        (mapping.outDeviceIds || []).forEach((id) =>
+          mainGateDeviceMsIds.add(id),
+        );
       });
     }
 
     // Step C: allDevices me se unhi devices ko filter karein jinke msId Main Gate se linked hain
     const mainGateDevices = allDevices.filter(
-      (dev) => dev.msId !== null && dev.msId !== undefined && mainGateDeviceMsIds.has(Number(dev.msId))
+      (dev) =>
+        dev.msId !== null &&
+        dev.msId !== undefined &&
+        mainGateDeviceMsIds.has(Number(dev.msId)),
     );
 
     // 3. Create Alert Entry
@@ -4407,9 +4411,12 @@ export class DatabaseStorage implements IStorage {
           }
           unlockedDevicesCount++;
         } catch (err) {
-          console.error(`Door Unlock Error for Serial [${device.serialNumber}]:`, err);
+          console.error(
+            `Door Unlock Error for Serial [${device.serialNumber}]:`,
+            err,
+          );
         }
-      })
+      }),
     );
 
     if (generalLogsToInsert.length > 0) {
@@ -4435,7 +4442,11 @@ export class DatabaseStorage implements IStorage {
       for (const person of allPeople) {
         if (!person.employeeCode) continue;
         for (const device of mainGateDevices) {
-          if (device.serialNumber && device.msId !== null && device.msId !== undefined) {
+          if (
+            device.serialNumber &&
+            device.msId !== null &&
+            device.msId !== undefined
+          ) {
             userUnblockQueue.push({
               employeeCode: person.employeeCode,
               deviceMsId: Number(device.msId),
@@ -4457,7 +4468,7 @@ export class DatabaseStorage implements IStorage {
               await esslService.syncUserBlockStatus(
                 task.employeeCode,
                 task.serialNumber,
-                false // unblock
+                false, // unblock
               );
 
               batchLogs.push({
@@ -4472,10 +4483,10 @@ export class DatabaseStorage implements IStorage {
             } catch (err) {
               console.error(
                 `Main Gate Unblock Sync Fail for ${task.employeeCode} on ${task.serialNumber}:`,
-                err
+                err,
               );
             }
-          })
+          }),
         );
 
         if (batchLogs.length > 0) {
@@ -4498,11 +4509,7 @@ export class DatabaseStorage implements IStorage {
       alertId: alertEntry.id,
     };
   }
- 
- 
- 
- 
- 
+
   // async executeEmergencybulkUnblock(
   //   userId: string,
   //   userName: string,
@@ -4574,7 +4581,7 @@ export class DatabaseStorage implements IStorage {
   //     alertId: alertEntry.id,
   //   };
   // }
-  
+
   async getDoorWiseCount(filters: {
     dateFrom?: string;
     dateTo?: string;
@@ -4648,11 +4655,7 @@ export class DatabaseStorage implements IStorage {
       }
       if (filters.employeeCode && filters.employeeCode !== "all") {
         conditions.push(
-          or(
-            ilike(schema.people.employeeName, `%${filters.employeeCode}%`),
-            sql`CAST(${schema.cabinLockouts.employeeCode} AS TEXT)
-          ILIKE ${`%${filters.employeeCode}%`}`,
-          ),
+          eq(schema.cabinLockouts.employeeCode, filters.employeeCode),
         );
       }
       if (filters.dateFrom) {
@@ -4852,11 +4855,7 @@ export class DatabaseStorage implements IStorage {
         and(
           eq(dailyAttendanceSummary.workDate, date),
           employeeCode
-            ? or(
-              ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
-              sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
-          ILIKE ${`%${employeeCode}%`}`,
-            )
+            ? eq(dailyAttendanceSummary.employeeCode, employeeCode)
             : undefined,
         ),
       );
@@ -4882,11 +4881,7 @@ export class DatabaseStorage implements IStorage {
         and(
           between(dailyAttendanceSummary.workDate, startDate, endDate),
           employeeCode
-            ? or(
-              ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
-              sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
-          ILIKE ${`%${employeeCode}%`}`,
-            )
+            ? eq(dailyAttendanceSummary.employeeCode, employeeCode)
             : undefined,
         ),
       )
@@ -5133,14 +5128,7 @@ export class DatabaseStorage implements IStorage {
       );
       if (filters?.employeeCode) {
         conditions.push(
-          or(
-            ilike(
-              schema.employeeActivityLogs.employeeName,
-              `%${filters.employeeCode}%`,
-            ),
-            sql`CAST(${schema.employeeActivityLogs.employeeCode} AS TEXT)
-          ILIKE ${`%${filters.employeeCode}%`}`,
-          ),
+          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
         );
       }
       const logs = await db
@@ -5318,13 +5306,7 @@ export class DatabaseStorage implements IStorage {
       lte(dailyAttendanceSummary.workDate, toDate),
     ];
     if (employeeCode && employeeCode !== "all" && employeeCode !== "") {
-      conditions.push(
-        or(
-          ilike(dailyAttendanceSummary.employeeName, `%${employeeCode}%`),
-          sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
-          ILIKE ${`%${employeeCode}%`}`,
-        )!,
-      );
+      conditions.push(eq(dailyAttendanceSummary.employeeCode, employeeCode));
     }
     const reportData = await db
       .select({
@@ -5488,14 +5470,7 @@ ${fromDate} || ' to ' || ${toDate}
             gte(dailyAttendanceSummary.workDate, filters.dateFrom),
             lte(dailyAttendanceSummary.workDate, filters.dateTo),
             filters.employeeCode
-              ? or(
-                ilike(
-                  dailyAttendanceSummary.employeeName,
-                  `%${filters.employeeCode}%`,
-                ),
-                sql`CAST(${dailyAttendanceSummary.employeeCode} AS TEXT)
-                ILIKE ${`%${filters.employeeCode}%`}`,
-              )
+              ? eq(dailyAttendanceSummary.employeeCode, filters.employeeCode)
               : undefined,
           ),
         );
@@ -5649,14 +5624,7 @@ ${fromDate} || ' to ' || ${toDate}
       );
       if (filters?.employeeCode) {
         conditions.push(
-          or(
-            ilike(
-              schema.employeeActivityLogs.employeeName,
-              `%${filters.employeeCode}%`,
-            ),
-            sql`CAST(${schema.employeeActivityLogs.employeeCode} AS TEXT)
-          ILIKE ${`%${filters.employeeCode}%`}`,
-          ),
+          eq(schema.employeeActivityLogs.employeeCode, filters.employeeCode),
         );
       }
       const logs = await db
@@ -6092,7 +6060,7 @@ ${fromDate} || ' to ' || ${toDate}
             : undefined,
       aadhaarNumber:
         typeof data.aadhaarNumber === "string" &&
-          data.aadhaarNumber.trim() !== ""
+        data.aadhaarNumber.trim() !== ""
           ? data.aadhaarNumber.trim()
           : data.aadhaarNumber === "" || data.aadhaarNumber === null
             ? null
@@ -6441,15 +6409,15 @@ ${fromDate} || ' to ' || ${toDate}
         .orderBy(asc(visitorCards.id));
       const finalQuery = searchText
         ? db
-          .select()
-          .from(visitorCards)
-          .where(
-            or(
-              ilike(visitorCards.name, `%${searchText}%`),
-              ilike(visitorCards.cardNumber, `%${searchText}%`),
-            ),
-          )
-          .orderBy(asc(visitorCards.id))
+            .select()
+            .from(visitorCards)
+            .where(
+              or(
+                ilike(visitorCards.name, `%${searchText}%`),
+                ilike(visitorCards.cardNumber, `%${searchText}%`),
+              ),
+            )
+            .orderBy(asc(visitorCards.id))
         : baseQuery;
       return await withPagination(db, visitorCards, finalQuery, page, pageSize);
     } catch (error) {
@@ -6884,15 +6852,15 @@ ${fromDate} || ' to ' || ${toDate}
             `🔒 Loaded ${allowedSerials.size} authorized serials from JSON.`,
           );
         }
-    //     const nayeSerials = [
-    //   "QJT3252900828", "QJT3251700517"
-    // ];
-    // const temporaryTokens = [];
-    // for (const s of nayeSerials) {
-    //   const clean = s.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
-    //   temporaryTokens.push(encryptSerialNumber(clean));
-    // }
-    // console.log("📋 [FINAL TOKENS GENERATED FOR JSON]:\n", JSON.stringify(temporaryTokens, null, 2));
+        //     const nayeSerials = [
+        //   "QJT3252900828", "QJT3251700517"
+        // ];
+        // const temporaryTokens = [];
+        // for (const s of nayeSerials) {
+        //   const clean = s.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+        //   temporaryTokens.push(encryptSerialNumber(clean));
+        // }
+        // console.log("📋 [FINAL TOKENS GENERATED FOR JSON]:\n", JSON.stringify(temporaryTokens, null, 2));
       } catch (err: any) {
         console.error(
           "❌ Critical Dynamic Auto-Auth Config Error:",
@@ -7063,7 +7031,7 @@ ${fromDate} || ' to ' || ${toDate}
       };
     }
   }
-  
+
   async executeNewDevicebulkBlock(
     userId: string,
     userName: string,
@@ -7071,7 +7039,7 @@ ${fromDate} || ' to ' || ${toDate}
     // Safe fallback to prevent undefined inputs
     const safeUserId = userId || "SYSTEM";
     const safeUserName = userName || "System Admin";
-    
+
     // ==========================================
     // STEP 1: COMPUTE LIVE HARDWARE TELEMETRY
     // ==========================================
@@ -7084,14 +7052,16 @@ ${fromDate} || ' to ' || ${toDate}
         .where(
           and(eq(devices.isActive, true), gt(devices.lastPing, fiveMinutesAgo)),
         )) ?? [];
-        console.log("demo");
-        console.log(`[INFO] Fetched ${allOnlineDevices.length} online devices from DB.`);
+    console.log("demo");
+    console.log(
+      `[INFO] Fetched ${allOnlineDevices.length} online devices from DB.`,
+    );
     const onlineDeviceIds = new Set(
       allOnlineDevices
         .filter((d) => d && d.msId !== null && d.msId !== undefined)
         .map((d) => Number(d.msId)),
     );
-    
+
     // const allActiveDevices =
     //   (await db.select().from(devices).where(eq(devices.isActive, true))) ?? [];
 
@@ -7315,7 +7285,5 @@ ${fromDate} || ' to ' || ${toDate}
       alertId: alertEntry ? alertEntry.id : null,
     };
   }
-
-  
 }
 export const storage = new DatabaseStorage();

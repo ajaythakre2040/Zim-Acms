@@ -209,7 +209,7 @@ function ReportFilters({
   onApply,
   people,
   devices,
-  activeReport, // 👈 ADD
+  activeReport,
 }: {
   filters: Record<string, string>;
   setFilters: (f: Record<string, string>) => void;
@@ -217,9 +217,18 @@ function ReportFilters({
   onApply: () => void;
   people: Person[];
   devices: any[];
-  activeReport: string; // 👈 ADD
+  activeReport: string;
 }) {
   const allowed = filterConfig[activeReport] || [];
+
+  // 1. Employee search input ke liye local state
+  const [empSearchText, setEmpSearchText] = React.useState(filters.employeeCode || "");
+
+  // 2. Filter clear hone par text box bhi reset hoga
+  React.useEffect(() => {
+    setEmpSearchText(filters.employeeCode || "");
+  }, [filters.employeeCode]);
+
   return (
     <Card className="border-border/40 shadow-sm">
       <CardContent className="pt-4 pb-4">
@@ -230,9 +239,8 @@ function ReportFilters({
           </span>
         </div>
         <div className="flex flex-col lg:flex-row gap-4 items-end">
-          {/* 🔥 GRID WRAPPER IMPORTANT */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 flex-1">
-            {/* FROM DATE */}
+            
             {/* DAILY EFFICIENCY → SINGLE DATE */}
             {["daily-efficiency", "employee-movement-logs"].includes(
               activeReport,
@@ -250,6 +258,7 @@ function ReportFilters({
                 />
               </div>
             )}
+
             {/* OTHER REPORTS → FROM DATE */}
             {!["daily-efficiency", "employee-movement-logs"].includes(
               activeReport,
@@ -268,6 +277,7 @@ function ReportFilters({
                   />
                 </div>
               )}
+
             {/* OTHER REPORTS → TO DATE */}
             {!["daily-efficiency", "employee-movement-logs"].includes(
               activeReport,
@@ -286,37 +296,8 @@ function ReportFilters({
                   />
                 </div>
               )}
-            {/* EMPLOYEE
-            {allowed.includes("employeeCode") && (
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">
-                  EMPLOYEE
-                </Label>
-                <Select
-                  value={filters.employeeCode || "all"}
-                  onValueChange={(v) =>
-                    setFilters({
-                      ...filters,
-                      employeeCode: v === "all" ? "" : v,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Employees" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Employees</SelectItem>
-                    {people.map((p) => (
-                      <SelectItem key={p.id} value={String(p.employeeCode)}>
-                        {p.employeeName}{" "}
-                        {p.employeeCode ? `(${p.employeeCode})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )} */}
-            {/* EMPLOYEE */}
+
+            {/* EMPLOYEE SEARCH (UPDATED) */}
             {allowed.includes("employeeCode") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
@@ -327,13 +308,25 @@ function ReportFilters({
                   type="text"
                   list="employee-list"
                   placeholder="Search Employee"
-                  value={filters.employeeCode || ""}
-                  onChange={(e) =>
-                    setFilters({
-                      ...filters,
-                      employeeCode: e.target.value,
-                    })
-                  }
+                  value={empSearchText}
+                  onFocus={() => setEmpSearchText("")} // Focus karte hi clear hoga taaki full list dikhe
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEmpSearchText(val);
+
+                    const selectedPerson = people.find(
+                      (p) => String(p.employeeCode) === val
+                    );
+
+                    if (selectedPerson) {
+                      setFilters({
+                        ...filters,
+                        employeeCode: String(selectedPerson.employeeCode),
+                      });
+                    } else if (val === "") {
+                      setFilters({ ...filters, employeeCode: "" });
+                    }
+                  }}
                   className="text-xs"
                 />
 
@@ -341,22 +334,23 @@ function ReportFilters({
                   {people.map((p) => (
                     <option
                       key={p.id}
-                      value={`${capitalizeFirst(p.employeeName)} (${p.employeeCode})`}
+                      value={p.employeeCode || ""}
+                      label={`${capitalizeFirst(p.employeeName || "")} (${p.employeeCode || ""})`}
                     />
                   ))}
                 </datalist>
               </div>
             )}
+
+            {/* DOOR */}
             {allowed.includes("deviceId") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
                   DOOR
                 </Label>
                 <Select
-                  // 1. Value hamesha filters.doorId ko dekhegi
                   value={filters.doorId || "all"}
                   onValueChange={(v) =>
-                    // 2. ✅ Yahan 'id' ki jagah 'doorId' update hoga taaki state sahi se sync ho ske
                     setFilters({ ...filters, doorId: v === "all" ? "" : v })
                   }
                 >
@@ -366,11 +360,7 @@ function ReportFilters({
                   <SelectContent>
                     <SelectItem value="all">All Doors</SelectItem>
                     {devices?.map((d) => (
-                      <SelectItem
-                        key={d.id}
-                        // 3. String(d.id) hona chahiye taaki value match ho ske
-                        value={String(d.id)}
-                      >
+                      <SelectItem key={d.id} value={String(d.id)}>
                         {d.name}
                       </SelectItem>
                     ))}
@@ -378,6 +368,7 @@ function ReportFilters({
                 </Select>
               </div>
             )}
+
             {/* STATUS */}
             {allowed.includes("status") && (
               <div className="space-y-1">
@@ -402,6 +393,7 @@ function ReportFilters({
               </div>
             )}
           </div>
+
           {/* BUTTONS */}
           <div className="flex gap-2 shrink-0">
             <Button onClick={onApply} size="sm" className="px-5 shadow-sm">
@@ -414,6 +406,7 @@ function ReportFilters({
               onClick={() => {
                 setFilters({});
                 setAppliedFilters({});
+                setEmpSearchText("");
               }}
               className="px-5"
             >
@@ -424,7 +417,7 @@ function ReportFilters({
         </div>
       </CardContent>
     </Card>
-  ); // return close
+  );
 }
 
 // TABLE COMPONENTS ***********************************************************************************************
