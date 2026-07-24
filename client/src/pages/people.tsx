@@ -214,8 +214,12 @@ export default function PeoplePage() {
   const { data: doors = [], isLoading: isLoadingDoors } = useQuery<any[]>({
     queryKey: ["/api/doors"],
   });
+  const allDoors = doors || [];
   const { data: allDevices = [] } = useQuery<Device[]>({
     queryKey: ["/api/devices"],
+  });
+  const { data: doorDevicesData = [] } = useQuery<any[]>({
+    queryKey: ["/api/door-devices"],
   });
   const [deviceStatusOpen, setDeviceStatusOpen] = useState(false);
   const [deviceViewPerson, setDeviceViewPerson] = useState<Person | null>(null);
@@ -474,10 +478,11 @@ export default function PeoplePage() {
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
-            className={`text-xs font-bold ${isEnabled
+            className={`text-xs font-bold ${
+              isEnabled
                 ? "bg-red-50 text-red-600 border-red-300"
                 : "bg-green-50 text-green-600 border-green-300"
-              }`}
+            }`}
           >
             {isEnabled ? "ACTIVE" : "INACTIVE"}
           </Badge>
@@ -727,7 +732,8 @@ export default function PeoplePage() {
 
                   toast({
                     title: "Data Synced",
-                    description: "People data synchronized and refreshed successfully.",
+                    description:
+                      "People data synchronized and refreshed successfully.",
                   });
                 } catch (error: any) {
                   toast({
@@ -990,157 +996,254 @@ export default function PeoplePage() {
       </div>
       {/* --- DEVICE ACCESS MODAL --- */}
       <Dialog open={deviceStatusOpen} onOpenChange={setDeviceStatusOpen}>
-        <DialogContent className="max-w-md h-[520px] p-0 overflow-hidden flex flex-col">
-          {/* HEADER */}
-          <DialogHeader className="p-4 border-b bg-muted/20">
-            <DialogTitle className="text-sm font-bold uppercase">
-              Device Access : {deviceViewPerson?.employeeName}
-            </DialogTitle>
-          </DialogHeader>
-          {/* 🔍 SEARCH BAR */}
-          <div className="p-3 border-b bg-muted/10">
-            <input
-              type="text"
-              placeholder="Search device by name or SN..."
-              value={deviceSearch}
-              onChange={(e) => setDeviceSearch(e.target.value)}
-              className="w-full px-3 py-2 text-xs border rounded-md outline-none focus:ring-1 focus:ring-primary"
-            />
-          </div>
-          {/* 📋 DEVICE LIST */}
-          <div className="flex-1 overflow-y-auto">
-            {/* 🔴 IMPORTANT: prevent shrink */}
-            <div className="min-h-full">
-              <table className="w-full text-xs">
-                <tbody className="divide-y">
-                  {allDevices
-                    .filter(
-                      (dev) =>
-                        (dev.name || "")
-                          .toLowerCase()
-                          .includes(deviceSearch.toLowerCase()) ||
-                        (dev.serialNumber || "")
-                          .toLowerCase()
-                          .includes(deviceSearch.toLowerCase()),
-                    )
-                    .map((dev) => {
-                      const latestLog = deviceLogs?.find((l: any) => {
-                        const lId = l.deviceId ?? l.device_id;
-                        return Number(lId) === Number(dev.msId);
-                      });
-                      const isDoorAssigned =
-                        ((deviceViewPerson as any)?.doorIds || [])?.includes(
-                          Number(dev.msId),
-                        ) ?? false;
-                      const isUnblocked = latestLog
-                        ? latestLog.type === "unblock"
-                        : isDoorAssigned;
+  {/* 💡 Size Update: max-w-xl (width ~576px) and h-[580px] */}
+  <DialogContent className="max-w-xl w-full h-[580px] p-0 overflow-hidden flex flex-col">
+    {/* HEADER */}
+    <DialogHeader className="p-4 border-b bg-muted/20">
+      <DialogTitle className="text-sm font-bold uppercase">
+        Door Access : {deviceViewPerson?.employeeName || deviceViewPerson?.employeeCode || 0}
+      </DialogTitle>
+    </DialogHeader>
 
-                      // 🟢 डिवाइस ऑनलाइन स्टेटस
-                      const isOnline = dev.status === "online";
+    {/* 🔍 SEARCH BAR */}
+    <div className="p-3 border-b bg-muted/10">
+      <input
+        type="text"
+        placeholder="Search door or device SN..."
+        value={deviceSearch}
+        onChange={(e) => setDeviceSearch(e.target.value)}
+        className="w-full px-3 py-2 text-xs border rounded-md outline-none focus:ring-1 focus:ring-primary"
+      />
+    </div>
 
-                      return (
-                        <tr key={dev.id} className="hover:bg-muted/30">
-                          {/* DEVICE INFO */}
-                          <td className="p-3">
-                            <div className="flex items-center gap-1.5">
-                              <span
-                                className={`w-2 h-2 rounded-full ${isOnline ? "bg-green-500" : "bg-gray-300"}`}
-                                title={isOnline ? "Online" : "Offline"}
-                              />
-                              <p className="font-bold text-foreground">
-                                {dev.name || "Unknown Device"}
-                              </p>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground font-mono pl-3.5">
-                              SN: {dev.serialNumber || "N/A"}
-                            </p>
-                          </td>
+    {/* 📋 DOORS LIST */}
+    <div className="flex-1 overflow-y-auto">
+      <div className="min-h-full">
+        <table className="w-full text-xs">
+          <tbody className="divide-y">
+            {allDoors
+              ?.filter(
+                (door: any) =>
+                  door.status === "active" || door.isActive !== false
+              )
+              .map((door: any) => {
+                // 1. /api/door-devices data mapping
+                const mappedDoorDevice = (doorDevicesData || []).find(
+                  (dd: any) => Number(dd.doorId) === Number(door.id)
+                );
 
-                          {/* STATUS COLUMN */}
-                          <td className="p-3 text-center">
-                            {!isOnline ? (
-                              // अगर डिवाइस ऑफलाइन है तो सिर्फ रेड कलर में OFFLINE दिखेगा
-                              <Badge
-                                variant="destructive"
-                                className="text-[9px] font-bold px-2 bg-red-600 border-red-600 text-white"
-                              >
-                                OFFLINE
-                              </Badge>
-                            ) : (
-                              // अगर ऑनलाइन है तो ALLOWED या BLOCKED दिखेगा
-                              <Badge
-                                variant={isUnblocked ? "outline" : "destructive"}
-                                className={`text-[9px] font-bold px-2 ${isUnblocked
-                                    ? "border-green-500 text-green-600 bg-green-50"
-                                    : ""
-                                  }`}
-                              >
-                                {isUnblocked ? "ALLOWED" : "BLOCKED"}
-                              </Badge>
-                            )}
-                          </td>
+                // 2. Extract in & out IDs
+                const inIds: number[] =
+                  mappedDoorDevice?.inDeviceIds || door.inDeviceIds || [];
+                const outIds: number[] =
+                  mappedDoorDevice?.outDeviceIds || door.outDeviceIds || [];
 
-                          {/* ACTION BUTTON COLUMN */}
-                          <td className="p-3 text-right">
-                            <Button
-                              size="sm"
-                              variant={isUnblocked ? "destructive" : "outline"}
-                              className="h-7 text-[10px] font-bold min-w-[80px]"
-                              disabled={
-                                emergencyToggleMut.isPending || !isOnline
-                              }
-                              onClick={() => {
-                                emergencyToggleMut.mutate({
-                                  employeeCode: deviceViewPerson?.employeeCode,
-                                  deviceId: dev.msId,
-                                  serialNumber: dev.serialNumber,
-                                  action: isUnblocked ? "block" : "unblock",
-                                });
-                              }}
-                            >
-                              {emergencyToggleMut.isPending
-                                ? "..."
-                                : !isOnline
-                                  ? "OFFLINE"
-                                  : isUnblocked
-                                    ? "BLOCK"
-                                    : "UNBLOCK"}
-                            </Button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  {/* ❌ NO DATA */}
-                  {allDevices.filter(
-                    (dev) =>
-                      (dev.name || "")
-                        .toLowerCase()
-                        .includes(deviceSearch.toLowerCase()) ||
-                      (dev.serialNumber || "")
-                        .toLowerCase()
-                        .includes(deviceSearch.toLowerCase()),
-                  ).length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={3}
-                          className="text-center p-6 text-muted-foreground"
+                const associatedDeviceIds = Array.from(
+                  new Set(
+                    [...inIds, ...outIds]
+                      .map((id) => Number(id))
+                      .filter(Boolean)
+                  )
+                );
+
+                // 3. IN & OUT Devices & Serial Numbers
+                const inDevices = (allDevices || []).filter((d: any) =>
+                  inIds.map(Number).includes(Number(d.msId ?? d.id))
+                );
+                const outDevices = (allDevices || []).filter((d: any) =>
+                  outIds.map(Number).includes(Number(d.msId ?? d.id))
+                );
+
+                const inSNs = inDevices
+                  .map((d: any) => d.serialNumber || d.sn || d.deviceSn)
+                  .filter(Boolean)
+                  .join(", ");
+
+                const outSNs = outDevices
+                  .map((d: any) => d.serialNumber || d.sn || d.deviceSn)
+                  .filter(Boolean)
+                  .join(", ");
+
+                const assignedDevices =
+                  allDevices?.filter((dev: any) => {
+                    const devId = Number(dev.msId ?? dev.id);
+                    return associatedDeviceIds.includes(devId);
+                  }) || [];
+
+                const allSerialNumbersCombined =
+                  [inSNs, outSNs].filter(Boolean).join(", ") || "N/A";
+
+                // 4. Online Status check
+                const isOnline =
+                  assignedDevices.length > 0
+                    ? assignedDevices.some(
+                        (d: any) =>
+                          d.status === "online" ||
+                          d.isOnline === true ||
+                          d.deviceStatus === "online"
+                      )
+                    : door.status === "online" || door.isOnline === true;
+
+                // Priority Target Device IDs
+                const targetDeviceIds = assignedDevices
+                  .map((d: any) => Number(d.msId ?? d.id))
+                  .filter(Boolean);
+
+                // 5. Latest Log match
+                const latestLog = deviceLogs?.find((l: any) => {
+                  const lId = Number(l.deviceId);
+                  return (
+                    associatedDeviceIds.includes(lId) ||
+                    targetDeviceIds.includes(lId)
+                  );
+                });
+
+                const isDoorAssigned =
+                  ((deviceViewPerson as any)?.doorIds || [])?.includes(
+                    Number(door.id)
+                  ) ?? false;
+
+                const isUnblocked = latestLog
+                  ? latestLog.type === "unblock"
+                  : isDoorAssigned;
+
+                // Search filtering
+                const query = deviceSearch.toLowerCase();
+                const matchesSearch =
+                  (door.name || "").toLowerCase().includes(query) ||
+                  allSerialNumbersCombined.toLowerCase().includes(query);
+
+                if (!matchesSearch) return null;
+
+                return (
+                  <tr key={door.id} className="hover:bg-muted/30">
+                    {/* DOOR & IN/OUT DEVICE SN INFO (SINGLE LINE) */}
+                    <td className="p-3">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span
+                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            isOnline ? "bg-green-500" : "bg-gray-300"
+                          }`}
+                          title={isOnline ? "Online" : "Offline"}
+                        />
+                        <p className="font-bold text-foreground truncate">
+                          {door.name || "Unknown Door"}
+                        </p>
+                      </div>
+
+                      {/* 📍 STRICT SINGLE LINE WRAPPER */}
+                      <div className="pl-3.5 flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono whitespace-nowrap overflow-x-auto no-scrollbar">
+                        {inSNs && (
+                          <span className="inline-flex items-center gap-1 flex-shrink-0">
+                            <span className="font-semibold text-emerald-600 bg-emerald-50 px-1 rounded text-[9px] leading-tight">
+                              IN:
+                            </span>
+                            <span>{inSNs}</span>
+                          </span>
+                        )}
+
+                        {inSNs && outSNs && (
+                          <span className="text-gray-300 font-light flex-shrink-0">|</span>
+                        )}
+
+                        {outSNs && (
+                          <span className="inline-flex items-center gap-1 flex-shrink-0">
+                            <span className="font-semibold text-amber-600 bg-amber-50 px-1 rounded text-[9px] leading-tight">
+                              OUT:
+                            </span>
+                            <span>{outSNs}</span>
+                          </span>
+                        )}
+
+                        {!inSNs && !outSNs && (
+                          <span className="italic text-gray-400">SN: N/A</span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* STATUS COLUMN */}
+                    <td className="p-3 text-center align-middle">
+                      {!isOnline ? (
+                        <Badge
+                          variant="destructive"
+                          className="text-[9px] font-bold px-2 bg-red-600 border-red-600 text-white"
                         >
-                          No devices found
-                        </td>
-                      </tr>
-                    )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          {/* FOOTER */}
-          <div className="p-2 text-[9px] text-center bg-muted/10 italic text-muted-foreground">
-            Logs override the default Role settings.
-          </div>
-        </DialogContent>
-      </Dialog>
+                          OFFLINE
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant={isUnblocked ? "outline" : "destructive"}
+                          className={`text-[9px] font-bold px-2 ${
+                            isUnblocked
+                              ? "border-green-500 text-green-600 bg-green-50"
+                              : ""
+                          }`}
+                        >
+                          {isUnblocked ? "ALLOWED" : "BLOCKED"}
+                        </Badge>
+                      )}
+                    </td>
 
+                    {/* ACTION BUTTON COLUMN */}
+                    <td className="p-3 text-right align-middle">
+                      <Button
+                        size="sm"
+                        variant={isUnblocked ? "destructive" : "outline"}
+                        className="h-7 text-[10px] font-bold min-w-[80px]"
+                        disabled={
+                          emergencyToggleMut.isPending ||
+                          !isOnline ||
+                          targetDeviceIds.length === 0
+                        }
+                        onClick={async () => {
+                          const actionType = isUnblocked ? "block" : "unblock";
+
+                          for (const devId of targetDeviceIds) {
+                            const devObj = assignedDevices.find(
+                              (d: any) =>
+                                Number(d.msId ?? d.id) === Number(devId)
+                            );
+
+                            const singleSerialNumber =
+                              devObj?.serialNumber ||
+                              (devObj as any)?.sn ||
+                              (devObj as any)?.deviceSn ||
+                              "";
+
+                            if (!singleSerialNumber) continue;
+
+                            await emergencyToggleMut.mutateAsync({
+                              employeeCode: deviceViewPerson?.employeeCode,
+                              deviceId: Number(devId),
+                              serialNumber: singleSerialNumber.trim(),
+                              action: actionType,
+                            });
+                          }
+                        }}
+                      >
+                        {emergencyToggleMut.isPending
+                          ? "..."
+                          : !isOnline
+                          ? "OFFLINE"
+                          : isUnblocked
+                          ? "BLOCK"
+                          : "UNBLOCK"}
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {/* FOOTER */}
+    <div className="p-2.5 text-[10px] text-center bg-muted/10 italic text-muted-foreground border-t">
+      Logs override the default Role settings.
+    </div>
+  </DialogContent>
+</Dialog>
       {(canAdd || canEdit) && (
         <CrudDialog
           open={dialogOpen}
@@ -1155,28 +1258,28 @@ export default function PeoplePage() {
           initialData={
             editing
               ? {
-                ...editing,
-                departmentId: editing.departmentId
-                  ? String(editing.departmentId)
-                  : "",
-                shiftId: editing.shiftId ? String(editing.shiftId) : "",
-                designationId: editing.designationId
-                  ? String(editing.designationId)
-                  : "",
-                companyId: editing.companyId ? String(editing.companyId) : "",
-                locationId: editing.locationId
-                  ? String(editing.locationId)
-                  : "",
-                riskTier: editing.riskTier ?? 1,
-              }
+                  ...editing,
+                  departmentId: editing.departmentId
+                    ? String(editing.departmentId)
+                    : "",
+                  shiftId: editing.shiftId ? String(editing.shiftId) : "",
+                  designationId: editing.designationId
+                    ? String(editing.designationId)
+                    : "",
+                  companyId: editing.companyId ? String(editing.companyId) : "",
+                  locationId: editing.locationId
+                    ? String(editing.locationId)
+                    : "",
+                  riskTier: editing.riskTier ?? 1,
+                }
               : {
-                companyId: String(
-                  companies.find((c) => c.name.toLowerCase().includes("zim"))
-                    ?.id || "",
-                ),
-                status: "active",
-                personType: "employee",
-              }
+                  companyId: String(
+                    companies.find((c) => c.name.toLowerCase().includes("zim"))
+                      ?.id || "",
+                  ),
+                  status: "active",
+                  personType: "employee",
+                }
           }
           onSubmit={(data) => {
             setFieldErrors({});
@@ -1263,10 +1366,11 @@ export default function PeoplePage() {
                   .map((door) => (
                     <div
                       key={door.id}
-                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${selectedDoorIds.includes(door.id)
+                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${
+                        selectedDoorIds.includes(door.id)
                           ? "bg-white border-blue-200 shadow-sm"
                           : "border-transparent hover:bg-white hover:border-slate-200"
-                        }`}
+                      }`}
                       onClick={() =>
                         setSelectedDoorIds((prev) => {
                           const safePrev = Array.isArray(prev) ? prev : [];
@@ -1286,10 +1390,11 @@ export default function PeoplePage() {
                       />
                       {/* DOOR NAME */}
                       <span
-                        className={`text-sm ${selectedDoorIds.includes(door.id)
+                        className={`text-sm ${
+                          selectedDoorIds.includes(door.id)
                             ? "font-bold text-blue-700"
                             : "text-slate-600"
-                          }`}
+                        }`}
                       >
                         {door.name}
                       </span>
