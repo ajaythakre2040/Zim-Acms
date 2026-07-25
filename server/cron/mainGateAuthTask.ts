@@ -38,8 +38,10 @@ export async function runMasterAuthSync() {
             // 2. FETCH DATA FOR RE-SYNC
             // Humein un logon ko sync karna hai jo Building ke ANDAR (IN) hain
             const [allDevicesReset, allDoorDevicesReset, peopleToSync, assignments] = await Promise.all([
-                db.select().from(devices).where(gt(devices.msId, 0)),
-                db.select().from(doorDevices),
+                // db.select().from(devices).where(gt(devices.msId, 0)),
+                // db.select().from(doorDevices),
+                db.select().from(devices).where(and(gt(devices.msId, 0), eq(devices.isActive, true))),
+                db.select().from(doorDevices).where(eq(doorDevices.isActive, true)),
                 db.select().from(people).where(and(inArray(people.employeeCode, codes), eq(people.currentZone, ZONES.IN))),
                 db.select().from(employeeDoorAssignments).where(inArray(employeeDoorAssignments.employeeCode, codes))
             ]);
@@ -89,9 +91,12 @@ export async function runMasterAuthSync() {
         // STEP 4: FETCH MASTER DATA
         const uniqueEmpCodes = [...new Set(punches.map((p) => (p.EmployeeCode || "").toString().trim()))].filter(Boolean);
         const [allDoorDevices, allDevices, allDoors, punchingPeople, allAssignments, activeLockouts] = await Promise.all([
-            db.select().from(doorDevices),
-            db.select().from(devices).where(gt(devices.msId, 0)),
-            db.select().from(doors),
+            // db.select().from(doorDevices),
+            // db.select().from(devices).where(gt(devices.msId, 0)),
+            // db.select().from(doors),
+            db.select().from(doorDevices).where(eq(doorDevices.isActive, true)),
+            db.select().from(devices).where(and(gt(devices.msId, 0), eq(devices.isActive, true))),
+            db.select().from(doors).where(eq(doors.isActive, true)),
             db.select().from(people).where(inArray(people.employeeCode, uniqueEmpCodes)),
             db.select().from(employeeDoorAssignments).where(inArray(employeeDoorAssignments.employeeCode, uniqueEmpCodes)),
             db.select().from(cabinLockouts).where(and(inArray(cabinLockouts.employeeCode, uniqueEmpCodes), eq(cabinLockouts.status, 'active'), gt(cabinLockouts.lockoutExpiry, now)))
@@ -172,6 +177,7 @@ export async function runMasterAuthSync() {
                 if (!mDM) continue;
 
                 const targetDoor = allDoors.find(d => d.id === mDM.doorId);
+                if (!targetDoor) continue;
                 const isTargetMainGate = targetDoor?.code === MAIN_GATE_SYNC.CODE;
                 const mDoorId = Number(mDM.doorId);
 
