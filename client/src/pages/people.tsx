@@ -230,7 +230,7 @@ export default function PeoplePage() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const { data: deviceLogs = [], refetch: refetchLogs } = useQuery({
     queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
-    enabled: !!deviceViewPerson,
+    enabled: !!deviceViewPerson && deviceStatusOpen, // Modal open ho aur person selected ho tabhi query active rahegi
     queryFn: async () => {
       const r = await apiRequest(
         "GET",
@@ -238,6 +238,8 @@ export default function PeoplePage() {
       );
       return r.json();
     },
+    refetchInterval: deviceStatusOpen ? 3000 : false, // Jab modal open hoga tab har 3 seconds (3000ms) me auto-refresh hoga
+    refetchIntervalInBackground: false, // Background tab active hone par interval off rakhega (performance ke liye)
   });
   useEffect(() => {
     setPage(1);
