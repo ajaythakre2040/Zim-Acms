@@ -996,23 +996,23 @@ export default function PeoplePage() {
       </div>
       {/* --- DEVICE ACCESS MODAL --- */}
       <Dialog open={deviceStatusOpen} onOpenChange={setDeviceStatusOpen}>
-  {/* 💡 Compact Modal Container */}
-  <DialogContent className="max-w-[450px] w-full h-[540px] p-0 overflow-hidden flex flex-col">
+  {/* 💡 Size Update: max-w-xl (width ~576px) and h-[580px] */}
+  <DialogContent className="max-w-xl w-full h-[580px] p-0 overflow-hidden flex flex-col">
     {/* HEADER */}
-    <DialogHeader className="px-4 py-3 border-b bg-muted/20">
-      <DialogTitle className="text-xs font-bold uppercase tracking-wide">
+    <DialogHeader className="p-4 border-b bg-muted/20">
+      <DialogTitle className="text-sm font-bold uppercase">
         Door Access : {deviceViewPerson?.employeeName || deviceViewPerson?.employeeCode || 0}
       </DialogTitle>
     </DialogHeader>
 
     {/* 🔍 SEARCH BAR */}
-    <div className="p-2.5 border-b bg-muted/10">
+    <div className="p-3 border-b bg-muted/10">
       <input
         type="text"
         placeholder="Search door or device SN..."
         value={deviceSearch}
         onChange={(e) => setDeviceSearch(e.target.value)}
-        className="w-full px-2.5 py-1.5 text-xs border rounded-md outline-none focus:ring-1 focus:ring-primary"
+        className="w-full px-3 py-2 text-xs border rounded-md outline-none focus:ring-1 focus:ring-primary"
       />
     </div>
 
@@ -1046,7 +1046,7 @@ export default function PeoplePage() {
                   )
                 );
 
-                // 3. IN & OUT Devices List
+                // 3. IN & OUT Devices & Serial Numbers
                 const inDevices = (allDevices || []).filter((d: any) =>
                   inIds.map(Number).includes(Number(d.msId ?? d.id))
                 );
@@ -1054,22 +1054,24 @@ export default function PeoplePage() {
                   outIds.map(Number).includes(Number(d.msId ?? d.id))
                 );
 
+                const inSNs = inDevices
+                  .map((d: any) => d.serialNumber || d.sn || d.deviceSn)
+                  .filter(Boolean)
+                  .join(", ");
+
+                const outSNs = outDevices
+                  .map((d: any) => d.serialNumber || d.sn || d.deviceSn)
+                  .filter(Boolean)
+                  .join(", ");
+
                 const assignedDevices =
                   allDevices?.filter((dev: any) => {
                     const devId = Number(dev.msId ?? dev.id);
                     return associatedDeviceIds.includes(devId);
                   }) || [];
 
-                const inSNs = inDevices
-                  .map((d: any) => d.serialNumber || d.sn || d.deviceSn)
-                  .filter(Boolean);
-
-                const outSNs = outDevices
-                  .map((d: any) => d.serialNumber || d.sn || d.deviceSn)
-                  .filter(Boolean);
-
                 const allSerialNumbersCombined =
-                  [...inSNs, ...outSNs].join(", ") || "N/A";
+                  [inSNs, outSNs].filter(Boolean).join(", ") || "N/A";
 
                 // 4. Online Status check
                 const isOnline =
@@ -1087,10 +1089,8 @@ export default function PeoplePage() {
                   .map((d: any) => Number(d.msId ?? d.id))
                   .filter(Boolean);
 
-                // 5. Safety check for deviceLogs array
-                const logsArray = Array.isArray(deviceLogs) ? deviceLogs : [];
-
-                const latestLog = logsArray.find((l: any) => {
+                // 5. Latest Log match
+                const latestLog = deviceLogs?.find((l: any) => {
                   const lId = Number(l.deviceId);
                   return (
                     associatedDeviceIds.includes(lId) ||
@@ -1104,54 +1104,8 @@ export default function PeoplePage() {
                   ) ?? false;
 
                 const isUnblocked = latestLog
-                  ? latestLog.type === "unblock" || latestLog.type === "Unblock User"
+                  ? latestLog.type === "unblock"
                   : isDoorAssigned;
-
-                // Helper Function: MSSQL Command Status Badge
-                const getDeviceCommandStatusBadge = (deviceId: number) => {
-                  if (!deviceId) return null;
-
-                  const cmd = logsArray.find(
-                    (c: any) => Number(c.deviceId) === Number(deviceId)
-                  );
-
-                  if (!cmd || !cmd.status) {
-                    return (
-                      <span className="text-[8px] font-mono px-1 py-0.2 rounded bg-slate-100 text-slate-500">
-                        
-                      </span>
-                    );
-                  }
-
-                  const statusUpper = String(cmd.status).trim().toUpperCase();
-
-                  if (
-                    statusUpper === "EXECUTED" ||
-                    statusUpper === "SUCCESS" ||
-                    statusUpper === "1"
-                  ) {
-                    return (
-                      <span className="text-[8px] font-semibold font-mono px-1 py-0.2 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 border border-emerald-200">
-                        SUCCESS
-                      </span>
-                    );
-                  } else if (
-                    statusUpper === "PENDING" ||
-                    statusUpper === "0"
-                  ) {
-                    return (
-                      <span className="text-[8px] font-semibold font-mono px-1 py-0.2 rounded bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 border border-amber-200">
-                        PENDING
-                      </span>
-                    );
-                  } else {
-                    return (
-                      <span className="text-[8px] font-semibold font-mono px-1 py-0.2 rounded bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-400 border border-rose-200">
-                        {statusUpper || "FAILED"}
-                      </span>
-                    );
-                  }
-                };
 
                 // Search filtering
                 const query = deviceSearch.toLowerCase();
@@ -1163,85 +1117,63 @@ export default function PeoplePage() {
 
                 return (
                   <tr key={door.id} className="hover:bg-muted/30">
-                    <td className="p-2.5">
-                      {/* Door Header */}
-                      <div className="flex items-center gap-1.5 mb-1.5">
+                    {/* DOOR & IN/OUT DEVICE SN INFO (SINGLE LINE) */}
+                    <td className="p-3">
+                      <div className="flex items-center gap-1.5 mb-0.5">
                         <span
                           className={`w-2 h-2 rounded-full flex-shrink-0 ${
                             isOnline ? "bg-green-500" : "bg-gray-300"
                           }`}
                           title={isOnline ? "Online" : "Offline"}
                         />
-                        <p className="font-bold text-foreground text-xs truncate">
+                        <p className="font-bold text-foreground truncate">
                           {door.name || "Unknown Door"}
                         </p>
                       </div>
 
-                      {/* 📍 PERFECT GRID ALIGNMENT (Label | SN | Badge) */}
-                      <div className="pl-3.5 flex flex-col gap-1 text-[10px] font-mono">
-                        {/* IN DEVICES */}
-                        {inDevices.map((dev: any, idx: number) => {
-                          const sn = dev.serialNumber || dev.sn || dev.deviceSn;
-                          const devId = Number(dev.msId ?? dev.id);
-                          return (
-                            <div
-                              key={`in-${idx}`}
-                              className="grid grid-cols-[28px_110px_auto] items-center gap-1"
-                            >
-                              <span className="font-semibold text-emerald-600 bg-emerald-50 px-1 rounded text-[8px] text-center leading-tight w-max">
-                                IN
-                              </span>
-                              <span className="font-medium text-slate-700 dark:text-slate-300 text-[10px] truncate">
-                                {sn}
-                              </span>
-                              <div className="flex items-center">
-                                {getDeviceCommandStatusBadge(devId)}
-                              </div>
-                            </div>
-                          );
-                        })}
+                      {/* 📍 STRICT SINGLE LINE WRAPPER */}
+                      <div className="pl-3.5 flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono whitespace-nowrap overflow-x-auto no-scrollbar">
+                        {inSNs && (
+                          <span className="inline-flex items-center gap-1 flex-shrink-0">
+                            <span className="font-semibold text-emerald-600 bg-emerald-50 px-1 rounded text-[9px] leading-tight">
+                              IN:
+                            </span>
+                            <span>{inSNs}</span>
+                          </span>
+                        )}
 
-                        {/* OUT DEVICES */}
-                        {outDevices.map((dev: any, idx: number) => {
-                          const sn = dev.serialNumber || dev.sn || dev.deviceSn;
-                          const devId = Number(dev.msId ?? dev.id);
-                          return (
-                            <div
-                              key={`out-${idx}`}
-                              className="grid grid-cols-[28px_110px_auto] items-center gap-1"
-                            >
-                              <span className="font-semibold text-amber-600 bg-amber-50 px-1 rounded text-[8px] text-center leading-tight w-max">
-                                OUT
-                              </span>
-                              <span className="font-medium text-slate-700 dark:text-slate-300 text-[10px] truncate">
-                                {sn}
-                              </span>
-                              <div className="flex items-center">
-                                {getDeviceCommandStatusBadge(devId)}
-                              </div>
-                            </div>
-                          );
-                        })}
+                        {inSNs && outSNs && (
+                          <span className="text-gray-300 font-light flex-shrink-0">|</span>
+                        )}
 
-                        {inDevices.length === 0 && outDevices.length === 0 && (
-                          <span className="italic text-gray-400 text-[10px]">SN: N/A</span>
+                        {outSNs && (
+                          <span className="inline-flex items-center gap-1 flex-shrink-0">
+                            <span className="font-semibold text-amber-600 bg-amber-50 px-1 rounded text-[9px] leading-tight">
+                              OUT:
+                            </span>
+                            <span>{outSNs}</span>
+                          </span>
+                        )}
+
+                        {!inSNs && !outSNs && (
+                          <span className="italic text-gray-400">SN: N/A</span>
                         )}
                       </div>
                     </td>
 
                     {/* STATUS COLUMN */}
-                    <td className="p-2 text-center align-middle">
+                    <td className="p-3 text-center align-middle">
                       {!isOnline ? (
                         <Badge
                           variant="destructive"
-                          className="text-[8px] font-bold px-1.5 py-0.5 bg-red-600 border-red-600 text-white"
+                          className="text-[9px] font-bold px-2 bg-red-600 border-red-600 text-white"
                         >
                           OFFLINE
                         </Badge>
                       ) : (
                         <Badge
                           variant={isUnblocked ? "outline" : "destructive"}
-                          className={`text-[8px] font-bold px-1.5 py-0.5 ${
+                          className={`text-[9px] font-bold px-2 ${
                             isUnblocked
                               ? "border-green-500 text-green-600 bg-green-50"
                               : ""
@@ -1253,11 +1185,11 @@ export default function PeoplePage() {
                     </td>
 
                     {/* ACTION BUTTON COLUMN */}
-                    <td className="p-2.5 text-right align-middle">
+                    <td className="p-3 text-right align-middle">
                       <Button
                         size="sm"
                         variant={isUnblocked ? "destructive" : "outline"}
-                        className="h-6 text-[9px] font-bold min-w-[70px] px-2"
+                        className="h-7 text-[10px] font-bold min-w-[80px]"
                         disabled={
                           emergencyToggleMut.isPending ||
                           !isOnline ||
@@ -1287,8 +1219,6 @@ export default function PeoplePage() {
                               action: actionType,
                             });
                           }
-                          
-                          refetchLogs();
                         }}
                       >
                         {emergencyToggleMut.isPending
@@ -1309,7 +1239,7 @@ export default function PeoplePage() {
     </div>
 
     {/* FOOTER */}
-    <div className="p-2 text-[9px] text-center bg-muted/10 italic text-muted-foreground border-t">
+    <div className="p-2.5 text-[10px] text-center bg-muted/10 italic text-muted-foreground border-t">
       Logs override the default Role settings.
     </div>
   </DialogContent>

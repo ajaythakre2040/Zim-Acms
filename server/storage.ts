@@ -4039,27 +4039,95 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     return log || null;
   }
-  async getEmployeeDeviceStatuses(employeeCode: string) {
+  // async getEmployeeDeviceStatuses(employeeCode: string) {
+  //   const logs = await db
+  //     .select()
+  //     .from(blockUnblockLogs)
+  //     .where(eq(blockUnblockLogs.employeeCode, employeeCode))
+  //     .orderBy(desc(blockUnblockLogs.updatedAt));
+  //   const latestMap = new Map<number, any>();
+  //   for (const log of logs) {
+  //     const dId = Number(log.deviceId);
+  //     if (!latestMap.has(dId)) {
+  //       latestMap.set(dId, {
+  //         id: log.id,
+  //         deviceId: dId,
+  //         type: log.type,
+  //         status: log.type === "block" ? "Blocked" : "Active",
+  //         timestamp: log.updatedAt || log.createdAt,
+  //       });
+  //     }
+  //   }
+  //   return Array.from(latestMap.values());
+  // }
+ async getEmployeeDeviceStatuses(employeeCode: string) {
+  try {
+    // 1. Purana Logic: Fetch latest block/unblock logs from PostgreSQL/Drizzle DB
     const logs = await db
       .select()
       .from(blockUnblockLogs)
       .where(eq(blockUnblockLogs.employeeCode, employeeCode))
       .orderBy(desc(blockUnblockLogs.updatedAt));
+
+    // 2. Fetch Latest Statuses from MSSQL DeviceCommands table
+    const cleanCode = String(employeeCode).trim();
+    let mssqlStatusMap = new Map<number, string>();
+
+    try {
+      const pool = await mssqlPool;
+      const mssqlResult = await pool.request()
+        .input("empCode", cleanCode)
+        .query(`
+          SELECT 
+            DeviceId,
+            Status,
+            CreationDate
+          FROM DeviceCommands WITH (NOLOCK)
+          WHERE 
+            DeviceCommand LIKE '%PIN=' + @empCode + '%' 
+            OR Title LIKE '%' + @empCode + '%'
+          ORDER BY CreationDate DESC
+        `);
+
+      const mssqlLogs = mssqlResult.recordset || [];
+
+      for (const mLog of mssqlLogs) {
+        const dId = Number(mLog.DeviceId ?? mLog.deviceId);
+        if (!mssqlStatusMap.has(dId)) {
+          // Har device ki latest MSSQL status value save kar rahe hain
+          mssqlStatusMap.set(dId, mLog.Status ?? mLog.status);
+        }
+      }
+    } catch (mssqlErr) {
+      console.error("Error fetching MSSQL device command statuses:", mssqlErr);
+    }
+
+    // 3. Merge Logic: Purane logs ke saath MSSQL Status inject kar do
     const latestMap = new Map<number, any>();
+
     for (const log of logs) {
       const dId = Number(log.deviceId);
       if (!latestMap.has(dId)) {
+        // MSSQL se real command status pick karo (e.g., SUCCESS / PENDING / FAILED)
+        const mssqlStatus = mssqlStatusMap.get(dId);
+
         latestMap.set(dId, {
           id: log.id,
           deviceId: dId,
-          type: log.type,
-          status: log.type === "block" ? "Blocked" : "Active",
+          type: log.type, // Purana type (block/unblock) - ALLOWED/BLOCKED badge ke liye
+          // Agar MSSQL me status mila toh woh, nahi toh fallback status
+          status: mssqlStatus || (log.type === "block" ? "Blocked" : "Active"),
           timestamp: log.updatedAt || log.createdAt,
         });
       }
     }
+
     return Array.from(latestMap.values());
+  } catch (error) {
+    console.error("Error in getEmployeeDeviceStatuses:", error);
+    return [];
   }
+}
   async toggleEmployeeDeviceAccess(params: {
     employeeCode: string;
     deviceId: number;
