@@ -174,6 +174,7 @@ import {
 import path from "path";
 import { DeviceSecurityService } from "./services/deviceSecurityService";
 import { getActiveDevicesByDoorCode, getActiveDoorsWithDevices } from "./utils/doorUtils";
+import { syncDoorActivationHardware } from "./utils/syncDoorActivationHardware";
 
 dayjs.extend(isBetween);
 export interface IStorage {
@@ -1073,31 +1074,85 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(doors).values(data).returning();
     return created;
   }
+  // async updateDoor(id: number, data: Partial<InsertDoor>): Promise<Door> {
+  //   if (data.name) {
+  //     const [existing] = await db
+  //       .select()
+  //       .from(doors)
+  //       .where(and(eq(doors.name, data.name), ne(doors.id, id)));
+  //     if (existing) {
+  //       throw new Error(`Door name '${data.name}' already exists.`);
+  //     }
+  //   }
+  //   if (data.code) {
+  //     const [existingCode] = await db
+  //       .select()
+  //       .from(doors)
+  //       .where(and(eq(doors.code, data.code), ne(doors.id, id)));
+  //     if (existingCode) {
+  //       throw new Error(`Door code '${data.code}' already exists.`);
+  //     }
+  //   }
+  //   const [updated] = await db
+  //     .update(doors)
+  //     .set(data)
+  //     .where(eq(doors.id, id))
+  //     .returning();
+  //   if (!updated) throw new Error("Door not found");
+  //   return updated;
+  // }
   async updateDoor(id: number, data: Partial<InsertDoor>): Promise<Door> {
+    // 1. Existing door state fetch karein
+    const [existingDoor] = await db
+      .select()
+      .from(doors)
+      .where(eq(doors.id, id))
+      .limit(1);
+
+    if (!existingDoor) {
+      throw new Error("Door not found");
+    }
+
+    // Uniqueness checks
     if (data.name) {
       const [existing] = await db
         .select()
         .from(doors)
         .where(and(eq(doors.name, data.name), ne(doors.id, id)));
-      if (existing) {
-        throw new Error(`Door name '${data.name}' already exists.`);
-      }
+      if (existing) throw new Error(`Door name '${data.name}' already exists.`);
     }
+
     if (data.code) {
       const [existingCode] = await db
         .select()
         .from(doors)
         .where(and(eq(doors.code, data.code), ne(doors.id, id)));
-      if (existingCode) {
-        throw new Error(`Door code '${data.code}' already exists.`);
-      }
+      if (existingCode) throw new Error(`Door code '${data.code}' already exists.`);
     }
+
+    // 2. Door update
     const [updated] = await db
       .update(doors)
       .set(data)
       .where(eq(doors.id, id))
       .returning();
+
     if (!updated) throw new Error("Door not found");
+
+    // 3. FLIP CHECK: Inactive (false/undefined) -> Active (true)
+    const isActivated = !existingDoor.isActive && updated.isActive;
+
+    if (isActivated) {
+      // Non-blocking trigger (UI wait nahi karega)
+      syncDoorActivationHardware(updated.id)
+        .then((count) => {
+          console.log(`🚀 [DOOR ACTIVATED] Hardware re-synced for ${count} employees inside building on Door ID: ${updated.id}`);
+        })
+        .catch((err) => {
+          console.error(`🔥 [DOOR ACTIVATION ERROR] Sync failed for Door ID: ${updated.id}`, err);
+        });
+    }
+
     return updated;
   }
   async deleteDoor(id: number): Promise<void> {
