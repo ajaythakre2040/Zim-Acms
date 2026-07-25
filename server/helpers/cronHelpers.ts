@@ -2,7 +2,7 @@ import { db } from "../db";
 import { people, blockUnblockLogs } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { esslService } from "../services/essl-service";
-import { ZONES } from "../constant";
+import { UNIT_TYPE, ZONES } from "../constant";
 
 /**
  * Hardware Sync Logic: Block ya Unblock command bhejta hai
@@ -96,4 +96,13 @@ export function isUserActiveToday(emp: any, todayStart: Date): boolean {
     if (!emp || !emp.lastSeenTime) return false;
     const lastSeen = new Date(emp.lastSeenTime);
     return lastSeen >= todayStart && emp.currentZone !== ZONES.OUT;
+}
+
+/**
+ * Check karta hai ki door Unit 1 ka hai ya nahi.
+ * Unit 1 doors ke liye Main Gate IN punch compulsory hai.
+ */
+export function isUnit1Door(doorUnit?: string | null): boolean {
+    if (!doorUnit) return false;
+    return doorUnit.trim().toUpperCase() === UNIT_TYPE.UNIT_1.toUpperCase();
 }
