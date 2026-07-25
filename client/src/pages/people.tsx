@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useLocation } from "wouter";
-import { ACCESS_RULES, DEFAULT_ADMIN_CONFIG } from "../../../server/constant";
+import { MAIN_GATE_SYNC, ACCESS_RULES, DEFAULT_ADMIN_CONFIG } from "../../../server/constant";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1381,149 +1381,177 @@ export default function PeoplePage() {
         />
       )}
       <Dialog open={roledialogOpen} onOpenChange={setRoleDialogOpen}>
-        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
-          {/* HEADER */}
-          <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <UserPlus className="w-6 h-6" />
-              <div>
-                <h2 className="text-xl font-bold leading-none">Assign Door</h2>
-                <p className="text-blue-100 text-xs mt-1">
-                  Assign doors to employee
-                </p>
-              </div>
-            </div>
-          </div>
-          {/* BODY */}
-          <div className="p-6 space-y-4">
-            {/* SEARCH */}
-            <div className="relative">
-              <input
-                placeholder="Search door..."
-                value={doorSearch}
-                onChange={(e) => setDoorSearch(e.target.value)}
-                className="w-full px-4 py-3 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-            <div className="flex justify-between items-center px-1 mb-2">
-              <span className="text-xs font-bold text-slate-400 uppercase">
-                {selectedDoorIds.length} Selected
-              </span>
-              <div className="flex gap-3">
-                <button
-                  className="text-[11px] font-bold text-blue-600"
-                  onClick={() => setSelectedDoorIds(doors.map((d) => d.id))}
-                >
-                  Select All
-                </button>
-                <button
-                  className="text-[11px] font-bold text-slate-400"
-                  onClick={() => setSelectedDoorIds([])}
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-            {/* ROLE LIST */}
-            <div className="h-[300px] overflow-y-auto rounded-xl border bg-slate-50 p-2">
-              {isLoadingDoors ? (
-                <p className="text-center text-sm text-muted-foreground">
-                  Loading doors...
-                </p>
-              ) : (
-                doors
-                  ?.filter((d) =>
-                    d.name.toLowerCase().includes(doorSearch.toLowerCase()),
-                  )
-                  .map((door) => (
-                    <div
-                      key={door.id}
-                      className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all cursor-pointer border ${
-                        selectedDoorIds.includes(door.id)
-                          ? "bg-white border-blue-200 shadow-sm"
-                          : "border-transparent hover:bg-white hover:border-slate-200"
-                      }`}
-                      onClick={() =>
-                        setSelectedDoorIds((prev) => {
-                          const safePrev = Array.isArray(prev) ? prev : [];
-                          return safePrev.includes(door.id)
-                            ? safePrev.filter((id) => id !== door.id)
-                            : [...safePrev, door.id];
-                        })
-                      }
-                    >
-                      {/* ✅ CHECKBOX */}
-                      <Checkbox
-                        checked={
-                          Array.isArray(selectedDoorIds) &&
-                          selectedDoorIds.includes(Number(door.id))
-                        }
-                        className="pointer-events-none"
-                      />
-                      {/* DOOR NAME */}
-                      <span
-                        className={`text-sm ${
-                          selectedDoorIds.includes(door.id)
-                            ? "font-bold text-blue-700"
-                            : "text-slate-600"
-                        }`}
-                      >
-                        {door.name}
-                      </span>
-                    </div>
-                  ))
-              )}
-            </div>
-          </div>
-          {/* FOOTER */}
-          <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
-            <Button
-              variant="outline"
-              className="rounded-xl px-6"
-              onClick={() => {
-                setRoleDialogOpen(false);
-                setRoleAssign(null);
-                setSelectedRoleId(null);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
-              onClick={async () => {
-                try {
-                  const response = await apiRequest(
-                    "POST",
-                    "/api/employee-door-assignments",
-                    {
-                      employeeCode: roleassign?.employeeCode,
-                      doorIds: selectedDoorIds,
-                    },
-                  );
-                  if (response) {
-                    toast({
-                      title: "Success",
-                      description: "Doors assigned successfully!",
-                      variant: "default",
+  <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+    {/* HEADER */}
+    <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
+      <div className="flex items-center gap-3">
+        <UserPlus className="w-6 h-6" />
+        <div>
+          <h2 className="text-xl font-bold leading-none">Assign Door</h2>
+          <p className="text-blue-100 text-xs mt-1">
+            Assign doors to employee
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* BODY */}
+    <div className="p-6 space-y-4">
+      {/* SEARCH */}
+      <div className="relative">
+        <input
+          placeholder="Search door..."
+          value={doorSearch}
+          onChange={(e) => setDoorSearch(e.target.value)}
+          className="w-full px-4 py-3 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+        />
+      </div>
+
+      <div className="flex justify-between items-center px-1 mb-2">
+        <span className="text-xs font-bold text-slate-400 uppercase">
+          {selectedDoorIds.length} Selected
+        </span>
+        <div className="flex gap-3">
+          <button
+            className="text-[11px] font-bold text-blue-600 hover:underline"
+            onClick={() => setSelectedDoorIds(doors.map((d) => d.id))}
+          >
+            Select All
+          </button>
+          
+          {/* 🧹 Clear button: Reclaims Main Gate ID if present */}
+          <button
+            className="text-[11px] font-bold text-slate-400 hover:text-slate-600"
+            onClick={() => {
+              const mainGate = doors.find((d) => d.code === MAIN_GATE_SYNC.CODE);
+              setSelectedDoorIds(mainGate ? [mainGate.id] : []);
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+
+      {/* ROLE / DOOR LIST */}
+      <div className="h-[300px] overflow-y-auto rounded-xl border bg-slate-50 p-2">
+        {isLoadingDoors ? (
+          <p className="text-center text-sm text-muted-foreground py-8">
+            Loading doors...
+          </p>
+        ) : (
+          doors
+            ?.filter((d) =>
+              d.name.toLowerCase().includes(doorSearch.toLowerCase())
+            )
+            .map((door) => {
+              // 🔒 Check if current door is Main Gate
+              const isMainGate = door.code === MAIN_GATE_SYNC.CODE;
+              const isSelected = selectedDoorIds.includes(door.id);
+
+              return (
+                <div
+                  key={door.id}
+                  className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all border ${
+                    isMainGate
+                      ? "bg-slate-100/80 border-slate-200 cursor-not-allowed opacity-90"
+                      : isSelected
+                      ? "bg-white border-blue-200 shadow-sm cursor-pointer"
+                      : "border-transparent hover:bg-white hover:border-slate-200 cursor-pointer"
+                  }`}
+                  onClick={() => {
+                    // ⛔ Main gate selection cannot be toggled
+                    if (isMainGate) return;
+
+                    setSelectedDoorIds((prev) => {
+                      const safePrev = Array.isArray(prev) ? prev : [];
+                      return safePrev.includes(door.id)
+                        ? safePrev.filter((id) => id !== door.id)
+                        : [...safePrev, door.id];
                     });
-                    setRoleDialogOpen(false);
-                    setRoleAssign(null);
-                  }
-                } catch (error) {
-                  console.error("Assignment Error:", error);
-                  toast({
-                    title: "Error",
-                    description: "Failed to assign doors. Please try again.",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              Assign Door
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+                  }}
+                >
+                  {/* ✅ CHECKBOX */}
+                  <Checkbox
+                    checked={isMainGate || isSelected}
+                    disabled={isMainGate}
+                    className="pointer-events-none"
+                  />
+
+                  {/* DOOR NAME & BADGE */}
+                  <div className="flex items-center justify-between w-full">
+                    <span
+                      className={`text-sm ${
+                        isMainGate || isSelected
+                          ? "font-bold text-blue-700"
+                          : "text-slate-600"
+                      }`}
+                    >
+                      {door.name}
+                    </span>
+
+                    {/* Optional indicator badge for Main Gate */}
+                    {isMainGate && (
+                      <span className="text-[10px] bg-slate-200 text-slate-600 font-medium px-2 py-0.5 rounded-md">
+                        Default
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+        )}
+      </div>
+    </div>
+
+    {/* FOOTER */}
+    <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
+      <Button
+        variant="outline"
+        className="rounded-xl px-6"
+        onClick={() => {
+          setRoleDialogOpen(false);
+          setRoleAssign(null);
+          setSelectedRoleId(null);
+        }}
+      >
+        Cancel
+      </Button>
+      <Button
+        className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
+        onClick={async () => {
+          try {
+            const response = await apiRequest(
+              "POST",
+              "/api/employee-door-assignments",
+              {
+                employeeCode: roleassign?.employeeCode,
+                doorIds: selectedDoorIds,
+              }
+            );
+            if (response) {
+              toast({
+                title: "Success",
+                description: "Doors assigned successfully!",
+                variant: "default",
+              });
+              setRoleDialogOpen(false);
+              setRoleAssign(null);
+            }
+          } catch (error) {
+            console.error("Assignment Error:", error);
+            toast({
+              title: "Error",
+              description: "Failed to assign doors. Please try again.",
+              variant: "destructive",
+            });
+          }
+        }}
+      >
+        Assign Door
+      </Button>
+    </div>
+  </DialogContent>
+</Dialog>
       <BulkUploadDialog
         open={uploadDetailsOpen}
         onClose={() => setUploadDetailsOpen(false)}
