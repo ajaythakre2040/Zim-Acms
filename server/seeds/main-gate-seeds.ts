@@ -11,6 +11,7 @@ export async function seedCronMaster() {
             .values({
                 name: MAIN_GATE_SYNC.DISPLAY_NAME,
                 code: MAIN_GATE_SYNC.CODE,
+                unit: MAIN_GATE_SYNC.UNIT,
                 doorType: MAIN_GATE_SYNC.DOOR_TYPE as any,
                 isActive: true,
             })

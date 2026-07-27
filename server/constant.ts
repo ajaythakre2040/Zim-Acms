@@ -35,7 +35,8 @@ export const AUTOSUSPEND_CONFIG = {
 export const MAIN_GATE_SYNC = {
   CODE: "MG_SYNC_01",
   DISPLAY_NAME: "Main Gate",
-  DOOR_TYPE: "gate",           // Physical hardware type
+  DOOR_TYPE: "gate",  
+  UNIT: "UNIT_1",         // Physical hardware type
   TASK_NAME: "COMMON_GATE_AUTH",
   DEFAULT_SECONDS: 3,
   GROUP: "gate_security",
