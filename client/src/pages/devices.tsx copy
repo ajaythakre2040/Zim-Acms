@@ -26,7 +26,6 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronsLeft,
-  Filter,
 } from "lucide-react";
 import type { Device, Site, Zone } from "@shared/schema";
 import { formatDateTime } from "@/lib/utils";
@@ -60,12 +59,11 @@ export default function DevicesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [editing, setEditing] = useState<Device | null>(null);
   const { toast } = useToast();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSyncing, setIsSyncing] = useState(false);
-
+  // Aapka original CRUD hook
   type PaginatedDeviceResponse = {
     data: Device[];
     totalPages: number;
@@ -87,7 +85,7 @@ export default function DevicesPage() {
 
   const fetchDevices = async () => {
     const res = await fetch(
-      `/api/devices?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}&status=${statusFilter}`,
+      `/api/devices?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
     );
 
     const data = await res.json();
@@ -100,7 +98,7 @@ export default function DevicesPage() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [page, search, statusFilter, pageSize]);
+  }, [page, search, pageSize]);
 
   const data: Device[] = pagedResponse?.data || [];
   const totalPages = pagedResponse?.totalPages || 1;
@@ -108,7 +106,13 @@ export default function DevicesPage() {
 
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: zones = [] } = useQuery<Zone[]>({ queryKey: ["/api/zones"] });
-  
+  if (!canView) {
+    return (
+      <div className="flex h-[450px] items-center justify-center text-muted-foreground">
+        You do not have permission to view devices.
+      </div>
+    );
+  }
   const online = pagedResponse?.onlineCount || 0;
   const offline = pagedResponse?.offlineCount || 0;
 
@@ -173,10 +177,13 @@ export default function DevicesPage() {
       label: "Serial Number",
       render: (d: Device) => <Badge variant="secondary">{d.serialNumber}</Badge>,
     },
+
+    // STATUS COLUMN
     {
       key: "status",
       label: "Status",
       render: (d: Device) => {
+        // Frontend calculation ko hata kar seedha backend ka status use karein
         const statusKey = (d.status || "offline").toLowerCase();
         const cfg = statusConfig[statusKey] || statusConfig.offline;
 
@@ -195,12 +202,17 @@ export default function DevicesPage() {
         );
       },
     },
+
+    // LAST SEEN COLUMN
     {
       key: "lastHeartbeat",
       label: "Last Seen",
       hideOnMobile: true,
       render: (d: Device) => {
         if (!d.lastHeartbeat) return "Never";
+
+        // Yahan manual calculation ke bajaye seedha formatted time dikhayein
+        // Kyunki manual diff nikalne mein hi timezone ki galti hoti hai
         return (
           <div className="flex flex-col leading-tight">
             <span
@@ -209,12 +221,15 @@ export default function DevicesPage() {
               {d.status === "online" ? "Active" : "Last seen"}
             </span>
             <span className="text-[10px] text-muted-foreground">
+              {/* Aapki existing utils function use kar raha hoon */}
               {formatDateTime(d.lastHeartbeat)}
             </span>
           </div>
         );
       },
     },
+
+    // ACTIONS COLUMN (Yahan "Actions" header add kiya hai)
     {
       key: "actions",
       label: "Actions",
@@ -259,7 +274,9 @@ export default function DevicesPage() {
 
                 try {
                   await remove(idToDelete);
+
                   await fetchDevices();
+
                   toast({
                     title: "Deleted",
                     description: "Device deleted successfully",
@@ -280,6 +297,7 @@ export default function DevicesPage() {
       ),
     },
   ].filter((col) => {
+    // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
     if (col.key === "actions") {
       return canEdit || canDelete;
     }
@@ -289,41 +307,48 @@ export default function DevicesPage() {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-4">
       <PageHeader
-        title="Devices"
-        description="Manage access control devices"
-        action={
-          <Button
-            onClick={async () => {
-              try {
-                setIsSyncing(true);
-                setEditing(null);
-                await fetchDevices();
-                toast({
-                  title: "Refreshed",
-                  description: "Device list synced successfully",
-                });
-              } catch (error) {
-                console.error(error);
-              } finally {
-                setIsSyncing(false);
-              }
-            }}
-            className="gap-2 w-24 justify-center"
-            disabled={isSyncing || isLoading}
-          >
-            <div className={`flex items-center gap-1 ${isSyncing ? "animate-pulse opacity-70" : ""}`}>
-              <RefreshCw
-                className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`}
-              />
-              <span>Sync</span>
-            </div>
-          </Button>
+  title="Devices"
+  description="Manage access control devices"
+  action={
+    <Button
+      onClick={async () => {
+        try {
+          setIsSyncing(true);
+          setEditing(null);
+          await fetchDevices();
+          
+          toast({
+            title: "Refreshed",
+            description: "Device list synced successfully",
+          });
+        } catch (error) {
+          console.error(error);
+        } finally {
+          setIsSyncing(false);
         }
-      />
+      }}
+      // 🚀 fixed width (w-24) de di taaki text change par size na badle aur hile nahi
+      className="gap-2 w-24 justify-center" 
+      disabled={isSyncing || isLoading}
+    >
+      <div className={`flex items-center gap-1 ${isSyncing ? "animate-pulse opacity-70" : ""}`}>
+        <RefreshCw
+          className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`}
+        />
+        {/* 🚀 Text ko 'Sync' hi rakha taaki length change na ho, bas sync ke waqt blink karega */}
+        <span>Sync</span>
+      </div>
+    </Button>
+  }
+/>
 
       <div className="grid grid-cols-4 gap-3">
+        {" "}
+        {/* 2 se badha kar 4 kiya */}
         <Card>
           <CardContent className="p-2 text-center">
+            {" "}
+            {/* Padding bhi p-3 se p-2 kar di */}
             <p className="text-xl font-bold text-green-600">{online}</p>
             <p className="text-[10px] text-muted-foreground uppercase">
               Online
@@ -340,45 +365,33 @@ export default function DevicesPage() {
         </Card>
       </div>
 
-      {/* Search input aur Status filter dropdown ek saath row me */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 mb-4">
-        <div className="relative w-full sm:max-w-sm">
-          <input
-            placeholder="Search devices..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="w-full h-9 border rounded-md pl-3 bg-background"
-          />
-        </div>
-
-        {/* Status Filter Dropdown (Sirf Online aur Offline) */}
-        <div className="w-full sm:w-auto">
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setPage(1);
-            }}
-            className="w-full sm:w-40 h-9 border rounded-md px-3 bg-background text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="all">All Status</option>
-            <option value="online">Online</option>
-            <option value="offline">Offline</option>
-          </select>
-        </div>
+      {/* <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        searchable
+        searchKeys={["name", "ipAddress", "serialNumber"]}
+        emptyMessage="No devices registered"
+      /> */}
+      <div className="relative max-w-sm mb-4">
+        <input
+          placeholder="Search devices..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1); // IMPORTANT
+          }}
+          className="w-full h-9 border rounded-md pl-3"
+        />
       </div>
-
       <DataTable
         columns={columns}
         data={data}
         isLoading={isLoading}
         pageSize={pageSize}
       />
-
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
+        {/* Left Side: Stats */}
         <div className="text-sm text-muted-foreground order-2 md:order-1">
           Showing{" "}
           <span className="font-semibold text-foreground">
@@ -392,16 +405,18 @@ export default function DevicesPage() {
           <span className="font-semibold text-foreground">
             {pagedResponse?.totalCount || 0}
           </span>{" "}
-          devices
+          shifts
         </div>
 
+        {/* Right Side: Controls */}
         <div className="flex flex-wrap items-center gap-4 md:gap-8 order-1 md:order-2">
+          {/* Direct Jump (Professional Touch) */}
           <div className="flex items-center gap-2">
             <PaginationSize
               pageSize={pageSize}
               setPageSize={(val) => {
                 setPageSize(val);
-                setPage(1);
+                setPage(1); // Page size change hone par 1st page par jayein
               }}
             />
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -411,16 +426,20 @@ export default function DevicesPage() {
               type="number"
               min={1}
               max={totalPages}
-              value={page}
-              onChange={(e) => {
-                const val = Number(e.target.value);
-                if (val >= 1 && val <= totalPages) setPage(val);
-              }}
+              defaultValue={page}
               className="w-12 h-8 text-center text-sm border rounded-md focus:ring-2 focus:ring-primary outline-none transition-all"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  const val = Number(e.currentTarget.value);
+                  if (val >= 1 && val <= totalPages) setPage(val);
+                }
+              }}
             />
           </div>
 
+          {/* Navigation Buttons */}
           <div className="flex items-center space-x-1">
+            {/* First Page */}
             <Button
               variant="ghost"
               size="icon"
@@ -432,6 +451,7 @@ export default function DevicesPage() {
               <ChevronsLeft className="h-4 w-4" />
             </Button>
 
+            {/* Previous */}
             <Button
               variant="outline"
               size="sm"
@@ -443,10 +463,12 @@ export default function DevicesPage() {
               Prev
             </Button>
 
+            {/* Page Indicator */}
             <div className="flex items-center justify-center min-w-[80px] h-8 bg-background border rounded-md text-xs font-bold shadow-sm px-2">
               {page} / {totalPages}
             </div>
 
+            {/* Next */}
             <Button
               variant="outline"
               size="sm"
@@ -458,6 +480,7 @@ export default function DevicesPage() {
               <ChevronRight className="h-4 w-4" />
             </Button>
 
+            {/* Last Page */}
             <Button
               variant="ghost"
               size="icon"
@@ -471,7 +494,6 @@ export default function DevicesPage() {
           </div>
         </div>
       </div>
-
       {(canAdd || canEdit) && (
         <CrudDialog
           open={dialogOpen}
@@ -498,6 +520,7 @@ export default function DevicesPage() {
             try {
               setFieldErrors({});
 
+              // 🛡️ XSS Validation (EDIT ONLY)
               const validationErrors = validateNoHtml(formData);
               if (Object.keys(validationErrors).length > 0) {
                 setFieldErrors(validationErrors);
@@ -509,9 +532,11 @@ export default function DevicesPage() {
 
               if (formData.zoneId) formData.zoneId = Number(formData.zoneId);
 
+              // 🚀 UPDATE ONLY (kyunki add nahi hai)
               if (editing) {
                 const updateId = editing.id || (editing as any).msId;
                 await update({ id: updateId, data: formData });
+
                 await fetchDevices();
 
                 toast({
