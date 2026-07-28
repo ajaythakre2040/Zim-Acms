@@ -1183,6 +1183,17 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch employee door assignment" });
     }
   });
+  app.get("/api/doors/active", requireAuth, async (req: Request, res: Response) => {
+    try {
+      const doors = await storage.getActiveDoors();
+      return res.status(200).json(doors);
+    } catch (error: any) {
+      return res.status(500).json({
+        message: "Failed to fetch active doors",
+        error: error.message
+      });
+    }
+  });
   app.post("/api/employee-door-assignments", requireAuth, withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "ADD/UPDATE", async (req) => {
     const { employeeCode, doorIds } = req.body;
     if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");

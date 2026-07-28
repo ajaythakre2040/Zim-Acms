@@ -1,8 +1,32 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@shared/models/auth";
 
+// async function fetchUser(): Promise<User | null> {
+//   const response = await fetch("/api/auth/user", {
+//     credentials: "include",
+//   });
+
+//   if (response.status === 401) {
+//     return null;
+//   }
+
+//   if (!response.ok) {
+//     throw new Error(`${response.status}: ${response.statusText}`);
+//   }
+
+//   return response.json();
+// }
+
+// export function useAuth() {
+//   const queryClient = useQueryClient();
+//   const { data: user, isLoading } = useQuery<User | null>({
+//     queryKey: ["/api/auth/user"],
+//     queryFn: fetchUser,
+//     retry: false,
+//     staleTime: 1000 * 60 * 5,
+//   });
 async function fetchUser(): Promise<User | null> {
-  const response = await fetch("/api/user", {
+  const response = await fetch("/api/user", { // API endpoint ko storage.ts ke route se match karein
     credentials: "include",
   });
 
@@ -11,7 +35,7 @@ async function fetchUser(): Promise<User | null> {
   }
 
   if (!response.ok) {
-    // Server errors ya connection loss par loop se bachne ke liye null return karein
+    // Agar server down hai ya koi aur error hai, toh loop se bachne ke liye null return karein
     return null;
   }
 
@@ -24,10 +48,11 @@ export function useAuth() {
   const { data: user, isLoading, error } = useQuery<User | null>({
     queryKey: ["/api/user"],
     queryFn: fetchUser,
-    retry: false, // Failed auth attempts ko infinite retry mat karein
-    staleTime: 1000 * 60 * 5, // 5 minutes tak user state fresh rahegi
-    refetchOnWindowFocus: false, // Window focus switch karne par unnecessary fetch rokein
+    retry: false, // Bahut zaroori: Failed auth ko baar-baar retry na karein
+    staleTime: 1000 * 60 * 5, // 5 minutes tak data ko fresh maane
+    refetchOnWindowFocus: false, // Window focus par baar-baar fetch na karein
   });
+
 
   const loginMutation = useMutation({
     mutationFn: async (data: { username: string; password: string }) => {
@@ -43,10 +68,8 @@ export function useAuth() {
       }
       return res.json();
     },
-    onSuccess: (userData) => {
-      // Direct cache update and instant query refetch to trigger immediate redirect
-      queryClient.setQueryData(["/api/user"], userData);
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    onSuccess: (user) => {
+      queryClient.setQueryData(["/api/auth/user"], user);
     },
   });
 
@@ -64,9 +87,8 @@ export function useAuth() {
       }
       return res.json();
     },
-    onSuccess: (userData) => {
-      queryClient.setQueryData(["/api/user"], userData);
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+    onSuccess: (user) => {
+      queryClient.setQueryData(["/api/auth/user"], user);
     },
   });
 
@@ -75,8 +97,7 @@ export function useAuth() {
       await fetch("/api/logout", { method: "POST", credentials: "include" });
     },
     onSuccess: () => {
-      queryClient.setQueryData(["/api/user"], null);
-      queryClient.invalidateQueries({ queryKey: ["/api/user"] });
+      queryClient.setQueryData(["/api/auth/user"], null);
     },
   });
 

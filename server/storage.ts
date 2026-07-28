@@ -748,14 +748,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     return currentSites;
@@ -829,7 +829,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) {}
+        } catch (e) { }
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -1008,12 +1008,12 @@ export class DatabaseStorage implements IStorage {
       const searchText = search?.toLowerCase().trim();
       const filteredDoors = searchText
         ? resolvedDoors.filter((door) => {
-            return (
-              door.name?.toLowerCase().includes(searchText) ||
-              door.code?.toLowerCase().includes(searchText) ||
-              door.doorType?.toLowerCase().includes(searchText)
-            );
-          })
+          return (
+            door.name?.toLowerCase().includes(searchText) ||
+            door.code?.toLowerCase().includes(searchText) ||
+            door.doorType?.toLowerCase().includes(searchText)
+          );
+        })
         : resolvedDoors;
       if (!pageSize) {
         return filteredDoors;
@@ -1043,12 +1043,12 @@ export class DatabaseStorage implements IStorage {
       console.error("getDoors Error:", error);
       return pageSize
         ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-          }
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+        }
         : [];
     }
   }
@@ -1838,15 +1838,15 @@ export class DatabaseStorage implements IStorage {
       const baseQuery = db.select().from(shifts).orderBy(asc(shifts.id));
       const finalQuery = searchText
         ? db
-            .select()
-            .from(shifts)
-            .where(
-              or(
-                ilike(shifts.name, `%${searchText}%`),
-                ilike(shifts.code, `%${searchText}%`),
-              ),
-            )
-            .orderBy(asc(shifts.id))
+          .select()
+          .from(shifts)
+          .where(
+            or(
+              ilike(shifts.name, `%${searchText}%`),
+              ilike(shifts.code, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(shifts.id))
         : baseQuery;
       return await withPagination(db, shifts, finalQuery, page, pageSize);
     } catch (error) {
@@ -2656,9 +2656,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-                3600000
-              ).toFixed(2)
+              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+              3600000
+            ).toFixed(2)
             : "0.00",
       };
     });
@@ -2836,7 +2836,7 @@ export class DatabaseStorage implements IStorage {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-              String(presentRow.status).toLowerCase() === "present"
+                String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -2860,13 +2860,13 @@ export class DatabaseStorage implements IStorage {
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
             : String(row.employeeCode).trim().toLowerCase() ===
-              String(filters.employeeCode).trim().toLowerCase();
+            String(filters.employeeCode).trim().toLowerCase();
 
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-              String(filters.status).toLowerCase();
+            String(filters.status).toLowerCase();
 
         return matchesEmployee && matchesStatus;
       })
@@ -2891,7 +2891,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -3963,7 +3963,7 @@ export class DatabaseStorage implements IStorage {
         } else {
         }
       }
-    } catch (err) {}
+    } catch (err) { }
 
     return updatedMapping;
   }
@@ -4136,7 +4136,8 @@ export class DatabaseStorage implements IStorage {
 
       try {
         const pool = await mssqlPool;
-        const mssqlResult = await pool.request().input("empCode", cleanCode)
+        const mssqlResult = await pool.request()
+          .input("empCode", cleanCode)
           .query(`
           SELECT 
             DeviceId,
@@ -4159,10 +4160,7 @@ export class DatabaseStorage implements IStorage {
           }
         }
       } catch (mssqlErr) {
-        console.error(
-          "Error fetching MSSQL device command statuses:",
-          mssqlErr,
-        );
+        console.error("Error fetching MSSQL device command statuses:", mssqlErr);
       }
 
       // 3. Merge Logic: Purane logs ke saath MSSQL Status inject kar do
@@ -5146,22 +5144,32 @@ export class DatabaseStorage implements IStorage {
           schema.people.employeeCode,
         ),
       );
+
     const doorList = await db
       .select({
         id: schema.doors.id,
         name: schema.doors.name,
       })
-      .from(schema.doors);
+      .from(schema.doors)
+      .where(eq(schema.doors.isActive, true));
+
     const doorMap = new Map(doorList.map((d) => [d.id, d.name]));
+
     return assignments.map((asgn) => ({
       ...asgn,
-      doors: (asgn.doorIds || []).map((id) => {
-        const doorId = Number(id);
-        return {
-          id: doorId,
-          name: doorMap.get(doorId) || "Unknown Door",
-        };
-      }),
+      doors: (asgn.doorIds || [])
+        .map((id) => {
+          const doorId = Number(id);
+          const doorName = doorMap.get(doorId);
+
+          if (!doorName) return null;
+
+          return {
+            id: doorId,
+            name: doorName,
+          };
+        })
+        .filter(Boolean),
     }));
   }
   async getEmployeeDoorAssignmentByCode(
@@ -5184,18 +5192,39 @@ export class DatabaseStorage implements IStorage {
         ),
       )
       .where(eq(schema.employeeDoorAssignments.employeeCode, employeeCode));
+
     if (!assignment) return undefined;
+
     if (assignment.doorIds && assignment.doorIds.length > 0) {
       const doorList = await db
         .select({ id: schema.doors.id, name: schema.doors.name })
         .from(schema.doors)
-        .where(inArray(schema.doors.id, assignment.doorIds));
+        .where(
+          and(
+            inArray(schema.doors.id, assignment.doorIds),
+            eq(schema.doors.isActive, true)
+          )
+        );
+
       return {
         ...assignment,
         doors: doorList,
       };
     }
+
     return { ...assignment, doors: [] };
+  }
+  async getActiveDoors(): Promise<any[]> {
+    return await db
+      .select({
+        id: schema.doors.id,
+        name: schema.doors.name,
+        code: schema.doors.code,
+        status: schema.doors.status,
+        isActive: schema.doors.isActive,
+      })
+      .from(schema.doors)
+      .where(eq(schema.doors.isActive, true));
   }
   async upsertEmployeeDoorAssignment(data: {
     employeeCode: string;
@@ -6480,7 +6509,7 @@ ${fromDate} || ' to ' || ${toDate}
             : undefined,
       aadhaarNumber:
         typeof data.aadhaarNumber === "string" &&
-        data.aadhaarNumber.trim() !== ""
+          data.aadhaarNumber.trim() !== ""
           ? data.aadhaarNumber.trim()
           : data.aadhaarNumber === "" || data.aadhaarNumber === null
             ? null
@@ -6829,15 +6858,15 @@ ${fromDate} || ' to ' || ${toDate}
         .orderBy(asc(visitorCards.id));
       const finalQuery = searchText
         ? db
-            .select()
-            .from(visitorCards)
-            .where(
-              or(
-                ilike(visitorCards.name, `%${searchText}%`),
-                ilike(visitorCards.cardNumber, `%${searchText}%`),
-              ),
-            )
-            .orderBy(asc(visitorCards.id))
+          .select()
+          .from(visitorCards)
+          .where(
+            or(
+              ilike(visitorCards.name, `%${searchText}%`),
+              ilike(visitorCards.cardNumber, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(visitorCards.id))
         : baseQuery;
       return await withPagination(db, visitorCards, finalQuery, page, pageSize);
     } catch (error) {

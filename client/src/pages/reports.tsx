@@ -298,7 +298,7 @@ function ReportFilters({
               )}
 
             {/* EMPLOYEE SEARCH (UPDATED) */}
-            {allowed.includes("employeeCode") && (
+            {/* {allowed.includes("employeeCode") && (
               <div className="space-y-1">
                 <Label className="text-[10px] text-muted-foreground">
                   EMPLOYEE
@@ -340,8 +340,68 @@ function ReportFilters({
                   ))}
                 </datalist>
               </div>
-            )}
+            )} */}
+            {allowed.includes("employeeCode") && (
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground uppercase">
+                  EMPLOYEE
+                </Label>
 
+                <Input
+                  type="text"
+                  list="employee-list"
+                  placeholder="Search Employee..."
+                  value={empSearchText}
+                  onFocus={() => {
+                    // Dropdown menu open hone par full list dikhane ke liye clearing
+                    setEmpSearchText("");
+                  }}
+                  onInput={(e: React.FormEvent<HTMLInputElement>) => {
+                    const val = e.currentTarget.value;
+                    setEmpSearchText(val);
+
+                    // Matching logic for typed text or selected option
+                    const selectedPerson = people.find((p: any) => {
+                      const formattedOption = `${capitalizeFirst(p.employeeName || "")} (${p.employeeCode || ""})`;
+                      return (
+                        formattedOption === val ||
+                        String(p.employeeCode) === val ||
+                        String(p.employeeName || "").toLowerCase() === val.toLowerCase()
+                      );
+                    });
+
+                    if (selectedPerson) {
+                      const empCode = String(selectedPerson.employeeCode);
+                      const formattedText = `${capitalizeFirst(selectedPerson.employeeName || "")} (${empCode})`;
+
+                      // 1. Payload state update (Direct Object pass karke TS error 2345 fix kiya)
+                      setFilters({
+                        ...filters,
+                        employeeCode: empCode,
+                      });
+
+                      // 2. Browser Datalist Timing Fix (Micro-task queue me display text set karna)
+                      setTimeout(() => {
+                        setEmpSearchText(formattedText);
+                      }, 0);
+                    } else if (val === "") {
+                      setFilters({
+                        ...filters,
+                        employeeCode: "",
+                      });
+                    }
+                  }}
+                  className="text-xs h-9"
+                />
+
+                <datalist id="employee-list">
+                  {people.map((p: any) => {
+                    const labelText = `${capitalizeFirst(p.employeeName || "")} (${p.employeeCode || ""})`;
+                    return <option key={p.id} value={labelText} />;
+                  })}
+                </datalist>
+              </div>
+            )}
             {/* DOOR */}
             {allowed.includes("deviceId") && (
               <div className="space-y-1">

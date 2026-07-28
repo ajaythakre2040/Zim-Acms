@@ -216,7 +216,7 @@ export default function PeoplePage() {
   });
   const { data: sites = [] } = useQuery<Site[]>({ queryKey: ["/api/sites"] });
   const { data: doors = [], isLoading: isLoadingDoors } = useQuery<any[]>({
-    queryKey: ["/api/doors"],
+    queryKey: ["/api/doors/active"],
   });
   const allDoors = doors || [];
   const { data: allDevices = [] } = useQuery<Device[]>({
