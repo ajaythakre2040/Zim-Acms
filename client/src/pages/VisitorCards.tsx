@@ -15,9 +15,19 @@ import {
   ChevronLeft,
   ChevronsLeft,
   RotateCw,
+  UserCheck,
+  ShieldCheck,
+  UserPlus,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { MENU_CONFIG } from "../../../server/constant";
 import { PaginationSize } from "@/components/ui/pagination";
+import { useQuery } from "@tanstack/react-query";
 
 const formatDateForInput = (dateString: string | null | undefined) => {
   if (!dateString) return "";
@@ -31,31 +41,47 @@ export default function VisitorCardsPage() {
     MENU_CONFIG.VISITOR_CARDS.code,
   );
 
-  if (!canView) {
-    return (
-      <div className="p-6 text-center text-muted-foreground">
-        You do not have permission to view this page.
-      </div>
-    );
-  }
-
   const confirm = useConfirm();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [search, setSearch] = useState("");
 
+  // Card Editing States
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
+
+  // Assign Visitor Dialog States
+  const [visitorDialog, setVisitorDialog] = useState(false);
+  const [editingVisitor, setEditingVisitor] = useState<any>(null);
+  const [selectedCardForAssign, setSelectedCardForAssign] = useState<any>(null);
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formKey, setFormKey] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
 
+  // CRUD Hooks for Visitor Cards
   const { isLoading, update, remove, isUpdating } = useCrud<any>(
     `/api/visitor_cards`,
     "Visitor Card",
   ) as any;
 
+  // CRUD Hooks for Visitors Registration
+  const { create: createVisitor, update: updateVisitor } = useCrud<any>(
+    `/api/visitors`,
+    "Visitor",
+  ) as any;
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["/api/employees"],
+    queryFn: async () => {
+      const res = await fetch("/api/people");
+      const resData = await res.json();
+      return Array.isArray(resData) ? resData : resData?.data || [];
+    },
+  });
+
   const [pagedResponse, setPagedResponse] = useState<any>(null);
+  const [visitorCards, setVisitorCards] = useState<any[]>([]);
 
   const fetchVisitorCards = async () => {
     try {
@@ -64,6 +90,11 @@ export default function VisitorCardsPage() {
       );
       const resData = await res.json();
       setPagedResponse(resData);
+      if (Array.isArray(resData)) {
+        setVisitorCards(resData);
+      } else if (resData?.data) {
+        setVisitorCards(resData.data);
+      }
     } catch (error) {
       console.error("Fetcher execution broke:", error);
     }
@@ -92,6 +123,14 @@ export default function VisitorCardsPage() {
     }
   };
 
+  if (!canView) {
+    return (
+      <div className="p-6 text-center text-muted-foreground">
+        You do not have permission to view this page.
+      </div>
+    );
+  }
+
   const cardsData = Array.isArray(pagedResponse)
     ? pagedResponse
     : pagedResponse?.data || [];
@@ -100,8 +139,18 @@ export default function VisitorCardsPage() {
   const totalPages =
     pagedResponse?.totalPages || Math.ceil(totalCount / pageSize) || 1;
 
+  const clearFieldError = (fieldName: string) => {
+    setErrors((prev) => {
+      if (!prev[fieldName]) return prev;
+      const copy = { ...prev };
+      delete copy[fieldName];
+      return copy;
+    });
+  };
+
+  // 1. Visitor Card Fields Configuration
   const fields: FieldConfig[] = [
-    { key: "name", label: "Card Name", required: true },
+    { key: "name", label: "Card Code", required: true },
     {
       key: "cardNumber",
       label: "Card Number",
@@ -113,11 +162,78 @@ export default function VisitorCardsPage() {
     { key: "location", label: "Location ID", type: "number" },
   ];
 
+  // 2. Visitor Form Fields
+  const visitorFields: FieldConfig[] = [
+    { key: "nameOfVisitor", label: "Visitor Name", required: true },
+    {
+      key: "contactNo",
+      label: "Contact Number",
+      required: true,
+      onChange: (e: any) => {
+        const val = e.target.value.trim();
+        if (/^\d{10}$/.test(val) && Number(val.charAt(0)) > 5) {
+          clearFieldError("contactNo");
+        }
+      },
+    },
+    {
+      key: "emailAddress",
+      label: "Email Address",
+      type: "email",
+      onChange: (e: any) => {
+        const val = e.target.value.trim();
+        if (!val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+          clearFieldError("emailAddress");
+        }
+      },
+    },
+    { key: "visitorsCompanyName", label: "Company Name" },
+    { key: "designation", label: "Designation" },
+    {
+      key: "whomToMeet",
+      label: "Whom To Meet (ZIM Employee) *",
+      type: "select",
+      options: (employees || [])
+        .map((e: any) => {
+          const name = e.employee_name || e.employeeName || "";
+          const code = e.employee_code || e.employeeCode || name;
+
+          return {
+            label: `${name} (${code})`,
+            value: code,
+          };
+        })
+        .filter((o: any) => o.label.trim() !== ""),
+      onChange: (val: any) => {
+        if (val && val !== "undefined" && val !== "null") {
+          clearFieldError("whomToMeet");
+        }
+      },
+    },
+    { key: "purpose", label: "Purpose of Visit" },
+    {
+      key: "permissionDateFrom",
+      label: "In Time *",
+      type: "datetime-local" as any,
+      onChange: (e: any) => {
+        const val = e.target.value.trim();
+        if (val && val !== "undefined" && val !== "null") {
+          clearFieldError("permissionDateFrom");
+        }
+      },
+    },
+    { key: "state", label: "State" },
+    { key: "district", label: "District" },
+    { key: "address1", label: "Address Line 1" },
+    { key: "pincode", label: "Pincode" },
+    { key: "remark", label: "Remark", type: "textarea" },
+  ];
+
   // 3. Grid Columns
   const columns = [
     {
       key: "name",
-      label: "Card Name",
+      label: "Card Code",
       render: (s: any) => <span className="font-medium">{s.name}</span>,
     },
     { key: "cardNumber", label: "Card Number" },
@@ -133,84 +249,153 @@ export default function VisitorCardsPage() {
       render: (s: any) =>
         s.expiryTo ? new Date(s.expiryTo).toLocaleDateString() : "-",
     },
-    /* 🌟 NEW COLUMN: Status (Actions se theek pahle) */
-    {
-      key: "status",
-      label: "Status",
-      render: (s: any) => (
-        <span
-          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-            s.isAssigned
-              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-          }`}
-        >
-          {s.isAssigned ? "Assign" : "Not Assign"}
-        </span>
-      ),
-    },
     {
       key: "actions",
       label: "Actions",
-      render: (s: any) => (
-        <div className="flex gap-1">
-          {canEdit && (
-            <Button
-              size="icon"
-              variant="ghost"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditing(s);
-                setFormKey((prev) => prev + 1);
-                setDialogOpen(true);
-              }}
-            >
-              <Pencil className="w-4 h-4" />
-            </Button>
-          )}
-          {canDelete && (
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-destructive"
-              onClick={async (e) => {
-                e.stopPropagation();
-                const confirmed = await confirm({
-                  title: "Delete Visitor Card?",
-                  description: `Are you sure you want to delete card "${s.name}"? This action cannot be undone.`,
-                  confirmText: "Yes, Delete",
-                  cancelText: "Cancel",
-                  variant: "destructive",
-                });
+      render: (s: any) => {
+        return (
+          <TooltipProvider delayDuration={100}>
+            <div className="flex gap-1 items-center">
+              {/* Assign Visitor Action Button */}
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingVisitor(null);
+                        setSelectedCardForAssign(s);
+                        setErrors({});
+                        setVisitorDialog(true);
+                      }}
+                    >
+                      <UserCheck className="w-4 h-4 text-green-600" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Assign Visitor</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
 
-                if (!confirmed) return;
+              {/* Device Access Status Button */}
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      <ShieldCheck className="w-4 h-4 text-blue-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Device Access Status</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
 
-                try {
-                  await remove(s.id);
-                  setPagedResponse((prev: any) => {
-                    if (!prev) return prev;
-                    if (Array.isArray(prev)) {
-                      return prev.filter((item: any) => item.id !== s.id);
-                    }
-                    return {
-                      ...prev,
-                      data: prev.data
-                        ? prev.data.filter((item: any) => item.id !== s.id)
-                        : [],
-                      totalCount: prev.totalCount ? prev.totalCount - 1 : 0,
-                    };
-                  });
-                  await fetchVisitorCards();
-                } catch (err) {
-                  // Silent fail safe
-                }
-              }}
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
-      ),
+              {/* Assign Door Button */}
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                      }}
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Assign Door</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Edit Action Button */}
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditing(s);
+                        setFormKey((prev) => prev + 1);
+                        setDialogOpen(true);
+                      }}
+                    >
+                      <Pencil className="w-4 h-4 text-blue-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Edit</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+
+              {/* Delete Action Button */}
+              {canDelete && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="hover:text-destructive text-red-500"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const confirmed = await confirm({
+                          title: "Delete Visitor Card?",
+                          description: `Are you sure you want to delete card "${s.name}"? This action cannot be undone.`,
+                          confirmText: "Yes, Delete",
+                          cancelText: "Cancel",
+                          variant: "destructive",
+                        });
+
+                        if (!confirmed) return;
+
+                        try {
+                          await remove(s.id);
+                          setPagedResponse((prev: any) => {
+                            if (!prev) return prev;
+                            if (Array.isArray(prev)) {
+                              return prev.filter((item: any) => item.id !== s.id);
+                            }
+                            return {
+                              ...prev,
+                              data: prev.data
+                                ? prev.data.filter((item: any) => item.id !== s.id)
+                                : [],
+                              totalCount: prev.totalCount ? prev.totalCount - 1 : 0,
+                            };
+                          });
+                          await fetchVisitorCards();
+                        } catch (err) {
+                          console.error("Failed to delete card:", err);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Delete</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          </TooltipProvider>
+        );
+      },
     },
   ].filter((col) => {
     if (col.key === "actions") {
@@ -359,7 +544,7 @@ export default function VisitorCardsPage() {
         </div>
       </div>
 
-      {/* Edit Dialog */}
+      {/* Edit Visitor Card Dialog */}
       {canEdit && (
         <CrudDialog
           key={formKey}
@@ -378,17 +563,13 @@ export default function VisitorCardsPage() {
             try {
               setErrors({});
 
-              // Combined local object validation layer trigger 🔴
               let validationErrors: Record<string, string> = {};
 
-              // 🌟 [ADDED] HTML Tags Dynamic Validation Block
-              // Pure formData object ko check karenge taaki Card Name ya custom inputs me koi HTML injector block ho sake
               const htmlTagErrors = validateNoHtml(formData);
               if (Object.keys(htmlTagErrors).length > 0) {
                 validationErrors = { ...validationErrors, ...htmlTagErrors };
               }
 
-              // Agar HTML ya parse validation catch hoti hai toh direct execution roko 🛑
               if (Object.keys(validationErrors).length > 0) {
                 setErrors(validationErrors);
                 return;
@@ -425,6 +606,141 @@ export default function VisitorCardsPage() {
           isPending={isUpdating}
         />
       )}
+
+      {/* Assign Visitor / Register Visitor Dialog */}
+      <CrudDialog
+        open={visitorDialog}
+        errors={errors}
+        onClose={() => {
+          setVisitorDialog(false);
+          setEditingVisitor(null);
+          setSelectedCardForAssign(null);
+          setErrors({});
+        }}
+        title={
+          editingVisitor
+            ? "Modify Visitor Profile"
+            : selectedCardForAssign
+            ? `Assign Visitor to Card (${selectedCardForAssign.name || selectedCardForAssign.cardNumber})`
+            : "Register New Visitor"
+        }
+        fields={visitorFields}
+        initialData={
+          editingVisitor
+            ? {
+                ...editingVisitor,
+                rfidCardNo:
+                  editingVisitor.rfidCardNo ||
+                  visitorCards.find(
+                    (c: any) =>
+                      Number(c.id) === Number(editingVisitor.visitorCardId),
+                  )?.cardNumber,
+              }
+            : selectedCardForAssign
+            ? {
+                rfidCardNo: selectedCardForAssign.cardNumber || selectedCardForAssign.id,
+                visitorCardId: selectedCardForAssign.id,
+              }
+            : undefined
+        }
+        onSubmit={async (data) => {
+          setErrors({});
+
+          const validationErrors = validateNoHtml(data) || {};
+
+          const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
+          const cleanedContact = String(data.contactNo || "").trim();
+          const cleanedEmail = String(data.emailAddress || "").trim();
+
+          const selectedRfid = String(data.rfidCardNo || "").trim();
+          const selectedWhomToMeet = String(data.whomToMeet || "").trim();
+          const selectedInTime = String(data.permissionDateFrom || "").trim();
+
+          if (!cleanedVisitorName) {
+            validationErrors.nameOfVisitor = "Visitor name is required.";
+          }
+
+          if (
+            !selectedRfid ||
+            selectedRfid === "undefined" ||
+            selectedRfid === "null"
+          ) {
+            validationErrors.rfidCardNo = "Please select an RFID Card.";
+          }
+
+          if (
+            !selectedWhomToMeet ||
+            selectedWhomToMeet === "undefined" ||
+            selectedWhomToMeet === "null"
+          ) {
+            validationErrors.whomToMeet = "Please select the employee to meet.";
+          }
+
+          if (
+            !selectedInTime ||
+            selectedInTime === "undefined" ||
+            selectedInTime === "null"
+          ) {
+            validationErrors.permissionDateFrom = "Please select the In Time.";
+          }
+
+          if (!cleanedContact) {
+            validationErrors.contactNo = "Contact number is required.";
+          } else if (!/^\d{10}$/.test(cleanedContact)) {
+            validationErrors.contactNo =
+              "Contact number must be exactly 10 digits.";
+          } else {
+            const firstDigit = Number(cleanedContact.charAt(0));
+            if (firstDigit <= 5) {
+              validationErrors.contactNo =
+                "Contact number must start with 6, 7, 8, or 9.";
+            }
+          }
+
+          if (
+            cleanedEmail &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
+          ) {
+            validationErrors.emailAddress =
+              "Please enter a valid email address.";
+          }
+
+          if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            return;
+          }
+
+          const payload = {
+            ...data,
+            visitorCardId: selectedCardForAssign?.id || data.visitorCardId,
+          };
+
+          try {
+            if (editingVisitor) {
+              if (updateVisitor?.mutateAsync) {
+                await updateVisitor.mutateAsync({ id: editingVisitor.id, data: payload });
+              } else if (updateVisitor?.mutate) {
+                updateVisitor.mutate({ id: editingVisitor.id, data: payload });
+              }
+            } else {
+              if (createVisitor?.mutateAsync) {
+                await createVisitor.mutateAsync(payload);
+              } else if (createVisitor?.mutate) {
+                createVisitor.mutate(payload);
+              }
+            }
+
+            setVisitorDialog(false);
+            setEditingVisitor(null);
+            setSelectedCardForAssign(null);
+            await fetchVisitorCards();
+          } catch (err: any) {
+            console.error("Visitor operation failed:", err);
+            setErrors({ general: err?.message || "Failed to submit visitor details" });
+          }
+        }}
+        isPending={createVisitor?.isPending || updateVisitor?.isPending}
+      />
     </div>
   );
 }
