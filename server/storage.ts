@@ -748,14 +748,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     return currentSites;
@@ -829,7 +829,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) {}
+        } catch (e) { }
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -1008,12 +1008,12 @@ export class DatabaseStorage implements IStorage {
       const searchText = search?.toLowerCase().trim();
       const filteredDoors = searchText
         ? resolvedDoors.filter((door) => {
-            return (
-              door.name?.toLowerCase().includes(searchText) ||
-              door.code?.toLowerCase().includes(searchText) ||
-              door.doorType?.toLowerCase().includes(searchText)
-            );
-          })
+          return (
+            door.name?.toLowerCase().includes(searchText) ||
+            door.code?.toLowerCase().includes(searchText) ||
+            door.doorType?.toLowerCase().includes(searchText)
+          );
+        })
         : resolvedDoors;
       if (!pageSize) {
         return filteredDoors;
@@ -1043,12 +1043,12 @@ export class DatabaseStorage implements IStorage {
       console.error("getDoors Error:", error);
       return pageSize
         ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-          }
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+        }
         : [];
     }
   }
@@ -1832,15 +1832,15 @@ export class DatabaseStorage implements IStorage {
       const baseQuery = db.select().from(shifts).orderBy(asc(shifts.id));
       const finalQuery = searchText
         ? db
-            .select()
-            .from(shifts)
-            .where(
-              or(
-                ilike(shifts.name, `%${searchText}%`),
-                ilike(shifts.code, `%${searchText}%`),
-              ),
-            )
-            .orderBy(asc(shifts.id))
+          .select()
+          .from(shifts)
+          .where(
+            or(
+              ilike(shifts.name, `%${searchText}%`),
+              ilike(shifts.code, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(shifts.id))
         : baseQuery;
       return await withPagination(db, shifts, finalQuery, page, pageSize);
     } catch (error) {
@@ -2650,9 +2650,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-                3600000
-              ).toFixed(2)
+              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+              3600000
+            ).toFixed(2)
             : "0.00",
       };
     });
@@ -2830,7 +2830,7 @@ export class DatabaseStorage implements IStorage {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-              String(presentRow.status).toLowerCase() === "present"
+                String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -2854,13 +2854,13 @@ export class DatabaseStorage implements IStorage {
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
             : String(row.employeeCode).trim().toLowerCase() ===
-              String(filters.employeeCode).trim().toLowerCase();
+            String(filters.employeeCode).trim().toLowerCase();
 
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-              String(filters.status).toLowerCase();
+            String(filters.status).toLowerCase();
 
         return matchesEmployee && matchesStatus;
       })
@@ -2885,7 +2885,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -3957,7 +3957,7 @@ export class DatabaseStorage implements IStorage {
         } else {
         }
       }
-    } catch (err) {}
+    } catch (err) { }
 
     return updatedMapping;
   }
@@ -4115,24 +4115,24 @@ export class DatabaseStorage implements IStorage {
   //   }
   //   return Array.from(latestMap.values());
   // }
- async getEmployeeDeviceStatuses(employeeCode: string) {
-  try {
-    // 1. Purana Logic: Fetch latest block/unblock logs from PostgreSQL/Drizzle DB
-    const logs = await db
-      .select()
-      .from(blockUnblockLogs)
-      .where(eq(blockUnblockLogs.employeeCode, employeeCode))
-      .orderBy(desc(blockUnblockLogs.updatedAt));
-
-    // 2. Fetch Latest Statuses from MSSQL DeviceCommands table
-    const cleanCode = String(employeeCode).trim();
-    let mssqlStatusMap = new Map<number, string>();
-
+  async getEmployeeDeviceStatuses(employeeCode: string) {
     try {
-      const pool = await mssqlPool;
-      const mssqlResult = await pool.request()
-        .input("empCode", cleanCode)
-        .query(`
+      // 1. Purana Logic: Fetch latest block/unblock logs from PostgreSQL/Drizzle DB
+      const logs = await db
+        .select()
+        .from(blockUnblockLogs)
+        .where(eq(blockUnblockLogs.employeeCode, employeeCode))
+        .orderBy(desc(blockUnblockLogs.updatedAt));
+
+      // 2. Fetch Latest Statuses from MSSQL DeviceCommands table
+      const cleanCode = String(employeeCode).trim();
+      let mssqlStatusMap = new Map<number, string>();
+
+      try {
+        const pool = await mssqlPool;
+        const mssqlResult = await pool.request()
+          .input("empCode", cleanCode)
+          .query(`
           SELECT 
             DeviceId,
             Status,
@@ -4144,45 +4144,45 @@ export class DatabaseStorage implements IStorage {
           ORDER BY CreationDate DESC
         `);
 
-      const mssqlLogs = mssqlResult.recordset || [];
+        const mssqlLogs = mssqlResult.recordset || [];
 
-      for (const mLog of mssqlLogs) {
-        const dId = Number(mLog.DeviceId ?? mLog.deviceId);
-        if (!mssqlStatusMap.has(dId)) {
-          // Har device ki latest MSSQL status value save kar rahe hain
-          mssqlStatusMap.set(dId, mLog.Status ?? mLog.status);
+        for (const mLog of mssqlLogs) {
+          const dId = Number(mLog.DeviceId ?? mLog.deviceId);
+          if (!mssqlStatusMap.has(dId)) {
+            // Har device ki latest MSSQL status value save kar rahe hain
+            mssqlStatusMap.set(dId, mLog.Status ?? mLog.status);
+          }
+        }
+      } catch (mssqlErr) {
+        console.error("Error fetching MSSQL device command statuses:", mssqlErr);
+      }
+
+      // 3. Merge Logic: Purane logs ke saath MSSQL Status inject kar do
+      const latestMap = new Map<number, any>();
+
+      for (const log of logs) {
+        const dId = Number(log.deviceId);
+        if (!latestMap.has(dId)) {
+          // MSSQL se real command status pick karo (e.g., SUCCESS / PENDING / FAILED)
+          const mssqlStatus = mssqlStatusMap.get(dId);
+
+          latestMap.set(dId, {
+            id: log.id,
+            deviceId: dId,
+            type: log.type, // Purana type (block/unblock) - ALLOWED/BLOCKED badge ke liye
+            // Agar MSSQL me status mila toh woh, nahi toh fallback status
+            status: mssqlStatus || (log.type === "block" ? "Blocked" : "Active"),
+            timestamp: log.updatedAt || log.createdAt,
+          });
         }
       }
-    } catch (mssqlErr) {
-      console.error("Error fetching MSSQL device command statuses:", mssqlErr);
+
+      return Array.from(latestMap.values());
+    } catch (error) {
+      console.error("Error in getEmployeeDeviceStatuses:", error);
+      return [];
     }
-
-    // 3. Merge Logic: Purane logs ke saath MSSQL Status inject kar do
-    const latestMap = new Map<number, any>();
-
-    for (const log of logs) {
-      const dId = Number(log.deviceId);
-      if (!latestMap.has(dId)) {
-        // MSSQL se real command status pick karo (e.g., SUCCESS / PENDING / FAILED)
-        const mssqlStatus = mssqlStatusMap.get(dId);
-
-        latestMap.set(dId, {
-          id: log.id,
-          deviceId: dId,
-          type: log.type, // Purana type (block/unblock) - ALLOWED/BLOCKED badge ke liye
-          // Agar MSSQL me status mila toh woh, nahi toh fallback status
-          status: mssqlStatus || (log.type === "block" ? "Blocked" : "Active"),
-          timestamp: log.updatedAt || log.createdAt,
-        });
-      }
-    }
-
-    return Array.from(latestMap.values());
-  } catch (error) {
-    console.error("Error in getEmployeeDeviceStatuses:", error);
-    return [];
   }
-}
   async toggleEmployeeDeviceAccess(params: {
     employeeCode: string;
     deviceId: number;
@@ -4802,124 +4802,124 @@ export class DatabaseStorage implements IStorage {
   //   };
   // }
   async unlockSpecificDoor(
-  doorId: number,
-  userId: string,
-  userName: string,
-): Promise<any> {
-  // 1. Specific Door ka detail fetch karein
-  const [door] = await db
-    .select()
-    .from(doors)
-    .where(eq(doors.id, doorId));
+    doorId: number,
+    userId: string,
+    userName: string,
+  ): Promise<any> {
+    // 1. Specific Door ka detail fetch karein
+    const [door] = await db
+      .select()
+      .from(doors)
+      .where(eq(doors.id, doorId));
 
-  if (!door) {
-    throw new Error(`Door with ID ${doorId} not found.`);
-  }
+    if (!door) {
+      throw new Error(`Door with ID ${doorId} not found.`);
+    }
 
-  // 2. Door ke sath mapped In & Out Devices (doorDevices) fetch karein
-  const doorDeviceMappings = await db
-    .select()
-    .from(doorDevices)
-    .where(eq(doorDevices.doorId, doorId));
+    // 2. Door ke sath mapped In & Out Devices (doorDevices) fetch karein
+    const doorDeviceMappings = await db
+      .select()
+      .from(doorDevices)
+      .where(eq(doorDevices.doorId, doorId));
 
-  const targetDeviceMsIds = new Set<number>();
-  doorDeviceMappings.forEach((mapping) => {
-    (mapping.inDeviceIds || []).forEach((id) => targetDeviceMsIds.add(Number(id)));
-    (mapping.outDeviceIds || []).forEach((id) => targetDeviceMsIds.add(Number(id)));
-  });
+    const targetDeviceMsIds = new Set<number>();
+    doorDeviceMappings.forEach((mapping) => {
+      (mapping.inDeviceIds || []).forEach((id) => targetDeviceMsIds.add(Number(id)));
+      (mapping.outDeviceIds || []).forEach((id) => targetDeviceMsIds.add(Number(id)));
+    });
 
-  if (targetDeviceMsIds.size === 0) {
-    return {
-      status: "Empty",
-      unlockedDevicesCount: 0,
-      message: `No devices assigned/mapped to door: ${door.name}`,
-    };
-  }
+    if (targetDeviceMsIds.size === 0) {
+      return {
+        status: "Empty",
+        unlockedDevicesCount: 0,
+        message: `No devices assigned/mapped to door: ${door.name}`,
+      };
+    }
 
-  // 3. Devices table se unhi active devices ko fetch karein jinke msId mapped hain
-  const targetDevices = await db
-    .select()
-    .from(devices)
-    .where(
-      and(
-        eq(devices.isActive, true),
-        inArray(devices.msId, Array.from(targetDeviceMsIds))
-      )
+    // 3. Devices table se unhi active devices ko fetch karein jinke msId mapped hain
+    const targetDevices = await db
+      .select()
+      .from(devices)
+      .where(
+        and(
+          eq(devices.isActive, true),
+          inArray(devices.msId, Array.from(targetDeviceMsIds))
+        )
+      );
+
+    if (targetDevices.length === 0) {
+      return {
+        status: "Empty",
+        unlockedDevicesCount: 0,
+        message: `No active devices found for door: ${door.name}`,
+      };
+    }
+
+    // 4. Emergency Alert Entry
+    const [alertEntry] = await db
+      .insert(alerts)
+      .values({
+        alertType: "security",
+        severity: "critical",
+        title: `🚨 EMERGENCY DOOR UNLOCK: ${door.name.toUpperCase()}`,
+        message: `Emergency unlock triggered by ${userName} for Door "${door.name}" (${targetDevices.length} devices).`,
+        createdBy: userId,
+        resolvedBy: userName,
+        isRead: false,
+        isResolved: true,
+        resolvedAt: new Date(),
+        createdAt: new Date(),
+      })
+      .returning();
+
+    // 5. Hardware Direct Unlock (MSSQL devicecommands entry via esslService)
+    let unlockedDevicesCount = 0;
+    const logsToInsert: any[] = [];
+
+    await Promise.all(
+      targetDevices.map(async (device) => {
+        if (!device.serialNumber) return;
+
+        try {
+          // eSSL Service command -> MSSQL devicecommands table insert
+          await esslService.unlockDoor(device.serialNumber.trim());
+
+          if (device.msId !== null && device.msId !== undefined) {
+            logsToInsert.push({
+              employeeCode: "EMERGENCY_DOOR_UNLOCK",
+              deviceId: Number(device.msId),
+              type: "unblock",
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          unlockedDevicesCount++;
+        } catch (err) {
+          console.error(
+            `Door Unlock Error for Serial [${device.serialNumber}] on Door [${door.name}]:`,
+            err,
+          );
+        }
+      }),
     );
 
-  if (targetDevices.length === 0) {
+    // 6. PG blockUnblockLogs table mein insert
+    if (logsToInsert.length > 0) {
+      try {
+        await db.insert(blockUnblockLogs).values(logsToInsert);
+      } catch (err) {
+        console.error("Failed to insert single door unlock logs into PG:", err);
+      }
+    }
+
     return {
-      status: "Empty",
-      unlockedDevicesCount: 0,
-      message: `No active devices found for door: ${door.name}`,
+      status: "Success",
+      doorName: door.name,
+      unlockedDevicesCount,
+      totalDevicesCount: targetDevices.length,
+      alertId: alertEntry.id,
     };
   }
-
-  // 4. Emergency Alert Entry
-  const [alertEntry] = await db
-    .insert(alerts)
-    .values({
-      alertType: "security",
-      severity: "critical",
-      title: `🚨 EMERGENCY DOOR UNLOCK: ${door.name.toUpperCase()}`,
-      message: `Emergency unlock triggered by ${userName} for Door "${door.name}" (${targetDevices.length} devices).`,
-      createdBy: userId,
-      resolvedBy: userName,
-      isRead: false,
-      isResolved: true,
-      resolvedAt: new Date(),
-      createdAt: new Date(),
-    })
-    .returning();
-
-  // 5. Hardware Direct Unlock (MSSQL devicecommands entry via esslService)
-  let unlockedDevicesCount = 0;
-  const logsToInsert: any[] = [];
-
-  await Promise.all(
-    targetDevices.map(async (device) => {
-      if (!device.serialNumber) return;
-
-      try {
-        // eSSL Service command -> MSSQL devicecommands table insert
-        await esslService.unlockDoor(device.serialNumber.trim());
-
-        if (device.msId !== null && device.msId !== undefined) {
-          logsToInsert.push({
-            employeeCode: "EMERGENCY_DOOR_UNLOCK",
-            deviceId: Number(device.msId),
-            type: "unblock",
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-        }
-        unlockedDevicesCount++;
-      } catch (err) {
-        console.error(
-          `Door Unlock Error for Serial [${device.serialNumber}] on Door [${door.name}]:`,
-          err,
-        );
-      }
-    }),
-  );
-
-  // 6. PG blockUnblockLogs table mein insert
-  if (logsToInsert.length > 0) {
-    try {
-      await db.insert(blockUnblockLogs).values(logsToInsert);
-    } catch (err) {
-      console.error("Failed to insert single door unlock logs into PG:", err);
-    }
-  }
-
-  return {
-    status: "Success",
-    doorName: door.name,
-    unlockedDevicesCount,
-    totalDevicesCount: targetDevices.length,
-    alertId: alertEntry.id,
-  };
-}
 
   // async executeEmergencybulkUnblock(
   //   userId: string,
@@ -5137,22 +5137,32 @@ export class DatabaseStorage implements IStorage {
           schema.people.employeeCode,
         ),
       );
+
     const doorList = await db
       .select({
         id: schema.doors.id,
         name: schema.doors.name,
       })
-      .from(schema.doors);
+      .from(schema.doors)
+      .where(eq(schema.doors.isActive, true));
+
     const doorMap = new Map(doorList.map((d) => [d.id, d.name]));
+
     return assignments.map((asgn) => ({
       ...asgn,
-      doors: (asgn.doorIds || []).map((id) => {
-        const doorId = Number(id);
-        return {
-          id: doorId,
-          name: doorMap.get(doorId) || "Unknown Door",
-        };
-      }),
+      doors: (asgn.doorIds || [])
+        .map((id) => {
+          const doorId = Number(id);
+          const doorName = doorMap.get(doorId);
+
+          if (!doorName) return null;
+
+          return {
+            id: doorId,
+            name: doorName,
+          };
+        })
+        .filter(Boolean),
     }));
   }
   async getEmployeeDoorAssignmentByCode(
@@ -5175,18 +5185,39 @@ export class DatabaseStorage implements IStorage {
         ),
       )
       .where(eq(schema.employeeDoorAssignments.employeeCode, employeeCode));
+
     if (!assignment) return undefined;
+
     if (assignment.doorIds && assignment.doorIds.length > 0) {
       const doorList = await db
         .select({ id: schema.doors.id, name: schema.doors.name })
         .from(schema.doors)
-        .where(inArray(schema.doors.id, assignment.doorIds));
+        .where(
+          and(
+            inArray(schema.doors.id, assignment.doorIds),
+            eq(schema.doors.isActive, true)
+          )
+        );
+
       return {
         ...assignment,
         doors: doorList,
       };
     }
+
     return { ...assignment, doors: [] };
+  }
+  async getActiveDoors(): Promise<any[]> {
+    return await db
+      .select({
+        id: schema.doors.id,
+        name: schema.doors.name,
+        code: schema.doors.code,
+        status: schema.doors.status,
+        isActive: schema.doors.isActive,
+      })
+      .from(schema.doors)
+      .where(eq(schema.doors.isActive, true));
   }
   async upsertEmployeeDoorAssignment(data: {
     employeeCode: string;
@@ -6471,7 +6502,7 @@ ${fromDate} || ' to ' || ${toDate}
             : undefined,
       aadhaarNumber:
         typeof data.aadhaarNumber === "string" &&
-        data.aadhaarNumber.trim() !== ""
+          data.aadhaarNumber.trim() !== ""
           ? data.aadhaarNumber.trim()
           : data.aadhaarNumber === "" || data.aadhaarNumber === null
             ? null
@@ -6820,15 +6851,15 @@ ${fromDate} || ' to ' || ${toDate}
         .orderBy(asc(visitorCards.id));
       const finalQuery = searchText
         ? db
-            .select()
-            .from(visitorCards)
-            .where(
-              or(
-                ilike(visitorCards.name, `%${searchText}%`),
-                ilike(visitorCards.cardNumber, `%${searchText}%`),
-              ),
-            )
-            .orderBy(asc(visitorCards.id))
+          .select()
+          .from(visitorCards)
+          .where(
+            or(
+              ilike(visitorCards.name, `%${searchText}%`),
+              ilike(visitorCards.cardNumber, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(visitorCards.id))
         : baseQuery;
       return await withPagination(db, visitorCards, finalQuery, page, pageSize);
     } catch (error) {
