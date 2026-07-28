@@ -167,13 +167,13 @@ import { esslService } from "./services/essl-service";
 import { MAIN_GATE_SYNC } from "./constant";
 import { withPagination } from "./utils/pagination.utils";
 import bcryptjs from "bcryptjs";
-import {
-  decryptSerialNumber,
-  encryptSerialNumber,
-} from "../server/utils/cryptoUtils";
+import { decryptSerialNumber } from "./utils/decrypted.js";
 import path from "path";
 import { DeviceSecurityService } from "./services/deviceSecurityService";
-import { getActiveDevicesByDoorCode, getActiveDoorsWithDevices } from "./utils/doorUtils";
+import {
+  getActiveDevicesByDoorCode,
+  getActiveDoorsWithDevices,
+} from "./utils/doorUtils";
 import { syncDoorActivationHardware } from "./utils/syncDoorActivationHardware";
 
 dayjs.extend(isBetween);
@@ -1127,7 +1127,8 @@ export class DatabaseStorage implements IStorage {
         .select()
         .from(doors)
         .where(and(eq(doors.code, data.code), ne(doors.id, id)));
-      if (existingCode) throw new Error(`Door code '${data.code}' already exists.`);
+      if (existingCode)
+        throw new Error(`Door code '${data.code}' already exists.`);
     }
 
     // 2. Door update
@@ -1146,10 +1147,15 @@ export class DatabaseStorage implements IStorage {
       // Non-blocking trigger (UI wait nahi karega)
       syncDoorActivationHardware(updated.id)
         .then((count) => {
-          console.log(`🚀 [DOOR ACTIVATED] Hardware re-synced for ${count} employees inside building on Door ID: ${updated.id}`);
+          console.log(
+            `🚀 [DOOR ACTIVATED] Hardware re-synced for ${count} employees inside building on Door ID: ${updated.id}`,
+          );
         })
         .catch((err) => {
-          console.error(`🔥 [DOOR ACTIVATION ERROR] Sync failed for Door ID: ${updated.id}`, err);
+          console.error(
+            `🔥 [DOOR ACTIVATION ERROR] Sync failed for Door ID: ${updated.id}`,
+            err,
+          );
         });
     }
 
@@ -4115,24 +4121,23 @@ export class DatabaseStorage implements IStorage {
   //   }
   //   return Array.from(latestMap.values());
   // }
- async getEmployeeDeviceStatuses(employeeCode: string) {
-  try {
-    // 1. Purana Logic: Fetch latest block/unblock logs from PostgreSQL/Drizzle DB
-    const logs = await db
-      .select()
-      .from(blockUnblockLogs)
-      .where(eq(blockUnblockLogs.employeeCode, employeeCode))
-      .orderBy(desc(blockUnblockLogs.updatedAt));
-
-    // 2. Fetch Latest Statuses from MSSQL DeviceCommands table
-    const cleanCode = String(employeeCode).trim();
-    let mssqlStatusMap = new Map<number, string>();
-
+  async getEmployeeDeviceStatuses(employeeCode: string) {
     try {
-      const pool = await mssqlPool;
-      const mssqlResult = await pool.request()
-        .input("empCode", cleanCode)
-        .query(`
+      // 1. Purana Logic: Fetch latest block/unblock logs from PostgreSQL/Drizzle DB
+      const logs = await db
+        .select()
+        .from(blockUnblockLogs)
+        .where(eq(blockUnblockLogs.employeeCode, employeeCode))
+        .orderBy(desc(blockUnblockLogs.updatedAt));
+
+      // 2. Fetch Latest Statuses from MSSQL DeviceCommands table
+      const cleanCode = String(employeeCode).trim();
+      let mssqlStatusMap = new Map<number, string>();
+
+      try {
+        const pool = await mssqlPool;
+        const mssqlResult = await pool.request().input("empCode", cleanCode)
+          .query(`
           SELECT 
             DeviceId,
             Status,
@@ -4144,45 +4149,48 @@ export class DatabaseStorage implements IStorage {
           ORDER BY CreationDate DESC
         `);
 
-      const mssqlLogs = mssqlResult.recordset || [];
+        const mssqlLogs = mssqlResult.recordset || [];
 
-      for (const mLog of mssqlLogs) {
-        const dId = Number(mLog.DeviceId ?? mLog.deviceId);
-        if (!mssqlStatusMap.has(dId)) {
-          // Har device ki latest MSSQL status value save kar rahe hain
-          mssqlStatusMap.set(dId, mLog.Status ?? mLog.status);
+        for (const mLog of mssqlLogs) {
+          const dId = Number(mLog.DeviceId ?? mLog.deviceId);
+          if (!mssqlStatusMap.has(dId)) {
+            // Har device ki latest MSSQL status value save kar rahe hain
+            mssqlStatusMap.set(dId, mLog.Status ?? mLog.status);
+          }
+        }
+      } catch (mssqlErr) {
+        console.error(
+          "Error fetching MSSQL device command statuses:",
+          mssqlErr,
+        );
+      }
+
+      // 3. Merge Logic: Purane logs ke saath MSSQL Status inject kar do
+      const latestMap = new Map<number, any>();
+
+      for (const log of logs) {
+        const dId = Number(log.deviceId);
+        if (!latestMap.has(dId)) {
+          // MSSQL se real command status pick karo (e.g., SUCCESS / PENDING / FAILED)
+          const mssqlStatus = mssqlStatusMap.get(dId);
+
+          latestMap.set(dId, {
+            id: log.id,
+            deviceId: dId,
+            type: log.type, // Purana type (block/unblock) - ALLOWED/BLOCKED badge ke liye
+            // Agar MSSQL me status mila toh woh, nahi toh fallback status
+            status: mssqlStatus,
+            timestamp: log.updatedAt || log.createdAt,
+          });
         }
       }
-    } catch (mssqlErr) {
-      console.error("Error fetching MSSQL device command statuses:", mssqlErr);
+
+      return Array.from(latestMap.values());
+    } catch (error) {
+      console.error("Error in getEmployeeDeviceStatuses:", error);
+      return [];
     }
-
-    // 3. Merge Logic: Purane logs ke saath MSSQL Status inject kar do
-    const latestMap = new Map<number, any>();
-
-    for (const log of logs) {
-      const dId = Number(log.deviceId);
-      if (!latestMap.has(dId)) {
-        // MSSQL se real command status pick karo (e.g., SUCCESS / PENDING / FAILED)
-        const mssqlStatus = mssqlStatusMap.get(dId);
-
-        latestMap.set(dId, {
-          id: log.id,
-          deviceId: dId,
-          type: log.type, // Purana type (block/unblock) - ALLOWED/BLOCKED badge ke liye
-          // Agar MSSQL me status mila toh woh, nahi toh fallback status
-          status: mssqlStatus || (log.type === "block" ? "Blocked" : "Active"),
-          timestamp: log.updatedAt || log.createdAt,
-        });
-      }
-    }
-
-    return Array.from(latestMap.values());
-  } catch (error) {
-    console.error("Error in getEmployeeDeviceStatuses:", error);
-    return [];
   }
-}
   async toggleEmployeeDeviceAccess(params: {
     employeeCode: string;
     deviceId: number;
@@ -4212,7 +4220,6 @@ export class DatabaseStorage implements IStorage {
       });
     return logEntry;
   }
-
 
   async getLockoutEligibleDoors(search?: string): Promise<any[]> {
     const mainGateCode = MAIN_GATE_SYNC.CODE;
@@ -4444,7 +4451,9 @@ export class DatabaseStorage implements IStorage {
     const { activeDoors, activeDevices } = await getActiveDoorsWithDevices();
 
     // 2. Main Gate code ke basis par active devices get karein (via doorUtils)
-    const mainGateDevices = await getActiveDevicesByDoorCode(MAIN_GATE_SYNC.CODE);
+    const mainGateDevices = await getActiveDevicesByDoorCode(
+      MAIN_GATE_SYNC.CODE,
+    );
 
     // 3. Active People fetch karein
     const allPeople = await db
@@ -4600,7 +4609,6 @@ export class DatabaseStorage implements IStorage {
       alertId: alertEntry.id,
     };
   }
-
 
   // async executeEmergencybulkUnblock(
   //   userId: string,
@@ -4802,124 +4810,125 @@ export class DatabaseStorage implements IStorage {
   //   };
   // }
   async unlockSpecificDoor(
-  doorId: number,
-  userId: string,
-  userName: string,
-): Promise<any> {
-  // 1. Specific Door ka detail fetch karein
-  const [door] = await db
-    .select()
-    .from(doors)
-    .where(eq(doors.id, doorId));
+    doorId: number,
+    userId: string,
+    userName: string,
+  ): Promise<any> {
+    // 1. Specific Door ka detail fetch karein
+    const [door] = await db.select().from(doors).where(eq(doors.id, doorId));
 
-  if (!door) {
-    throw new Error(`Door with ID ${doorId} not found.`);
-  }
+    if (!door) {
+      throw new Error(`Door with ID ${doorId} not found.`);
+    }
 
-  // 2. Door ke sath mapped In & Out Devices (doorDevices) fetch karein
-  const doorDeviceMappings = await db
-    .select()
-    .from(doorDevices)
-    .where(eq(doorDevices.doorId, doorId));
+    // 2. Door ke sath mapped In & Out Devices (doorDevices) fetch karein
+    const doorDeviceMappings = await db
+      .select()
+      .from(doorDevices)
+      .where(eq(doorDevices.doorId, doorId));
 
-  const targetDeviceMsIds = new Set<number>();
-  doorDeviceMappings.forEach((mapping) => {
-    (mapping.inDeviceIds || []).forEach((id) => targetDeviceMsIds.add(Number(id)));
-    (mapping.outDeviceIds || []).forEach((id) => targetDeviceMsIds.add(Number(id)));
-  });
+    const targetDeviceMsIds = new Set<number>();
+    doorDeviceMappings.forEach((mapping) => {
+      (mapping.inDeviceIds || []).forEach((id) =>
+        targetDeviceMsIds.add(Number(id)),
+      );
+      (mapping.outDeviceIds || []).forEach((id) =>
+        targetDeviceMsIds.add(Number(id)),
+      );
+    });
 
-  if (targetDeviceMsIds.size === 0) {
-    return {
-      status: "Empty",
-      unlockedDevicesCount: 0,
-      message: `No devices assigned/mapped to door: ${door.name}`,
-    };
-  }
+    if (targetDeviceMsIds.size === 0) {
+      return {
+        status: "Empty",
+        unlockedDevicesCount: 0,
+        message: `No devices assigned/mapped to door: ${door.name}`,
+      };
+    }
 
-  // 3. Devices table se unhi active devices ko fetch karein jinke msId mapped hain
-  const targetDevices = await db
-    .select()
-    .from(devices)
-    .where(
-      and(
-        eq(devices.isActive, true),
-        inArray(devices.msId, Array.from(targetDeviceMsIds))
-      )
+    // 3. Devices table se unhi active devices ko fetch karein jinke msId mapped hain
+    const targetDevices = await db
+      .select()
+      .from(devices)
+      .where(
+        and(
+          eq(devices.isActive, true),
+          inArray(devices.msId, Array.from(targetDeviceMsIds)),
+        ),
+      );
+
+    if (targetDevices.length === 0) {
+      return {
+        status: "Empty",
+        unlockedDevicesCount: 0,
+        message: `No active devices found for door: ${door.name}`,
+      };
+    }
+
+    // 4. Emergency Alert Entry
+    const [alertEntry] = await db
+      .insert(alerts)
+      .values({
+        alertType: "security",
+        severity: "critical",
+        title: `🚨 EMERGENCY DOOR UNLOCK: ${door.name.toUpperCase()}`,
+        message: `Emergency unlock triggered by ${userName} for Door "${door.name}" (${targetDevices.length} devices).`,
+        createdBy: userId,
+        resolvedBy: userName,
+        isRead: false,
+        isResolved: true,
+        resolvedAt: new Date(),
+        createdAt: new Date(),
+      })
+      .returning();
+
+    // 5. Hardware Direct Unlock (MSSQL devicecommands entry via esslService)
+    let unlockedDevicesCount = 0;
+    const logsToInsert: any[] = [];
+
+    await Promise.all(
+      targetDevices.map(async (device) => {
+        if (!device.serialNumber) return;
+
+        try {
+          // eSSL Service command -> MSSQL devicecommands table insert
+          await esslService.unlockDoor(device.serialNumber.trim());
+
+          if (device.msId !== null && device.msId !== undefined) {
+            logsToInsert.push({
+              employeeCode: "EMERGENCY_DOOR_UNLOCK",
+              deviceId: Number(device.msId),
+              type: "unblock",
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            });
+          }
+          unlockedDevicesCount++;
+        } catch (err) {
+          console.error(
+            `Door Unlock Error for Serial [${device.serialNumber}] on Door [${door.name}]:`,
+            err,
+          );
+        }
+      }),
     );
 
-  if (targetDevices.length === 0) {
+    // 6. PG blockUnblockLogs table mein insert
+    if (logsToInsert.length > 0) {
+      try {
+        await db.insert(blockUnblockLogs).values(logsToInsert);
+      } catch (err) {
+        console.error("Failed to insert single door unlock logs into PG:", err);
+      }
+    }
+
     return {
-      status: "Empty",
-      unlockedDevicesCount: 0,
-      message: `No active devices found for door: ${door.name}`,
+      status: "Success",
+      doorName: door.name,
+      unlockedDevicesCount,
+      totalDevicesCount: targetDevices.length,
+      alertId: alertEntry.id,
     };
   }
-
-  // 4. Emergency Alert Entry
-  const [alertEntry] = await db
-    .insert(alerts)
-    .values({
-      alertType: "security",
-      severity: "critical",
-      title: `🚨 EMERGENCY DOOR UNLOCK: ${door.name.toUpperCase()}`,
-      message: `Emergency unlock triggered by ${userName} for Door "${door.name}" (${targetDevices.length} devices).`,
-      createdBy: userId,
-      resolvedBy: userName,
-      isRead: false,
-      isResolved: true,
-      resolvedAt: new Date(),
-      createdAt: new Date(),
-    })
-    .returning();
-
-  // 5. Hardware Direct Unlock (MSSQL devicecommands entry via esslService)
-  let unlockedDevicesCount = 0;
-  const logsToInsert: any[] = [];
-
-  await Promise.all(
-    targetDevices.map(async (device) => {
-      if (!device.serialNumber) return;
-
-      try {
-        // eSSL Service command -> MSSQL devicecommands table insert
-        await esslService.unlockDoor(device.serialNumber.trim());
-
-        if (device.msId !== null && device.msId !== undefined) {
-          logsToInsert.push({
-            employeeCode: "EMERGENCY_DOOR_UNLOCK",
-            deviceId: Number(device.msId),
-            type: "unblock",
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
-        }
-        unlockedDevicesCount++;
-      } catch (err) {
-        console.error(
-          `Door Unlock Error for Serial [${device.serialNumber}] on Door [${door.name}]:`,
-          err,
-        );
-      }
-    }),
-  );
-
-  // 6. PG blockUnblockLogs table mein insert
-  if (logsToInsert.length > 0) {
-    try {
-      await db.insert(blockUnblockLogs).values(logsToInsert);
-    } catch (err) {
-      console.error("Failed to insert single door unlock logs into PG:", err);
-    }
-  }
-
-  return {
-    status: "Success",
-    doorName: door.name,
-    unlockedDevicesCount,
-    totalDevicesCount: targetDevices.length,
-    alertId: alertEntry.id,
-  };
-}
 
   // async executeEmergencybulkUnblock(
   //   userId: string,
@@ -7156,6 +7165,7 @@ ${fromDate} || ' to ' || ${toDate}
         .select()
         .from({ dbName: "Devices" })
         .execute();
+
       if (!msDataRaw || msDataRaw.length === 0) {
         return {
           data: [],
@@ -7173,36 +7183,39 @@ ${fromDate} || ' to ' || ${toDate}
       let offlineCount = 0;
 
       // -------------------------------------------------------------
-      // 🔒 STEP 2: DYNAMIC SYNC & AUTO-ENCRYPTION FOR SECURE SERIALS
+      // 🔒 STEP 2: READ ENCRYPTED JSON & BUILD AUTHORIZED SET (DECRYPT ONLY)
       // -------------------------------------------------------------
       const filePath = path.join(
         process.cwd(),
         "server",
-        "Config",
-        "secure_serials.json",
+        "config",
+        "encrypted_serials.json",
       );
       const allowedSerials = new Set<string>();
 
       try {
-        let encryptedSerials: string[] = [];
-
-        // 1. Agar JSON file majood hai toh uske tokens check karein
         if (fs.existsSync(filePath)) {
           const fileContent = fs.readFileSync(filePath, "utf-8").trim();
           if (fileContent) {
-            encryptedSerials = JSON.parse(fileContent);
+            const configItems = JSON.parse(fileContent) as Array<{
+              encrypted_serial: string;
+              vendor_status: boolean;
+            }>;
 
-            if (Array.isArray(encryptedSerials)) {
-              for (const cipherText of encryptedSerials) {
+            if (Array.isArray(configItems)) {
+              for (const item of configItems) {
+                // Strictly Check: vendor_status === true aur valid string token hona chahiye
                 if (
-                  !cipherText ||
-                  typeof cipherText !== "string" ||
-                  !cipherText.includes(":")
-                )
+                  !item ||
+                  item.vendor_status !== true ||
+                  !item.encrypted_serial
+                ) {
                   continue;
+                }
 
                 try {
-                  const decrypted = decryptSerialNumber(cipherText);
+                  // Decrypt token to get raw serial
+                  const decrypted = decryptSerialNumber(item.encrypted_serial);
                   if (decrypted) {
                     const cleanDecrypted = decrypted
                       .trim()
@@ -7211,76 +7224,30 @@ ${fromDate} || ' to ' || ${toDate}
                     allowedSerials.add(cleanDecrypted);
                   }
                 } catch (decErr) {
-                  // Individual token decryption error catch hoga taaki loop na toote
+                  // Single token decrypt issue error handle
+                  console.error("❌ Token Decryption Error for item:", decErr);
                 }
               }
             }
           }
-        }
-
-        // 🚨 DYNAMIC AUTO-HEALING: Agar decryption fail hua (bad decrypt/empty set) ya file missing hai
-        if (allowedSerials.size === 0) {
-          console.log(
-            "🔄 [AUTO-CONFIG] 'Bad Decrypt' or file missing. Generating secure_serials.json dynamically from active MS SQL devices...",
-          );
-
-          const newEncryptedList: string[] = [];
-          const uniqueSerialsFromDb = new Set<string>();
-
-          // MS SQL ke raw data se dynamic unique serials nikalna (Zero Hardcoding)
-          for (const d of msDataRaw) {
-            const rawSerial = String(d.SerialNumber || d.serialno || "").trim();
-            const cleanSerial = rawSerial
-              .toLowerCase()
-              .replace(/[^a-zA-Z0-9]/g, "");
-
-            if (cleanSerial && !uniqueSerialsFromDb.has(cleanSerial)) {
-              uniqueSerialsFromDb.add(cleanSerial);
-
-              // Runtime environment key se encrypt karna
-              const newToken = encryptSerialNumber(cleanSerial);
-              newEncryptedList.push(newToken);
-              allowedSerials.add(cleanSerial); // Current loop bypass na ho
-            }
-          }
-
-          // Config folder verify karke nayi updated JSON file write karna
-          const dirPath = path.dirname(filePath);
-          if (!fs.existsSync(dirPath)) {
-            fs.mkdirSync(dirPath, { recursive: true });
-          }
-
-          fs.writeFileSync(
-            filePath,
-            JSON.stringify(newEncryptedList, null, 2),
-            "utf-8",
-          );
-          console.log(
-            `✅ [AUTO-CONFIG] secure_serials.json generated dynamically with ${allowedSerials.size} serials. Bad decrypt fixed!`,
-          );
         } else {
-          console.log(
-            `🔒 Loaded ${allowedSerials.size} authorized serials from JSON.`,
+          console.warn(
+            "⚠️ [CONFIG MISSING] 'encrypted_serials.json' file not found. Run 'encryptSerials.ts' script first.",
           );
         }
-        //     const nayeSerials = [
-        //   "QJT3252900828", "QJT3251700517"
-        // ];
-        // const temporaryTokens = [];
-        // for (const s of nayeSerials) {
-        //   const clean = s.trim().toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
-        //   temporaryTokens.push(encryptSerialNumber(clean));
-        // }
-        // console.log("📋 [FINAL TOKENS GENERATED FOR JSON]:\n", JSON.stringify(temporaryTokens, null, 2));
+
+        console.log(
+          `🔒 Loaded & Decrypted ${allowedSerials.size} authorized serials from config.`,
+        );
       } catch (err: any) {
         console.error(
-          "❌ Critical Dynamic Auto-Auth Config Error:",
+          "❌ Critical Config Reading/Decrypting Error:",
           err.message || err,
         );
       }
 
       // -------------------------------------------------------------
-      // 🔍 STEP 3: डेटा वैलिडेट करना (STRICT MATCHING)
+      // 🔍 STEP 3: STRICT MATCHING & SECURITY GATEKEEPING
       // -------------------------------------------------------------
       const allValidDevices: any[] = [];
       const currentMsIds: number[] = [];
@@ -7293,31 +7260,53 @@ ${fromDate} || ' to ' || ${toDate}
         const deviceId = d.DeviceId || d.DeviceID;
         const deviceName = d.DeviceName || "Unnamed Device";
 
-        // 🛑 STRICT CHECK: Agar serial authorized set me nahi h, toh seedhe block krke log record hoga
+        // 🛑 STRICT CHECK: Match check against decrypted allowed set
         if (!allowedSerials.has(cleanSerial)) {
           console.warn(
-            `🚨 Unauthorized Serial Blocked: ${rawSerial} (Device: ${deviceName})`,
+            `🚨 [BLOCKED] Unauthorized/Mismatched Device Blocked: ${rawSerial} (Name: ${deviceName})`,
           );
 
+          // Security Threat Log in PG Table (With 1-Minute Throttling)
           try {
-            await db.insert(unauthorizedDeviceLogs).values({
-              deviceId:
-                deviceId && !isNaN(Number(deviceId)) ? Number(deviceId) : null,
-              deviceName: deviceName.slice(0, 255),
-              serialNumber: rawSerial.slice(0, 255),
-              ipAddress: (d.IpAddress || "").slice(0, 50),
-              attemptedAt: currentTime,
-              statusMessage:
-                "Access Denied: Serial signature verification failed or token invalid.",
-            });
+            const validDeviceId =
+              deviceId && !isNaN(Number(deviceId)) ? Number(deviceId) : null;
+            const cleanRawSerial = rawSerial.slice(0, 255);
+
+            // Pichle 1 minute (60,000 ms) me koi log hai ya nahi check karein
+            const existingLog = await db
+              .select({ id: unauthorizedDeviceLogs.id })
+              .from(unauthorizedDeviceLogs)
+              .where(
+                and(
+                  eq(unauthorizedDeviceLogs.serialNumber, cleanRawSerial),
+                  gt(
+                    unauthorizedDeviceLogs.attemptedAt,
+                    new Date(Date.now() - 1 * 60 * 1000),
+                  ), // 1 Min Check
+                ),
+              )
+              .limit(1);
+
+            if (!existingLog || existingLog.length === 0) {
+              await db.insert(unauthorizedDeviceLogs).values({
+                deviceId: validDeviceId,
+                deviceName: deviceName.slice(0, 255),
+                serialNumber: cleanRawSerial,
+                ipAddress: (d.IpAddress || "").slice(0, 50),
+                attemptedAt: currentTime,
+                statusMessage:
+                  "Access Denied: Serial signature verification failed or token missing.",
+              });
+              console.log(`⚠️ Threat Log Inserted for Serial: ${rawSerial}`);
+            }
           } catch (e) {
             console.error("❌ Failed to write threat log to DB:", e);
           }
 
-          continue; // Postgres sync completely skip karein, next loop par badhein
+          continue; // Postgres device sync skip karein
         }
 
-        // 🟢 Pass matching -> Status Calculation
+        // 🟢 PASS MATCHING -> ONLINE/OFFLINE CALCULATION
         let calculatedStatus = "offline";
         if (d.LastPing) {
           const diffInMin = Math.abs(
@@ -7354,7 +7343,7 @@ ${fromDate} || ' to ' || ${toDate}
       }
 
       // -------------------------------------------------------------
-      // 🔄 STEP 4: Postgres DB के साथ सिंक और क्लीनअप (Upsert Logic)
+      // 🔄 STEP 4: POSTGRES DB SYNC & CLEANUP (UPSERT)
       // -------------------------------------------------------------
       for (const dev of allValidDevices) {
         await db
@@ -7386,7 +7375,7 @@ ${fromDate} || ' to ' || ${toDate}
       }
 
       // -------------------------------------------------------------
-      // 📄 STEP 5: सर्च फ़िल्टर और पंगिनेशन
+      // 📄 STEP 5: SEARCH FILTER & PAGINATION
       // -------------------------------------------------------------
       let finalData = [...allValidDevices];
       if (search && search.trim()) {
@@ -7747,7 +7736,9 @@ ${fromDate} || ' to ' || ${toDate}
     // STEP 2: EXTRACT GLOBAL DOOR-TO-DEVICE MAPS VIA DOOR UTILS
     // ==========================================
     // Get active devices specifically for Main Gate
-    const mainGateDevices = await getActiveDevicesByDoorCode(MAIN_GATE_SYNC.CODE);
+    const mainGateDevices = await getActiveDevicesByDoorCode(
+      MAIN_GATE_SYNC.CODE,
+    );
 
     // Set of Main Gate Device IDs
     const gateDeviceIds = new Set<number>(
