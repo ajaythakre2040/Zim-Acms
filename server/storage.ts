@@ -175,7 +175,6 @@ import {
   getActiveDoorsWithDevices,
 } from "./utils/doorUtils";
 import { syncDoorActivationHardware } from "./utils/syncDoorActivationHardware";
-
 dayjs.extend(isBetween);
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -1074,46 +1073,15 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(doors).values(data).returning();
     return created;
   }
-  // async updateDoor(id: number, data: Partial<InsertDoor>): Promise<Door> {
-  //   if (data.name) {
-  //     const [existing] = await db
-  //       .select()
-  //       .from(doors)
-  //       .where(and(eq(doors.name, data.name), ne(doors.id, id)));
-  //     if (existing) {
-  //       throw new Error(`Door name '${data.name}' already exists.`);
-  //     }
-  //   }
-  //   if (data.code) {
-  //     const [existingCode] = await db
-  //       .select()
-  //       .from(doors)
-  //       .where(and(eq(doors.code, data.code), ne(doors.id, id)));
-  //     if (existingCode) {
-  //       throw new Error(`Door code '${data.code}' already exists.`);
-  //     }
-  //   }
-  //   const [updated] = await db
-  //     .update(doors)
-  //     .set(data)
-  //     .where(eq(doors.id, id))
-  //     .returning();
-  //   if (!updated) throw new Error("Door not found");
-  //   return updated;
-  // }
   async updateDoor(id: number, data: Partial<InsertDoor>): Promise<Door> {
-    // 1. Existing door state fetch karein
     const [existingDoor] = await db
       .select()
       .from(doors)
       .where(eq(doors.id, id))
       .limit(1);
-
     if (!existingDoor) {
       throw new Error("Door not found");
     }
-
-    // Uniqueness checks
     if (data.name) {
       const [existing] = await db
         .select()
@@ -1121,7 +1089,6 @@ export class DatabaseStorage implements IStorage {
         .where(and(eq(doors.name, data.name), ne(doors.id, id)));
       if (existing) throw new Error(`Door name '${data.name}' already exists.`);
     }
-
     if (data.code) {
       const [existingCode] = await db
         .select()
@@ -1130,21 +1097,14 @@ export class DatabaseStorage implements IStorage {
       if (existingCode)
         throw new Error(`Door code '${data.code}' already exists.`);
     }
-
-    // 2. Door update
     const [updated] = await db
       .update(doors)
       .set(data)
       .where(eq(doors.id, id))
       .returning();
-
     if (!updated) throw new Error("Door not found");
-
-    // 3. FLIP CHECK: Inactive (false/undefined) -> Active (true)
     const isActivated = !existingDoor.isActive && updated.isActive;
-
     if (isActivated) {
-      // Non-blocking trigger (UI wait nahi karega)
       syncDoorActivationHardware(updated.id)
         .then((count) => {
           console.log(
@@ -1158,7 +1118,6 @@ export class DatabaseStorage implements IStorage {
           );
         });
     }
-
     return updated;
   }
   async deleteDoor(id: number): Promise<void> {
@@ -1170,7 +1129,6 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
-
   async createDevice(data: InsertDevice): Promise<Device> {
     let mssqlId: number | null = null;
     try {
@@ -1309,7 +1267,6 @@ export class DatabaseStorage implements IStorage {
               ruleid: mapped.ruleid ?? null,
               locationId: mapped.locationId ?? null,
               externalId: mapped.externalId ?? null,
-              // overtimeEligible: mapped.overtimeEligible ?? false,
               personType: "employee",
               status: "active",
               sourceSystem: "mssql_bio",
@@ -1331,7 +1288,6 @@ export class DatabaseStorage implements IStorage {
                 : "NO_ROLE",
           });
         } catch (e) {
-          // console.error("New employee sync error:", e);
         }
       } else {
         const existing = currentPgData[existingIndex];
@@ -1384,26 +1340,18 @@ export class DatabaseStorage implements IStorage {
           p.ruleName?.toLowerCase().includes(term),
       );
     }
-    // Department
     if (dept && dept !== "all") {
       results = results.filter((p) => String(p.departmentId) === String(dept));
     }
-
-    // Status
     if (status && status !== "all") {
       results = results.filter((p) => p.status === status);
     }
-
-    // Lockout
     if (lockout && lockout !== "all") {
       const isLocked = lockout === "true";
-
       results = results.filter(
         (p) => Boolean(p.is_lockout_enabled) === isLocked,
       );
     }
-
-    // Rule
     if (rule && rule !== "all") {
       results = results.filter((p) => String(p.ruleid) === String(rule));
     }
@@ -1447,7 +1395,6 @@ export class DatabaseStorage implements IStorage {
     lockout?: string,
     rule?: string,
   ): Promise<any> {
-    // 1. Direct PostgreSQL se Data Join karke Fetch Karein
     const pgDataRaw = await db
       .select({
         person: {
@@ -1469,12 +1416,9 @@ export class DatabaseStorage implements IStorage {
         peopleAdditionalDetails,
         eq(people.employeeCode, peopleAdditionalDetails.employeeCode),
       );
-
     const ruleIdToName = Object.fromEntries(
       Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
     );
-
-    // 2. Data Formatting
     let results = pgDataRaw.map((row) => {
       const {
         id: _detailId,
@@ -1483,7 +1427,6 @@ export class DatabaseStorage implements IStorage {
         updatedAt: _detailUpdated,
         ...restOfAdditionalDetails
       } = row.additionalDetails || {};
-
       return {
         ...row.person,
         ...restOfAdditionalDetails,
@@ -1496,8 +1439,6 @@ export class DatabaseStorage implements IStorage {
             : "NO_RULE",
       };
     });
-
-    // 3. Search Filter
     if (search?.trim()) {
       const term = search.toLowerCase();
       results = results.filter(
@@ -1508,45 +1449,30 @@ export class DatabaseStorage implements IStorage {
           p.ruleName?.toLowerCase().includes(term),
       );
     }
-
-    // 4. Department Filter
     if (dept && dept !== "all") {
       results = results.filter((p) => String(p.departmentId) === String(dept));
     }
-
-    // 5. Status Filter
     if (status && status !== "all") {
       results = results.filter((p) => p.status === status);
     }
-
-    // 6. Lockout Filter
     if (lockout && lockout !== "all") {
       const isLocked = lockout === "true";
       results = results.filter(
         (p) => Boolean(p.is_lockout_enabled) === isLocked,
       );
     }
-
-    // 7. Access Rule Filter
     if (rule && rule !== "all") {
       results = results.filter((p) => String(p.ruleid) === String(rule));
     }
-
-    // 8. Sorting (Newest/Highest ID First)
     results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
-
-    // 9. Uniqueness Check
     const uniquePeople = Array.from(
       new Map(
         results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
       ).values(),
     );
-
-    // 10. Pagination & Response
     if (!pageSize) {
       return uniquePeople;
     }
-
     if (pageSize === -1 || pageSize === "-1") {
       return {
         data: uniquePeople,
@@ -1556,13 +1482,11 @@ export class DatabaseStorage implements IStorage {
         pageSize: uniquePeople.length,
       };
     }
-
     const p = page && Number(page) > 0 ? Number(page) : 1;
     const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
     const start = (p - 1) * size;
     const end = start + size;
     const paginatedData = uniquePeople.slice(start, end);
-
     return {
       data: paginatedData,
       totalCount: uniquePeople.length,
@@ -1574,9 +1498,7 @@ export class DatabaseStorage implements IStorage {
   private async executeHardwareSyncBackground(employeeCode: string) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     try {
-      // console.log(`⚡ Background Hardware Sync Started for New Employee: ${employeeCode}`);
       await this.executeHardwareSync(employeeCode, null, false);
-      // console.log(`✅ Background Hardware Sync Completed for: ${employeeCode}`);
     } catch (err: any) {
       console.error(
         `❌ Background Hardware Sync Failed for ${employeeCode}:`,
@@ -2108,40 +2030,13 @@ export class DatabaseStorage implements IStorage {
   async deletePersonAccess(id: number): Promise<void> {
     await db.delete(personAccess).where(eq(personAccess.id, id));
   }
-  // async getVisitors(
-  //   page?: number,
-  //   pageSize?: number,
-  //   search?: string
-  // ): Promise<{ data: Visitor[]; totalCount: number; totalPages: number }> {
-  //   let query = db.select().from(visitors).$dynamic();
-  //   let whereClause: any = undefined;
-  //   if (search && search.trim() !== "" && search !== "undefined") {
-  //     whereClause = or(
-  //       ilike(visitors.nameOfVisitor, `%${search}%`),
-  //       ilike(visitors.visitorsCompanyName, `%${search}%`),
-  //       ilike(visitors.whomToMeet, `%${search}%`),
-  //       ilike(visitors.contactNo, `%${search}%`)
-  //     );
-  //     query = query.where(whereClause);
-  //   }
-  //   query = query.orderBy(desc(visitors.id));
-  //   const result = await withPagination(db, visitors, query, page, pageSize, whereClause);
-  //   return result;
-  // }
-  // async getVisitor(id: number): Promise<Visitor | undefined> {
-  //   const [visitor] = await db.select().from(visitors).where(eq(visitors.id, id));
-  //   return visitor;
-  // }
-
   async getVisitors(
     page?: number,
     pageSize?: number,
     search?: string,
   ): Promise<{ data: any[]; totalCount: number; totalPages: number }> {
-    // 1. Pehle jaisa safe aur original query run karein taaki frontend crash na ho
     let query = db.select().from(visitors).$dynamic();
     let whereClause: any = undefined;
-
     if (search && search.trim() !== "" && search !== "undefined") {
       whereClause = or(
         ilike(visitors.nameOfVisitor, `%${search}%`),
@@ -2151,10 +2046,7 @@ export class DatabaseStorage implements IStorage {
       );
       query = query.where(whereClause);
     }
-
     query = query.orderBy(desc(visitors.id));
-
-    // Original pagination helper call
     const result = await withPagination(
       db,
       visitors,
@@ -2163,44 +2055,32 @@ export class DatabaseStorage implements IStorage {
       pageSize,
       whereClause,
     );
-
-    // 2. 🌟 Dynamic look-up lagakar visitor_cards table se Name aur Number inject karein
     if (result && result.data && result.data.length > 0) {
-      // Sabhi active cards ko ek baar me fetch kar lein
       const allCards = await db.select().from(visitorCards);
-
       result.data = result.data.map((visitor: any) => {
         const matchedCard = allCards.find(
           (c: any) => Number(c.id) === Number(visitor.visitorCardId),
         );
-
         return {
           ...visitor,
-          // Frontend ko required custom properties append kar dein
           rfidCardNo: matchedCard ? matchedCard.cardNumber : visitor.rfidCardNo,
           visitorCardName: matchedCard ? matchedCard.name : undefined,
         };
       });
     }
-
     return result;
   }
-
   async getVisitor(id: number): Promise<any | undefined> {
-    // Original single row look-up
     const [visitor] = await db
       .select()
       .from(visitors)
       .where(eq(visitors.id, id));
     if (!visitor) return undefined;
-
-    // Single card detail merge karein
     if (visitor.visitorCardId) {
       const [card] = await db
         .select()
         .from(visitorCards)
         .where(eq(visitorCards.id, visitor.visitorCardId));
-
       if (card) {
         return {
           ...visitor,
@@ -2209,10 +2089,8 @@ export class DatabaseStorage implements IStorage {
         };
       }
     }
-
     return visitor;
   }
-
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
     console.log("Creating visitor with data:", data);
     let insertedMsSqlId: number | null = null;
@@ -2248,11 +2126,6 @@ export class DatabaseStorage implements IStorage {
       );
       request.input("Designation", mssql.NVarChar, data.designation || null);
       request.input("Remarks", mssql.NVarChar, data.remark || null);
-      // const currentIsoDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
-      // request.input('InDate', mssql.DateTime, currentIsoDate);
-
-      // request.input('InDate', mssql.DateTime, new Date());
-
       const msSqlResult = await request.query(`
       INSERT INTO VisitorLogs (
         Name, ContactNumber, Email, LocationId, Purpose, 
@@ -2784,14 +2657,12 @@ export class DatabaseStorage implements IStorage {
     const todayStr = new Date().toISOString().split("T")[0];
     const fromDate = filters.dateFrom || todayStr;
     const toDate = filters.dateTo || todayStr;
-
     const allEmployees = await db
       .select({
         employeeCode: people.employeeCode,
         employeeName: people.employeeName,
       })
       .from(people);
-
     const presentRecords = await db
       .select({
         employeeCode: dailyAttendanceSummary.employeeCode,
@@ -2807,13 +2678,11 @@ export class DatabaseStorage implements IStorage {
           lte(dailyAttendanceSummary.workDate, toDate),
         ),
       );
-
     const presentMap = new Map<string, any>();
     presentRecords.forEach((rec) => {
       const key = `${rec.employeeCode}_${rec.date}`;
       presentMap.set(key, rec);
     });
-
     const reportDates: string[] = [];
     let dStart = new Date(fromDate);
     const dEnd = new Date(toDate);
@@ -2821,7 +2690,6 @@ export class DatabaseStorage implements IStorage {
       reportDates.push(dStart.toISOString().split("T")[0]);
       dStart.setDate(dStart.getDate() + 1);
     }
-
     const finalReport: any[] = [];
     allEmployees.forEach((emp) => {
       reportDates.forEach((dateStr) => {
@@ -2852,22 +2720,18 @@ export class DatabaseStorage implements IStorage {
         }
       });
     });
-
     const processedData = finalReport
       .filter((row) => {
-        // ✅ FIX: .includes() hata kar Strict Exact Match (===) kiya hai
         const matchesEmployee =
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
             : String(row.employeeCode).trim().toLowerCase() ===
             String(filters.employeeCode).trim().toLowerCase();
-
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
             String(filters.status).toLowerCase();
-
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => {
@@ -2881,7 +2745,6 @@ export class DatabaseStorage implements IStorage {
           { numeric: true },
         );
       });
-
     return withPagination(null, null, processedData, page, pageSize);
   }
   async getAccessLogReport(
@@ -3227,184 +3090,10 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
-  // async getVisitorMachineAccessLogs(date: string) {
-  //   // 1. Fetch Door and Device mappings
-  //   const doorMappings = await db
-  //     .select({
-  //       doorName: doors.name,
-  //       inIds: doorDevices.inDeviceIds,
-  //       outIds: doorDevices.outDeviceIds,
-  //     })
-  //     .from(doors)
-  //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-
-  //   // 2. Fetch biometric logs from MS SQL
-  //   const msSqlData = await mssqlPool.request().input("filterDate", date)
-  //     .query(`
-  //     SELECT
-  //       l.EmployeeCode,
-  //       l.DeviceId,
-  //       d.DeviceName,
-  //       l.Direction,
-  //       l.LogDate
-  //     FROM DeviceLogs l
-  //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-  //     WHERE CAST(l.LogDate AS DATE) = @filterDate
-  //       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
-  //     ORDER BY l.LogDate DESC
-  //   `);
-
-  //   const logs = msSqlData.recordset;
-
-  //   // 3. Extract unique card identifiers (e.g., 'Visitor340' -> 340)
-  //   const cardIdentifiers = logs.map(l => {
-  //     if (!l.EmployeeCode) return null;
-  //     const matched = String(l.EmployeeCode).match(/\d+/);
-  //     return matched ? Number(matched[0]) : null;
-  //   }).filter((id): id is number => id !== null);
-
-  //   let visitorDetails: any[] = [];
-
-  //   // 4. Fetch all visitors mapped to these cards (including visitor table's rfidCardNo)
-  //   if (cardIdentifiers.length > 0) {
-  //     const uniqueCardIds = [...new Set(cardIdentifiers)];
-
-  //     visitorDetails = await db
-  //       .select({
-  //         id: schema.visitors.id,
-  //         visitorName: schema.visitors.nameOfVisitor,
-  //         rfidCardNo: schema.visitors.rfidCardNo, // Visitor table se direct card no. fetch kiya
-  //         cardMsId: visitorCards.msId,
-  //         cardNo: visitorCards.cardNumber,
-  //         inTime: schema.visitors.permissionDateFrom,
-  //         outTime: schema.visitors.permissionDateTo,
-  //       })
-  //       .from(schema.visitors)
-  //       .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
-  //       .where(inArray(visitorCards.msId, uniqueCardIds));
-  //   }
-
-  //   // Helper function to safely format dates into clean Local ISO Strings (YYYY-MM-DD HH:mm:ss)
-  //   const formatToLocalStr = (dateInput: any) => {
-  //     if (!dateInput) return null;
-  //     const d = new Date(dateInput);
-  //     if (isNaN(d.getTime())) return null;
-  //     return new Date(d.getTime() - (d.getTimezoneOffset() * 60000))
-  //       .toISOString()
-  //       .slice(0, 19)
-  //       .replace('T', ' ');
-  //   };
-
-  //   // 5. Map biometric logs to specific visitors based on EXACT card ID and dynamic timestamps
-  //   const machineFeed = logs.map((log) => {
-  //     const door = doorMappings.find(
-  //       (m) =>
-  //         (m.inIds || []).includes(log.DeviceId) ||
-  //         (m.outIds || []).includes(log.DeviceId),
-  //     );
-
-  //     const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
-  //     const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
-
-  //     // Normalize hardware log timestamp to local time string
-  //     const logTimeStr = formatToLocalStr(log.LogDate) || "";
-
-  //     // Match correct visitor row based on EXACT card reference AND time span allocation
-  //     const dbVisitor = visitorDetails.find(v => {
-  //       const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-  //         (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier));
-
-  //       if (!isCardMatch) return false;
-
-  //       const visitorInStr = formatToLocalStr(v.inTime) || "";
-  //       const visitorOutStr = formatToLocalStr(v.outTime) || "2099-12-31 23:59:59";
-
-  //       return logTimeStr >= visitorInStr && logTimeStr <= visitorOutStr;
-  //     });
-
-  //     return {
-  //       visitorName: dbVisitor ? dbVisitor.visitorName : `Visitor ${numericCardIdentifier}`,
-  //       visitorId: numericCardIdentifier,
-  //       visitorCode: log.EmployeeCode,
-  //       rfidCardNo: dbVisitor ? dbVisitor.rfidCardNo : String(numericCardIdentifier), // Added to response object
-  //       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-  //       direction: log.Direction,
-  //       logDate: log.LogDate,
-  //       doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
-  //     };
-  //   });
-
-  //   return { machineFeed };
-  // }
-
-  // async getVisitorMachineAccessLogs(date: string) {
-  //   const doorMappings = await db
-  //     .select({
-  //       doorName: doors.name,
-  //       inIds: doorDevices.inDeviceIds,
-  //       outIds: doorDevices.outDeviceIds,
-  //     })
-  //     .from(doors)
-  //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-  //   const msSqlData = await mssqlPool.request().input("filterDate", date)
-  //     .query(`
-  //     SELECT
-  //       l.EmployeeCode,
-  //       l.DeviceId,
-  //       d.DeviceName,
-  //       l.Direction,
-  //       l.LogDate
-  //     FROM DeviceLogs l
-  //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-  //     WHERE CAST(l.LogDate AS DATE) = @filterDate
-  //       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
-  //     ORDER BY l.LogDate DESC
-  //   `);
-  //   const logs = msSqlData.recordset;
-  //   const visitorIds = logs.map(l => {
-  //     if (!l.EmployeeCode) return null;
-  //     const matched = String(l.EmployeeCode).match(/\d+/);
-  //     return matched ? Number(matched[0]) : null;
-  //   }).filter((id): id is number => id !== null);
-  //   let visitorDetails: any[] = [];
-  //   if (visitorIds.length > 0) {
-  //     visitorDetails = await db
-  //       .select({
-  //         id: schema.visitors.id,
-  //         name: schema.visitors.nameOfVisitor
-  //       })
-  //       .from(schema.visitors)
-  //       .where(inArray(schema.visitors.id, [...new Set(visitorIds)]));
-  //   }
-  //   const machineFeed = logs.map((log) => {
-  //     const door = doorMappings.find(
-  //       (m) =>
-  //         (m.inIds || []).includes(log.DeviceId) ||
-  //         (m.outIds || []).includes(log.DeviceId),
-  //     );
-  //     const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
-  //     const numericVisitorId = idMatch ? Number(idMatch[0]) : null;
-  //     const dbVisitor = visitorDetails.find(v =>
-  //       Number(v.id) === Number(numericVisitorId)
-  //     );
-  //     return {
-  //       visitorName: dbVisitor ? dbVisitor.name : `Visitor ${numericVisitorId}`,
-  //       visitorId: numericVisitorId,
-  //       visitorCode: log.EmployeeCode,
-  //       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-  //       direction: log.Direction,
-  //       logDate: log.LogDate,
-  //       doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
-  //     };
-  //   });
-  //   return { machineFeed };
-  // }
-
   async getVisitorMachineAccessLogs(
     date: string,
     filters?: { search?: string; fromDate?: string; toDate?: string },
   ) {
-    // 1. Fetch Door and Device mappings
     const doorMappings = await db
       .select({
         doorName: doors.name,
@@ -3413,19 +3102,12 @@ export class DatabaseStorage implements IStorage {
       })
       .from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-
-    // 🛠️ Corrected Dynamic Date Selection Logic
     let effectiveFromDate = date;
     let effectiveToDate = date;
-
     if (filters?.fromDate || filters?.toDate) {
-      // अगर सिर्फ fromDate है, तो effectiveFromDate वो बनेगी, वरना toDate या डिफ़ॉल्ट date
       effectiveFromDate = filters.fromDate || filters.toDate || date;
-      // अगर toDate नहीं है, तो effectiveToDate को effectiveFromDate के बराबर रखेंगे ताकि सिर्फ उसी single date का डेटा आए
       effectiveToDate = filters.toDate || effectiveFromDate;
     }
-
-    // 2. Fetch biometric logs from MS SQL (Using corrected Range filters)
     const msSqlData = await mssqlPool
       .request()
       .input("fromDate", effectiveFromDate)
@@ -3442,10 +3124,7 @@ export class DatabaseStorage implements IStorage {
       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
     ORDER BY l.LogDate DESC
   `);
-
     const logs = msSqlData.recordset;
-
-    // 3. Extract unique card identifiers
     const cardIdentifiers = logs
       .map((l) => {
         if (!l.EmployeeCode) return null;
@@ -3453,13 +3132,9 @@ export class DatabaseStorage implements IStorage {
         return matched ? Number(matched[0]) : null;
       })
       .filter((id): id is number => id !== null);
-
     let visitorDetails: any[] = [];
-
-    // 4. Fetch all visitors mapped to these cards
     if (cardIdentifiers.length > 0) {
       const uniqueCardIds = [...new Set(cardIdentifiers)];
-
       visitorDetails = await db
         .select({
           id: schema.visitors.id,
@@ -3482,8 +3157,6 @@ export class DatabaseStorage implements IStorage {
           ),
         );
     }
-
-    // ⭐ TIMEZONE-SAFE STRING CONVERTER
     const toLocalString = (dateInput: any) => {
       if (!dateInput) return "";
       if (typeof dateInput === "string") {
@@ -3496,25 +3169,20 @@ export class DatabaseStorage implements IStorage {
       const pad = (n: number) => String(n).padStart(2, "0");
       return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     };
-
     const sortedVisitors = [...visitorDetails].sort((a, b) => {
       return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
     });
-
-    // 5. Map biometric logs using Pure Local String slotting
     let machineFeed = logs.map((log) => {
       const door = doorMappings.find(
         (m) =>
           (m.inIds || []).includes(log.DeviceId) ||
           (m.outIds || []).includes(log.DeviceId),
       );
-
       const idMatch = log.EmployeeCode
         ? String(log.EmployeeCode).match(/\d+/)
         : null;
       const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
       const logTimeStr = toLocalString(log.LogDate);
-
       const dbVisitor = sortedVisitors.find((v) => {
         const isCardMatch =
           (v.cardMsId !== null &&
@@ -3523,13 +3191,10 @@ export class DatabaseStorage implements IStorage {
             String(v.cardNo) === String(numericCardIdentifier)) ||
           (v.rfidCardNo !== null &&
             String(v.rfidCardNo) === String(numericCardIdentifier));
-
         if (!isCardMatch) return false;
         if (!v.inTime) return false;
-
         const visitorInStr = toLocalString(v.inTime);
         if (logTimeStr < visitorInStr) return false;
-
         if (v.outTime) {
           const visitorOutStr = toLocalString(v.outTime);
           return logTimeStr <= visitorOutStr;
@@ -3543,11 +3208,9 @@ export class DatabaseStorage implements IStorage {
                 String(other.cardNo) === String(numericCardIdentifier)) ||
               (other.rfidCardNo !== null &&
                 String(other.rfidCardNo) === String(numericCardIdentifier));
-
             if (!otherCardMatch || !other.inTime) return false;
             return toLocalString(other.inTime) > visitorInStr;
           });
-
           if (nextVisitorOnSameCard) {
             const nextVisitorInStr = toLocalString(
               nextVisitorOnSameCard.inTime,
@@ -3557,7 +3220,6 @@ export class DatabaseStorage implements IStorage {
           return true;
         }
       });
-
       return {
         visitorName: dbVisitor ? dbVisitor.visitorName : "Not Assigned",
         visitorId: numericCardIdentifier,
@@ -3573,8 +3235,6 @@ export class DatabaseStorage implements IStorage {
         doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
       };
     });
-
-    // 6. APPLY FILTERS (Search only - Date filtering is optimized at DB level)
     if (filters && filters.search) {
       const lowerSearch = filters.search.toLowerCase();
       machineFeed = machineFeed.filter(
@@ -3584,170 +3244,8 @@ export class DatabaseStorage implements IStorage {
             item.rfidCardNo.toLowerCase().includes(lowerSearch)),
       );
     }
-
     return { machineFeed };
   }
-
-  //   async getVisitorMachineAccessLogs(date: string) {
-  //   // 1. Fetch Door and Device mappings
-  //   const doorMappings = await db
-  //     .select({
-  //       doorName: doors.name,
-  //       inIds: doorDevices.inDeviceIds,
-  //       outIds: doorDevices.outDeviceIds,
-  //     })
-  //     .from(doors)
-  //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
-
-  //   // 2. Fetch biometric logs from MS SQL (String format mapping)
-  //   const msSqlData = await mssqlPool.request().input("filterDate", date)
-  //     .query(`
-  //     SELECT
-  //       l.EmployeeCode,
-  //       l.DeviceId,
-  //       d.DeviceName,
-  //       l.Direction,
-  //       CONVERT(VARCHAR(19), l.LogDate, 120) AS LogDate  -- Direct 'YYYY-MM-DD HH:MM:SS' format
-  //     FROM DeviceLogs l
-  //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
-  //     WHERE CAST(l.LogDate AS DATE) = @filterDate
-  //       AND LOWER(l.EmployeeCode) LIKE 'visitor%'
-  //     ORDER BY l.LogDate DESC
-  //   `);
-
-  //   const logs = msSqlData.recordset;
-
-  //   // 3. Extract unique card identifiers
-  //   const cardIdentifiers = logs.map(l => {
-  //     if (!l.EmployeeCode) return null;
-  //     const matched = String(l.EmployeeCode).match(/\d+/);
-  //     return matched ? Number(matched[0]) : null;
-  //   }).filter((id): id is number => id !== null);
-
-  //   let visitorDetails: any[] = [];
-
-  //   // 4. Fetch all visitors mapped to these cards
-  //   if (cardIdentifiers.length > 0) {
-  //     const uniqueCardIds = [...new Set(cardIdentifiers)];
-
-  //     visitorDetails = await db
-  //       .select({
-  //         id: schema.visitors.id,
-  //         visitorName: schema.visitors.nameOfVisitor,
-  //         rfidCardNo: schema.visitors.rfidCardNo,
-  //         cardMsId: visitorCards.msId,
-  //         cardNo: visitorCards.cardNumber,
-  //         inTime: schema.visitors.permissionDateFrom,
-  //         outTime: schema.visitors.permissionDateTo,
-  //       })
-  //       .from(schema.visitors)
-  //       .leftJoin(visitorCards, eq(schema.visitors.visitorCardId, visitorCards.id))
-  //       .where(
-  //         or(
-  //           inArray(visitorCards.msId, uniqueCardIds),
-  //           inArray(visitorCards.cardNumber, uniqueCardIds.map(String))
-  //         )
-  //       );
-  //   }
-
-  //   // ⭐ TIMEZONE-SAFE STRING CONVERTER
-  //   const toLocalString = (dateInput: any) => {
-  //     if (!dateInput) return "";
-
-  //     if (typeof dateInput === 'string') {
-  //       let cleanStr = dateInput.replace('T', ' ').split('.')[0];
-  //       if (cleanStr.length === 16) cleanStr += ":00"; // YYYY-MM-DD HH:MM -> HH:MM:SS
-  //       return cleanStr;
-  //     }
-
-  //     const d = new Date(dateInput);
-  //     if (isNaN(d.getTime())) return "";
-  //     const pad = (n: number) => String(n).padStart(2, '0');
-  //     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  //   };
-
-  //   // 🚨 Sort visitors by local string format ascending order
-  //   const sortedVisitors = [...visitorDetails].sort((a, b) => {
-  //     return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
-  //   });
-
-  //   // 5. Map biometric logs using Pure Local String slotting
-  //   const machineFeed = logs.map((log) => {
-  //     const door = doorMappings.find(
-  //       (m) =>
-  //         (m.inIds || []).includes(log.DeviceId) ||
-  //         (m.outIds || []).includes(log.DeviceId),
-  //     );
-
-  //     const idMatch = log.EmployeeCode ? String(log.EmployeeCode).match(/\d+/) : null;
-  //     const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
-
-  //     // Log Date is already a clean string from SQL
-  //     const logTimeStr = toLocalString(log.LogDate);
-
-  //     const dbVisitor = sortedVisitors.find(v => {
-  //       // Card Mappings Check
-  //       const isCardMatch = (v.cardMsId !== null && Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-  //         (v.cardNo !== null && String(v.cardNo) === String(numericCardIdentifier)) ||
-  //         (v.rfidCardNo !== null && String(v.rfidCardNo) === String(numericCardIdentifier));
-
-  //       if (!isCardMatch) return false;
-  //       if (!v.inTime) return false;
-
-  //       const visitorInStr = toLocalString(v.inTime);
-
-  //       // Boundary 1: Log time cannot be before check-in time
-  //       if (logTimeStr < visitorInStr) return false;
-
-  //       // Boundary 2: If Visitor has Checked Out (outTime exists)
-  //       if (v.outTime) {
-  //         const visitorOutStr = toLocalString(v.outTime);
-  //         // STRICT CHECK: Punch MUST happen before or exactly at checkout time
-  //         // If punch time crosses checkout time, this visitor is completely rejected
-  //         return logTimeStr <= visitorOutStr;
-  //       }
-
-  //       // Boundary 3: If Visitor is still Active (outTime is null)
-  //       else {
-  //         // Check if this card was passed to another visitor later
-  //         const nextVisitorOnSameCard = sortedVisitors.find(other => {
-  //           if (other.id === v.id) return false;
-  //           const otherCardMatch = (other.cardMsId !== null && Number(other.cardMsId) === Number(numericCardIdentifier)) ||
-  //             (other.cardNo !== null && String(other.cardNo) === String(numericCardIdentifier)) ||
-  //             (other.rfidCardNo !== null && String(other.rfidCardNo) === String(numericCardIdentifier));
-
-  //           if (!otherCardMatch || !other.inTime) return false;
-  //           return toLocalString(other.inTime) > visitorInStr;
-  //         });
-
-  //         if (nextVisitorOnSameCard) {
-  //           const nextVisitorInStr = toLocalString(nextVisitorOnSameCard.inTime);
-  //           return logTimeStr < nextVisitorInStr;
-  //         }
-
-  //         // Active visitor and no next visitor took the card yet
-  //         return true;
-  //       }
-  //     });
-
-  //     return {
-
-  //       visitorName: dbVisitor ? dbVisitor.visitorName : "Not Assigned",
-  //       visitorId: numericCardIdentifier,
-  //       visitorCode: log.EmployeeCode,
-  //       rfidCardNo: dbVisitor
-  //         ? (dbVisitor.cardNo || dbVisitor.rfidCardNo || "")
-  //         : (numericCardIdentifier ? String(numericCardIdentifier) : ""),
-  //       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-  //       direction: log.Direction,
-  //       logDate: log.LogDate,
-  //       doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
-  //     };
-  //   });
-
-  //   return { machineFeed };
-  // }
-
   async getMachineAccessLogs(date: string) {
     const doorMappings = await db
       .select({
@@ -3866,7 +3364,6 @@ export class DatabaseStorage implements IStorage {
     const [newMapping] = await db.insert(doorDevices).values(data).returning();
     return newMapping;
   }
-
   async updateDoorDevice(
     id: number,
     data: Partial<InsertDoorDevice>,
@@ -3880,9 +3377,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(doorDevices.id, id))
       .returning();
-
     if (!updatedMapping) throw new Error("Mapping not found");
-
     try {
       if (updatedMapping.doorId) {
         const [doorDetail] = await db
@@ -3892,7 +3387,6 @@ export class DatabaseStorage implements IStorage {
           .from(schema.doors)
           .where(eq(schema.doors.id, updatedMapping.doorId))
           .execute();
-
         if (doorDetail && doorDetail.doorCode === MAIN_GATE_SYNC.CODE) {
           const allPeople = await db
             .select({
@@ -3900,23 +3394,19 @@ export class DatabaseStorage implements IStorage {
             })
             .from(schema.people)
             .execute();
-
           const targetDeviceIds: number[] = [];
-
           if (
             updatedMapping.inDeviceIds &&
             Array.isArray(updatedMapping.inDeviceIds)
           ) {
             targetDeviceIds.push(...updatedMapping.inDeviceIds.map(Number));
           }
-
           if (
             updatedMapping.outDeviceIds &&
             Array.isArray(updatedMapping.outDeviceIds)
           ) {
             targetDeviceIds.push(...updatedMapping.outDeviceIds.map(Number));
           }
-
           if (targetDeviceIds.length > 0) {
             const targetDevices = await db
               .select({
@@ -3926,27 +3416,21 @@ export class DatabaseStorage implements IStorage {
               .from(devices)
               .where(inArray(devices.msId, targetDeviceIds))
               .execute();
-
             for (const dev of targetDevices) {
               const currentMsId = Number(dev.msId);
               const deviceSerial = dev.serialNumber;
-
               if (!deviceSerial) {
                 continue;
               }
-
               for (const emp of allPeople) {
                 const empCode = emp.employeeCode?.trim();
-
                 if (!empCode) continue;
-
                 try {
                   const response = await esslService.syncUserBlockStatus(
                     empCode,
                     deviceSerial,
                     false,
                   );
-
                   await db.insert(blockUnblockLogs).values({
                     employeeCode: empCode,
                     deviceId: currentMsId,
@@ -3964,88 +3448,8 @@ export class DatabaseStorage implements IStorage {
         }
       }
     } catch (err) { }
-
     return updatedMapping;
   }
-
-  // async updateDoorDevice(
-  //   id: number,
-  //   data: Partial<InsertDoorDevice>,
-  // ): Promise < DoorDevice > {
-  //   const [updatedMapping] = await db
-  //     .update(doorDevices)
-  //     .set({
-  //       ...data,
-  //       inDeviceIds: data.inDeviceIds,
-  //       outDeviceIds: data.outDeviceIds,
-  //     })
-  //     .where(eq(doorDevices.id, id))
-  //     .returning();
-
-  //   if(!updatedMapping) throw new Error("Mapping not found");
-
-  //   try {
-  //     if(updatedMapping.doorId) {
-  //   const [doorDetail] = await db
-  //     .select({ doorCode: schema.doors.code })
-  //     .from(schema.doors)
-  //     .where(eq(schema.doors.id, updatedMapping.doorId))
-  //     .execute();
-
-  //   if (doorDetail && doorDetail.doorCode === MAIN_GATE_SYNC.CODE) {
-  //     const allPeople = await db
-  //       .select({ employeeCode: schema.people.employeeCode })
-  //       .from(schema.people)
-  //       .execute();
-
-  //     const targetDeviceIds: number[] = [];
-  //     if (updatedMapping.inDeviceIds && Array.isArray(updatedMapping.inDeviceIds)) {
-  //       targetDeviceIds.push(...updatedMapping.inDeviceIds.map(Number));
-  //     }
-  //     if (updatedMapping.outDeviceIds && Array.isArray(updatedMapping.outDeviceIds)) {
-  //       targetDeviceIds.push(...updatedMapping.outDeviceIds.map(Number));
-  //     }
-
-  //     if (targetDeviceIds.length > 0 && allPeople && allPeople.length > 0) {
-  //       const targetDevices = await db
-  //         .select({ msId: devices.msId, serialNumber: devices.serialNumber })
-  //         .from(devices)
-  //         .where(inArray(devices.msId, targetDeviceIds))
-  //         .execute();
-
-  //       for (const dev of targetDevices) {
-  //         const currentMsId = Number(dev.msId);
-  //         const deviceSerial = dev.serialNumber;
-
-  //         if (!deviceSerial) continue;
-
-  //         for (const emp of allPeople) {
-  //           const empCode = emp.employeeCode?.trim();
-  //           if (!empCode) continue;
-
-  //           try {
-  //             await esslService.syncUserBlockStatus(empCode, deviceSerial, false);
-  //           } catch (esslErr) {
-  //             // Silently skip hardware failures to keep transaction safe
-  //           }
-  //         }
-
-  //         try {
-  //           await db
-  //             .delete(blockUnblockLogs)
-  //             .where(eq(blockUnblockLogs.deviceId, currentMsId));
-  //         } catch (dbErr) {
-  //           // Silently skip log deletion failures
-  //         }
-  //       }
-  //     }
-  //   }
-  // }
-  //   } catch (syncError) {
-  //   // Prevent external sync errors from breaking core mapping save
-  // }
-  // return updatedMapping;
-  // }
   async deleteDoorDevice(id: number): Promise<void> {
     await db.delete(doorDevices).where(eq(doorDevices.id, id));
   }
@@ -4100,40 +3504,15 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     return log || null;
   }
-  // async getEmployeeDeviceStatuses(employeeCode: string) {
-  //   const logs = await db
-  //     .select()
-  //     .from(blockUnblockLogs)
-  //     .where(eq(blockUnblockLogs.employeeCode, employeeCode))
-  //     .orderBy(desc(blockUnblockLogs.updatedAt));
-  //   const latestMap = new Map<number, any>();
-  //   for (const log of logs) {
-  //     const dId = Number(log.deviceId);
-  //     if (!latestMap.has(dId)) {
-  //       latestMap.set(dId, {
-  //         id: log.id,
-  //         deviceId: dId,
-  //         type: log.type,
-  //         status: log.type === "block" ? "Blocked" : "Active",
-  //         timestamp: log.updatedAt || log.createdAt,
-  //       });
-  //     }
-  //   }
-  //   return Array.from(latestMap.values());
-  // }
   async getEmployeeDeviceStatuses(employeeCode: string) {
     try {
-      // 1. Purana Logic: Fetch latest block/unblock logs from PostgreSQL/Drizzle DB
       const logs = await db
         .select()
         .from(blockUnblockLogs)
         .where(eq(blockUnblockLogs.employeeCode, employeeCode))
         .orderBy(desc(blockUnblockLogs.updatedAt));
-
-      // 2. Fetch Latest Statuses from MSSQL DeviceCommands table
       const cleanCode = String(employeeCode).trim();
       let mssqlStatusMap = new Map<number, string>();
-
       try {
         const pool = await mssqlPool;
         const mssqlResult = await pool.request()
@@ -4149,40 +3528,30 @@ export class DatabaseStorage implements IStorage {
             OR Title LIKE '%' + @empCode + '%'
           ORDER BY CreationDate DESC
         `);
-
         const mssqlLogs = mssqlResult.recordset || [];
-
         for (const mLog of mssqlLogs) {
           const dId = Number(mLog.DeviceId ?? mLog.deviceId);
           if (!mssqlStatusMap.has(dId)) {
-            // Har device ki latest MSSQL status value save kar rahe hain
             mssqlStatusMap.set(dId, mLog.Status ?? mLog.status);
           }
         }
       } catch (mssqlErr) {
         console.error("Error fetching MSSQL device command statuses:", mssqlErr);
       }
-
-      // 3. Merge Logic: Purane logs ke saath MSSQL Status inject kar do
       const latestMap = new Map<number, any>();
-
       for (const log of logs) {
         const dId = Number(log.deviceId);
         if (!latestMap.has(dId)) {
-          // MSSQL se real command status pick karo (e.g., SUCCESS / PENDING / FAILED)
           const mssqlStatus = mssqlStatusMap.get(dId);
-
           latestMap.set(dId, {
             id: log.id,
             deviceId: dId,
-            type: log.type, // Purana type (block/unblock) - ALLOWED/BLOCKED badge ke liye
-            // Agar MSSQL me status mila toh woh, nahi toh fallback status
+            type: log.type,
             status: mssqlStatus,
             timestamp: log.updatedAt || log.createdAt,
           });
         }
       }
-
       return Array.from(latestMap.values());
     } catch (error) {
       console.error("Error in getEmployeeDeviceStatuses:", error);
@@ -4218,7 +3587,6 @@ export class DatabaseStorage implements IStorage {
       });
     return logEntry;
   }
-
   async getLockoutEligibleDoors(search?: string): Promise<any[]> {
     const mainGateCode = MAIN_GATE_SYNC.CODE;
     const query = db
@@ -4356,109 +3724,18 @@ export class DatabaseStorage implements IStorage {
       console.error("💀 Engine Failure:", error.message);
     }
   }
-  // async executeEmergencybulkUnblock(
-  //   userId: string,
-  //   userName: string,
-  // ): Promise<any> {
-  //   const allPeople = await db
-  //     .select()
-  //     .from(people)
-  //     .where(eq(people.status, "active"));
-  //   const allDevices = await db
-  //     .select()
-  //     .from(devices)
-  //     .where(eq(devices.isActive, true));
-  //   const taskQueue = [];
-  //   for (const person of allPeople) {
-  //     if (!person.employeeCode) continue;
-  //     for (const device of allDevices) {
-  //       if (
-  //         device.serialNumber &&
-  //         device.msId !== null &&
-  //         device.msId !== undefined
-  //       ) {
-  //         taskQueue.push({
-  //           employeeCode: person.employeeCode,
-  //           deviceMsId: Number(device.msId),
-  //           serialNumber: device.serialNumber,
-  //         });
-  //       }
-  //     }
-  //   }
-  //   if (taskQueue.length === 0) {
-  //     return {
-  //       status: "Empty",
-  //       processedCount: 0,
-  //       message: "No active records found.",
-  //     };
-  //   }
-  //   const [alertEntry] = await db
-  //     .insert(alerts)
-  //     .values({
-  //       alertType: "security",
-  //       severity: "critical",
-  //       title: "🚨 EMERGENCY BULK UNBLOCK",
-  //       message: `System-wide unblock triggered by ${userName} for ${taskQueue.length} records.`,
-  //       createdBy: userId,
-  //       resolvedBy: userName,
-  //       isRead: false,
-  //       isResolved: true,
-  //       resolvedAt: new Date(),
-  //       createdAt: new Date(),
-  //     })
-  //     .returning();
-  //   const BATCH_SIZE = 50;
-  //   let processedCount = 0;
-  //   for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
-  //     const batch = taskQueue.slice(i, i + BATCH_SIZE);
-  //     await Promise.all(
-  //       batch.map(async (task) => {
-  //         try {
-  //           await db.insert(blockUnblockLogs).values({
-  //             employeeCode: task.employeeCode,
-  //             deviceId: task.deviceMsId,
-  //             type: "unblock",
-  //             createdAt: new Date(),
-  //             updatedAt: new Date(),
-  //           });
-  //           esslService
-  //             .syncUserBlockStatus(task.employeeCode, task.serialNumber, false)
-  //             .catch((err) =>
-  //               console.error(`API Sync Fail for ${task.employeeCode}:`, err),
-  //             );
-  //           processedCount++;
-  //         } catch (err) {
-  //           console.error(`PG Log Error for ${task.employeeCode}:`, err);
-  //         }
-  //       }),
-  //     );
-  //     await new Promise((res) => setTimeout(res, 100));
-  //   }
-  //   return {
-  //     status: "Success",
-  //     processedCount: processedCount,
-  //     alertId: alertEntry.id,
-  //   };
-  // }
-
   async executeEmergencybulkUnblock(
     userId: string,
     userName: string,
   ): Promise<any> {
-    // 1. `doorUtils` se saare Active Doors & Active Devices fetch karein
     const { activeDoors, activeDevices } = await getActiveDoorsWithDevices();
-
-    // 2. Main Gate code ke basis par active devices get karein (via doorUtils)
     const mainGateDevices = await getActiveDevicesByDoorCode(
       MAIN_GATE_SYNC.CODE,
     );
-
-    // 3. Active People fetch karein
     const allPeople = await db
       .select()
       .from(people)
       .where(eq(people.status, "active"));
-
     if (activeDevices.length === 0) {
       return {
         status: "Empty",
@@ -4466,8 +3743,6 @@ export class DatabaseStorage implements IStorage {
         message: "No active devices found.",
       };
     }
-
-    // 4. Create Alert Entry
     const [alertEntry] = await db
       .insert(alerts)
       .values({
@@ -4483,20 +3758,13 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
       })
       .returning();
-
-    // -------------------------------------------------------------
-    // TASK A: Hardware-level Direct Door Unlock on ALL Active Devices
-    // -------------------------------------------------------------
     let unlockedDevicesCount = 0;
     const generalLogsToInsert: any[] = [];
-
     await Promise.all(
       activeDevices.map(async (device) => {
         if (!device.serialNumber) return;
-
         try {
           await esslService.unlockDoor(device.serialNumber.trim());
-
           if (device.msId !== null && device.msId !== undefined) {
             generalLogsToInsert.push({
               employeeCode: "EMERGENCY_DOOR_UNLOCK",
@@ -4515,8 +3783,6 @@ export class DatabaseStorage implements IStorage {
         }
       }),
     );
-
-    // Save General Door Unlock Logs in Bulk
     if (generalLogsToInsert.length > 0) {
       try {
         await db.insert(blockUnblockLogs).values(generalLogsToInsert);
@@ -4524,19 +3790,13 @@ export class DatabaseStorage implements IStorage {
         console.error("Failed to insert door unlock logs:", err);
       }
     }
-
-    // -------------------------------------------------------------
-    // TASK B: Unblock ALL Active Employees on Active Main Gate Devices ONLY
-    // -------------------------------------------------------------
     let mainGateUnblockedCount = 0;
-
     if (mainGateDevices.length > 0 && allPeople.length > 0) {
       const userUnblockQueue: Array<{
         employeeCode: string;
         deviceMsId: number;
         serialNumber: string;
       }> = [];
-
       for (const person of allPeople) {
         if (!person.employeeCode) continue;
         for (const device of mainGateDevices) {
@@ -4553,22 +3813,18 @@ export class DatabaseStorage implements IStorage {
           }
         }
       }
-
-      // Processing in Batches of 50
       const BATCH_SIZE = 50;
       for (let i = 0; i < userUnblockQueue.length; i += BATCH_SIZE) {
         const batch = userUnblockQueue.slice(i, i + BATCH_SIZE);
         const batchLogs: any[] = [];
-
         await Promise.all(
           batch.map(async (task) => {
             try {
               await esslService.syncUserBlockStatus(
                 task.employeeCode,
                 task.serialNumber,
-                false, // unblock
+                false,
               );
-
               batchLogs.push({
                 employeeCode: task.employeeCode,
                 deviceId: task.deviceMsId,
@@ -4576,7 +3832,6 @@ export class DatabaseStorage implements IStorage {
                 createdAt: new Date(),
                 updatedAt: new Date(),
               });
-
               mainGateUnblockedCount++;
             } catch (err) {
               console.error(
@@ -4586,7 +3841,6 @@ export class DatabaseStorage implements IStorage {
             }
           }),
         );
-
         if (batchLogs.length > 0) {
           try {
             await db.insert(blockUnblockLogs).values(batchLogs);
@@ -4594,11 +3848,9 @@ export class DatabaseStorage implements IStorage {
             console.error("Batch log insert error:", err);
           }
         }
-
         await new Promise((res) => setTimeout(res, 50));
       }
     }
-
     return {
       status: "Success",
       unlockedDevicesCount,
@@ -4607,224 +3859,19 @@ export class DatabaseStorage implements IStorage {
       alertId: alertEntry.id,
     };
   }
-
-  // async executeEmergencybulkUnblock(
-  //   userId: string,
-  //   userName: string,
-  // ): Promise<any> {
-  //   // 1. Fetch All Active Devices & All Active People
-  //   const allDevices = await db
-  //     .select()
-  //     .from(devices)
-  //     .where(eq(devices.isActive, true));
-
-  //   const allPeople = await db
-  //     .select()
-  //     .from(people)
-  //     .where(eq(people.status, "active"));
-
-  //   if (allDevices.length === 0) {
-  //     return {
-  //       status: "Empty",
-  //       processedCount: 0,
-  //       message: "No active devices found.",
-  //     };
-  //   }
-
-  //   // 2. MAIN GATE DEVICES IDENTIFICATION VIA MAIN_GATE_SYNC.CODE & doorDevices
-  //   // Step A: Main Gate Doors fetch karein door code ("MG_SYNC_01") se
-  //   const mainGateDoorsList = await db
-  //     .select()
-  //     .from(doors)
-  //     .where(eq(doors.code, MAIN_GATE_SYNC.CODE));
-
-  //   const mainGateDoorIds = mainGateDoorsList.map((d) => d.id);
-
-  //   let mainGateDeviceMsIds = new Set<number>();
-
-  //   if (mainGateDoorIds.length > 0) {
-  //     // Step B: doorDevices table se matching doors ke inDeviceIds aur outDeviceIds fetch karein
-  //     const doorDeviceMappings = await db
-  //       .select()
-  //       .from(doorDevices)
-  //       .where(inArray(doorDevices.doorId, mainGateDoorIds));
-
-  //     // Array arrays ko flatten karke IDs collect karein
-  //     doorDeviceMappings.forEach((mapping) => {
-  //       (mapping.inDeviceIds || []).forEach((id) =>
-  //         mainGateDeviceMsIds.add(id),
-  //       );
-  //       (mapping.outDeviceIds || []).forEach((id) =>
-  //         mainGateDeviceMsIds.add(id),
-  //       );
-  //     });
-  //   }
-
-  //   // Step C: allDevices me se unhi devices ko filter karein jinke msId Main Gate se linked hain
-  //   const mainGateDevices = allDevices.filter(
-  //     (dev) =>
-  //       dev.msId !== null &&
-  //       dev.msId !== undefined &&
-  //       mainGateDeviceMsIds.has(Number(dev.msId)),
-  //   );
-
-  //   // 3. Create Alert Entry
-  //   const [alertEntry] = await db
-  //     .insert(alerts)
-  //     .values({
-  //       alertType: "security",
-  //       severity: "critical",
-  //       title: "🚨 EMERGENCY DOOR UNLOCK & MAIN GATE UNBLOCK",
-  //       message: `Emergency unlock triggered by ${userName} for ${allDevices.length} devices and main gate unblock for ${allPeople.length} employees.`,
-  //       createdBy: userId,
-  //       resolvedBy: userName,
-  //       isRead: false,
-  //       isResolved: true,
-  //       resolvedAt: new Date(),
-  //       createdAt: new Date(),
-  //     })
-  //     .returning();
-
-  //   // -------------------------------------------------------------
-  //   // TASK A: Hardware-level Direct Door Unlock on ALL Active Devices
-  //   // -------------------------------------------------------------
-  //   let unlockedDevicesCount = 0;
-  //   const generalLogsToInsert: any[] = [];
-
-  //   await Promise.all(
-  //     allDevices.map(async (device) => {
-  //       if (!device.serialNumber) return;
-
-  //       try {
-  //         await esslService.unlockDoor(device.serialNumber.trim());
-
-  //         if (device.msId !== null && device.msId !== undefined) {
-  //           generalLogsToInsert.push({
-  //             employeeCode: "EMERGENCY_DOOR_UNLOCK",
-  //             deviceId: Number(device.msId),
-  //             type: "unblock",
-  //             createdAt: new Date(),
-  //             updatedAt: new Date(),
-  //           });
-  //         }
-  //         unlockedDevicesCount++;
-  //       } catch (err) {
-  //         console.error(
-  //           `Door Unlock Error for Serial [${device.serialNumber}]:`,
-  //           err,
-  //         );
-  //       }
-  //     }),
-  //   );
-
-  //   if (generalLogsToInsert.length > 0) {
-  //     try {
-  //       await db.insert(blockUnblockLogs).values(generalLogsToInsert);
-  //     } catch (err) {
-  //       console.error("Failed to insert door unlock logs:", err);
-  //     }
-  //   }
-
-  //   // -------------------------------------------------------------
-  //   // TASK B: Unblock ALL Active Employees on Main Gate Devices ONLY
-  //   // -------------------------------------------------------------
-  //   let mainGateUnblockedCount = 0;
-
-  //   if (mainGateDevices.length > 0 && allPeople.length > 0) {
-  //     const userUnblockQueue: Array<{
-  //       employeeCode: string;
-  //       deviceMsId: number;
-  //       serialNumber: string;
-  //     }> = [];
-
-  //     for (const person of allPeople) {
-  //       if (!person.employeeCode) continue;
-  //       for (const device of mainGateDevices) {
-  //         if (
-  //           device.serialNumber &&
-  //           device.msId !== null &&
-  //           device.msId !== undefined
-  //         ) {
-  //           userUnblockQueue.push({
-  //             employeeCode: person.employeeCode,
-  //             deviceMsId: Number(device.msId),
-  //             serialNumber: device.serialNumber.trim(),
-  //           });
-  //         }
-  //       }
-  //     }
-
-  //     // Processing in Batches of 50
-  //     const BATCH_SIZE = 50;
-  //     for (let i = 0; i < userUnblockQueue.length; i += BATCH_SIZE) {
-  //       const batch = userUnblockQueue.slice(i, i + BATCH_SIZE);
-  //       const batchLogs: any[] = [];
-
-  //       await Promise.all(
-  //         batch.map(async (task) => {
-  //           try {
-  //             await esslService.syncUserBlockStatus(
-  //               task.employeeCode,
-  //               task.serialNumber,
-  //               false, // unblock
-  //             );
-
-  //             batchLogs.push({
-  //               employeeCode: task.employeeCode,
-  //               deviceId: task.deviceMsId,
-  //               type: "unblock",
-  //               createdAt: new Date(),
-  //               updatedAt: new Date(),
-  //             });
-
-  //             mainGateUnblockedCount++;
-  //           } catch (err) {
-  //             console.error(
-  //               `Main Gate Unblock Sync Fail for ${task.employeeCode} on ${task.serialNumber}:`,
-  //               err,
-  //             );
-  //           }
-  //         }),
-  //       );
-
-  //       if (batchLogs.length > 0) {
-  //         try {
-  //           await db.insert(blockUnblockLogs).values(batchLogs);
-  //         } catch (err) {
-  //           console.error("Batch log insert error:", err);
-  //         }
-  //       }
-
-  //       await new Promise((res) => setTimeout(res, 50));
-  //     }
-  //   }
-
-  //   return {
-  //     status: "Success",
-  //     unlockedDevicesCount,
-  //     totalDevicesCount: allDevices.length,
-  //     mainGateUnblockedRecords: mainGateUnblockedCount,
-  //     alertId: alertEntry.id,
-  //   };
-  // }
   async unlockSpecificDoor(
     doorId: number,
     userId: string,
     userName: string,
   ): Promise<any> {
-    // 1. Specific Door ka detail fetch karein
     const [door] = await db.select().from(doors).where(eq(doors.id, doorId));
-
     if (!door) {
       throw new Error(`Door with ID ${doorId} not found.`);
     }
-
-    // 2. Door ke sath mapped In & Out Devices (doorDevices) fetch karein
     const doorDeviceMappings = await db
       .select()
       .from(doorDevices)
       .where(eq(doorDevices.doorId, doorId));
-
     const targetDeviceMsIds = new Set<number>();
     doorDeviceMappings.forEach((mapping) => {
       (mapping.inDeviceIds || []).forEach((id) =>
@@ -4834,7 +3881,6 @@ export class DatabaseStorage implements IStorage {
         targetDeviceMsIds.add(Number(id)),
       );
     });
-
     if (targetDeviceMsIds.size === 0) {
       return {
         status: "Empty",
@@ -4842,8 +3888,6 @@ export class DatabaseStorage implements IStorage {
         message: `No devices assigned/mapped to door: ${door.name}`,
       };
     }
-
-    // 3. Devices table se unhi active devices ko fetch karein jinke msId mapped hain
     const targetDevices = await db
       .select()
       .from(devices)
@@ -4853,7 +3897,6 @@ export class DatabaseStorage implements IStorage {
           inArray(devices.msId, Array.from(targetDeviceMsIds)),
         ),
       );
-
     if (targetDevices.length === 0) {
       return {
         status: "Empty",
@@ -4861,8 +3904,6 @@ export class DatabaseStorage implements IStorage {
         message: `No active devices found for door: ${door.name}`,
       };
     }
-
-    // 4. Emergency Alert Entry
     const [alertEntry] = await db
       .insert(alerts)
       .values({
@@ -4878,19 +3919,13 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
       })
       .returning();
-
-    // 5. Hardware Direct Unlock (MSSQL devicecommands entry via esslService)
     let unlockedDevicesCount = 0;
     const logsToInsert: any[] = [];
-
     await Promise.all(
       targetDevices.map(async (device) => {
         if (!device.serialNumber) return;
-
         try {
-          // eSSL Service command -> MSSQL devicecommands table insert
           await esslService.unlockDoor(device.serialNumber.trim());
-
           if (device.msId !== null && device.msId !== undefined) {
             logsToInsert.push({
               employeeCode: "EMERGENCY_DOOR_UNLOCK",
@@ -4909,8 +3944,6 @@ export class DatabaseStorage implements IStorage {
         }
       }),
     );
-
-    // 6. PG blockUnblockLogs table mein insert
     if (logsToInsert.length > 0) {
       try {
         await db.insert(blockUnblockLogs).values(logsToInsert);
@@ -4918,7 +3951,6 @@ export class DatabaseStorage implements IStorage {
         console.error("Failed to insert single door unlock logs into PG:", err);
       }
     }
-
     return {
       status: "Success",
       doorName: door.name,
@@ -4927,79 +3959,6 @@ export class DatabaseStorage implements IStorage {
       alertId: alertEntry.id,
     };
   }
-
-  // async executeEmergencybulkUnblock(
-  //   userId: string,
-  //   userName: string,
-  // ): Promise<any> {
-  //   // 1. Sirf Active Devices fetch karein
-  //   const allDevices = await db
-  //     .select()
-  //     .from(devices)
-  //     .where(eq(devices.isActive, true));
-
-  //   if (allDevices.length === 0) {
-  //     return {
-  //       status: "Empty",
-  //       processedCount: 0,
-  //       message: "No active devices found.",
-  //     };
-  //   }
-
-  //   // 2. Alert Log Entry
-  //   const [alertEntry] = await db
-  //     .insert(alerts)
-  //     .values({
-  //       alertType: "security",
-  //       severity: "critical",
-  //       title: "🚨 EMERGENCY DOOR UNLOCK",
-  //       message: `Emergency door unlock triggered by ${userName} for ${allDevices.length} devices.`,
-  //       createdBy: userId,
-  //       resolvedBy: userName,
-  //       isRead: false,
-  //       isResolved: true,
-  //       resolvedAt: new Date(),
-  //       createdAt: new Date(),
-  //     })
-  //     .returning();
-
-  //   let unlockedCount = 0;
-
-  //   // 3. Direct Sabhi Active Devices par `unlockDoor` API Command Call Karein
-  //   await Promise.all(
-  //     allDevices.map(async (device) => {
-  //       if (!device.serialNumber) return;
-
-  //       try {
-  //         // Direct Door Unlock Command
-  //         await esslService.unlockDoor(device.serialNumber.trim());
-
-  //         // Optional: DB Log for Device Command
-  //         if (device.msId !== null && device.msId !== undefined) {
-  //           await db.insert(blockUnblockLogs).values({
-  //             employeeCode: "EMERGENCY_DOOR_UNLOCK",
-  //             deviceId: Number(device.msId),
-  //             type: "unblock",
-  //             createdAt: new Date(),
-  //             updatedAt: new Date(),
-  //           });
-  //         }
-
-  //         unlockedCount++;
-  //       } catch (err) {
-  //         console.error(`Door Unlock Error for Serial [${device.serialNumber}]:`, err);
-  //       }
-  //     })
-  //   );
-
-  //   return {
-  //     status: "Success",
-  //     unlockedDevicesCount: unlockedCount,
-  //     totalDevicesCount: allDevices.length,
-  //     alertId: alertEntry.id,
-  //   };
-  // }
-
   async getDoorWiseCount(filters: {
     dateFrom?: string;
     dateTo?: string;
@@ -5144,7 +4103,6 @@ export class DatabaseStorage implements IStorage {
           schema.people.employeeCode,
         ),
       );
-
     const doorList = await db
       .select({
         id: schema.doors.id,
@@ -5152,18 +4110,14 @@ export class DatabaseStorage implements IStorage {
       })
       .from(schema.doors)
       .where(eq(schema.doors.isActive, true));
-
     const doorMap = new Map(doorList.map((d) => [d.id, d.name]));
-
     return assignments.map((asgn) => ({
       ...asgn,
       doors: (asgn.doorIds || [])
         .map((id) => {
           const doorId = Number(id);
           const doorName = doorMap.get(doorId);
-
           if (!doorName) return null;
-
           return {
             id: doorId,
             name: doorName,
@@ -5192,9 +4146,7 @@ export class DatabaseStorage implements IStorage {
         ),
       )
       .where(eq(schema.employeeDoorAssignments.employeeCode, employeeCode));
-
     if (!assignment) return undefined;
-
     if (assignment.doorIds && assignment.doorIds.length > 0) {
       const doorList = await db
         .select({ id: schema.doors.id, name: schema.doors.name })
@@ -5205,13 +4157,11 @@ export class DatabaseStorage implements IStorage {
             eq(schema.doors.isActive, true)
           )
         );
-
       return {
         ...assignment,
         doors: doorList,
       };
     }
-
     return { ...assignment, doors: [] };
   }
   async getActiveDoors(): Promise<any[]> {
@@ -5904,7 +4854,7 @@ ${fromDate} || ' to ' || ${toDate}
       const rows = await db
         .select({
           attendance: dailyAttendanceSummary,
-          perDayRate: peopleAdditionalDetails.perDayRate, // actual column name
+          perDayRate: peopleAdditionalDetails.perDayRate,
         })
         .from(dailyAttendanceSummary)
         .leftJoin(
@@ -5940,9 +4890,7 @@ ${fromDate} || ' to ' || ${toDate}
       let grandTotalWages = 0;
       for (const row of rows) {
         const attendance = row.attendance;
-
         const empCode = attendance.employeeCode;
-
         if (!employeeMap.has(empCode)) {
           employeeMap.set(empCode, {
             employeeCode: attendance.employeeCode,
@@ -5961,27 +4909,20 @@ ${fromDate} || ' to ' || ${toDate}
             },
           });
         }
-
         const emp = employeeMap.get(empCode);
-
         const dept = attendance.departmentName?.trim();
-
         if (!dept || dept === "N/A" || dept === "NA" || dept === "-") {
           continue;
         }
-
         if (!emp.departments[dept]) {
           emp.departments[dept] = {
             duty: 0,
             otHours: 0,
           };
         }
-
         emp.departments[dept].duty += 1;
         emp.totalWorking.duty += 1;
-
         const otHours = Number(attendance.otHours || 0);
-
         emp.departments[dept].otHours += otHours;
         emp.totalWorking.otHours += otHours;
       }
@@ -6383,74 +5324,6 @@ ${fromDate} || ' to ' || ${toDate}
       .returning();
     return created;
   }
-  // async updateContractor(id: number, data: Partial<InsertContractor>): Promise<Contractor> {
-  //   const formatDbDate = (dateVal: any) => {
-  //     if (dateVal === undefined) return undefined;
-  //     if (!dateVal || dateVal === "") return null;
-  //     if (typeof dateVal === 'string') {
-  //       return dateVal.split('T')[0];
-  //     }
-  //     return null;
-  //   };
-  //   const cleanData = {
-  //     ...data,
-  //     contractorCode: typeof data.contractorCode === 'string' ? data.contractorCode.trim() : (data.contractorCode === null ? "" : undefined),
-  //     nameOfAgencyOwner: typeof data.nameOfAgencyOwner === 'string' ? data.nameOfAgencyOwner.trim() : (data.nameOfAgencyOwner === null ? "" : undefined),
-  //     nameOfTheAgency: typeof data.nameOfTheAgency === 'string' ? data.nameOfTheAgency.trim() : (data.nameOfTheAgency === null ? "" : undefined),
-  //     contactNoOwner: typeof data.contactNoOwner === 'string' ? data.contactNoOwner.trim() : (data.contactNoOwner === null ? "" : undefined),
-  //     aadhaarNumber: typeof data.aadhaarNumber === 'string' && data.aadhaarNumber.trim() !== "" ? data.aadhaarNumber.trim() : (data.aadhaarNumber === "" || data.aadhaarNumber === null ? null : data.aadhaarNumber),
-  //     email: typeof data.email === 'string' && data.email.trim() !== "" ? data.email.trim() : (data.email === "" || data.email === null ? null : data.email),
-  //     biometricId: typeof data.biometricId === 'string' && data.biometricId.trim() !== "" ? data.biometricId.trim() : (data.biometricId === "" || data.biometricId === null ? null : data.biometricId),
-  //     commencementDate: formatDbDate(data.commencementDate),
-  //     agreementFromDate: formatDbDate(data.agreementFromDate),
-  //     agreementValidUpto: formatDbDate(data.agreementValidUpto),
-  //     licenseValidity: formatDbDate(data.licenseValidity),
-  //   };
-  //   if (cleanData.contractorCode === "") {
-  //     throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
-  //   }
-  //   if (cleanData.nameOfAgencyOwner === "") {
-  //     throw new Error("VALIDATION_ERROR: Contractor Name (Owner Name) cannot be empty.");
-  //   }
-  //   if (cleanData.nameOfTheAgency === "") {
-  //     throw new Error("VALIDATION_ERROR: Agency Name cannot be empty.");
-  //   }
-  //   if (cleanData.contactNoOwner === "") {
-  //     throw new Error("VALIDATION_ERROR: Mobile Number cannot be empty.");
-  //   }
-  //   if (cleanData.contactNoOwner && cleanData.contactNoOwner !== "") {
-  //     const mobileRegex = /^[6-9]\d{9}$/;
-  //     if (!mobileRegex.test(cleanData.contactNoOwner)) {
-  //       throw new Error("VALIDATION_ERROR: Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.");
-  //     }
-  //   }
-  //   if (cleanData.email) {
-  //     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  //     if (!emailRegex.test(cleanData.email)) {
-  //       throw new Error("VALIDATION_ERROR: Please provide a valid email address format.");
-  //     }
-  //   }
-  //   if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
-  //     throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
-  //   }
-  //   if (cleanData.contractorCode) {
-  //     const [existing] = await db
-  //       .select()
-  //       .from(contractors)
-  //       .where(and(eq(contractors.contractorCode, cleanData.contractorCode), ne(contractors.id, id)));
-  //     if (existing) {
-  //       throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
-  //     }
-  //   }
-  //   const [updated] = await db
-  //     .update(contractors)
-  //     .set(cleanData as any)
-  //     .where(eq(contractors.id, id))
-  //     .returning();
-  //   if (!updated) throw new Error("Contractor not found");
-  //   return updated;
-  // }
-
   async updateContractor(
     id: number,
     data: Partial<InsertContractor>,
@@ -6458,29 +5331,21 @@ ${fromDate} || ' to ' || ${toDate}
     const formatDbDate = (dateVal: any) => {
       if (dateVal === undefined) return undefined;
       if (!dateVal || dateVal === "") return null;
-
-      // Agar Date object hai to seedha ISO string se extract kar lo
       if (dateVal instanceof Date) {
         return dateVal.toISOString().split("T")[0];
       }
-
       if (typeof dateVal === "string") {
-        // Agar string pehle se ISO format me hai (e.g., 2026-07-16T...)
         if (dateVal.includes("T")) {
           return dateVal.split("T")[0];
         }
-
-        // Agar format "01-Jan-2020" ya "31-Dec-2026" jaisa hai, to use convert karein
         const parsedDate = Date.parse(dateVal);
         if (!isNaN(parsedDate)) {
           return new Date(parsedDate).toISOString().split("T")[0];
         }
-
-        return dateVal; // standard YYYY-MM-DD string ke liye fallback
+        return dateVal;
       }
       return null;
     };
-
     const cleanData = {
       ...data,
       contractorCode:
@@ -6514,15 +5379,12 @@ ${fromDate} || ' to ' || ${toDate}
           : data.aadhaarNumber === "" || data.aadhaarNumber === null
             ? null
             : data.aadhaarNumber,
-
-      // YAHAN DHAYAN DEIN: Aapke logs me column name "email_address" hai, to object property ensure karein schema ke mutabik ho
       email:
         typeof data.email === "string" && data.email.trim() !== ""
           ? data.email.trim()
           : data.email === "" || data.email === null
             ? null
             : data.email,
-
       biometricId:
         typeof data.biometricId === "string" && data.biometricId.trim() !== ""
           ? data.biometricId.trim()
@@ -6534,8 +5396,6 @@ ${fromDate} || ' to ' || ${toDate}
       agreementValidUpto: formatDbDate(data.agreementValidUpto),
       licenseValidity: formatDbDate(data.licenseValidity),
     };
-
-    // Validations
     if (cleanData.contractorCode === "") {
       throw new Error("VALIDATION_ERROR: Contractor Code cannot be empty.");
     }
@@ -6569,8 +5429,6 @@ ${fromDate} || ' to ' || ${toDate}
     if (cleanData.aadhaarNumber && cleanData.aadhaarNumber.length !== 12) {
       throw new Error("VALIDATION_ERROR: Aadhaar must be exactly 12 digits.");
     }
-
-    // Duplicate Code Check
     if (cleanData.contractorCode) {
       const [existing] = await db
         .select()
@@ -6585,18 +5443,14 @@ ${fromDate} || ' to ' || ${toDate}
         throw new Error("DUPLICATE_CODE: This Contractor Code already exists.");
       }
     }
-
-    // Update query execution
     const [updated] = await db
       .update(contractors)
       .set(cleanData as any)
       .where(eq(contractors.id, id))
       .returning();
-
     if (!updated) throw new Error("Contractor not found");
     return updated;
   }
-
   async deleteContractor(id: number): Promise<boolean> {
     const result = await db.delete(contractors).where(eq(contractors.id, id));
     return (result?.rowCount ?? 0) > 0;
@@ -7032,18 +5886,18 @@ ${fromDate} || ' to ' || ${toDate}
       .where(eq(visitorCards.isAssigned, false))
       .orderBy(asc(visitorCards.name));
   }
-
   // async getDevices(
   //   page?: number | string,
   //   pageSize?: number | string,
   //   search?: string,
+  //   statusFilter?: string,
+
   // ): Promise<any> {
   //   try {
   //     const msDataRaw = await dbMsSql
   //       .select()
   //       .from({ dbName: "Devices" })
   //       .execute();
-
   //     if (!msDataRaw || msDataRaw.length === 0) {
   //       return {
   //         data: [],
@@ -7055,120 +5909,206 @@ ${fromDate} || ' to ' || ${toDate}
   //         offlineCount: 0,
   //       };
   //     }
-
   //     const currentTime = new Date();
-  //     const THRESHOLD_MINUTES = 1;
-
   //     let onlineCount = 0;
   //     let offlineCount = 0;
-
-  //     // :fire: STEP 1: FORMAT DATA
-  //     let formattedDevices = msDataRaw.map((d: any) => {
-  //       let lPing: Date | null = null;
+  //     const filePath = path.join(
+  //       process.cwd(),
+  //       "server",
+  //       "config",
+  //       "encrypted_serials.json",
+  //     );
+  //     const allowedSerials = new Set<string>();
+  //     try {
+  //       if (fs.existsSync(filePath)) {
+  //         const fileContent = fs.readFileSync(filePath, "utf-8").trim();
+  //         if (fileContent) {
+  //           const configItems = JSON.parse(fileContent) as Array<{
+  //             encrypted_serial: string;
+  //             vendor_status: boolean;
+  //           }>;
+  //           if (Array.isArray(configItems)) {
+  //             for (const item of configItems) {
+  //               if (
+  //                 !item ||
+  //                 item.vendor_status !== true ||
+  //                 !item.encrypted_serial
+  //               ) {
+  //                 continue;
+  //               }
+  //               try {
+  //                 const decrypted = decryptSerialNumber(item.encrypted_serial);
+  //                 if (decrypted) {
+  //                   const cleanDecrypted = decrypted
+  //                     .trim()
+  //                     .toLowerCase()
+  //                     .replace(/[^a-zA-Z0-9]/g, "");
+  //                   allowedSerials.add(cleanDecrypted);
+  //                 }
+  //               } catch (decErr) {
+  //                 console.error("❌ Token Decryption Error for item:", decErr);
+  //               }
+  //             }
+  //           }
+  //         }
+  //       } else {
+  //         console.warn(
+  //           "⚠️ [CONFIG MISSING] 'encrypted_serials.json' file not found. Run 'encryptSerials.ts' script first.",
+  //         );
+  //       }
+  //       console.log(
+  //         `🔒 Loaded & Decrypted ${allowedSerials.size} authorized serials from config.`,
+  //       );
+  //     } catch (err: any) {
+  //       console.error(
+  //         "❌ Critical Config Reading/Decrypting Error:",
+  //         err.message || err,
+  //       );
+  //     }
+  //     const allValidDevices: any[] = [];
+  //     const currentMsIds: number[] = [];
+  //     for (const d of msDataRaw) {
+  //       const rawSerial = String(d.SerialNumber || d.serialno || "").trim();
+  //       const cleanSerial = rawSerial
+  //         .toLowerCase()
+  //         .replace(/[^a-zA-Z0-9]/g, "");
+  //       const deviceId = d.DeviceId || d.DeviceID;
+  //       const deviceName = d.DeviceName || "Unnamed Device";
+  //       if (!allowedSerials.has(cleanSerial)) {
+  //         console.warn(
+  //           `🚨 [BLOCKED] Unauthorized/Mismatched Device Blocked: ${rawSerial} (Name: ${deviceName})`,
+  //         );
+  //         try {
+  //           const validDeviceId =
+  //             deviceId && !isNaN(Number(deviceId)) ? Number(deviceId) : null;
+  //           const cleanRawSerial = rawSerial.slice(0, 255);
+  //           const existingLog = await db
+  //             .select({ id: unauthorizedDeviceLogs.id })
+  //             .from(unauthorizedDeviceLogs)
+  //             .where(
+  //               and(
+  //                 eq(unauthorizedDeviceLogs.serialNumber, cleanRawSerial),
+  //                 gt(
+  //                   unauthorizedDeviceLogs.attemptedAt,
+  //                   new Date(Date.now() - 1 * 60 * 1000),
+  //                 ),
+  //               ),
+  //             )
+  //             .limit(1);
+  //           if (!existingLog || existingLog.length === 0) {
+  //             await db.insert(unauthorizedDeviceLogs).values({
+  //               deviceId: validDeviceId,
+  //               deviceName: deviceName.slice(0, 255),
+  //               serialNumber: cleanRawSerial,
+  //               ipAddress: (d.IpAddress || "").slice(0, 50),
+  //               attemptedAt: currentTime,
+  //               statusMessage:
+  //                 "Access Denied: Serial signature verification failed or token missing.",
+  //             });
+  //             console.log(`⚠️ Threat Log Inserted for Serial: ${rawSerial}`);
+  //           }
+  //         } catch (e) {
+  //           console.error("❌ Failed to write threat log to DB:", e);
+  //         }
+  //         continue;
+  //       }
   //       let calculatedStatus = "offline";
-
   //       if (d.LastPing) {
-  //         lPing = new Date(d.LastPing);
-  //         let diffInMs = currentTime.getTime() - lPing.getTime();
-  //         let diffInMinutes = diffInMs / 60000;
-
-  //         const absDiff = Math.abs(diffInMinutes);
-
-  //         if (
-  //           absDiff <= THRESHOLD_MINUTES ||
-  //           Math.abs(absDiff - 330) <= THRESHOLD_MINUTES
-  //         ) {
+  //         const diffInMin = Math.abs(
+  //           (currentTime.getTime() - new Date(d.LastPing).getTime()) / 60000,
+  //         );
+  //         if (diffInMin <= 1 || Math.abs(diffInMin - 330) <= 1) {
   //           calculatedStatus = "online";
   //         }
   //       }
-
   //       if (calculatedStatus === "online") onlineCount++;
   //       else offlineCount++;
-
-  //       return {
-  //         msId: d.DeviceId || d.DeviceID,
-  //         name: d.DeviceName || "Unnamed Device",
+  //       const formatted = {
+  //         msId: Number(deviceId),
+  //         name: deviceName,
   //         deviceDirection: d.DeviceDirection || null,
-  //         serialNumber: d.SerialNumber || d.serialno,
+  //         serialNumber: rawSerial,
   //         opstamp: d.OpStamp ? String(d.OpStamp) : null,
-  //         lastPing: lPing,
+  //         lastPing: d.LastPing ? new Date(d.LastPing) : null,
   //         lastreset: d.LastReset ? new Date(d.LastReset) : null,
   //         activationCode: d.ActivationCode || "",
   //         isAttendanceDevice: d.IsAttendanceDevice ? 1 : 0,
   //         deviceType: String(d.DeviceType || "-").toLowerCase(),
   //         locationId: d.LocationId || null,
   //         ipAddress: d.IpAddress || "",
-  //         lastHeartbeat: lPing,
+  //         lastHeartbeat: d.LastPing ? new Date(d.LastPing) : null,
   //         status: calculatedStatus,
   //         isActive: true,
   //       };
-  //     });
-
-  //     // :fire: STEP 2: SEARCH FILTER (IMPORTANT)
-  //     if (search && search.trim()) {
-  //       const s = search.toLowerCase();
-
-  //       formattedDevices = formattedDevices.filter(
-  //         (d) =>
-  //           d.name?.toLowerCase().includes(s) ||
-  //           d.ipAddress?.toLowerCase().includes(s) ||
-  //           d.serialNumber?.toLowerCase().includes(s) ||
-  //           d.deviceType?.toLowerCase().includes(s),
-  //       );
+  //       allValidDevices.push(formatted);
+  //       if (deviceId) currentMsIds.push(Number(deviceId));
   //     }
-
-  //     // :fire: STEP 3: SYNC DB
-  //     for (const dev of formattedDevices) {
+  //     for (const dev of allValidDevices) {
   //       await db
   //         .insert(devices)
   //         .values(dev)
   //         .onConflictDoUpdate({
   //           target: devices.msId,
-  //           set: { ...dev },
+  //           set: {
+  //             name: dev.name,
+  //             deviceDirection: dev.deviceDirection,
+  //             serialNumber: dev.serialNumber,
+  //             opstamp: dev.opstamp,
+  //             lastPing: dev.lastPing,
+  //             lastreset: dev.lastreset,
+  //             activationCode: dev.activationCode,
+  //             isAttendanceDevice: dev.isAttendanceDevice,
+  //             deviceType: dev.deviceType,
+  //             locationId: dev.locationId,
+  //             ipAddress: dev.ipAddress,
+  //             lastHeartbeat: dev.lastHeartbeat,
+  //             status: dev.status,
+  //             isActive: dev.isActive,
+  //           },
   //         });
   //     }
-
-  //     const currentMsIds = formattedDevices.map((d) => d.msId as number);
-
   //     if (currentMsIds.length > 0) {
   //       await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
   //     }
-
-  //     // :fire: STEP 4: PAGINATION
-  //     if (!pageSize) return formattedDevices;
-
+  //     let finalData = [...allValidDevices];
+  //     if (search && search.trim()) {
+  //       const s = search.toLowerCase();
+  //       finalData = finalData.filter(
+  //         (d) =>
+  //           d.name?.toLowerCase().includes(s) ||
+  //           d.ipAddress?.toLowerCase().includes(s) ||
+  //           d.serialNumber?.toLowerCase().includes(s),
+  //       );
+  //     }
+  //     if (!pageSize) return finalData;
   //     if (pageSize === -1 || pageSize === "-1") {
   //       return {
-  //         data: formattedDevices,
-  //         totalCount: formattedDevices.length,
+  //         data: finalData,
+  //         totalCount: finalData.length,
   //         totalPages: 1,
   //         currentPage: 1,
-  //         pageSize: formattedDevices.length,
+  //         pageSize: finalData.length,
   //         onlineCount,
   //         offlineCount,
   //       };
   //     }
-
   //     const p = page && Number(page) > 0 ? Number(page) : 1;
   //     const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
-
-  //     const start = (p - 1) * size;
-  //     const end = start + size;
-
-  //     const paginatedData = formattedDevices.slice(start, end);
-
+  //     const paginatedData = finalData.slice(
+  //       (p - 1) * size,
+  //       (p - 1) * size + size,
+  //     );
   //     return {
   //       data: paginatedData,
-  //       totalCount: formattedDevices.length,
-  //       totalPages: Math.ceil(formattedDevices.length / size),
+  //       totalCount: finalData.length,
+  //       totalPages: Math.ceil(finalData.length / size),
   //       currentPage: p,
   //       pageSize: size,
   //       onlineCount,
   //       offlineCount,
   //     };
   //   } catch (error) {
-  //     console.error("Device Sync Error:", error);
-
+  //     console.error("🚨 Device Sync Error:", error);
   //     return {
   //       data: [],
   //       totalCount: 0,
@@ -7180,16 +6120,13 @@ ${fromDate} || ' to ' || ${toDate}
   //     };
   //   }
   // }
-
   async getDevices(
     page?: number | string,
     pageSize?: number | string,
     search?: string,
+    statusFilter?: string, // 👈 1. नया statusFilter parámetro
   ): Promise<any> {
     try {
-      // -------------------------------------------------------------
-      // 🛠️ STEP 1: MS SQL से रॉ डेटा लाना
-      // -------------------------------------------------------------
       const msDataRaw = await dbMsSql
         .select()
         .from({ dbName: "Devices" })
@@ -7211,15 +6148,13 @@ ${fromDate} || ' to ' || ${toDate}
       let onlineCount = 0;
       let offlineCount = 0;
 
-      // -------------------------------------------------------------
-      // 🔒 STEP 2: READ ENCRYPTED JSON & BUILD AUTHORIZED SET (DECRYPT ONLY)
-      // -------------------------------------------------------------
       const filePath = path.join(
         process.cwd(),
         "server",
         "config",
         "encrypted_serials.json",
       );
+
       const allowedSerials = new Set<string>();
 
       try {
@@ -7233,7 +6168,6 @@ ${fromDate} || ' to ' || ${toDate}
 
             if (Array.isArray(configItems)) {
               for (const item of configItems) {
-                // Strictly Check: vendor_status === true aur valid string token hona chahiye
                 if (
                   !item ||
                   item.vendor_status !== true ||
@@ -7241,9 +6175,7 @@ ${fromDate} || ' to ' || ${toDate}
                 ) {
                   continue;
                 }
-
                 try {
-                  // Decrypt token to get raw serial
                   const decrypted = decryptSerialNumber(item.encrypted_serial);
                   if (decrypted) {
                     const cleanDecrypted = decrypted
@@ -7253,7 +6185,6 @@ ${fromDate} || ' to ' || ${toDate}
                     allowedSerials.add(cleanDecrypted);
                   }
                 } catch (decErr) {
-                  // Single token decrypt issue error handle
                   console.error("❌ Token Decryption Error for item:", decErr);
                 }
               }
@@ -7264,7 +6195,6 @@ ${fromDate} || ' to ' || ${toDate}
             "⚠️ [CONFIG MISSING] 'encrypted_serials.json' file not found. Run 'encryptSerials.ts' script first.",
           );
         }
-
         console.log(
           `🔒 Loaded & Decrypted ${allowedSerials.size} authorized serials from config.`,
         );
@@ -7275,9 +6205,6 @@ ${fromDate} || ' to ' || ${toDate}
         );
       }
 
-      // -------------------------------------------------------------
-      // 🔍 STEP 3: STRICT MATCHING & SECURITY GATEKEEPING
-      // -------------------------------------------------------------
       const allValidDevices: any[] = [];
       const currentMsIds: number[] = [];
 
@@ -7286,22 +6213,19 @@ ${fromDate} || ' to ' || ${toDate}
         const cleanSerial = rawSerial
           .toLowerCase()
           .replace(/[^a-zA-Z0-9]/g, "");
+
         const deviceId = d.DeviceId || d.DeviceID;
         const deviceName = d.DeviceName || "Unnamed Device";
 
-        // 🛑 STRICT CHECK: Match check against decrypted allowed set
         if (!allowedSerials.has(cleanSerial)) {
           console.warn(
             `🚨 [BLOCKED] Unauthorized/Mismatched Device Blocked: ${rawSerial} (Name: ${deviceName})`,
           );
-
-          // Security Threat Log in PG Table (With 1-Minute Throttling)
           try {
             const validDeviceId =
               deviceId && !isNaN(Number(deviceId)) ? Number(deviceId) : null;
             const cleanRawSerial = rawSerial.slice(0, 255);
 
-            // Pichle 1 minute (60,000 ms) me koi log hai ya nahi check karein
             const existingLog = await db
               .select({ id: unauthorizedDeviceLogs.id })
               .from(unauthorizedDeviceLogs)
@@ -7311,7 +6235,7 @@ ${fromDate} || ' to ' || ${toDate}
                   gt(
                     unauthorizedDeviceLogs.attemptedAt,
                     new Date(Date.now() - 1 * 60 * 1000),
-                  ), // 1 Min Check
+                  ),
                 ),
               )
               .limit(1);
@@ -7331,11 +6255,9 @@ ${fromDate} || ' to ' || ${toDate}
           } catch (e) {
             console.error("❌ Failed to write threat log to DB:", e);
           }
-
-          continue; // Postgres device sync skip karein
+          continue;
         }
 
-        // 🟢 PASS MATCHING -> ONLINE/OFFLINE CALCULATION
         let calculatedStatus = "offline";
         if (d.LastPing) {
           const diffInMin = Math.abs(
@@ -7371,9 +6293,7 @@ ${fromDate} || ' to ' || ${toDate}
         if (deviceId) currentMsIds.push(Number(deviceId));
       }
 
-      // -------------------------------------------------------------
-      // 🔄 STEP 4: POSTGRES DB SYNC & CLEANUP (UPSERT)
-      // -------------------------------------------------------------
+      // Database Sync
       for (const dev of allValidDevices) {
         await db
           .insert(devices)
@@ -7403,10 +6323,17 @@ ${fromDate} || ' to ' || ${toDate}
         await db.delete(devices).where(notInArray(devices.msId, currentMsIds));
       }
 
-      // -------------------------------------------------------------
-      // 📄 STEP 5: SEARCH FILTER & PAGINATION
-      // -------------------------------------------------------------
       let finalData = [...allValidDevices];
+
+      // 👈 2. Status Filter Logic (Online / Offline Filter)
+      if (statusFilter && statusFilter.trim() && statusFilter.toLowerCase() !== "all") {
+        const targetStatus = statusFilter.toLowerCase().trim();
+        finalData = finalData.filter(
+          (d) => d.status?.toLowerCase() === targetStatus
+        );
+      }
+
+      // 👈 3. Search Filter Logic
       if (search && search.trim()) {
         const s = search.toLowerCase();
         finalData = finalData.filter(
@@ -7433,6 +6360,7 @@ ${fromDate} || ' to ' || ${toDate}
 
       const p = page && Number(page) > 0 ? Number(page) : 1;
       const size = Number(pageSize) > 0 ? Number(pageSize) : 1;
+
       const paginatedData = finalData.slice(
         (p - 1) * size,
         (p - 1) * size + size,
@@ -7460,276 +6388,13 @@ ${fromDate} || ' to ' || ${toDate}
       };
     }
   }
-
-  // async executeNewDevicebulkBlock(
-  //   userId: string,
-  //   userName: string,
-  // ): Promise<any> {
-  //   // Safe fallback to prevent undefined inputs
-  //   const safeUserId = userId || "SYSTEM";
-  //   const safeUserName = userName || "System Admin";
-
-  //   // ==========================================
-  //   // STEP 1: COMPUTE LIVE HARDWARE TELEMETRY
-  //   // ==========================================
-  //   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-  //   const allOnlineDevices =
-  //     (await db
-  //       .select()
-  //       .from(devices)
-  //       .where(
-  //         and(eq(devices.isActive, true), gt(devices.lastPing, fiveMinutesAgo)),
-  //       )) ?? [];
-  //   console.log("demo");
-  //   console.log(
-  //     `[INFO] Fetched ${allOnlineDevices.length} online devices from DB.`,
-  //   );
-  //   const onlineDeviceIds = new Set(
-  //     allOnlineDevices
-  //       .filter((d) => d && d.msId !== null && d.msId !== undefined)
-  //       .map((d) => Number(d.msId)),
-  //   );
-
-  //   // const allActiveDevices =
-  //   //   (await db.select().from(devices).where(eq(devices.isActive, true))) ?? [];
-
-  //   // ==========================================
-  //   // STEP 2: EXTRACT GLOBAL DOOR-TO-DEVICE MAPS
-  //   // ==========================================
-  //   const allDoorDevicesRelations =
-  //     (await db
-  //       .select({
-  //         doorId: doorDevices.doorId,
-  //         inDeviceIds: doorDevices.inDeviceIds,
-  //         outDeviceIds: doorDevices.outDeviceIds,
-  //         isActive: doorDevices.isActive,
-  //         doorType: doors.doorType,
-  //         code: doors.code,
-  //       })
-  //       .from(doorDevices)
-  //       .leftJoin(doors, eq(doorDevices.doorId, doors.id))
-  //       .where(eq(doorDevices.isActive, true))) ?? [];
-
-  //   const globalAssignedDeviceIds = new Set<number>();
-  //   const gateDeviceIds = new Set<number>();
-
-  //   for (const dd of allDoorDevicesRelations) {
-  //     if (!dd) continue;
-
-  //     const isMainGate =
-  //       dd.code === MAIN_GATE_SYNC.CODE ||
-  //       dd.doorType === MAIN_GATE_SYNC.DOOR_TYPE;
-
-  //     const inIds = Array.isArray(dd.inDeviceIds) ? dd.inDeviceIds : [];
-  //     for (const id of inIds) {
-  //       if (id !== null && id !== undefined) {
-  //         globalAssignedDeviceIds.add(Number(id));
-  //         if (isMainGate) gateDeviceIds.add(Number(id));
-  //       }
-  //     }
-
-  //     const outIds = Array.isArray(dd.outDeviceIds) ? dd.outDeviceIds : [];
-  //     for (const id of outIds) {
-  //       if (id !== null && id !== undefined) {
-  //         globalAssignedDeviceIds.add(Number(id));
-  //         if (isMainGate) gateDeviceIds.add(Number(id));
-  //       }
-  //     }
-  //   }
-
-  //   // Isolate rogue or extra online endpoints
-  //   const onlineButNotAssignedToAnyDoor = new Set<number>();
-  //   for (const onlineId of onlineDeviceIds) {
-  //     if (!globalAssignedDeviceIds.has(onlineId)) {
-  //       onlineButNotAssignedToAnyDoor.add(onlineId);
-  //     }
-  //   }
-
-  //   // Fetch all active personnel
-  //   const allPeople =
-  //     (await db.select().from(people).where(eq(people.status, "active"))) ?? [];
-
-  //   const taskQueue: Array<{
-  //     employeeCode: string;
-  //     deviceMsId: number;
-  //     serialNumber: string;
-  //   }> = [];
-
-  //   // ==========================================
-  //   // STEP 3: TRANSACTIONAL MATRIX EVALUATION
-  //   // ==========================================
-  //   for (const person of allPeople) {
-  //     if (!person?.employeeCode) continue;
-
-  //     // CASE A: Personnel currently located in outer boundaries (OUT zone)
-  //     if (person.currentZone === "OUT") {
-  //       for (const dev of allOnlineDevices) {
-  //         if (!dev?.msId || !dev?.serialNumber) continue;
-  //         const currentDevId = Number(dev.msId);
-
-  //         if (gateDeviceIds.has(currentDevId)) {
-  //           continue;
-  //         }
-
-  //         const lastLog = await db
-  //           .select()
-  //           .from(blockUnblockLogs)
-  //           .where(
-  //             and(
-  //               eq(blockUnblockLogs.employeeCode, person.employeeCode),
-  //               eq(blockUnblockLogs.deviceId, currentDevId),
-  //             ),
-  //           )
-  //           .orderBy(desc(blockUnblockLogs.createdAt))
-  //           .limit(1);
-
-  //         if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
-  //           continue;
-  //         }
-
-  //         taskQueue.push({
-  //           employeeCode: person.employeeCode,
-  //           deviceMsId: currentDevId,
-  //           serialNumber: dev.serialNumber,
-  //         });
-  //       }
-  //     }
-  //     // CASE B: Personnel located within inner secure parameters (IN/CABIN zone)
-  //     else {
-  //       for (const dev of allOnlineDevices) {
-  //         if (!dev?.msId || !dev?.serialNumber) continue;
-  //         const currentDevId = Number(dev.msId);
-
-  //         if (gateDeviceIds.has(currentDevId)) {
-  //           continue;
-  //         }
-
-  //         if (onlineButNotAssignedToAnyDoor.has(currentDevId)) {
-  //           const lastLog = await db
-  //             .select()
-  //             .from(blockUnblockLogs)
-  //             .where(
-  //               and(
-  //                 eq(blockUnblockLogs.employeeCode, person.employeeCode),
-  //                 eq(blockUnblockLogs.deviceId, currentDevId),
-  //               ),
-  //             )
-  //             .orderBy(desc(blockUnblockLogs.createdAt))
-  //             .limit(1);
-
-  //           if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
-  //             continue;
-  //           }
-
-  //           taskQueue.push({
-  //             employeeCode: person.employeeCode,
-  //             deviceMsId: currentDevId,
-  //             serialNumber: dev.serialNumber,
-  //           });
-  //         }
-  //       }
-  //     }
-  //   }
-
-  //   // ==========================================
-  //   // STEP 4: AUDIT LOGGING & SECURITY ALERTS
-  //   // ==========================================
-  //   if (taskQueue.length === 0) {
-  //     return {
-  //       status: "Empty",
-  //       processedCount: 0,
-  //       message: "No records found matching the security block conditions.",
-  //     };
-  //   }
-
-  //   // FIX: Destructuring array safely to prevent "Cannot convert undefined or null to object"
-  //   const alertResult = await db
-  //     .insert(alerts)
-  //     .values({
-  //       alertType: "security",
-  //       severity: "critical",
-  //       title: "🚨 EMERGENCY BULK BLOCK",
-  //       message: `Conditional system-wide block triggered by ${safeUserName} for ${taskQueue.length} records. Main Gate peripherals left untouched.`,
-  //       createdBy: safeUserId,
-  //       resolvedBy: safeUserName,
-  //       isRead: false,
-  //       isResolved: true,
-  //       resolvedAt: new Date(),
-  //       createdAt: new Date(),
-  //     })
-  //     .returning();
-
-  //   const alertEntry =
-  //     Array.isArray(alertResult) && alertResult.length > 0
-  //       ? alertResult[0]
-  //       : null;
-
-  //   // ==========================================
-  //   // STEP 5: BATCHED DISPATCH & HARDWARE SYNC
-  //   // ==========================================
-  //   const BATCH_SIZE = 50;
-  //   let processedCount = 0;
-
-  //   for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
-  //     const batch = taskQueue.slice(i, i + BATCH_SIZE);
-
-  //     await Promise.all(
-  //       batch.map(async (task) => {
-  //         try {
-  //           if (!task?.employeeCode || !task?.deviceMsId) return;
-
-  //           await db.insert(blockUnblockLogs).values({
-  //             employeeCode: task.employeeCode,
-  //             deviceId: task.deviceMsId,
-  //             type: "block",
-  //             createdAt: new Date(),
-  //             updatedAt: new Date(),
-  //           });
-
-  //           if (esslService?.syncUserBlockStatus) {
-  //             esslService
-  //               .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
-  //               .catch((err) =>
-  //                 console.error(
-  //                   `API Sync Fail for ${task.employeeCode} on device ${task.deviceMsId}:`,
-  //                   err,
-  //                 ),
-  //               );
-  //           }
-
-  //           processedCount++;
-  //         } catch (err) {
-  //           console.error(`PG Log Error for ${task.employeeCode}:`, err);
-  //         }
-  //       }),
-  //     );
-
-  //     await new Promise((res) => setTimeout(res, 100));
-  //   }
-
-  //   return {
-  //     status: "Success",
-  //     processedCount: processedCount,
-  //     alertId: alertEntry ? alertEntry.id : null,
-  //   };
-  // }
-  // Inside DatabaseStorage class in storage.ts
-
   async executeNewDevicebulkBlock(
     userId: string,
     userName: string,
   ): Promise<any> {
-    // Safe fallbacks to prevent undefined inputs
     const safeUserId = userId || "SYSTEM";
     const safeUserName = userName || "System Admin";
-
-    // ==========================================
-    // STEP 1: COMPUTE LIVE HARDWARE TELEMETRY & DOOR UTILS
-    // ==========================================
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-    // DB se online devices fetch
     const rawOnlineDevices =
       (await db
         .select()
@@ -7737,86 +6402,56 @@ ${fromDate} || ' to ' || ${toDate}
         .where(
           and(eq(devices.isActive, true), gt(devices.lastPing, fiveMinutesAgo)),
         )) ?? [];
-
-    // 1. Fetch Active Doors and their Associated Active Devices
     const { activeDevices } = await getActiveDoorsWithDevices();
-
-    // Active Device IDs ka Set (Isse Inactive Doors ke devices filter out ho jayenge)
     const activeDeviceMsIds = new Set<number>(
       activeDevices
         .filter((d) => d && d.msId !== null && d.msId !== undefined)
         .map((d) => Number(d.msId)),
     );
-
-    // 🔴 FIX: Sirf wahi online devices consider honge jo ACTIVE DOORS se linked hain
     const allOnlineDevices = rawOnlineDevices.filter(
       (d) => d?.msId && activeDeviceMsIds.has(Number(d.msId)),
     );
-
     console.log(
       `[INFO] Fetched ${allOnlineDevices.length} online devices linked to ACTIVE doors.`,
     );
-
     const onlineDeviceIds = new Set(
       allOnlineDevices.map((d) => Number(d.msId)),
     );
-
-    // ==========================================
-    // STEP 2: EXTRACT GLOBAL DOOR-TO-DEVICE MAPS VIA DOOR UTILS
-    // ==========================================
-    // Get active devices specifically for Main Gate
     const mainGateDevices = await getActiveDevicesByDoorCode(
       MAIN_GATE_SYNC.CODE,
     );
-
-    // Set of Main Gate Device IDs
     const gateDeviceIds = new Set<number>(
       mainGateDevices
         .filter((d) => d && d.msId !== null && d.msId !== undefined)
         .map((d) => Number(d.msId)),
     );
-
-    // Set of Global Active Assigned Device IDs
     const globalAssignedDeviceIds = new Set<number>(
       activeDevices
         .filter((d) => d && d.msId !== null && d.msId !== undefined)
         .map((d) => Number(d.msId)),
     );
-
-    // Isolate rogue or extra online endpoints
     const onlineButNotAssignedToAnyDoor = new Set<number>();
     for (const onlineId of onlineDeviceIds) {
       if (!globalAssignedDeviceIds.has(onlineId)) {
         onlineButNotAssignedToAnyDoor.add(onlineId);
       }
     }
-
-    // Fetch all active personnel
     const allPeople =
       (await db.select().from(people).where(eq(people.status, "active"))) ?? [];
-
     const taskQueue: Array<{
       employeeCode: string;
       deviceMsId: number;
       serialNumber: string;
     }> = [];
-
-    // ==========================================
-    // STEP 3: TRANSACTIONAL MATRIX EVALUATION
-    // ==========================================
     for (const person of allPeople) {
       if (!person?.employeeCode) continue;
-
-      // CASE A: Personnel currently located in outer boundaries (OUT zone)
       if (person.currentZone === "OUT") {
         for (const dev of allOnlineDevices) {
           if (!dev?.msId || !dev?.serialNumber) continue;
           const currentDevId = Number(dev.msId);
-
           if (gateDeviceIds.has(currentDevId)) {
             continue;
           }
-
           const lastLog = await db
             .select()
             .from(blockUnblockLogs)
@@ -7828,11 +6463,9 @@ ${fromDate} || ' to ' || ${toDate}
             )
             .orderBy(desc(blockUnblockLogs.createdAt))
             .limit(1);
-
           if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
             continue;
           }
-
           taskQueue.push({
             employeeCode: person.employeeCode,
             deviceMsId: currentDevId,
@@ -7840,16 +6473,13 @@ ${fromDate} || ' to ' || ${toDate}
           });
         }
       }
-      // CASE B: Personnel located within inner secure parameters (IN/CABIN zone)
       else {
         for (const dev of allOnlineDevices) {
           if (!dev?.msId || !dev?.serialNumber) continue;
           const currentDevId = Number(dev.msId);
-
           if (gateDeviceIds.has(currentDevId)) {
             continue;
           }
-
           if (onlineButNotAssignedToAnyDoor.has(currentDevId)) {
             const lastLog = await db
               .select()
@@ -7862,11 +6492,9 @@ ${fromDate} || ' to ' || ${toDate}
               )
               .orderBy(desc(blockUnblockLogs.createdAt))
               .limit(1);
-
             if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
               continue;
             }
-
             taskQueue.push({
               employeeCode: person.employeeCode,
               deviceMsId: currentDevId,
@@ -7876,10 +6504,6 @@ ${fromDate} || ' to ' || ${toDate}
         }
       }
     }
-
-    // ==========================================
-    // STEP 4: AUDIT LOGGING & SECURITY ALERTS
-    // ==========================================
     if (taskQueue.length === 0) {
       return {
         status: "Empty",
@@ -7887,7 +6511,6 @@ ${fromDate} || ' to ' || ${toDate}
         message: "No records found matching the security block conditions.",
       };
     }
-
     const alertResult = await db
       .insert(alerts)
       .values({
@@ -7903,26 +6526,18 @@ ${fromDate} || ' to ' || ${toDate}
         createdAt: new Date(),
       })
       .returning();
-
     const alertEntry =
       Array.isArray(alertResult) && alertResult.length > 0
         ? alertResult[0]
         : null;
-
-    // ==========================================
-    // STEP 5: BATCHED DISPATCH & HARDWARE SYNC
-    // ==========================================
     const BATCH_SIZE = 50;
     let processedCount = 0;
-
     for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
       const batch = taskQueue.slice(i, i + BATCH_SIZE);
-
       await Promise.all(
         batch.map(async (task) => {
           try {
             if (!task?.employeeCode || !task?.deviceMsId) return;
-
             await db.insert(blockUnblockLogs).values({
               employeeCode: task.employeeCode,
               deviceId: task.deviceMsId,
@@ -7930,7 +6545,6 @@ ${fromDate} || ' to ' || ${toDate}
               createdAt: new Date(),
               updatedAt: new Date(),
             });
-
             if (esslService?.syncUserBlockStatus) {
               esslService
                 .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
@@ -7941,278 +6555,19 @@ ${fromDate} || ' to ' || ${toDate}
                   ),
                 );
             }
-
             processedCount++;
           } catch (err) {
             console.error(`PG Log Error for ${task.employeeCode}:`, err);
           }
         }),
       );
-
       await new Promise((res) => setTimeout(res, 100));
     }
-
     return {
       status: "Success",
       processedCount: processedCount,
       alertId: alertEntry ? alertEntry.id : null,
     };
   }
-  // async executeNewDevicebulkBlock(
-  //   userId: string,
-  //   userName: string,
-  // ): Promise<any> {
-  //   // Safe fallback to prevent undefined inputs
-  //   const safeUserId = userId || "SYSTEM";
-  //   const safeUserName = userName || "System Admin";
-
-  //   // ==========================================
-  //   // STEP 1: COMPUTE LIVE HARDWARE TELEMETRY
-  //   // ==========================================
-  //   const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-
-  //   const allOnlineDevices =
-  //     (await db
-  //       .select()
-  //       .from(devices)
-  //       .where(
-  //         and(eq(devices.isActive, true), gt(devices.lastPing, fiveMinutesAgo)),
-  //       )) ?? [];
-  //   console.log("demo");
-  //   console.log(
-  //     `[INFO] Fetched ${allOnlineDevices.length} online devices from DB.`,
-  //   );
-  //   const onlineDeviceIds = new Set(
-  //     allOnlineDevices
-  //       .filter((d) => d && d.msId !== null && d.msId !== undefined)
-  //       .map((d) => Number(d.msId)),
-  //   );
-
-  //   // ==========================================
-  //   // STEP 2: EXTRACT GLOBAL DOOR-TO-DEVICE MAPS
-  //   // ==========================================
-  //   // Added doors.isActive === true filter
-  //   const allDoorDevicesRelations =
-  //     (await db
-  //       .select({
-  //         doorId: doorDevices.doorId,
-  //         inDeviceIds: doorDevices.inDeviceIds,
-  //         outDeviceIds: doorDevices.outDeviceIds,
-  //         isActive: doorDevices.isActive,
-  //         doorType: doors.doorType,
-  //         code: doors.code,
-  //       })
-  //       .from(doorDevices)
-  //       .leftJoin(doors, eq(doorDevices.doorId, doors.id))
-  //       .where(
-  //         and(
-  //           eq(doorDevices.isActive, true),
-  //           eq(doors.isActive, true) // Only active doors
-  //         )
-  //       )) ?? [];
-
-  //   const globalAssignedDeviceIds = new Set<number>();
-  //   const gateDeviceIds = new Set<number>();
-
-  //   for (const dd of allDoorDevicesRelations) {
-  //     if (!dd) continue;
-
-  //     const isMainGate =
-  //       dd.code === MAIN_GATE_SYNC.CODE ||
-  //       dd.doorType === MAIN_GATE_SYNC.DOOR_TYPE;
-
-  //     const inIds = Array.isArray(dd.inDeviceIds) ? dd.inDeviceIds : [];
-  //     for (const id of inIds) {
-  //       if (id !== null && id !== undefined) {
-  //         globalAssignedDeviceIds.add(Number(id));
-  //         if (isMainGate) gateDeviceIds.add(Number(id));
-  //       }
-  //     }
-
-  //     const outIds = Array.isArray(dd.outDeviceIds) ? dd.outDeviceIds : [];
-  //     for (const id of outIds) {
-  //       if (id !== null && id !== undefined) {
-  //         globalAssignedDeviceIds.add(Number(id));
-  //         if (isMainGate) gateDeviceIds.add(Number(id));
-  //       }
-  //     }
-  //   }
-
-  //   // Isolate rogue or extra online endpoints
-  //   const onlineButNotAssignedToAnyDoor = new Set<number>();
-  //   for (const onlineId of onlineDeviceIds) {
-  //     if (!globalAssignedDeviceIds.has(onlineId)) {
-  //       onlineButNotAssignedToAnyDoor.add(onlineId);
-  //     }
-  //   }
-
-  //   // Fetch all active personnel
-  //   const allPeople =
-  //     (await db.select().from(people).where(eq(people.status, "active"))) ?? [];
-
-  //   const taskQueue: Array<{
-  //     employeeCode: string;
-  //     deviceMsId: number;
-  //     serialNumber: string;
-  //   }> = [];
-
-  //   // ==========================================
-  //   // STEP 3: TRANSACTIONAL MATRIX EVALUATION
-  //   // ==========================================
-  //   for (const person of allPeople) {
-  //     if (!person?.employeeCode) continue;
-
-  //     // CASE A: Personnel currently located in outer boundaries (OUT zone)
-  //     if (person.currentZone === "OUT") {
-  //       for (const dev of allOnlineDevices) {
-  //         if (!dev?.msId || !dev?.serialNumber) continue;
-  //         const currentDevId = Number(dev.msId);
-
-  //         if (gateDeviceIds.has(currentDevId)) {
-  //           continue;
-  //         }
-
-  //         const lastLog = await db
-  //           .select()
-  //           .from(blockUnblockLogs)
-  //           .where(
-  //             and(
-  //               eq(blockUnblockLogs.employeeCode, person.employeeCode),
-  //               eq(blockUnblockLogs.deviceId, currentDevId),
-  //             ),
-  //           )
-  //           .orderBy(desc(blockUnblockLogs.createdAt))
-  //           .limit(1);
-
-  //         if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
-  //           continue;
-  //         }
-
-  //         taskQueue.push({
-  //           employeeCode: person.employeeCode,
-  //           deviceMsId: currentDevId,
-  //           serialNumber: dev.serialNumber,
-  //         });
-  //       }
-  //     }
-  //     // CASE B: Personnel located within inner secure parameters (IN/CABIN zone)
-  //     else {
-  //       for (const dev of allOnlineDevices) {
-  //         if (!dev?.msId || !dev?.serialNumber) continue;
-  //         const currentDevId = Number(dev.msId);
-
-  //         if (gateDeviceIds.has(currentDevId)) {
-  //           continue;
-  //         }
-
-  //         if (onlineButNotAssignedToAnyDoor.has(currentDevId)) {
-  //           const lastLog = await db
-  //             .select()
-  //             .from(blockUnblockLogs)
-  //             .where(
-  //               and(
-  //                 eq(blockUnblockLogs.employeeCode, person.employeeCode),
-  //                 eq(blockUnblockLogs.deviceId, currentDevId),
-  //               ),
-  //             )
-  //             .orderBy(desc(blockUnblockLogs.createdAt))
-  //             .limit(1);
-
-  //           if (lastLog && lastLog.length > 0 && lastLog[0]?.type === "block") {
-  //             continue;
-  //           }
-
-  //           taskQueue.push({
-  //             employeeCode: person.employeeCode,
-  //             deviceMsId: currentDevId,
-  //             serialNumber: dev.serialNumber,
-  //           });
-  //         }
-  //       }
-  //     }
-  //   }
-
-  //   // ==========================================
-  //   // STEP 4: AUDIT LOGGING & SECURITY ALERTS
-  //   // ==========================================
-  //   if (taskQueue.length === 0) {
-  //     return {
-  //       status: "Empty",
-  //       processedCount: 0,
-  //       message: "No records found matching the security block conditions.",
-  //     };
-  //   }
-
-  //   // FIX: Destructuring array safely to prevent "Cannot convert undefined or null to object"
-  //   const alertResult = await db
-  //     .insert(alerts)
-  //     .values({
-  //       alertType: "security",
-  //       severity: "critical",
-  //       title: "🚨 EMERGENCY BULK BLOCK",
-  //       message: `Conditional system-wide block triggered by ${safeUserName} for ${taskQueue.length} records. Main Gate peripherals left untouched.`,
-  //       createdBy: safeUserId,
-  //       resolvedBy: safeUserName,
-  //       isRead: false,
-  //       isResolved: true,
-  //       resolvedAt: new Date(),
-  //       createdAt: new Date(),
-  //     })
-  //     .returning();
-
-  //   const alertEntry =
-  //     Array.isArray(alertResult) && alertResult.length > 0
-  //       ? alertResult[0]
-  //       : null;
-
-  //   // ==========================================
-  //   // STEP 5: BATCHED DISPATCH & HARDWARE SYNC
-  //   // ==========================================
-  //   const BATCH_SIZE = 50;
-  //   let processedCount = 0;
-
-  //   for (let i = 0; i < taskQueue.length; i += BATCH_SIZE) {
-  //     const batch = taskQueue.slice(i, i + BATCH_SIZE);
-
-  //     await Promise.all(
-  //       batch.map(async (task) => {
-  //         try {
-  //           if (!task?.employeeCode || !task?.deviceMsId) return;
-
-  //           await db.insert(blockUnblockLogs).values({
-  //             employeeCode: task.employeeCode,
-  //             deviceId: task.deviceMsId,
-  //             type: "block",
-  //             createdAt: new Date(),
-  //             updatedAt: new Date(),
-  //           });
-
-  //           if (esslService?.syncUserBlockStatus) {
-  //             esslService
-  //               .syncUserBlockStatus(task.employeeCode, task.serialNumber, true)
-  //               .catch((err) =>
-  //                 console.error(
-  //                   `API Sync Fail for ${task.employeeCode} on device ${task.deviceMsId}:`,
-  //                   err,
-  //                 ),
-  //               );
-  //           }
-
-  //           processedCount++;
-  //         } catch (err) {
-  //           console.error(`PG Log Error for ${task.employeeCode}:`, err);
-  //         }
-  //       }),
-  //     );
-
-  //     await new Promise((res) => setTimeout(res, 100));
-  //   }
-
-  //   return {
-  //     status: "Success",
-  //     processedCount: processedCount,
-  //     alertId: alertEntry ? alertEntry.id : null,
-  //   };
-  // }
 }
 export const storage = new DatabaseStorage();
