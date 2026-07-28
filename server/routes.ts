@@ -369,7 +369,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       storage.getDevices(
         query.page,
         query.pageSize,
-        query.search   
+        query.search,
+        query.status,
       ),
     (d) => storage.createDevice(d),
     (id, d) => storage.updateDevice(id, d),
