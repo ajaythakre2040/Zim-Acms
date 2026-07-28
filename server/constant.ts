@@ -220,7 +220,7 @@ export const TABLES = {
   DEVICE_VISITOR_CARDS: "visitor_card_logs",
 
 } as const;
-
+export const VISITOR_PREFIX = "zimvis";
 export const RFID_CARDS = [
   { id: 1, name: "RFID Card 1", cardNumber: "5468103", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
   { id: 2, name: "RFID Card 2", cardNumber: "3062587", expiryFrom: "2000-01-01T00:00:00", expiryTo: "3000-01-01T00:00:00", locationId: 1, location: 1 },
@@ -240,4 +240,5 @@ export const UNIT_TYPE = {
   UNIT_4: "UNIT_4",
   UNIT_5: "UNIT_5"
 };
+
 export type TableNames = typeof TABLES[keyof typeof TABLES];

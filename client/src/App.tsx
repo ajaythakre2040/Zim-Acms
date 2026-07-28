@@ -6,7 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
-import { ThemeToggle } from "@/components/theme-toggle";
+// Code yahan rakha hai par comment kar diya hai:
+// import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +23,7 @@ import {
   RefreshCw,
   Lock,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import PeoplePage from "@/pages/people";
@@ -47,18 +48,18 @@ import ReportsPage from "@/pages/reports";
 import CronMasterPage from "@/pages/cronMasterPage";
 import ShiftDashboard from "./pages/ShiftDashboard";
 import LiveLogsDashboard from "./pages/LiveLogsDashboard";
-import DesignationPage from "./pages/designations";
-import DepartmentsPage from "./pages/departments";
-import RolesPage from "./pages/role";
-import MenuPage from "./pages/menu";
-import CompaniesPage from "./pages/company";
-import CategoriesPage from "./pages/category";
-import RoleFormPage from "./pages/role_form";
-import RolePermissionViewPage from "./pages/RolePermissionViewPage";
-import EmployeeView from "./pages/EmployeeView";
-import ContractorView from "./pages/ContractorView";
-import Contractors from "./pages/contractors";
-import AuditTrailPage from "./pages/audit-trail";
+import DesignationPage from "@/pages/designations";
+import DepartmentsPage from "@/pages/departments";
+import RolesPage from "@/pages/role";
+import MenuPage from "@/pages/menu";
+import CompaniesPage from "@/pages/company";
+import CategoriesPage from "@/pages/category";
+import RoleFormPage from "@/pages/role_form";
+import RolePermissionViewPage from "@/pages/RolePermissionViewPage";
+import EmployeeView from "@/pages/EmployeeView";
+import ContractorView from "@/pages/ContractorView";
+import Contractors from "@/pages/contractors";
+import AuditTrailPage from "@/pages/audit-trail";
 import { useToast } from "./hooks/use-toast";
 import { useMutation } from "@tanstack/react-query";
 import {
@@ -78,6 +79,7 @@ import visitors from "./pages/visitor-details";
 import VisitorLogs from "./pages/VisitorLogs";
 import LiveVisitorLogsDashboard from "./pages/VisitorLiveLogs";
 import VisitorCards from "./pages/VisitorCards";
+
 function StandardRouter() {
   return (
     <Switch>
@@ -124,8 +126,6 @@ function StandardRouter() {
       <Route path="/contractors/new" component={ContractorFormPage} />
       <Route path="/contractors/edit/:id" component={ContractorFormPage} />
       <Route path="/visitor-details" component={visitors} />
-      {/* <Route path="/visitors" component={visitors} /> */}
-      {/* <Route path="/visitor-cards" component={VisitorCards} /> */}
       <Route path="/visitor-logs" component={LiveVisitorLogsDashboard} />
       <Route path="/visitor-cards" component={VisitorCards} />
       <Route path="/contractors/view/:id" component={ContractorView} />
@@ -133,6 +133,7 @@ function StandardRouter() {
     </Switch>
   );
 }
+
 function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const { login, loginError, isLoggingIn } = auth;
   const [username, setUsername] = useState("admin");
@@ -151,7 +152,6 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <div className="w-20 h-20 bg-white rounded-2xl shadow-sm flex items-center justify-center p-2">
-              {/* <img src="/zim_logo.png" alt="Zim Logo" className="w-full h-full object-contain" /> */}
               <img
                 src="/zim_logo.png"
                 alt="ZIM Logo"
@@ -244,21 +244,74 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
     </div>
   );
 }
+
 function AuthenticatedApp() {
   const { toast } = useToast();
   const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
   const [isEmergencyBlockOpen, setIsEmergencyBlockOpen] = useState(false);
+  
+  const [unblockCooldown, setUnblockCooldown] = useState<number>(0);
+  const [refreshCooldown, setRefreshCooldown] = useState<number>(0);
+
+  useEffect(() => {
+    const savedUnblock = localStorage.getItem("emergency_unblock_cooldown");
+    if (savedUnblock) {
+      const remaining = Math.floor((parseInt(savedUnblock) - Date.now()) / 1000);
+      if (remaining > 0) setUnblockCooldown(remaining);
+      else localStorage.removeItem("emergency_unblock_cooldown");
+    }
+
+    const savedRefresh = localStorage.getItem("refresh_doors_cooldown");
+    if (savedRefresh) {
+      const remaining = Math.floor((parseInt(savedRefresh) - Date.now()) / 1000);
+      if (remaining > 0) setRefreshCooldown(remaining);
+      else localStorage.removeItem("refresh_doors_cooldown");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (unblockCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setUnblockCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          localStorage.removeItem("emergency_unblock_cooldown");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [unblockCooldown]);
+
+  useEffect(() => {
+    if (refreshCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setRefreshCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          localStorage.removeItem("refresh_doors_cooldown");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [refreshCooldown]);
+
   const { canView: canViewEmergencyUnblock } = usePermission(
     MENU_CONFIG.EMERGENCY_UNBLOCK?.code || "Emergency Unblock All"
   );
   const { canView: canViewBlockNewDevice } = usePermission(
     MENU_CONFIG.NEW_DEVICE_BLOCK?.code || "New Device block All"
   );
+
   const handleLogout = () => {
     fetch("/api/logout", { method: "POST" }).then(() =>
       window.location.reload(),
     );
   };
+
   const bulkEmergencyUnblockMut = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/emergency/bulk-unblock", {
@@ -270,6 +323,10 @@ function AuthenticatedApp() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ["/api/people"] });
       toast({ title: "Success", description: res.message });
+
+      const expiryTime = Date.now() + 5 * 60 * 1000;
+      localStorage.setItem("emergency_unblock_cooldown", expiryTime.toString());
+      setUnblockCooldown(300);
     },
     onError: (err: any) => {
       toast({
@@ -279,6 +336,7 @@ function AuthenticatedApp() {
       });
     },
   });
+
   const bulkEmergencyBlockMut = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/newDevice/bulk-block", { method: "POST" });
@@ -291,6 +349,10 @@ function AuthenticatedApp() {
         title: "Success",
         description: res.message || "All devices blocked successfully.",
       });
+      
+      const expiryTime = Date.now() + 5 * 60 * 1000;
+      localStorage.setItem("refresh_doors_cooldown", expiryTime.toString());
+      setRefreshCooldown(300);
     },
     onError: (err: any) => {
       toast({
@@ -300,6 +362,7 @@ function AuthenticatedApp() {
       });
     },
   });
+
   return (
     <>
       <AlertDialog
@@ -321,6 +384,7 @@ function AuthenticatedApp() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <AlertDialog
         open={isEmergencyBlockOpen}
         onOpenChange={setIsEmergencyBlockOpen}
@@ -346,6 +410,7 @@ function AuthenticatedApp() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
       <SidebarProvider>
         <div className="flex h-screen w-full">
           <AppSidebar />
@@ -353,31 +418,41 @@ function AuthenticatedApp() {
             <header className="flex items-center justify-between px-4 py-2 border-b">
               <SidebarTrigger />
               <div className="flex items-center gap-2">
-                <ThemeToggle />
-                {/* 2. Dono buttons ko canViewEmergency ke conditional block ke andar wrap kar diya hai */}
-                  <>
-                  {canViewEmergencyUnblock && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="bg-green-600 text-white hover:bg-green-700"
-                      onClick={() => setIsEmergencyAlertOpen(true)}
-                    >
-                      <RefreshCw className="w-4 h-4 mr-2" />
-                      Emergency Unblock
-                    </Button>
-               )}
-                  {canViewBlockNewDevice && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="bg-red-600 text-white hover:bg-red-700"
-                      onClick={() => setIsEmergencyBlockOpen(true)}
-                    >
-                      <Lock className="w-4 h-4 mr-2" /> Refresh Doors
-                    </Button>
-                  )}
-                  </>
+                {/* ThemeToggle code rakha hai par comment kar diya hai */}
+                {/* <ThemeToggle /> */}
+
+                {canViewEmergencyUnblock && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="bg-green-600 text-white hover:bg-green-700"
+                    onClick={() => setIsEmergencyAlertOpen(true)}
+                    disabled={unblockCooldown > 0 || bulkEmergencyUnblockMut.isPending}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${unblockCooldown > 0 || bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""}`} />
+                    {unblockCooldown > 0
+                      ? `Emergency Unblock (${Math.floor(unblockCooldown / 60)}:${String(unblockCooldown % 60).padStart(2, '0')})`
+                      : "Emergency Unblock"}
+                  </Button>
+                )}
+                {canViewBlockNewDevice && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    className="bg-red-600 text-white hover:bg-red-700"
+                    onClick={() => setIsEmergencyBlockOpen(true)}
+                    disabled={refreshCooldown > 0 || bulkEmergencyBlockMut.isPending}
+                  >
+                    {refreshCooldown > 0 || bulkEmergencyBlockMut.isPending ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Lock className="w-4 h-4 mr-2" />
+                    )}
+                    {refreshCooldown > 0
+                      ? `Refresh Doors (${Math.floor(refreshCooldown / 60)}:${String(refreshCooldown % 60).padStart(2, '0')})`
+                      : "Refresh Doors"}
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={handleLogout}>
                   Logout
                 </Button>
@@ -392,12 +467,14 @@ function AuthenticatedApp() {
     </>
   );
 }
+
 function AppContent() {
   const auth = useAuth();
   const { user, isLoading } = auth;
   if (isLoading) return null;
   return !user ? <LoginPage auth={auth} /> : <AuthenticatedApp />;
 }
+
 export default function App() {
   return (
     <ThemeProvider>
