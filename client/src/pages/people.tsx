@@ -254,12 +254,18 @@ export default function PeoplePage() {
     }
   }, [deviceStatusOpen]);
   useEffect(() => {
-    if (roledialogOpen && roleassign) {
-      const existingDoors = (roleassign as any)?.doorIds || [];
-      console.log("Existing Doors:", existingDoors);
-      setSelectedDoorIds(existingDoors);
+    if (roledialogOpen && doors?.length > 0) {
+      const mainGate = doors.find((d) => d.code === MAIN_GATE_SYNC.CODE);
+      if (mainGate) {
+        setSelectedDoorIds((prev) => {
+          const safePrev = Array.isArray(prev) ? prev : [];
+          return safePrev.includes(mainGate.id)
+            ? safePrev
+            : [...safePrev, mainGate.id];
+        });
+      }
     }
-  }, [roledialogOpen, roleassign]);
+  }, [roledialogOpen, doors]);
   const emergencyToggleMut = useMutation({
     mutationFn: async (data: any) => {
       const r = await apiRequest("POST", "/api/people/emergency-toggle", data);
@@ -1549,14 +1555,28 @@ export default function PeoplePage() {
               className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
               onClick={async () => {
                 try {
+                  // 1. Main gate find karein
+                  const mainGate = doors?.find(
+                    (d) => d.code === MAIN_GATE_SYNC.CODE,
+                  );
+
+                  // 2. Ensure karein ki Main Gate ki ID final Payload mein ho
+                  const finalDoorIds = Array.from(
+                    new Set([
+                      ...(selectedDoorIds || []),
+                      ...(mainGate ? [mainGate.id] : []),
+                    ]),
+                  );
+
                   const response = await apiRequest(
                     "POST",
                     "/api/employee-door-assignments",
                     {
                       employeeCode: roleassign?.employeeCode,
-                      doorIds: selectedDoorIds,
+                      doorIds: finalDoorIds, // 👈 `selectedDoorIds` ki jagah `finalDoorIds` bhein
                     },
                   );
+
                   if (response) {
                     toast({
                       title: "Success",

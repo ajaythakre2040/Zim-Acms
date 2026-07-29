@@ -152,7 +152,7 @@ export default function VisitorCardsPage() {
   const [doorSearch, setDoorSearch] = useState("");
   // CRUD Hooks for Visitor Cards
   const { isLoading, update, remove, isUpdating } = useCrud<any>(
-    `/api/visitor_cards`,
+    `/api/visitor-master`,
     "Visitor Card",
   ) as any;
 
@@ -175,40 +175,53 @@ export default function VisitorCardsPage() {
   const [visitorCards, setVisitorCards] = useState<any[]>([]);
 
   const fetchVisitorCards = async () => {
-    try {
-      const res = await fetch(
-        `/api/visitor_cards?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
-      );
-      const resData = await res.json();
-      setPagedResponse(resData);
-      if (Array.isArray(resData)) {
-        setVisitorCards(resData);
-      } else if (resData?.data) {
-        setVisitorCards(resData.data);
-      }
-    } catch (error) {
-      console.error("Fetcher execution broke:", error);
+  try {
+    const res = await fetch(
+      `/api/visitor-master?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`, // 👈 Endpoint updated
+    );
+    const resData = await res.json();
+    setPagedResponse(resData);
+    if (Array.isArray(resData)) {
+      setVisitorCards(resData);
+    } else if (resData?.data) {
+      setVisitorCards(resData.data);
     }
-  };
+  } catch (error) {
+    console.error("Fetcher execution broke:", error);
+  }
+};
 
   useEffect(() => {
     fetchVisitorCards();
-    handleSync();
   }, [page, search, pageSize]);
 
   const handleSync = async () => {
     try {
       setIsSyncing(true);
-      const res = await fetch("/api/visitor_cards/sync", {
-        method: "POST",
+
+      const res = await fetch("/api/syncVisitors", {
+        method: "GET",
       });
+
       if (!res.ok) {
         throw new Error("Sync operation failed");
       }
-      await fetchVisitorCards();
-    } catch (error) {
+
+      const data = await res.json();
+
+      // ❌ Yahan se 'await fetchVisitorCards();' hata diya hai
+
+      toast({
+        title: "Sync Successful",
+        description: data.message || "Visitor cards synced successfully.",
+      });
+    } catch (error: any) {
       console.error("Sync error:", error);
-      alert("Failed to sync cards from MSSQL");
+      toast({
+        title: "Sync Error",
+        description: error.message || "Failed to sync visitors",
+        variant: "destructive",
+      });
     } finally {
       setIsSyncing(false);
     }
@@ -330,9 +343,12 @@ export default function VisitorCardsPage() {
     {
       key: "name",
       label: "Card Code",
-      render: (s: any) => <span className="font-medium">{s.name}</span>,
+      render: (s: any) => <span className="font-medium">{s.employeeCode}</span>,
     },
-    { key: "cardNumber", label: "Card Number" },
+    { key: "cardNumber", label: "Card Number",
+      render: (s: any) => <span className="font-medium">{s.rfidCardNo}</span>,
+      
+    },
     {
       key: "expiryFrom",
       label: "Valid From",
