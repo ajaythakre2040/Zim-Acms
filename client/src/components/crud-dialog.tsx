@@ -32,6 +32,7 @@ export interface FieldConfig {
   | "multi-select"
   | "switch"
   | "date"
+  | "datalist"
   | "time";
   required?: boolean;
   options?: { value: string; label: string }[];
@@ -141,8 +142,39 @@ export function CrudDialog({
                 {f.label}
                 {f.required && " *"}
               </Label>
+{f.type === "datalist" ? (
+  <div>
+    <Input
+      id={f.key}
+      type="text"
+      list={`${f.key}-list`}
+      placeholder={f.placeholder || `Search ${f.label}...`}
+      value={form[f.key] || ""}
+      disabled={f.disabled}
+      className={
+        errors?.[f.key]
+          ? "border-destructive focus-visible:ring-destructive bg-rose-50/50"
+          : ""
+      }
+      onChange={(e) => {
+        const val = e.target.value;
+        const nextForm = { ...form, [f.key]: val };
+        setForm(nextForm);
 
-              {f.type === "multi-select" ? (
+        if (f.onChange) {
+          f.onChange(e, nextForm, setForm);
+        }
+      }}
+    />
+    <datalist id={`${f.key}-list`}>
+      {f.options?.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </datalist>
+  </div>
+) : f.type === "multi-select" ? (
                 <div
                   className={`space-y-2 p-1 ${errors?.[f.key] ? "border-red-500 rounded-md" : ""}`}
                 >

@@ -136,7 +136,7 @@ export default function VisitorCardsPage() {
   // Card Editing States
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-
+  const [whomToMeetSearch, setWhomToMeetSearch] = useState("");
   // Assign Visitor Dialog States
   const [visitorDialog, setVisitorDialog] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<any>(null);
@@ -255,70 +255,75 @@ export default function VisitorCardsPage() {
 
   // 2. Visitor Form Fields
   const visitorFields: FieldConfig[] = [
-    { key: "nameOfVisitor", label: "Visitor Name", required: true },
-    {
-      key: "contactNo",
-      label: "Contact Number",
-      required: true,
-      onChange: (e: any) => {
-        const val = e.target.value.trim();
-        if (/^\d{10}$/.test(val) && Number(val.charAt(0)) > 5) {
-          clearFieldError("contactNo");
-        }
-      },
+  { key: "nameOfVisitor", label: "Visitor Name", required: true },
+  {
+    key: "contactNo",
+    label: "Contact Number",
+    required: true,
+    onChange: (e: any) => {
+      const val = e.target?.value?.trim() || "";
+      if (/^\d{10}$/.test(val) && Number(val.charAt(0)) > 5) {
+        clearFieldError("contactNo");
+      }
     },
-    {
-      key: "emailAddress",
-      label: "Email Address",
-      type: "email",
-      onChange: (e: any) => {
-        const val = e.target.value.trim();
-        if (!val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
-          clearFieldError("emailAddress");
-        }
-      },
+  },
+  {
+    key: "emailAddress",
+    label: "Email Address",
+    type: "email",
+    onChange: (e: any) => {
+      const val = e.target?.value?.trim() || "";
+      if (!val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+        clearFieldError("emailAddress");
+      }
     },
-    { key: "visitorsCompanyName", label: "Company Name" },
-    { key: "designation", label: "Designation" },
-    {
-      key: "whomToMeet",
-      label: "Whom To Meet (ZIM Employee) *",
-      type: "select",
-      options: (employees || [])
-        .map((e: any) => {
-          const name = e.employee_name || e.employeeName || "";
-          const code = e.employee_code || e.employeeCode || name;
+  },
+  { key: "visitorsCompanyName", label: "Company Name" },
+  { key: "designation", label: "Designation" },
+  {
+  key: "whomToMeet",
+  label: "Whom To Meet (ZIM Employee) *",
+  type: "datalist" as any,
+  placeholder: "Search Employee...",
+  options: (employees || [])
+    .map((e: any) => {
+      const name = e.employee_name || e.employeeName || "";
+      const code = e.employee_code || e.employeeCode || "";
+      
+      // Formatting: "Vishal (1)" or "Junaid (555)"
+      const displayText = name && code ? `${name} (${code})` : name || code;
 
-          return {
-            label: `${name} (${code})`,
-            value: code,
-          };
-        })
-        .filter((o: any) => o.label.trim() !== ""),
-      onChange: (val: any) => {
-        if (val && val !== "undefined" && val !== "null") {
-          clearFieldError("whomToMeet");
-        }
-      },
+      return {
+        label: displayText,
+        value: displayText, // <--- Value me bhi same display text rakhein
+      };
+    })
+    .filter((o: any) => o.value.trim() !== ""),
+  onChange: (e: any) => {
+    const val = e.target?.value || e;
+    if (val && val !== "undefined" && val !== "null") {
+      clearFieldError("whomToMeet");
+    }
+  },
+},
+  { key: "purpose", label: "Purpose of Visit" },
+  {
+    key: "permissionDateFrom",
+    label: "In Time *",
+    type: "datetime-local" as any,
+    onChange: (e: any) => {
+      const val = e.target?.value?.trim() || "";
+      if (val && val !== "undefined" && val !== "null") {
+        clearFieldError("permissionDateFrom");
+      }
     },
-    { key: "purpose", label: "Purpose of Visit" },
-    {
-      key: "permissionDateFrom",
-      label: "In Time *",
-      type: "datetime-local" as any,
-      onChange: (e: any) => {
-        const val = e.target.value.trim();
-        if (val && val !== "undefined" && val !== "null") {
-          clearFieldError("permissionDateFrom");
-        }
-      },
-    },
-    { key: "state", label: "State" },
-    { key: "district", label: "District" },
-    { key: "address1", label: "Address Line 1" },
-    { key: "pincode", label: "Pincode" },
-    { key: "remark", label: "Remark", type: "textarea" },
-  ];
+  },
+  { key: "state", label: "State" },
+  { key: "district", label: "District" },
+  { key: "address1", label: "Address Line 1" },
+  { key: "pincode", label: "Pincode" },
+  { key: "remark", label: "Remark", type: "textarea" },
+];
 
   // 3. Grid Columns
   const columns = [
