@@ -750,14 +750,14 @@ export class DatabaseStorage implements IStorage {
             })
             .returning();
           currentSites.push(newRec);
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     for (const pgRow of currentSites) {
       if (pgRow.msId && !msIds.has(pgRow.msId)) {
         try {
           await db.delete(sites).where(eq(sites.msId, pgRow.msId));
-        } catch (e) {}
+        } catch (e) { }
       }
     }
     return currentSites;
@@ -831,7 +831,7 @@ export class DatabaseStorage implements IStorage {
           await dbMsSql
             .delete({ dbName: "Locations", pk: "Id" })
             .where({ value: record.msId });
-        } catch (e) {}
+        } catch (e) { }
       }
       await db.delete(sites).where(eq(sites.id, id));
     }
@@ -1010,12 +1010,12 @@ export class DatabaseStorage implements IStorage {
       const searchText = search?.toLowerCase().trim();
       const filteredDoors = searchText
         ? resolvedDoors.filter((door) => {
-            return (
-              door.name?.toLowerCase().includes(searchText) ||
-              door.code?.toLowerCase().includes(searchText) ||
-              door.doorType?.toLowerCase().includes(searchText)
-            );
-          })
+          return (
+            door.name?.toLowerCase().includes(searchText) ||
+            door.code?.toLowerCase().includes(searchText) ||
+            door.doorType?.toLowerCase().includes(searchText)
+          );
+        })
         : resolvedDoors;
       if (!pageSize) {
         return filteredDoors;
@@ -1045,12 +1045,12 @@ export class DatabaseStorage implements IStorage {
       console.error("getDoors Error:", error);
       return pageSize
         ? {
-            data: [],
-            totalCount: 0,
-            totalPages: 0,
-            currentPage: 1,
-            pageSize: 0,
-          }
+          data: [],
+          totalCount: 0,
+          totalPages: 0,
+          currentPage: 1,
+          pageSize: 0,
+        }
         : [];
     }
   }
@@ -1790,15 +1790,15 @@ export class DatabaseStorage implements IStorage {
       const baseQuery = db.select().from(shifts).orderBy(asc(shifts.id));
       const finalQuery = searchText
         ? db
-            .select()
-            .from(shifts)
-            .where(
-              or(
-                ilike(shifts.name, `%${searchText}%`),
-                ilike(shifts.code, `%${searchText}%`),
-              ),
-            )
-            .orderBy(asc(shifts.id))
+          .select()
+          .from(shifts)
+          .where(
+            or(
+              ilike(shifts.name, `%${searchText}%`),
+              ilike(shifts.code, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(shifts.id))
         : baseQuery;
       return await withPagination(db, shifts, finalQuery, page, pageSize);
     } catch (error) {
@@ -2122,95 +2122,34 @@ export class DatabaseStorage implements IStorage {
     return visitor;
   }
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
-    console.log("Creating visitor with data:", data);
-    let insertedMsSqlId: number | null = null;
-    try {
-      if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
-        await mssqlPool.connect();
-      }
-      const request = mssqlPool.request();
-      request.input("Name", mssql.NVarChar, data.nameOfVisitor || null);
-      request.input("ContactNumber", mssql.NVarChar, data.contactNo || null);
-      request.input("Email", mssql.NVarChar, data.emailAddress || null);
-      request.input(
-        "LocationId",
-        mssql.Int,
-        data.locationId ? Number(data.locationId) : null,
-      );
-      request.input("Purpose", mssql.NVarChar, data.purpose || null);
-      request.input("ToMeetId", mssql.NVarChar, data.whomToMeet || null);
-      request.input(
-        "VisitorDeskId",
-        mssql.Int,
-        data.visitorDeskId ? Number(data.visitorDeskId) : null,
-      );
-      request.input(
-        "VisitorCardId",
-        mssql.Int,
-        data.visitorCardId ? Number(data.visitorCardId) : null,
-      );
-      request.input(
-        "Company",
-        mssql.NVarChar,
-        data.visitorsCompanyName || null,
-      );
-      request.input("Designation", mssql.NVarChar, data.designation || null);
-      request.input("Remarks", mssql.NVarChar, data.remark || null);
-      const msSqlResult = await request.query(`
-      INSERT INTO VisitorLogs (
-        Name, ContactNumber, Email, LocationId, Purpose, 
-        ToMeetId, VisitorDeskId, VisitorCardId, Company, 
-        Designation, InDate, Remarks
-      )
-      VALUES (
-        @Name, @ContactNumber, @Email, @LocationId, @Purpose, 
-        @ToMeetId, @VisitorDeskId, @VisitorCardId, @Company, 
-        @Designation, GETDATE(), @Remarks
-      );
-      SELECT SCOPE_IDENTITY() AS id;
-    `);
-      if (msSqlResult.recordset && msSqlResult.recordset.length > 0) {
-        insertedMsSqlId = msSqlResult.recordset[0].id;
-      }
-      if (!insertedMsSqlId) {
-        throw new Error(
-          "MS SQL Inserted but failed to retrieve generated Identity ID.",
-        );
-      }
-    } catch (msSqlErr: any) {
-      throw new Error(
-        `MS SQL creation failed: ${msSqlErr.message || "Unknown error"}`,
-      );
-    }
+    console.log("Creating visitor in Postgres with data:", data);
+
     return await db.transaction(async (tx) => {
       try {
+        // 1. Postgres `visitors` टेबल में नई एंट्री बनाएँ
         const [created] = await tx
           .insert(visitors)
           .values({
             ...data,
-            msId: insertedMsSqlId,
           })
           .returning();
-        if (data.visitorCardId) {
-          const targetCardId = Number(data.visitorCardId);
+
+        // 2. visitorMaster टेबल को अपडेट करें (ताकि वह assigned मार्क हो जाए)
+        if (data.employeeCode) {
           await tx
-            .update(visitorCards)
+            .update(visitorMaster)
             .set({
               isAssigned: true,
+              status: "active",
               updatedAt: new Date(),
             })
-            .where(
-              or(
-                eq(visitorCards.id, targetCardId),
-                eq(visitorCards.msId, targetCardId),
-              ),
-            );
+            .where(eq(visitorMaster.employeeCode, data.employeeCode));
         }
         return created;
       } catch (pgErr: any) {
         tx.rollback();
         throw new Error(
-          `Postgres transaction failed and rolled back. Error: ${pgErr.message}`,
+          `Postgres transaction failed and rolled back. Error: ${pgErr.message}`
         );
       }
     });
@@ -2559,9 +2498,9 @@ export class DatabaseStorage implements IStorage {
         workingHours:
           logs.length > 1
             ? (
-                (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
-                3600000
-              ).toFixed(2)
+              (sorted[sorted.length - 1].getTime() - sorted[0].getTime()) /
+              3600000
+            ).toFixed(2)
             : "0.00",
       };
     });
@@ -2734,7 +2673,7 @@ export class DatabaseStorage implements IStorage {
             clockIn: presentRow.clockIn,
             status:
               String(presentRow.status).toLowerCase() === "p" ||
-              String(presentRow.status).toLowerCase() === "present"
+                String(presentRow.status).toLowerCase() === "present"
                 ? "present"
                 : presentRow.status,
           });
@@ -2756,12 +2695,12 @@ export class DatabaseStorage implements IStorage {
           !filters.employeeCode || filters.employeeCode === "all"
             ? true
             : String(row.employeeCode).trim().toLowerCase() ===
-              String(filters.employeeCode).trim().toLowerCase();
+            String(filters.employeeCode).trim().toLowerCase();
         const matchesStatus =
           !filters.status || filters.status === "all"
             ? true
             : String(row.status).toLowerCase() ===
-              String(filters.status).toLowerCase();
+            String(filters.status).toLowerCase();
         return matchesEmployee && matchesStatus;
       })
       .sort((a, b) => {
@@ -2784,7 +2723,7 @@ export class DatabaseStorage implements IStorage {
   ): Promise<any> {
     const conditions = [
       filters.dateFrom &&
-        sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
+      sql`DATE(${accessLogs.timestamp}) >= ${filters.dateFrom}`,
       filters.dateTo && sql`DATE(${accessLogs.timestamp}) <= ${filters.dateTo}`,
       filters.eventType && eq(accessLogs.eventType, filters.eventType),
       filters.personId && eq(accessLogs.personId, filters.personId),
@@ -3477,7 +3416,7 @@ export class DatabaseStorage implements IStorage {
         } else {
         }
       }
-    } catch (err) {}
+    } catch (err) { }
     return updatedMapping;
   }
   async deleteDoorDevice(id: number): Promise<void> {
@@ -5406,7 +5345,7 @@ ${fromDate} || ' to ' || ${toDate}
             : undefined,
       aadhaarNumber:
         typeof data.aadhaarNumber === "string" &&
-        data.aadhaarNumber.trim() !== ""
+          data.aadhaarNumber.trim() !== ""
           ? data.aadhaarNumber.trim()
           : data.aadhaarNumber === "" || data.aadhaarNumber === null
             ? null
@@ -5744,15 +5683,15 @@ ${fromDate} || ' to ' || ${toDate}
         .orderBy(asc(visitorCards.id));
       const finalQuery = searchText
         ? db
-            .select()
-            .from(visitorCards)
-            .where(
-              or(
-                ilike(visitorCards.name, `%${searchText}%`),
-                ilike(visitorCards.cardNumber, `%${searchText}%`),
-              ),
-            )
-            .orderBy(asc(visitorCards.id))
+          .select()
+          .from(visitorCards)
+          .where(
+            or(
+              ilike(visitorCards.name, `%${searchText}%`),
+              ilike(visitorCards.cardNumber, `%${searchText}%`),
+            ),
+          )
+          .orderBy(asc(visitorCards.id))
         : baseQuery;
       return await withPagination(db, visitorCards, finalQuery, page, pageSize);
     } catch (error) {
@@ -6432,7 +6371,7 @@ ${fromDate} || ' to ' || ${toDate}
       };
     }
   }
-  
+
   async executeNewDevicebulkBlock(
     userId: string,
     userName: string,
