@@ -51,6 +51,7 @@ import type {
   Role,
   Device,
 } from "@shared/schema";
+import { formatDateTime } from "@/lib/utils";
 const formatDateForInput = (dateString: string | null | undefined) => {
   if (!dateString) return "";
   const date = new Date(dateString);
@@ -70,64 +71,65 @@ export default function VisitorCardsPage() {
   const [deviceViewPerson, setDeviceViewPerson] = useState<Person | null>(null);
   const [deviceSearch, setDeviceSearch] = useState("");
   const { data: doors = [], isLoading: isLoadingDoors } = useQuery<any[]>({
-      queryKey: ["/api/doors/active"],
-    });
+    queryKey: ["/api/doors/active"],
+  });
   const allDoors = doors || [];
-    const { data: allDevices = [] } = useQuery<Device[]>({
-      queryKey: ["/api/devices"],
-    });
+  const { data: allDevices = [] } = useQuery<Device[]>({
+    queryKey: ["/api/devices"],
+  });
   const { data: doorDevicesData = [] } = useQuery<any[]>({
-      queryKey: ["/api/door-devices"],
-    });
+    queryKey: ["/api/door-devices"],
+  });
   const [deviceStatusOpen, setDeviceStatusOpen] = useState(false);
 
   const { data: deviceLogs = [], refetch: refetchLogs } = useQuery({
-      queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
-      enabled: !!deviceViewPerson && deviceStatusOpen, // Modal open ho aur person selected ho tabhi query active rahegi
-      queryFn: async () => {
-        const r = await apiRequest(
-          "GET",
-          `/api/people/device-status/${deviceViewPerson?.employeeCode}`,
-        );
-        return r.json();
-      },
-      refetchInterval: deviceStatusOpen ? 3000 : false, // Jab modal open hoga tab har 3 seconds (3000ms) me auto-refresh hoga
-      refetchIntervalInBackground: false, // Background tab active hone par interval off rakhega (performance ke liye)
-    });
+    queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
+    enabled: !!deviceViewPerson && deviceStatusOpen, // Modal open ho aur person selected ho tabhi query active rahegi
+    queryFn: async () => {
+      const r = await apiRequest(
+        "GET",
+        `/api/people/device-status/${deviceViewPerson?.employeeCode}`,
+      );
+      return r.json();
+    },
+    refetchInterval: deviceStatusOpen ? 3000 : false, // Jab modal open hoga tab har 3 seconds (3000ms) me auto-refresh hoga
+    refetchIntervalInBackground: false, // Background tab active hone par interval off rakhega (performance ke liye)
+  });
   const emergencyToggleMut = useMutation({
-      mutationFn: async (data: any) => {
-        const r = await apiRequest("POST", "/api/people/emergency-toggle", data);
-        return r.json();
-      },
-      onSuccess: (response) => {
-        queryClient.setQueryData(
-          ["/api/device-status", deviceViewPerson?.employeeCode],
-          (oldData: any) => {
-            const newLog = response.data?.[0] || response.data;
-            if (!oldData) return [newLog];
-            const filtered = oldData.filter(
-              (l: any) => Number(l.deviceId) !== Number(newLog.deviceId),
-            );
-            return [newLog, ...filtered];
-          },
-        );
-        queryClient.invalidateQueries({
-          queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
-        });
-        refetchLogs();
-        toast({ title: "Updated" });
-      },
-      onError: (e: Error) =>
-        toast({
-          title: "Sync Error",
-          description: e.message,
-          variant: "destructive",
-        }),
-    });
-    
-
-
-
+    mutationFn: async (data: any) => {
+      const r = await apiRequest("POST", "/api/people/emergency-toggle", data);
+      return r.json();
+    },
+    onSuccess: (response) => {
+      queryClient.setQueryData(
+        ["/api/device-status", deviceViewPerson?.employeeCode],
+        (oldData: any) => {
+          const newLog = response.data?.[0] || response.data;
+          if (!oldData) return [newLog];
+          const filtered = oldData.filter(
+            (l: any) => Number(l.deviceId) !== Number(newLog.deviceId),
+          );
+          return [newLog, ...filtered];
+        },
+      );
+      queryClient.invalidateQueries({
+        queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
+      });
+      refetchLogs();
+      toast({ title: "Updated" });
+    },
+    onError: (e: Error) =>
+      toast({
+        title: "Sync Error",
+        description: e.message,
+        variant: "destructive",
+      }),
+  });
+  const statusColors: Record<string, string> = {
+    active: "default",
+    inactive: "secondary",
+    suspended: "destructive",
+  };
   const confirm = useConfirm();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -150,6 +152,7 @@ export default function VisitorCardsPage() {
   const [formKey, setFormKey] = useState(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [doorSearch, setDoorSearch] = useState("");
+  const [isSubmittingVisitor, setIsSubmittingVisitor] = useState(false);
   // CRUD Hooks for Visitor Cards
   const { isLoading, update, remove, isUpdating } = useCrud<any>(
     `/api/visitor-master`,
@@ -175,21 +178,21 @@ export default function VisitorCardsPage() {
   const [visitorCards, setVisitorCards] = useState<any[]>([]);
 
   const fetchVisitorCards = async () => {
-  try {
-    const res = await fetch(
-      `/api/visitor-master?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`, // 👈 Endpoint updated
-    );
-    const resData = await res.json();
-    setPagedResponse(resData);
-    if (Array.isArray(resData)) {
-      setVisitorCards(resData);
-    } else if (resData?.data) {
-      setVisitorCards(resData.data);
+    try {
+      const res = await fetch(
+        `/api/visitor-master?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`, // 👈 Endpoint updated
+      );
+      const resData = await res.json();
+      setPagedResponse(resData);
+      if (Array.isArray(resData)) {
+        setVisitorCards(resData);
+      } else if (resData?.data) {
+        setVisitorCards(resData.data);
+      }
+    } catch (error) {
+      console.error("Fetcher execution broke:", error);
     }
-  } catch (error) {
-    console.error("Fetcher execution broke:", error);
-  }
-};
+  };
 
   useEffect(() => {
     fetchVisitorCards();
@@ -209,7 +212,8 @@ export default function VisitorCardsPage() {
 
       const data = await res.json();
 
-      // ❌ Yahan se 'await fetchVisitorCards();' hata diya hai
+      // Table bina hile silent refresh karegi
+      await fetchVisitorCards();
 
       toast({
         title: "Sync Successful",
@@ -268,75 +272,87 @@ export default function VisitorCardsPage() {
 
   // 2. Visitor Form Fields
   const visitorFields: FieldConfig[] = [
-  { key: "nameOfVisitor", label: "Visitor Name", required: true },
-  {
-    key: "contactNo",
-    label: "Contact Number",
-    required: true,
-    onChange: (e: any) => {
-      const val = e.target?.value?.trim() || "";
-      if (/^\d{10}$/.test(val) && Number(val.charAt(0)) > 5) {
-        clearFieldError("contactNo");
-      }
+    { key: "nameOfVisitor", label: "Visitor Name", required: true },
+    {
+      key: "contactNo",
+      label: "Contact Number",
+      required: true,
+      onChange: (e: any) => {
+        const val = e.target?.value?.trim() || "";
+        if (/^\d{10}$/.test(val) && Number(val.charAt(0)) > 5) {
+          clearFieldError("contactNo");
+        }
+      },
     },
-  },
-  {
-    key: "emailAddress",
-    label: "Email Address",
-    type: "email",
-    onChange: (e: any) => {
-      const val = e.target?.value?.trim() || "";
-      if (!val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
-        clearFieldError("emailAddress");
-      }
+    {
+      key: "emailAddress",
+      label: "Email Address",
+      type: "email",
+      onChange: (e: any) => {
+        const val = e.target?.value?.trim() || "";
+        if (!val || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+          clearFieldError("emailAddress");
+        }
+      },
     },
-  },
-  { key: "visitorsCompanyName", label: "Company Name" },
-  { key: "designation", label: "Designation" },
-  {
-  key: "whomToMeet",
-  label: "Whom To Meet (ZIM Employee) *",
-  type: "datalist" as any,
-  placeholder: "Search Employee...",
-  options: (employees || [])
-    .map((e: any) => {
-      const name = e.employee_name || e.employeeName || "";
-      const code = e.employee_code || e.employeeCode || "";
-      
-      // Formatting: "Vishal (1)" or "Junaid (555)"
-      const displayText = name && code ? `${name} (${code})` : name || code;
+    { key: "visitorsCompanyName", label: "Company Name" },
+    { key: "designation", label: "Designation" },
+    {
+      key: "whomToMeet",
 
-      return {
-        label: displayText,
-        value: displayText, // <--- Value me bhi same display text rakhein
-      };
-    })
-    .filter((o: any) => o.value.trim() !== ""),
-  onChange: (e: any) => {
-    const val = e.target?.value || e;
-    if (val && val !== "undefined" && val !== "null") {
-      clearFieldError("whomToMeet");
-    }
-  },
-},
-  { key: "purpose", label: "Purpose of Visit" },
-  {
-    key: "permissionDateFrom",
-    label: "In Time *",
-    type: "datetime-local" as any,
-    onChange: (e: any) => {
-      const val = e.target?.value?.trim() || "";
-      if (val && val !== "undefined" && val !== "null") {
-        clearFieldError("permissionDateFrom");
-      }
+      label: "Whom To Meet (ZIM Employee) *",
+
+      type: "datalist" as any,
+
+      placeholder: "Search Employee...",
+
+      options: (employees || [])
+
+        .map((e: any) => {
+          const name = e.employee_name || e.employeeName || "";
+
+          const code = e.employee_code || e.employeeCode || "";
+
+          // Formatting: "Vishal (1)" or "Junaid (555)"
+
+          const displayText = name && code ? `${name} (${code})` : name || code;
+
+          return {
+            label: displayText,
+
+            value: displayText, // <--- Value me bhi same display text rakhein
+          };
+        })
+
+        .filter((o: any) => o.value.trim() !== ""),
+
+      onChange: (e: any) => {
+        const val = e.target?.value || e;
+
+        if (val && val !== "undefined" && val !== "null") {
+          clearFieldError("whomToMeet");
+        }
+      },
     },
-  },
-  { key: "state", label: "State" },
-  { key: "district", label: "District" },
-  { key: "address1", label: "Address Line 1" },
-  { key: "pincode", label: "Pincode" },
-  { key: "remark", label: "Remark", type: "textarea" },
-];
+
+    { key: "purpose", label: "Purpose of Visit" },
+    {
+      key: "permissionDateFrom",
+      label: "In Time *",
+      type: "datetime-local" as any,
+      onChange: (e: any) => {
+        const val = e.target?.value?.trim() || "";
+        if (val && val !== "undefined" && val !== "null") {
+          clearFieldError("permissionDateFrom");
+        }
+      },
+    },
+    { key: "state", label: "State" },
+    { key: "district", label: "District" },
+    { key: "address1", label: "Address Line 1" },
+    { key: "pincode", label: "Pincode" },
+    { key: "remark", label: "Remark", type: "textarea" },
+  ];
 
   // 3. Grid Columns
   const columns = [
@@ -345,21 +361,93 @@ export default function VisitorCardsPage() {
       label: "Card Code",
       render: (s: any) => <span className="font-medium">{s.employeeCode}</span>,
     },
-    { key: "cardNumber", label: "Card Number",
+    {
+      key: "cardNumber",
+      label: "Card Number",
       render: (s: any) => <span className="font-medium">{s.rfidCardNo}</span>,
-      
     },
     {
-      key: "expiryFrom",
-      label: "Valid From",
-      render: (s: any) =>
-        s.expiryFrom ? new Date(s.expiryFrom).toLocaleDateString() : "-",
+      key: "is_lockout_enabled",
+      label: "Cabin Lockout",
+      hideOnMobile: true,
+      render: (s: any) => {
+        const isEnabled = s.is_lockout_enabled;
+        return (
+          <Badge
+            variant={isEnabled ? "destructive" : "outline"}
+            className={`text-xs font-bold ${
+              isEnabled
+                ? "bg-red-50 text-red-600 border-red-300"
+                : "bg-green-50 text-green-600 border-green-300"
+            }`}
+          >
+            {isEnabled ? "ACTIVE" : "INACTIVE"}
+          </Badge>
+        );
+      },
     },
     {
-      key: "expiryTo",
-      label: "Valid To",
-      render: (s: any) =>
-        s.expiryTo ? new Date(s.expiryTo).toLocaleDateString() : "-",
+      key: "currentAccessRule",
+      label: "Current Rule",
+      hideOnMobile: true,
+      render: (s: any) => {
+        const ruleId = s.ruleid ?? 0;
+        const ruleNames: Record<number, string> = {
+          0: "No Rule Assigned",
+          1: "Main Gate In",
+          2: "Cabin In",
+          3: "Cabin Out",
+          4: "Lockout Active",
+          5: "Main Gate Out",
+        };
+        return (
+          <span className="text-sm">
+            {ruleNames[ruleId as number] || "Unknown"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "lastDoorAccess",
+      label: "Last Door Access",
+      hideOnMobile: true,
+      render: (s: any) => {
+        if (!s.lastPunchDoorId) {
+          return <span className="text-sm text-muted-foreground">Never</span>;
+        }
+        const formattedTime = new Date(s.updatedAt).toLocaleString("en-IN", {
+          day: "2-digit",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        return (
+          <div className="text-sm">
+            <div className="font-medium">{s.lastPunchDoorName}</div>
+          </div>
+        );
+      },
+    },
+    {
+      key: "lastSeenTime",
+      label: "Last Seen",
+      hideOnMobile: true,
+      render: (s: any) => (
+        <div className="text-sm">
+          <span className="font-medium text-foreground">
+            {formatDateTime(s?.lastSeenTime)}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (s: Person) => (
+        <Badge variant={statusColors[s.status || "active"] as any}>
+          {s.status}
+        </Badge>
+      ),
     },
     {
       key: "actions",
@@ -485,14 +573,20 @@ export default function VisitorCardsPage() {
                           setPagedResponse((prev: any) => {
                             if (!prev) return prev;
                             if (Array.isArray(prev)) {
-                              return prev.filter((item: any) => item.id !== s.id);
+                              return prev.filter(
+                                (item: any) => item.id !== s.id,
+                              );
                             }
                             return {
                               ...prev,
                               data: prev.data
-                                ? prev.data.filter((item: any) => item.id !== s.id)
+                                ? prev.data.filter(
+                                    (item: any) => item.id !== s.id,
+                                  )
                                 : [],
-                              totalCount: prev.totalCount ? prev.totalCount - 1 : 0,
+                              totalCount: prev.totalCount
+                                ? prev.totalCount - 1
+                                : 0,
                             };
                           });
                           await fetchVisitorCards();
@@ -565,7 +659,7 @@ export default function VisitorCardsPage() {
       <DataTable
         columns={columns}
         data={cardsData}
-        isLoading={isLoading || isSyncing}
+        isLoading={isLoading}
         searchable={false}
         pageSize={pageSize}
         emptyMessage="No visitor cards found."
@@ -726,138 +820,162 @@ export default function VisitorCardsPage() {
 
       {/* Assign Visitor / Register Visitor Dialog */}
       <CrudDialog
-        open={visitorDialog}
-        errors={errors}
-        onClose={() => {
-          setVisitorDialog(false);
-          setEditingVisitor(null);
-          setSelectedCardForAssign(null);
-          setErrors({});
-        }}
-        title={
-          editingVisitor
-            ? "Modify Visitor Profile"
-            : selectedCardForAssign
-            ? `Assign Visitor to Card (${selectedCardForAssign.name || selectedCardForAssign.cardNumber})`
-            : "Register New Visitor"
-        }
-        fields={visitorFields}
-        initialData={
-          editingVisitor
-            ? {
-                ...editingVisitor,
-                rfidCardNo:
-                  editingVisitor.rfidCardNo ||
-                  visitorCards.find(
-                    (c: any) =>
-                      Number(c.id) === Number(editingVisitor.visitorCardId),
-                  )?.cardNumber,
-              }
-            : selectedCardForAssign
-            ? {
-                rfidCardNo: selectedCardForAssign.cardNumber || selectedCardForAssign.id,
-                visitorCardId: selectedCardForAssign.id,
-              }
-            : undefined
-        }
-        onSubmit={async (data) => {
-          setErrors({});
+  open={visitorDialog}
+  errors={errors}
+  onClose={() => {
+    setVisitorDialog(false);
+    setEditingVisitor(null);
+    setSelectedCardForAssign(null);
+    setErrors({});
+  }}
+  title={
+    editingVisitor
+      ? "Modify Visitor Profile"
+      : selectedCardForAssign
+        ? `Assign Visitor to Card (${selectedCardForAssign.name || selectedCardForAssign.cardNumber})`
+        : "Register New Visitor"
+  }
+  fields={visitorFields}
+  initialData={
+    editingVisitor
+      ? { ...editingVisitor }
+      : selectedCardForAssign
+        ? { visitorCardId: selectedCardForAssign.id }
+        : undefined
+  }
+  onSubmit={async (data) => {
+    setErrors({});
 
-          const validationErrors = validateNoHtml(data) || {};
+    const validationErrors = validateNoHtml(data) || {};
 
-          const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
-          const cleanedContact = String(data.contactNo || "").trim();
-          const cleanedEmail = String(data.emailAddress || "").trim();
+    const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
+    const cleanedContact = String(data.contactNo || "").trim();
+    const cleanedEmail = String(data.emailAddress || "").trim();
 
-          const selectedRfid = String(data.rfidCardNo || "").trim();
-          const selectedWhomToMeet = String(data.whomToMeet || "").trim();
-          const selectedInTime = String(data.permissionDateFrom || "").trim();
+    const selectedWhomToMeet = String(data.whomToMeet || "").trim();
+    const selectedInTime = String(data.permissionDateFrom || "").trim();
 
-          if (!cleanedVisitorName) {
-            validationErrors.nameOfVisitor = "Visitor name is required.";
-          }
+    // 1. Visitor Name Check
+    if (!cleanedVisitorName) {
+      validationErrors.nameOfVisitor = "Visitor name is required.";
+    }
 
-          if (
-            !selectedRfid ||
-            selectedRfid === "undefined" ||
-            selectedRfid === "null"
-          ) {
-            validationErrors.rfidCardNo = "Please select an RFID Card.";
-          }
+    // 2. Whom To Meet Validation
+    if (
+      !selectedWhomToMeet ||
+      selectedWhomToMeet === "undefined" ||
+      selectedWhomToMeet === "null"
+    ) {
+      validationErrors.whomToMeet = "Please select the employee to meet.";
+    }
 
-          if (
-            !selectedWhomToMeet ||
-            selectedWhomToMeet === "undefined" ||
-            selectedWhomToMeet === "null"
-          ) {
-            validationErrors.whomToMeet = "Please select the employee to meet.";
-          }
+    // 3. In Time Validation
+    if (
+      !selectedInTime ||
+      selectedInTime === "undefined" ||
+      selectedInTime === "null"
+    ) {
+      validationErrors.permissionDateFrom = "Please select the In Time.";
+    }
 
-          if (
-            !selectedInTime ||
-            selectedInTime === "undefined" ||
-            selectedInTime === "null"
-          ) {
-            validationErrors.permissionDateFrom = "Please select the In Time.";
-          }
+    // 4. Contact Number Format Checks
+    if (!cleanedContact) {
+      validationErrors.contactNo = "Contact number is required.";
+    } else if (!/^\d{10}$/.test(cleanedContact)) {
+      validationErrors.contactNo =
+        "Contact number must be exactly 10 digits.";
+    } else {
+      const firstDigit = Number(cleanedContact.charAt(0));
+      if (firstDigit <= 5) {
+        validationErrors.contactNo =
+          "Contact number must start with 6, 7, 8, or 9.";
+      }
+    }
 
-          if (!cleanedContact) {
-            validationErrors.contactNo = "Contact number is required.";
-          } else if (!/^\d{10}$/.test(cleanedContact)) {
-            validationErrors.contactNo =
-              "Contact number must be exactly 10 digits.";
-          } else {
-            const firstDigit = Number(cleanedContact.charAt(0));
-            if (firstDigit <= 5) {
-              validationErrors.contactNo =
-                "Contact number must start with 6, 7, 8, or 9.";
-            }
-          }
+    // 5. Email Validation
+    if (
+      cleanedEmail &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
+    ) {
+      validationErrors.emailAddress =
+        "Please enter a valid email address.";
+    }
 
-          if (
-            cleanedEmail &&
-            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
-          ) {
-            validationErrors.emailAddress =
-              "Please enter a valid email address.";
-          }
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
+      return;
+    }
 
-          if (Object.keys(validationErrors).length > 0) {
-            setErrors(validationErrors);
-            return;
-          }
+    // 🚀 Extract Employee Code from "Name (Code)" string
+    const rawWhomToMeet = String(data.whomToMeet || "").trim();
+    const extractedCode =
+      rawWhomToMeet.includes("(") && rawWhomToMeet.includes(")")
+        ? rawWhomToMeet.match(/\(([^)]+)\)/)?.[1]?.trim() || rawWhomToMeet
+        : rawWhomToMeet;
 
-          const payload = {
-            ...data,
-            visitorCardId: selectedCardForAssign?.id || data.visitorCardId,
-          };
+    // 🚀 Card Info Extraction
+    const targetCard = selectedCardForAssign || editingVisitor;
+    const cardId = Number(selectedCardForAssign?.id || data.visitorCardId);
+    const cardCode =
+      targetCard?.employeeCode || targetCard?.employee_code || "";
 
-          try {
-            if (editingVisitor) {
-              if (updateVisitor?.mutateAsync) {
-                await updateVisitor.mutateAsync({ id: editingVisitor.id, data: payload });
-              } else if (updateVisitor?.mutate) {
-                updateVisitor.mutate({ id: editingVisitor.id, data: payload });
-              }
-            } else {
-              if (createVisitor?.mutateAsync) {
-                await createVisitor.mutateAsync(payload);
-              } else if (createVisitor?.mutate) {
-                createVisitor.mutate(payload);
-              }
-            }
+    // 🚀 Payload setup (Dono pass kar rahe hain - ID as Number & Code as String)
+    const { rfidCardNo, ...cleanData } = data;
+    const payload = {
+      ...cleanData,
+      whomToMeet: extractedCode,
+      visitorCardId: cardId,      // 👈 Integer ID (Zod schema expect: number)
+      employeeCode: cardCode,    // 👈 String Code (e.g. "zimvis001")
+    };
 
-            setVisitorDialog(false);
-            setEditingVisitor(null);
-            setSelectedCardForAssign(null);
-            await fetchVisitorCards();
-          } catch (err: any) {
-            console.error("Visitor operation failed:", err);
-            setErrors({ general: err?.message || "Failed to submit visitor details" });
-          }
-        }}
-        isPending={createVisitor?.isPending || updateVisitor?.isPending}
-      />
+    try {
+      setIsSubmittingVisitor(true);
+
+      const targetEndpoint = `/api/visitors?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`;
+
+      const res = await fetch(targetEndpoint, {
+        method: editingVisitor ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || "Failed to submit visitor details",
+        );
+      }
+
+      toast({
+        title: "Success",
+        description: editingVisitor
+          ? "Visitor details updated successfully."
+          : "Visitor assigned successfully.",
+      });
+
+      setVisitorDialog(false);
+      setEditingVisitor(null);
+      setSelectedCardForAssign(null);
+
+      await fetchVisitorCards();
+    } catch (err: any) {
+      console.error("Visitor operation failed:", err);
+      setErrors({
+        general: err?.message || "Failed to submit visitor details",
+      });
+      toast({
+        title: "Error",
+        description: err?.message || "Failed to submit visitor details",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingVisitor(false);
+    }
+  }}
+  isPending={isSubmittingVisitor}
+/>
 
       {/* Door Access / Device Status Modal */}
       <Dialog open={deviceStatusOpen} onOpenChange={setDeviceStatusOpen}>
@@ -1204,179 +1322,179 @@ export default function VisitorCardsPage() {
       </Dialog>
 
       <Dialog open={roledialogOpen} onOpenChange={setRoleDialogOpen}>
-              <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
-                {/* HEADER */}
-                <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <UserPlus className="w-6 h-6" />
-                    <div>
-                      <h2 className="text-xl font-bold leading-none">Assign Door</h2>
-                      <p className="text-blue-100 text-xs mt-1">
-                        Assign doors to employee
-                      </p>
-                    </div>
-                  </div>
-                </div>
-      
-                {/* BODY */}
-                <div className="p-6 space-y-4">
-                  {/* SEARCH */}
-                  <div className="relative">
-                    <input
-                      placeholder="Search door..."
-                      value={doorSearch}
-                      onChange={(e) => setDoorSearch(e.target.value)}
-                      className="w-full px-4 py-3 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
-                  </div>
-      
-                  <div className="flex justify-between items-center px-1 mb-2">
-                    <span className="text-xs font-bold text-slate-400 uppercase">
-                      {selectedDoorIds.length} Selected
-                    </span>
-                    <div className="flex gap-3">
-                      <button
-                        className="text-[11px] font-bold text-blue-600 hover:underline"
-                        onClick={() => setSelectedDoorIds(doors.map((d) => d.id))}
-                      >
-                        Select All
-                      </button>
-      
-                      {/* 🧹 Clear button: Reclaims Main Gate ID if present */}
-                      <button
-                        className="text-[11px] font-bold text-slate-400 hover:text-slate-600"
+        <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+          {/* HEADER */}
+          <div className="bg-blue-600 p-6 text-white flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <UserPlus className="w-6 h-6" />
+              <div>
+                <h2 className="text-xl font-bold leading-none">Assign Door</h2>
+                <p className="text-blue-100 text-xs mt-1">
+                  Assign doors to employee
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* BODY */}
+          <div className="p-6 space-y-4">
+            {/* SEARCH */}
+            <div className="relative">
+              <input
+                placeholder="Search door..."
+                value={doorSearch}
+                onChange={(e) => setDoorSearch(e.target.value)}
+                className="w-full px-4 py-3 text-sm border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
+            <div className="flex justify-between items-center px-1 mb-2">
+              <span className="text-xs font-bold text-slate-400 uppercase">
+                {selectedDoorIds.length} Selected
+              </span>
+              <div className="flex gap-3">
+                <button
+                  className="text-[11px] font-bold text-blue-600 hover:underline"
+                  onClick={() => setSelectedDoorIds(doors.map((d) => d.id))}
+                >
+                  Select All
+                </button>
+
+                {/* 🧹 Clear button: Reclaims Main Gate ID if present */}
+                <button
+                  className="text-[11px] font-bold text-slate-400 hover:text-slate-600"
+                  onClick={() => {
+                    const mainGate = doors.find(
+                      (d) => d.code === MAIN_GATE_SYNC.CODE,
+                    );
+                    setSelectedDoorIds(mainGate ? [mainGate.id] : []);
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
+            </div>
+
+            {/* ROLE / DOOR LIST */}
+            <div className="h-[300px] overflow-y-auto rounded-xl border bg-slate-50 p-2">
+              {isLoadingDoors ? (
+                <p className="text-center text-sm text-muted-foreground py-8">
+                  Loading doors...
+                </p>
+              ) : (
+                doors
+                  ?.filter((d) =>
+                    d.name.toLowerCase().includes(doorSearch.toLowerCase()),
+                  )
+                  .map((door) => {
+                    // 🔒 Check if current door is Main Gate
+                    const isMainGate = door.code === MAIN_GATE_SYNC.CODE;
+                    const isSelected = selectedDoorIds.includes(door.id);
+
+                    return (
+                      <div
+                        key={door.id}
+                        className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all border ${
+                          isMainGate
+                            ? "bg-slate-100/80 border-slate-200 cursor-not-allowed opacity-90"
+                            : isSelected
+                              ? "bg-white border-blue-200 shadow-sm cursor-pointer"
+                              : "border-transparent hover:bg-white hover:border-slate-200 cursor-pointer"
+                        }`}
                         onClick={() => {
-                          const mainGate = doors.find(
-                            (d) => d.code === MAIN_GATE_SYNC.CODE,
-                          );
-                          setSelectedDoorIds(mainGate ? [mainGate.id] : []);
+                          // ⛔ Main gate selection cannot be toggled
+                          if (isMainGate) return;
+
+                          setSelectedDoorIds((prev) => {
+                            const safePrev = Array.isArray(prev) ? prev : [];
+                            return safePrev.includes(door.id)
+                              ? safePrev.filter((id) => id !== door.id)
+                              : [...safePrev, door.id];
+                          });
                         }}
                       >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-      
-                  {/* ROLE / DOOR LIST */}
-                  <div className="h-[300px] overflow-y-auto rounded-xl border bg-slate-50 p-2">
-                    {isLoadingDoors ? (
-                      <p className="text-center text-sm text-muted-foreground py-8">
-                        Loading doors...
-                      </p>
-                    ) : (
-                      doors
-                        ?.filter((d) =>
-                          d.name.toLowerCase().includes(doorSearch.toLowerCase()),
-                        )
-                        .map((door) => {
-                          // 🔒 Check if current door is Main Gate
-                          const isMainGate = door.code === MAIN_GATE_SYNC.CODE;
-                          const isSelected = selectedDoorIds.includes(door.id);
-      
-                          return (
-                            <div
-                              key={door.id}
-                              className={`flex items-center gap-3 p-3 mb-1 rounded-lg transition-all border ${
-                                isMainGate
-                                  ? "bg-slate-100/80 border-slate-200 cursor-not-allowed opacity-90"
-                                  : isSelected
-                                    ? "bg-white border-blue-200 shadow-sm cursor-pointer"
-                                    : "border-transparent hover:bg-white hover:border-slate-200 cursor-pointer"
-                              }`}
-                              onClick={() => {
-                                // ⛔ Main gate selection cannot be toggled
-                                if (isMainGate) return;
-      
-                                setSelectedDoorIds((prev) => {
-                                  const safePrev = Array.isArray(prev) ? prev : [];
-                                  return safePrev.includes(door.id)
-                                    ? safePrev.filter((id) => id !== door.id)
-                                    : [...safePrev, door.id];
-                                });
-                              }}
-                            >
-                              {/* ✅ CHECKBOX */}
-                              <Checkbox
-                                checked={isMainGate || isSelected}
-                                disabled={isMainGate}
-                                className="pointer-events-none"
-                              />
-      
-                              {/* DOOR NAME & BADGE */}
-                              <div className="flex items-center justify-between w-full">
-                                <span
-                                  className={`text-sm ${
-                                    isMainGate || isSelected
-                                      ? "font-bold text-blue-700"
-                                      : "text-slate-600"
-                                  }`}
-                                >
-                                  {door.name}
-                                </span>
-      
-                                {/* Optional indicator badge for Main Gate */}
-                                {isMainGate && (
-                                  <span className="text-[10px] bg-slate-200 text-slate-600 font-medium px-2 py-0.5 rounded-md">
-                                    Default
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })
-                    )}
-                  </div>
-                </div>
-      
-                {/* FOOTER */}
-                <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
-                  <Button
-                    variant="outline"
-                    className="rounded-xl px-6"
-                    onClick={() => {
-                      setRoleDialogOpen(false);
-                      setRoleAssign(null);
-                      setSelectedRoleId(null);
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
-                    onClick={async () => {
-                      try {
-                        const response = await apiRequest(
-                          "POST",
-                          "/api/employee-door-assignments",
-                          {
-                            employeeCode: roleassign?.employeeCode,
-                            doorIds: selectedDoorIds,
-                          },
-                        );
-                        if (response) {
-                          toast({
-                            title: "Success",
-                            description: "Doors assigned successfully!",
-                            variant: "default",
-                          });
-                          setRoleDialogOpen(false);
-                          setRoleAssign(null);
-                        }
-                      } catch (error) {
-                        console.error("Assignment Error:", error);
-                        toast({
-                          title: "Error",
-                          description: "Failed to assign doors. Please try again.",
-                          variant: "destructive",
-                        });
-                      }
-                    }}
-                  >
-                    Assign Door
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                        {/* ✅ CHECKBOX */}
+                        <Checkbox
+                          checked={isMainGate || isSelected}
+                          disabled={isMainGate}
+                          className="pointer-events-none"
+                        />
+
+                        {/* DOOR NAME & BADGE */}
+                        <div className="flex items-center justify-between w-full">
+                          <span
+                            className={`text-sm ${
+                              isMainGate || isSelected
+                                ? "font-bold text-blue-700"
+                                : "text-slate-600"
+                            }`}
+                          >
+                            {door.name}
+                          </span>
+
+                          {/* Optional indicator badge for Main Gate */}
+                          {isMainGate && (
+                            <span className="text-[10px] bg-slate-200 text-slate-600 font-medium px-2 py-0.5 rounded-md">
+                              Default
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+          </div>
+
+          {/* FOOTER */}
+          <div className="p-4 bg-slate-50 border-t flex gap-3 justify-end">
+            <Button
+              variant="outline"
+              className="rounded-xl px-6"
+              onClick={() => {
+                setRoleDialogOpen(false);
+                setRoleAssign(null);
+                setSelectedRoleId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
+              onClick={async () => {
+                try {
+                  const response = await apiRequest(
+                    "POST",
+                    "/api/employee-door-assignments",
+                    {
+                      employeeCode: roleassign?.employeeCode,
+                      doorIds: selectedDoorIds,
+                    },
+                  );
+                  if (response) {
+                    toast({
+                      title: "Success",
+                      description: "Doors assigned successfully!",
+                      variant: "default",
+                    });
+                    setRoleDialogOpen(false);
+                    setRoleAssign(null);
+                  }
+                } catch (error) {
+                  console.error("Assignment Error:", error);
+                  toast({
+                    title: "Error",
+                    description: "Failed to assign doors. Please try again.",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              Assign Door
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
