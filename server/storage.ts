@@ -6428,11 +6428,15 @@ ${fromDate} || ' to ' || ${toDate}
       conditions.push(eq(visitorMaster.status, status));
     }
 
-    if (ruleid !== undefined && ruleid !== null && !isNaN(Number(ruleid))) {
+    if (ruleid !== undefined && ruleid !== null && ruleid !== "all" && !isNaN(Number(ruleid))) {
       conditions.push(eq(visitorMaster.ruleid, Number(ruleid)));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const ruleIdToName = Object.fromEntries(
+      Object.entries(ACCESS_RULES).map(([key, value]) => [value, key])
+    );
 
     let baseQuery = db
       .select({
@@ -6444,6 +6448,7 @@ ${fromDate} || ' to ' || ${toDate}
         ruleid: visitorMaster.ruleid,
         locationId: visitorMaster.locationId,
         lastPunchDoorId: visitorMaster.lastPunchDoorId,
+        lastPunchDoorName: doors.name,
         lastSeenTime: sql<string>`TO_CHAR(${visitorMaster.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')`,
         externalId: visitorMaster.externalId,
         personType: visitorMaster.personType,
@@ -6451,15 +6456,14 @@ ${fromDate} || ' to ' || ${toDate}
         isLockoutEnabled: visitorMaster.isLockoutEnabled,
         createdAt: visitorMaster.createdAt,
         updatedAt: visitorMaster.updatedAt,
-        lastPunchDoorName: doors.name,
-        isAssigned: visitorMaster.isAssigned, 
+        isAssigned: visitorMaster.isAssigned,
       })
       .from(visitorMaster)
       .leftJoin(doors, eq(visitorMaster.lastPunchDoorId, doors.id))
       .where(whereClause)
       .orderBy(sql`${visitorMaster.id} DESC`);
 
-    return await withPagination(
+    const result = await withPagination(
       db,
       visitorMaster,
       baseQuery,
@@ -6467,6 +6471,29 @@ ${fromDate} || ' to ' || ${toDate}
       pageSize,
       whereClause
     );
+
+    if (Array.isArray(result)) {
+      return result.map((item) => ({
+        ...item,
+        lastPunchDoorName: item.lastPunchDoorName || "No Door",
+        ruleName:
+          item.ruleid !== null && item.ruleid !== undefined
+            ? ruleIdToName[item.ruleid] || "UNKNOWN_RULE"
+            : "NO_RULE",
+      }));
+    }
+
+    return {
+      ...result,
+      data: result.data.map((item: any) => ({
+        ...item,
+        lastPunchDoorName: item.lastPunchDoorName || "No Door",
+        ruleName:
+          item.ruleid !== null && item.ruleid !== undefined
+            ? ruleIdToName[item.ruleid] || "UNKNOWN_RULE"
+            : "NO_RULE",
+      })),
+    };
   }
 
   async getVisitorMasterById(id: number | string) {
