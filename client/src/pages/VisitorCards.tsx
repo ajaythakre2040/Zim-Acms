@@ -820,162 +820,164 @@ export default function VisitorCardsPage() {
 
       {/* Assign Visitor / Register Visitor Dialog */}
       <CrudDialog
-  open={visitorDialog}
-  errors={errors}
-  onClose={() => {
-    setVisitorDialog(false);
-    setEditingVisitor(null);
-    setSelectedCardForAssign(null);
-    setErrors({});
-  }}
-  title={
-    editingVisitor
-      ? "Modify Visitor Profile"
-      : selectedCardForAssign
-        ? `Assign Visitor to Card (${selectedCardForAssign.name || selectedCardForAssign.cardNumber})`
-        : "Register New Visitor"
-  }
-  fields={visitorFields}
-  initialData={
-    editingVisitor
-      ? { ...editingVisitor }
-      : selectedCardForAssign
-        ? { visitorCardId: selectedCardForAssign.id }
-        : undefined
-  }
-  onSubmit={async (data) => {
-    setErrors({});
+        open={visitorDialog}
+        errors={errors}
+        onClose={() => {
+          setVisitorDialog(false);
+          setEditingVisitor(null);
+          setSelectedCardForAssign(null);
+          setErrors({});
+        }}
+        title={
+          editingVisitor
+            ? "Modify Visitor Profile"
+            : selectedCardForAssign
+              ? `Assign Visitor to Card (${selectedCardForAssign.name || selectedCardForAssign.cardNumber})`
+              : "Register New Visitor"
+        }
+        fields={visitorFields}
+        initialData={
+          editingVisitor
+            ? { ...editingVisitor }
+            : selectedCardForAssign
+              ? { visitorCardId: selectedCardForAssign.id }
+              : undefined
+        }
+        onSubmit={async (data) => {
+          setErrors({});
 
-    const validationErrors = validateNoHtml(data) || {};
+          const validationErrors = validateNoHtml(data) || {};
 
-    const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
-    const cleanedContact = String(data.contactNo || "").trim();
-    const cleanedEmail = String(data.emailAddress || "").trim();
+          const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
+          const cleanedContact = String(data.contactNo || "").trim();
+          const cleanedEmail = String(data.emailAddress || "").trim();
 
-    const selectedWhomToMeet = String(data.whomToMeet || "").trim();
-    const selectedInTime = String(data.permissionDateFrom || "").trim();
+          const selectedWhomToMeet = String(data.whomToMeet || "").trim();
+          const selectedInTime = String(data.permissionDateFrom || "").trim();
 
-    // 1. Visitor Name Check
-    if (!cleanedVisitorName) {
-      validationErrors.nameOfVisitor = "Visitor name is required.";
-    }
+          // 1. Visitor Name Check
+          if (!cleanedVisitorName) {
+            validationErrors.nameOfVisitor = "Visitor name is required.";
+          }
 
-    // 2. Whom To Meet Validation
-    if (
-      !selectedWhomToMeet ||
-      selectedWhomToMeet === "undefined" ||
-      selectedWhomToMeet === "null"
-    ) {
-      validationErrors.whomToMeet = "Please select the employee to meet.";
-    }
+          // 2. Whom To Meet Validation
+          if (
+            !selectedWhomToMeet ||
+            selectedWhomToMeet === "undefined" ||
+            selectedWhomToMeet === "null"
+          ) {
+            validationErrors.whomToMeet = "Please select the employee to meet.";
+          }
 
-    // 3. In Time Validation
-    if (
-      !selectedInTime ||
-      selectedInTime === "undefined" ||
-      selectedInTime === "null"
-    ) {
-      validationErrors.permissionDateFrom = "Please select the In Time.";
-    }
+          // 3. In Time Validation
+          if (
+            !selectedInTime ||
+            selectedInTime === "undefined" ||
+            selectedInTime === "null"
+          ) {
+            validationErrors.permissionDateFrom = "Please select the In Time.";
+          }
 
-    // 4. Contact Number Format Checks
-    if (!cleanedContact) {
-      validationErrors.contactNo = "Contact number is required.";
-    } else if (!/^\d{10}$/.test(cleanedContact)) {
-      validationErrors.contactNo =
-        "Contact number must be exactly 10 digits.";
-    } else {
-      const firstDigit = Number(cleanedContact.charAt(0));
-      if (firstDigit <= 5) {
-        validationErrors.contactNo =
-          "Contact number must start with 6, 7, 8, or 9.";
-      }
-    }
+          // 4. Contact Number Format Checks
+          if (!cleanedContact) {
+            validationErrors.contactNo = "Contact number is required.";
+          } else if (!/^\d{10}$/.test(cleanedContact)) {
+            validationErrors.contactNo =
+              "Contact number must be exactly 10 digits.";
+          } else {
+            const firstDigit = Number(cleanedContact.charAt(0));
+            if (firstDigit <= 5) {
+              validationErrors.contactNo =
+                "Contact number must start with 6, 7, 8, or 9.";
+            }
+          }
 
-    // 5. Email Validation
-    if (
-      cleanedEmail &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
-    ) {
-      validationErrors.emailAddress =
-        "Please enter a valid email address.";
-    }
+          // 5. Email Validation
+          if (
+            cleanedEmail &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
+          ) {
+            validationErrors.emailAddress =
+              "Please enter a valid email address.";
+          }
 
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
+          if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            return;
+          }
 
-    // 🚀 Extract Employee Code from "Name (Code)" string
-    const rawWhomToMeet = String(data.whomToMeet || "").trim();
-    const extractedCode =
-      rawWhomToMeet.includes("(") && rawWhomToMeet.includes(")")
-        ? rawWhomToMeet.match(/\(([^)]+)\)/)?.[1]?.trim() || rawWhomToMeet
-        : rawWhomToMeet;
+          // 🚀 Extract Employee Code from "Name (Code)" string
+          const rawWhomToMeet = String(data.whomToMeet || "").trim();
+          const extractedCode =
+            rawWhomToMeet.includes("(") && rawWhomToMeet.includes(")")
+              ? rawWhomToMeet.match(/\(([^)]+)\)/)?.[1]?.trim() || rawWhomToMeet
+              : rawWhomToMeet;
 
-    // 🚀 Card Info Extraction
-    const targetCard = selectedCardForAssign || editingVisitor;
-    const cardId = Number(selectedCardForAssign?.id || data.visitorCardId);
-    const cardCode =
-      targetCard?.employeeCode || targetCard?.employee_code || "";
+          // 🚀 Card Info Extraction
+          const targetCard = selectedCardForAssign || editingVisitor;
+          const cardId = Number(
+            selectedCardForAssign?.id || data.visitorCardId,
+          );
+          const cardCode =
+            targetCard?.employeeCode || targetCard?.employee_code || "";
 
-    // 🚀 Payload setup (Dono pass kar rahe hain - ID as Number & Code as String)
-    const { rfidCardNo, ...cleanData } = data;
-    const payload = {
-      ...cleanData,
-      whomToMeet: extractedCode,
-      visitorCardId: cardId,      // 👈 Integer ID (Zod schema expect: number)
-      employeeCode: cardCode,    // 👈 String Code (e.g. "zimvis001")
-    };
+          // 🚀 Payload setup (Dono pass kar rahe hain - ID as Number & Code as String)
+          const { rfidCardNo, ...cleanData } = data;
+          const payload = {
+            ...cleanData,
+            whomToMeet: extractedCode,
+            visitorCardId: cardId, // 👈 Integer ID (Zod schema expect: number)
+            employeeCode: cardCode, // 👈 String Code (e.g. "zimvis001")
+          };
 
-    try {
-      setIsSubmittingVisitor(true);
+          try {
+            setIsSubmittingVisitor(true);
 
-      const targetEndpoint = `/api/visitors?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`;
+            const targetEndpoint = `/api/visitors?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`;
 
-      const res = await fetch(targetEndpoint, {
-        method: editingVisitor ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+            const res = await fetch(targetEndpoint, {
+              method: editingVisitor ? "PUT" : "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+            });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || "Failed to submit visitor details",
-        );
-      }
+            if (!res.ok) {
+              const errorData = await res.json().catch(() => ({}));
+              throw new Error(
+                errorData.message || "Failed to submit visitor details",
+              );
+            }
 
-      toast({
-        title: "Success",
-        description: editingVisitor
-          ? "Visitor details updated successfully."
-          : "Visitor assigned successfully.",
-      });
+            toast({
+              title: "Success",
+              description: editingVisitor
+                ? "Visitor details updated successfully."
+                : "Visitor assigned successfully.",
+            });
 
-      setVisitorDialog(false);
-      setEditingVisitor(null);
-      setSelectedCardForAssign(null);
+            setVisitorDialog(false);
+            setEditingVisitor(null);
+            setSelectedCardForAssign(null);
 
-      await fetchVisitorCards();
-    } catch (err: any) {
-      console.error("Visitor operation failed:", err);
-      setErrors({
-        general: err?.message || "Failed to submit visitor details",
-      });
-      toast({
-        title: "Error",
-        description: err?.message || "Failed to submit visitor details",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmittingVisitor(false);
-    }
-  }}
-  isPending={isSubmittingVisitor}
-/>
+            await fetchVisitorCards();
+          } catch (err: any) {
+            console.error("Visitor operation failed:", err);
+            setErrors({
+              general: err?.message || "Failed to submit visitor details",
+            });
+            toast({
+              title: "Error",
+              description: err?.message || "Failed to submit visitor details",
+              variant: "destructive",
+            });
+          } finally {
+            setIsSubmittingVisitor(false);
+          }
+        }}
+        isPending={isSubmittingVisitor}
+      />
 
       {/* Door Access / Device Status Modal */}
       <Dialog open={deviceStatusOpen} onOpenChange={setDeviceStatusOpen}>
