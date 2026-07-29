@@ -8,7 +8,7 @@ import {
     visitorMaster,
 } from "../../shared/schema";
 import { eq, sql } from "drizzle-orm";
-import { PersonAdapter } from "@shared/mssql_schema";
+import { PersonAdapter, VisitorMasterAdapter } from "@shared/mssql_schema";
 import { ACCESS_RULES } from "../constant";
 import { isRegularEmployeeCode, isVisitorCode } from "../utils/personHelpers";
 
@@ -248,7 +248,8 @@ export class VisitorSyncService {
 
         // 3. Process MS SQL Records (Insert / Update) -> visitorMaster
         for (const msRow of msDataRaw || []) {
-            const mapped = PersonAdapter.toPostgres(msRow);
+            // 👈 FIX: PersonAdapter ki jagah VisitorMasterAdapter use karein
+            const mapped = VisitorMasterAdapter.toPostgres(msRow);
             if (!mapped.msId) continue;
 
             // 🛑 Check if code is a Visitor Code
@@ -270,11 +271,12 @@ export class VisitorSyncService {
                             msId: mapped.msId,
                             employeeCode: mapped.employeeCode,
                             employeeName: mapped.employeeName ?? "Unknown Visitor",
+                            rfidCardNo: mapped.rfidCardNo ?? null, // 👈 Now typed properly!
                             ruleid: mapped.ruleid ?? null,
                             locationId: mapped.locationId ?? null,
                             externalId: mapped.externalId ?? null,
                             personType: "visitor",
-                            status: "active",
+                            status: mapped.status ?? "active",
                             updatedAt: new Date(),
                             createdAt: new Date(),
                         })
@@ -290,7 +292,7 @@ export class VisitorSyncService {
                         ruleName:
                             newRec.ruleid !== null
                                 ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
-                                : "NO_ROLE",
+                                : "NO_RULE",
                     });
                 } catch (e) {
                     console.error("Error inserting visitor into visitorMaster:", e);
@@ -298,9 +300,12 @@ export class VisitorSyncService {
             } else {
                 // Update existing visitor in `visitorMaster`
                 const existing = currentPgData[existingIndex];
+
+                // 👈 FIX: rfidCardNo change detect karein
                 const hasChanged =
                     existing.employeeName !== mapped.employeeName ||
                     existing.employeeCode !== mapped.employeeCode ||
+                    existing.rfidCardNo !== mapped.rfidCardNo ||
                     existing.ruleid !== mapped.ruleid;
 
                 if (hasChanged) {
@@ -310,6 +315,7 @@ export class VisitorSyncService {
                             .set({
                                 employeeName: mapped.employeeName ?? "Unknown Visitor",
                                 employeeCode: mapped.employeeCode,
+                                rfidCardNo: mapped.rfidCardNo ?? null, // 👈 RFID update handling
                                 ruleid: mapped.ruleid ?? null,
                                 updatedAt: new Date(),
                             })
@@ -322,7 +328,7 @@ export class VisitorSyncService {
                             ruleName:
                                 updatedRec.ruleid !== null
                                     ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
-                                    : "NO_ROLE",
+                                    : "NO_RULE",
                         };
                     } catch (e) {
                         console.error("Error updating visitor in visitorMaster:", e);

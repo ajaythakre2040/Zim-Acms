@@ -1,9 +1,9 @@
-import { InsertPerson, Person, type Holiday, type InsertHoliday } from "@shared/schema";
+import { InsertPerson, Person, VisitorMaster, type Holiday, type InsertHoliday } from "@shared/schema";
 import { type Device, type InsertDevice } from "@shared/schema";
 export const HolidayAdapter = {
     toPostgres: (row: any): Holiday => ({
-        id: Math.floor(Math.random() * 10000), 
-        msId: row.Id || row.id || null,        
+        id: Math.floor(Math.random() * 10000),
+        msId: row.Id || row.id || null,
         name: row.Name || row.name || "Unnamed Holiday",
         date: row.Date ? new Date(row.Date).toISOString().split('T')[0] : (row.date || ""),
         holidayType: "company",
@@ -65,8 +65,8 @@ export const PersonAdapter = {
             employeeName: fullName,
             employeeCode: row.EmployeeCode || row.employeecode || null,
             locationId: row.AttendanceLocationId || row.attendancelocationid || row.locationId || 1,
-            address: row.Location || row.location || null,
-            overtimeEligible: row.OverTimeApplicable == "1" || row.overtimeapplicable == "1",
+            // address: row.Location || row.location || null,
+            // overtimeEligible: row.OverTimeApplicable == "1" || row.overtimeapplicable == "1",
             personType: "employee",
             status: "active",
             sourceSystem: "mssql_bio",
@@ -79,7 +79,7 @@ export const PersonAdapter = {
         EmployeeName: pg.employeeName,
         EmployeeCode: pg.employeeCode,
         Location: pg.address,
-        AttendanceLocationId: pg.locationId 
+        AttendanceLocationId: pg.locationId
     })
 };
 
@@ -148,5 +148,33 @@ export const VisitorAdapter = {
         WhomToMeet: pg.whomToMeet,
         Purpose: pg.purpose,
         InDate: pg.inDate ? pg.inDate.toISOString() : null
+    })
+};
+export const VisitorMasterAdapter = {
+    toPostgres: (row: any): Partial<VisitorMaster> => {
+        const remoteId = row.EmployeeId ?? row.employeeid ?? row.Id ?? row.id;
+        const fullName = (row.EmployeeName || row.employeename || "Unnamed Visitor").trim();
+        const rfidCard = row.EmployeeRFIDNumber ?? row.employeerfidnumber ?? null;
+
+        return {
+            msId: remoteId ? Number(remoteId) : null,
+            employeeName: fullName,
+            employeeCode: row.EmployeeCode || row.employeecode || null,
+            rfidCardNo: rfidCard ? String(rfidCard).trim() : null,
+            locationId: row.AttendanceLocationId || row.attendancelocationid || row.locationId || 1,
+            ruleid: row.RuleId || row.ruleid ? Number(row.RuleId || row.ruleid) : null,
+            personType: "visitor",
+            status: row.Status || row.status || "active",
+            externalId: remoteId ? String(remoteId) : null,
+            updatedAt: new Date(),
+            createdAt: new Date(),
+        };
+    },
+
+    toMsSql: (pg: any) => ({
+        EmployeeName: pg.employeeName,
+        EmployeeCode: pg.employeeCode,
+        EmployeeRFIDNumber: pg.rfidCardNo || null,
+        AttendanceLocationId: pg.locationId,
     })
 };
