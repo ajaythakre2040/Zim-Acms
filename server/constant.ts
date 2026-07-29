@@ -218,6 +218,7 @@ export const TABLES = {
   CONTRACTORS: "contractors",
   VISITOR_CARDS: "visitor_cards",
   DEVICE_VISITOR_CARDS: "visitor_card_logs",
+  VISITOR_MASTER: "visitor_master",
 
 } as const;
 export const VISITOR_PREFIX = "zimvis";

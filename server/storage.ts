@@ -123,6 +123,8 @@ import {
   visitorCards,
   peopleAdditionalDetails,
   unauthorizedDeviceLogs,
+  visitorMaster,
+  InsertVisitorMaster,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
@@ -175,6 +177,7 @@ import {
   getActiveDoorsWithDevices,
 } from "./utils/doorUtils";
 import { syncDoorActivationHardware } from "./utils/syncDoorActivationHardware";
+import { SyncService, VisitorSyncService } from "./services/sync.service.js";
 dayjs.extend(isBetween);
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -1192,200 +1195,227 @@ export class DatabaseStorage implements IStorage {
       await db.delete(devices).where(eq(devices.msId, msId));
     }
   }
-  async syncPeople(
-    search?: string,
-    page?: number | string,
-    pageSize?: number | string,
-    dept?: string,
-    status?: string,
-    lockout?: string,
-    rule?: string,
-  ): Promise<any> {
-    const [pgDataRaw, msDataRaw] = await Promise.all([
-      db
-        .select({
-          person: {
-            ...people,
-            lastSeenTime: sql<string>`
-            TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')
-          `,
-          },
-          departmentName: departments.name,
-          designationName: designations.name,
-          lastPunchDoorName: doors.name,
-          additionalDetails: peopleAdditionalDetails,
-        })
-        .from(people)
-        .leftJoin(departments, eq(people.departmentId, departments.id))
-        .leftJoin(designations, eq(people.designationId, designations.id))
-        .leftJoin(doors, eq(people.lastPunchDoorId, doors.id))
-        .leftJoin(
-          peopleAdditionalDetails,
-          eq(people.employeeCode, peopleAdditionalDetails.employeeCode),
-        ),
-      dbMsSql.select().from({ dbName: "Employees" }).execute(),
-    ]);
-    const msIds = new Set();
-    const ruleIdToName = Object.fromEntries(
-      Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
-    );
-    const currentPgData = pgDataRaw.map((row) => {
-      const {
-        id: _detailId,
-        employeeCode: _detailCode,
-        createdAt: _detailCreated,
-        updatedAt: _detailUpdated,
-        ...restOfAdditionalDetails
-      } = row.additionalDetails || {};
-      return {
-        ...row.person,
-        ...restOfAdditionalDetails,
-        departmentName: row.departmentName || "N/A",
-        designationName: row.designationName || "N/A",
-        lastPunchDoorName: row.lastPunchDoorName || "No Door",
-        ruleName:
-          row.person.ruleid !== null
-            ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
-            : "NO_RULE",
-      };
-    });
-    for (const msRow of msDataRaw || []) {
-      const mapped = PersonAdapter.toPostgres(msRow);
-      if (!mapped.msId) continue;
-      msIds.add(mapped.msId);
-      const existingIndex = currentPgData.findIndex(
-        (p) => p.msId === mapped.msId,
-      );
-      if (existingIndex === -1) {
-        try {
-          const [newRec] = await db
-            .insert(people)
-            .values({
-              msId: mapped.msId,
-              employeeCode: mapped.employeeCode,
-              employeeName: mapped.employeeName ?? "Unknown",
-              ruleid: mapped.ruleid ?? null,
-              locationId: mapped.locationId ?? null,
-              externalId: mapped.externalId ?? null,
-              personType: "employee",
-              status: "active",
-              sourceSystem: "mssql_bio",
-              updatedAt: new Date(),
-              createdAt: new Date(),
-            })
-            .returning();
-          if (newRec?.employeeCode) {
-            this.executeHardwareSyncBackground(newRec.employeeCode);
-          }
-          currentPgData.push({
-            ...newRec,
-            departmentName: "N/A",
-            designationName: "N/A",
-            lastPunchDoorName: "No Door",
-            ruleName:
-              newRec.ruleid !== null
-                ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
-                : "NO_ROLE",
-          });
-        } catch (e) {
-        }
-      } else {
-        const existing = currentPgData[existingIndex];
-        const hasChanged =
-          existing.employeeName !== mapped.employeeName ||
-          existing.employeeCode !== mapped.employeeCode ||
-          existing.ruleid !== mapped.ruleid;
-        if (hasChanged) {
-          try {
-            const [updatedRec] = await db
-              .update(people)
-              .set({
-                employeeName: mapped.employeeName ?? "Unknown",
-                employeeCode: mapped.employeeCode,
-                updatedAt: new Date(),
-              })
-              .where(eq(people.msId, mapped.msId))
-              .returning();
-            currentPgData[existingIndex] = {
-              ...existing,
-              ...updatedRec,
-              ruleName:
-                updatedRec.ruleid !== null
-                  ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
-                  : "NO_ROLE",
-            };
-          } catch (e) {
-            console.error("Employee update sync error:", e);
-          }
-        }
-      }
+  // async syncPeople(
+  //   search?: string,
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  //   dept?: string,
+  //   status?: string,
+  //   lockout?: string,
+  //   rule?: string,
+  // ): Promise<any> {
+  //   const [pgDataRaw, msDataRaw] = await Promise.all([
+  //     db
+  //       .select({
+  //         person: {
+  //           ...people,
+  //           lastSeenTime: sql<string>`
+  //           TO_CHAR(${people.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')
+  //         `,
+  //         },
+  //         departmentName: departments.name,
+  //         designationName: designations.name,
+  //         lastPunchDoorName: doors.name,
+  //         additionalDetails: peopleAdditionalDetails,
+  //       })
+  //       .from(people)
+  //       .leftJoin(departments, eq(people.departmentId, departments.id))
+  //       .leftJoin(designations, eq(people.designationId, designations.id))
+  //       .leftJoin(doors, eq(people.lastPunchDoorId, doors.id))
+  //       .leftJoin(
+  //         peopleAdditionalDetails,
+  //         eq(people.employeeCode, peopleAdditionalDetails.employeeCode),
+  //       ),
+  //     dbMsSql.select().from({ dbName: "Employees" }).execute(),
+  //   ]);
+  //   const msIds = new Set();
+  //   const ruleIdToName = Object.fromEntries(
+  //     Object.entries(ACCESS_RULES).map(([key, value]) => [value, key]),
+  //   );
+  //   const currentPgData = pgDataRaw.map((row) => {
+  //     const {
+  //       id: _detailId,
+  //       employeeCode: _detailCode,
+  //       createdAt: _detailCreated,
+  //       updatedAt: _detailUpdated,
+  //       ...restOfAdditionalDetails
+  //     } = row.additionalDetails || {};
+  //     return {
+  //       ...row.person,
+  //       ...restOfAdditionalDetails,
+  //       departmentName: row.departmentName || "N/A",
+  //       designationName: row.designationName || "N/A",
+  //       lastPunchDoorName: row.lastPunchDoorName || "No Door",
+  //       ruleName:
+  //         row.person.ruleid !== null
+  //           ? ruleIdToName[row.person.ruleid] || "UNKNOWN_RULE"
+  //           : "NO_RULE",
+  //     };
+  //   });
+  //   for (const msRow of msDataRaw || []) {
+  //     const mapped = PersonAdapter.toPostgres(msRow);
+  //     if (!mapped.msId) continue;
+  //     msIds.add(mapped.msId);
+  //     const existingIndex = currentPgData.findIndex(
+  //       (p) => p.msId === mapped.msId,
+  //     );
+  //     if (existingIndex === -1) {
+  //       try {
+  //         const [newRec] = await db
+  //           .insert(people)
+  //           .values({
+  //             msId: mapped.msId,
+  //             employeeCode: mapped.employeeCode,
+  //             employeeName: mapped.employeeName ?? "Unknown",
+  //             ruleid: mapped.ruleid ?? null,
+  //             locationId: mapped.locationId ?? null,
+  //             externalId: mapped.externalId ?? null,
+  //             personType: "employee",
+  //             status: "active",
+  //             sourceSystem: "mssql_bio",
+  //             updatedAt: new Date(),
+  //             createdAt: new Date(),
+  //           })
+  //           .returning();
+  //         if (newRec?.employeeCode) {
+  //           this.executeHardwareSyncBackground(newRec.employeeCode);
+  //         }
+  //         currentPgData.push({
+  //           ...newRec,
+  //           departmentName: "N/A",
+  //           designationName: "N/A",
+  //           lastPunchDoorName: "No Door",
+  //           ruleName:
+  //             newRec.ruleid !== null
+  //               ? ruleIdToName[newRec.ruleid] || "UNKNOWN_RULE"
+  //               : "NO_ROLE",
+  //         });
+  //       } catch (e) {
+  //       }
+  //     } else {
+  //       const existing = currentPgData[existingIndex];
+  //       const hasChanged =
+  //         existing.employeeName !== mapped.employeeName ||
+  //         existing.employeeCode !== mapped.employeeCode ||
+  //         existing.ruleid !== mapped.ruleid;
+  //       if (hasChanged) {
+  //         try {
+  //           const [updatedRec] = await db
+  //             .update(people)
+  //             .set({
+  //               employeeName: mapped.employeeName ?? "Unknown",
+  //               employeeCode: mapped.employeeCode,
+  //               updatedAt: new Date(),
+  //             })
+  //             .where(eq(people.msId, mapped.msId))
+  //             .returning();
+  //           currentPgData[existingIndex] = {
+  //             ...existing,
+  //             ...updatedRec,
+  //             ruleName:
+  //               updatedRec.ruleid !== null
+  //                 ? ruleIdToName[updatedRec.ruleid] || "UNKNOWN_RULE"
+  //                 : "NO_ROLE",
+  //           };
+  //         } catch (e) {
+  //           console.error("Employee update sync error:", e);
+  //         }
+  //       }
+  //     }
+  //   }
+  //   for (const pgRow of currentPgData) {
+  //     if (pgRow.msId && !msIds.has(pgRow.msId)) {
+  //       try {
+  //         await db.delete(people).where(eq(people.msId, pgRow.msId));
+  //       } catch (e) {
+  //         console.error("Delete sync error:", e);
+  //       }
+  //     }
+  //   }
+  //   let results = currentPgData;
+  //   if (search?.trim()) {
+  //     const term = search.toLowerCase();
+  //     results = results.filter(
+  //       (p) =>
+  //         p.employeeName?.toLowerCase().includes(term) ||
+  //         p.employeeCode?.toLowerCase().includes(term) ||
+  //         p.departmentName?.toLowerCase().includes(term) ||
+  //         p.ruleName?.toLowerCase().includes(term),
+  //     );
+  //   }
+  //   if (dept && dept !== "all") {
+  //     results = results.filter((p) => String(p.departmentId) === String(dept));
+  //   }
+  //   if (status && status !== "all") {
+  //     results = results.filter((p) => p.status === status);
+  //   }
+  //   if (lockout && lockout !== "all") {
+  //     const isLocked = lockout === "true";
+  //     results = results.filter(
+  //       (p) => Boolean(p.is_lockout_enabled) === isLocked,
+  //     );
+  //   }
+  //   if (rule && rule !== "all") {
+  //     results = results.filter((p) => String(p.ruleid) === String(rule));
+  //   }
+  //   results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
+  //   const uniquePeople = Array.from(
+  //     new Map(
+  //       results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
+  //     ).values(),
+  //   );
+  //   if (!pageSize) {
+  //     return uniquePeople;
+  //   }
+  //   if (pageSize === -1 || pageSize === "-1") {
+  //     return {
+  //       data: uniquePeople,
+  //       totalCount: uniquePeople.length,
+  //       totalPages: 1,
+  //       currentPage: 1,
+  //       pageSize: uniquePeople.length,
+  //     };
+  //   }
+  //   const p = page && Number(page) > 0 ? Number(page) : 1;
+  //   const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+  //   const start = (p - 1) * size;
+  //   const end = start + size;
+  //   const paginatedData = uniquePeople.slice(start, end);
+  //   return {
+  //     data: paginatedData,
+  //     totalCount: uniquePeople.length,
+  //     totalPages: Math.ceil(uniquePeople.length / size),
+  //     currentPage: p,
+  //     pageSize: size,
+  //   };
+  // }
+  async syncPeople(): Promise<any[]> {
+    try {
+      // SyncService ko call karein aur callback me hardware sync method pass karein
+      const result = await SyncService.processPeopleSync((employeeCode) => {
+        this.executeHardwareSyncBackground(employeeCode);
+      });
+
+      return result;
+    } catch (error) {
+      console.error("Error in storage.syncPeople:", error);
+      throw error;
     }
-    for (const pgRow of currentPgData) {
-      if (pgRow.msId && !msIds.has(pgRow.msId)) {
-        try {
-          await db.delete(people).where(eq(people.msId, pgRow.msId));
-        } catch (e) {
-          console.error("Delete sync error:", e);
-        }
-      }
-    }
-    let results = currentPgData;
-    if (search?.trim()) {
-      const term = search.toLowerCase();
-      results = results.filter(
-        (p) =>
-          p.employeeName?.toLowerCase().includes(term) ||
-          p.employeeCode?.toLowerCase().includes(term) ||
-          p.departmentName?.toLowerCase().includes(term) ||
-          p.ruleName?.toLowerCase().includes(term),
-      );
-    }
-    if (dept && dept !== "all") {
-      results = results.filter((p) => String(p.departmentId) === String(dept));
-    }
-    if (status && status !== "all") {
-      results = results.filter((p) => p.status === status);
-    }
-    if (lockout && lockout !== "all") {
-      const isLocked = lockout === "true";
-      results = results.filter(
-        (p) => Boolean(p.is_lockout_enabled) === isLocked,
-      );
-    }
-    if (rule && rule !== "all") {
-      results = results.filter((p) => String(p.ruleid) === String(rule));
-    }
-    results.sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0));
-    const uniquePeople = Array.from(
-      new Map(
-        results.map((p) => [`${p.msId || p.employeeCode || p.id}`, p]),
-      ).values(),
-    );
-    if (!pageSize) {
-      return uniquePeople;
-    }
-    if (pageSize === -1 || pageSize === "-1") {
-      return {
-        data: uniquePeople,
-        totalCount: uniquePeople.length,
-        totalPages: 1,
-        currentPage: 1,
-        pageSize: uniquePeople.length,
-      };
-    }
-    const p = page && Number(page) > 0 ? Number(page) : 1;
-    const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
-    const start = (p - 1) * size;
-    const end = start + size;
-    const paginatedData = uniquePeople.slice(start, end);
-    return {
-      data: paginatedData,
-      totalCount: uniquePeople.length,
-      totalPages: Math.ceil(uniquePeople.length / size),
-      currentPage: p,
-      pageSize: size,
-    };
   }
+  async syncVisitors(): Promise<any[]> {
+    try {
+      const visitors = await VisitorSyncService.processVisitorsSync(
+        (visitorCode) => {
+          this.executeHardwareSyncBackground(visitorCode);
+        }
+      );
+      return visitors;
+    } catch (error) {
+      console.error("Error in storage.syncVisitors:", error);
+      throw error;
+    }
+  }
+
   async getPeople(
     search?: string,
     page?: number | string,
@@ -6388,6 +6418,7 @@ ${fromDate} || ' to ' || ${toDate}
       };
     }
   }
+  
   async executeNewDevicebulkBlock(
     userId: string,
     userName: string,
@@ -6569,5 +6600,131 @@ ${fromDate} || ' to ' || ${toDate}
       alertId: alertEntry ? alertEntry.id : null,
     };
   }
+  async getVisitorMasters(
+    page?: number | string,
+    pageSize?: number | string,
+    search?: string,
+    status?: string,
+    ruleid?: number | string
+  ) {
+    const conditions = [];
+
+    if (search && search.trim() !== "") {
+      const searchTerm = `%${search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(visitorMaster.employeeName, searchTerm),
+          ilike(visitorMaster.employeeCode, searchTerm)
+        )
+      );
+    }
+
+    if (status) {
+      conditions.push(eq(visitorMaster.status, status));
+    }
+
+    if (ruleid !== undefined && ruleid !== null && !isNaN(Number(ruleid))) {
+      conditions.push(eq(visitorMaster.ruleid, Number(ruleid)));
+    }
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+    let baseQuery = db
+      .select({
+        id: visitorMaster.id,
+        msId: visitorMaster.msId,
+        employeeCode: visitorMaster.employeeCode,
+        employeeName: visitorMaster.employeeName,
+        rfidCardNo: visitorMaster.rfidCardNo,
+        ruleid: visitorMaster.ruleid,
+        locationId: visitorMaster.locationId,
+        lastPunchDoorId: visitorMaster.lastPunchDoorId,
+        lastSeenTime: sql<string>`TO_CHAR(${visitorMaster.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')`,
+        externalId: visitorMaster.externalId,
+        personType: visitorMaster.personType,
+        status: visitorMaster.status,
+        isLockoutEnabled: visitorMaster.isLockoutEnabled,
+        createdAt: visitorMaster.createdAt,
+        updatedAt: visitorMaster.updatedAt,
+        lastPunchDoorName: doors.name,
+      })
+      .from(visitorMaster)
+      .leftJoin(doors, eq(visitorMaster.lastPunchDoorId, doors.id))
+      .where(whereClause)
+      .orderBy(sql`${visitorMaster.id} DESC`);
+
+    return await withPagination(
+      db,
+      visitorMaster,
+      baseQuery,
+      page,
+      pageSize,
+      whereClause
+    );
+  }
+
+  async getVisitorMasterById(id: number | string) {
+    const numId = Number(id);
+    if (isNaN(numId)) return null;
+
+    const [visitorMasterData] = await db
+      .select({
+        id: visitorMaster.id,
+        msId: visitorMaster.msId,
+        employeeCode: visitorMaster.employeeCode,
+        employeeName: visitorMaster.employeeName,
+        rfidCardNo: visitorMaster.rfidCardNo,
+        ruleid: visitorMaster.ruleid,
+        locationId: visitorMaster.locationId,
+        lastPunchDoorId: visitorMaster.lastPunchDoorId,
+        lastSeenTime: sql<string>`TO_CHAR(${visitorMaster.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')`,
+        externalId: visitorMaster.externalId,
+        personType: visitorMaster.personType,
+        status: visitorMaster.status,
+        isLockoutEnabled: visitorMaster.isLockoutEnabled,
+        createdAt: visitorMaster.createdAt,
+        updatedAt: visitorMaster.updatedAt,
+        lastPunchDoorName: doors.name,
+      })
+      .from(visitorMaster)
+      .leftJoin(doors, eq(visitorMaster.lastPunchDoorId, doors.id))
+      .where(eq(visitorMaster.id, numId));
+
+    return visitorMasterData || null;
+  }
+
+  async createVisitorMaster(data: Partial<InsertVisitorMaster>) {
+    const [newVisitorMaster] = await db
+      .insert(visitorMaster)
+      .values({
+        ...data,
+        personType: "visitor",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return newVisitorMaster;
+  }
+
+  async updateVisitorMaster(id: number | string, data: Partial<InsertVisitorMaster>) {
+    const [updatedVisitorMaster] = await db
+      .update(visitorMaster)
+      .set({
+        ...data,
+        updatedAt: new Date(),
+      })
+      .where(eq(visitorMaster.id, Number(id)))
+      .returning();
+    return updatedVisitorMaster || null;
+  }
+
+  async deleteVisitorMaster(id: number | string) {
+    const [deletedVisitorMaster] = await db
+      .delete(visitorMaster)
+      .where(eq(visitorMaster.id, Number(id)))
+      .returning();
+    return deletedVisitorMaster || null;
+  }
+
 }
 export const storage = new DatabaseStorage();

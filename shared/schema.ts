@@ -895,6 +895,42 @@ export const loginAttempts = pgTable("login_attempts", {
   status: text("status").notNull(), // "SUCCESS" or "FAILED"
   attemptedAt: timestamp("attempted_at").defaultNow().notNull(),
 });
+export const visitorMaster = pgTable("visitor_master", {
+  id: serial("id").primaryKey(),
+  msId: integer("ms_id"),                              // Optional MS SQL ID
+  employeeCode: text("employee_code"),                 // Optional Code (e.g., zimvis001)
+  employeeName: text("employee_name"),                 // Optional Name
+  rfidCardNo: text("rf_id_card_no"),                   // Optional RFID Card Punching No
+  ruleid: integer("rule_id"),                          // Optional Rule
+  locationId: integer("location_id"),                  // Optional Location
+  lastPunchDoorId: integer("last_punch_door_id"),     // Optional Door ID
+  lastSeenTime: timestamp("last_seen_time"),           // Optional Last Punch Time
+  externalId: text("external_id"),                     // Optional
+  personType: text("person_type").default("visitor"),  // Default "visitor"
+  status: text("status").default("active"),            // Default "active"
+  isLockoutEnabled: boolean("is_lockout_enabled").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+export const insertVisitorMasterSchema = createInsertSchema(visitorMaster)
+  .omit({
+    id: true,
+    createdAt: true,
+    updatedAt: true
+  })
+  .extend({
+    employeeName: z.string().optional().nullable(),
+    employeeCode: z.string().optional().nullable(),
+    rfidCardNo: z.string().optional().nullable(),
+    ruleid: z.coerce.number().optional().nullable(),
+    locationId: z.coerce.number().optional().nullable(),
+    lastPunchDoorId: z.coerce.number().optional().nullable(),
+    externalId: z.string().optional().nullable(),
+    status: z.string().optional().default("active"),
+  });
+export type VisitorMaster = typeof visitorMaster.$inferSelect;
+export type InsertVisitorMaster = z.infer<typeof insertVisitorMasterSchema>;
+
 export const insertUserProfileSchema = createInsertSchema(userProfiles).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
 export const insertDepartmentSchema = createInsertSchema(departments).omit({ id: true, createdAt: true });
@@ -957,7 +993,7 @@ export const insertVisitorCardSchema = z.object({
   expiryTo: z.coerce.date().optional(),
   location: z.coerce.number().optional(),
 });
-
+  
 export type VisitorCard = typeof visitorCards.$inferSelect;
 export type InsertVisitorCard = z.infer<typeof insertVisitorCardSchema>;
 export type InsertLoginAttempt = z.infer<typeof insertLoginAttemptSchema>;

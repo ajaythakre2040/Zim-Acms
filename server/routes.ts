@@ -27,6 +27,7 @@ import {
   insertVisitorCardSchema,
   visitorCardLogs,
   visitors,
+  insertVisitorMasterSchema,
 } from "@shared/schema";
 import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC, TableNames, TABLES } from "./constant";
 import { logProfileAudit, withAudit } from "./utils/auditWrapper";
@@ -363,6 +364,57 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   );
   crudRoutes(
     app,
+    "/api/visitor-master",
+    insertVisitorSchema,
+    (query: any) =>
+      storage.getVisitorMasters(
+        query.page,
+        query.pageSize,
+        query.search,
+        query.status,
+        query.ruleid
+      ),
+    (data: any) => storage.createVisitorMaster(data),
+    (id: any, data: any) => storage.updateVisitorMaster(id, data),
+    async (id: any) => {
+      await storage.deleteVisitorMaster(id);
+    }, // 👈 7th Argument: Delete Handler (void return)
+    undefined, // 👈 8th Argument: undefined (No custom handler)
+    TABLES.VISITOR_MASTER
+  );
+  crudRoutes(
+    app,
+    "/api/visitor-master",
+    insertVisitorSchema,
+    (query: any) =>
+      storage.getVisitorMasters(
+        query.page,
+        query.pageSize,
+        query.search,
+        query.status,
+        query.ruleid
+      ),
+    (data: any) => storage.createVisitorMaster(data),
+    (id: any, data: any) => storage.updateVisitorMaster(id, data),
+    async (id: any) => {
+      await storage.deleteVisitorMaster(id);
+    }, // 👈 7th Argument: Returns Promise<void>
+    undefined, // 👈 8th Argument: undefined
+    TABLES.VISITOR_MASTER
+  );
+  app.get("/api/visitor-master/:id", async (req, res) => {
+    try {
+      const visitor = await storage.getVisitorMasterById(req.params.id);
+      if (!visitor) {
+        return res.status(404).json({ message: "Visitor not found" });
+      }
+      res.json(visitor);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch visitor record" });
+    }
+  });
+  crudRoutes(
+    app,
     "/api/devices",
     insertDeviceSchema,
     (query: any) =>
@@ -408,6 +460,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
         res.json(
         await storage.syncPeople()
+      );
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+  app.get("/api/syncVisitors", requireAuth, async (req, res) => {
+    try {
+      res.json(
+        await storage.syncVisitors()
       );
     } catch (e: any) {
       res.status(500).json({ message: e.message });
