@@ -453,8 +453,15 @@ function AuthenticatedApp() {
                       : "Refresh Doors"}
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={handleLogout}>
+                {/* Dark Red Logout Button with Icon on Right */}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleLogout}
+                  className="bg-red-700 hover:bg-red-800 text-white gap-2 shadow-sm"
+                >
                   Logout
+                  <LogIn className="w-4 h-4" />
                 </Button>
               </div>
             </header>
