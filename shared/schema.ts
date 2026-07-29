@@ -394,6 +394,7 @@ export const doorAccessLevels = pgTable("door_access_levels", {
 export const visitors = pgTable("visitors", {
   id: serial("id").primaryKey(),
   msId: integer("ms_id"),
+  employeeCode: text("employee_code"),
   nameOfVisitor: text("name_of_visitor").notNull(),
   rfidCardNo: text("rfid_card_no"),
   contactNo: text("contact_no").notNull(),
@@ -909,6 +910,7 @@ export const visitorMaster = pgTable("visitor_master", {
   personType: text("person_type").default("visitor"),  // Default "visitor"
   status: text("status").default("active"),            // Default "active"
   isLockoutEnabled: boolean("is_lockout_enabled").default(false),
+  isAssigned: boolean("is_assigned").default(false).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
