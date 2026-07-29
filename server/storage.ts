@@ -6452,6 +6452,7 @@ ${fromDate} || ' to ' || ${toDate}
         createdAt: visitorMaster.createdAt,
         updatedAt: visitorMaster.updatedAt,
         lastPunchDoorName: doors.name,
+        isAssigned: visitorMaster.isAssigned, 
       })
       .from(visitorMaster)
       .leftJoin(doors, eq(visitorMaster.lastPunchDoorId, doors.id))
