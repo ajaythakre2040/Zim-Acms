@@ -266,8 +266,7 @@ export default function VisitorCardsPage() {
       disabled: !!editing,
     },
     { key: "expiryFrom", label: "Expiry From", type: "date" },
-    { key: "expiryTo", label: "Expiry To", type: "date" },
-    { key: "location", label: "Location ID", type: "number" },
+    { key: "expiryTo", label: "Expiry To", type: "date" }
   ];
 
   // 2. Visitor Form Fields
@@ -371,7 +370,7 @@ export default function VisitorCardsPage() {
       label: "Cabin Lockout",
       hideOnMobile: true,
       render: (s: any) => {
-        const isEnabled = s.is_lockout_enabled;
+        const isEnabled = s.isLockoutEnabled;
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}

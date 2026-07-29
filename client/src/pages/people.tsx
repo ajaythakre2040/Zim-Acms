@@ -730,48 +730,43 @@ export default function PeoplePage() {
         //   </div>
         // }
         action={
-          <div className="flex gap-2">
-            <Button
-              variant="default"
-              className="w-[140px] flex items-center justify-center gap-2"
-              onClick={async () => {
-                try {
-                  // 1. Sync API call karein
-                  await apiRequest("GET", "/api/syncpeople");
+        <div className="flex items-center gap-3">
+          {/* 1. Sync Button */}
+          <Button
+            variant="default"
+            className="w-[100px] flex items-center justify-center gap-2"
+            onClick={async () => {
+              try {
+                // 1. Sync API call karein
+                await apiRequest("GET", "/api/syncpeople");
 
-                  // 2. Fresh data fetch karne ke liye UI table ko refresh karein
-                  await refetch();
+                // 2. Fresh data fetch karne ke liye UI table ko refresh karein
+                await refetch();
 
-                  toast({
-                    title: "Data Synced",
-                    description:
-                      "People data synchronized and refreshed successfully.",
-                  });
-                } catch (error: any) {
-                  toast({
-                    title: "Sync Failed",
-                    description: error.message || "Could not sync people data.",
-                    variant: "destructive",
-                  });
-                }
-              }}
-              disabled={isFetching}
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
-              />
-              <span className="w-[80px] text-center">
-                {isFetching ? "Syncing..." : "Sync"}
-              </span>
-            </Button>
-          </div>
-        }
-      />
-      {/* 1. Page Action Bar: Primary Actions */}
-      <div className="flex flex-col gap-3 mb-6">
-        {/* Row 1: Heavy Actions */}
-        <div className="flex justify-end items-center gap-3">
-          {/* Import Employee */}
+                toast({
+                  title: "Data Synced",
+                  description:
+                    "People data synchronized and refreshed successfully.",
+                });
+              } catch (error: any) {
+                toast({
+                  title: "Sync Failed",
+                  description: error.message || "Could not sync people data.",
+                  variant: "destructive",
+                });
+              }
+            }}
+            disabled={isFetching}
+          >
+            <RefreshCw
+              className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`}
+            />
+            <span className="w-[80px] text-center">
+              {isFetching ? "Syncing..." : "Sync"}
+            </span>
+          </Button>
+
+          {/* 2. Import Employees */}
           <Button
             className="h-9 px-4 bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg transition-all rounded-md flex items-center gap-2 text-sm font-medium"
             onClick={() => setUploadDetailsOpen(true)}
@@ -780,7 +775,7 @@ export default function PeoplePage() {
             Import Employees
           </Button>
 
-          {/* Assign Doors */}
+          {/* 3. Assign Doors */}
           <Button
             className="h-9 px-4 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg transition-all rounded-md flex items-center gap-2 text-sm font-medium"
             onClick={() => setUploadDoorsOpen(true)}
@@ -789,15 +784,15 @@ export default function PeoplePage() {
             Assign Doors
           </Button>
 
-          {/* Export Data */}
+          {/* 4. Export Data */}
           {canExport && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
-                  variant="default" /* outline से बदलकर default कर दिया */
+                  variant="default"
                   size="sm"
-                  className="bg-green-600 text-white hover:bg-green-700" /* सॉलिड ग्रीन बैकग्राउंड और वाइट टेक्स्ट */
-                  onClick={handleExport} // यहाँ आपका एक्सपोर्ट फंक्शन आएगा
+                  className="h-9 bg-green-600 text-white hover:bg-green-700"
+                  onClick={handleExport}
                 >
                   <Download className="w-4 h-4 mr-2" /> Export
                 </Button>
@@ -817,102 +812,107 @@ export default function PeoplePage() {
             </DropdownMenu>
           )}
         </div>
-        {/* Row 2: Filters & Search */}
-        <div className="flex flex-wrap items-center gap-2 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
-          {/* Refresh Button at start */}
-          {/* Search Input (Flex-grow to fill gap) */}
-          <input
-            type="text"
-            placeholder="Search employee..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
-            className="h-10 px-3 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500/20 text-sm flex-grow min-w-[200px]"
-          />
-          {/* Filters (Uniform min-width) */}
-          <select
-            className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
-            value={filterDept}
-            onChange={(e) => {
-              setFilterDept(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="all">Dept: All</option>
-            {departments.map((d) => (
-              <option key={d.id} value={d.id}>
-                {capitalizeFirst(d.name)}
-              </option>
-            ))}
-          </select>
-          <select
-            className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
-            value={filterStatus}
-            onChange={(e) => {
-              setFilterStatus(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="all">Status: All</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="suspended">Suspended</option>
-          </select>
-          <select
-            className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
-            value={filterLockout}
-            onChange={(e) => {
-              setFilterLockout(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="all">Lockout: All</option>
-            <option value="true">Locked</option>
-            <option value="false">Unlocked</option>
-          </select>
-          <select
-            className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
-            value={filterRule}
-            onChange={(e) => {
-              setFilterRule(e.target.value);
-              setPage(1);
-            }}
-          >
-            <option value="all">Rule: All</option>
-            {Object.entries(ruleNames).map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
-          <Button
-            variant="outline"
-            size="icon"
-            className="shrink-0 h-10 w-10 border-slate-300 hover:bg-slate-200"
-            onClick={() => {
-              setSearch("");
-              setFilterDept("all");
-              setFilterStatus("all");
-              setFilterLockout("all");
-              setFilterRule("all");
-              setPage(1);
-            }}
-            title="Refresh/Reset"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </Button>
-        </div>
+      }
+    />
+
+    {/* 1. Page Action Bar: Primary Actions */}
+    <div className="flex flex-col gap-3 mb-6">
+      {/* Row 2: Filters & Search */}
+      <div className="flex flex-wrap items-center gap-2 bg-slate-50/80 p-3 rounded-xl border border-slate-200">
+        {/* Search Input (Flex-grow to fill gap) */}
+        <input
+          type="text"
+          placeholder="Search employee..."
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
+          className="h-10 px-3 border border-slate-300 rounded-md outline-none focus:ring-2 focus:ring-blue-500/20 text-sm flex-grow min-w-[200px]"
+        />
+        {/* Filters (Uniform min-width) */}
+        <select
+          className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
+          value={filterDept}
+          onChange={(e) => {
+            setFilterDept(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="all">Dept: All</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>
+              {capitalizeFirst(d.name)}
+            </option>
+          ))}
+        </select>
+        <select
+          className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
+          value={filterStatus}
+          onChange={(e) => {
+            setFilterStatus(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="all">Status: All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+          <option value="suspended">Suspended</option>
+        </select>
+        <select
+          className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
+          value={filterLockout}
+          onChange={(e) => {
+            setFilterLockout(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="all">Lockout: All</option>
+          <option value="true">Locked</option>
+          <option value="false">Unlocked</option>
+        </select>
+        <select
+          className="h-10 px-3 border border-slate-300 rounded-md outline-none text-sm bg-white min-w-[140px]"
+          value={filterRule}
+          onChange={(e) => {
+            setFilterRule(e.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="all">Rule: All</option>
+          {Object.entries(ruleNames).map(([id, name]) => (
+            <option key={id} value={id}>
+              {name}
+            </option>
+          ))}
+        </select>
+        <Button
+          variant="outline"
+          size="icon"
+          className="shrink-0 h-10 w-10 border-slate-300 hover:bg-slate-200"
+          onClick={() => {
+            setSearch("");
+            setFilterDept("all");
+            setFilterStatus("all");
+            setFilterLockout("all");
+            setFilterRule("all");
+            setPage(1);
+          }}
+          title="Refresh/Reset"
+        >
+          <RefreshCw className="w-4 h-4" />
+        </Button>
       </div>
-      <DataTable
-        columns={columns}
-        data={people}
-        isLoading={isLoading}
-        searchable={false}
-        pageSize={pageSize}
-        emptyMessage="No people registered yet"
-      />
+    </div>
+
+    <DataTable
+      columns={columns}
+      data={people}
+      isLoading={isLoading}
+      searchable={false}
+      pageSize={pageSize}
+      emptyMessage="No people registered yet"
+    />
       <div className="flex flex-col md:flex-row items-center justify-between gap-4 px-4 py-4 border-t bg-muted/20 mt-2 rounded-b-lg">
         {/* Left Side: Stats */}
         <div className="text-sm text-muted-foreground order-2 md:order-1">
