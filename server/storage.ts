@@ -2122,11 +2122,8 @@ export class DatabaseStorage implements IStorage {
     return visitor;
   }
   async createVisitor(data: InsertVisitor): Promise<Visitor> {
-    console.log("Creating visitor in Postgres with data:", data);
-
     return await db.transaction(async (tx) => {
       try {
-        // 1. Postgres `visitors` टेबल में नई एंट्री बनाएँ
         const [created] = await tx
           .insert(visitors)
           .values({
@@ -2134,7 +2131,6 @@ export class DatabaseStorage implements IStorage {
           })
           .returning();
 
-        // 2. visitorMaster टेबल को अपडेट करें (ताकि वह assigned मार्क हो जाए)
         if (data.employeeCode) {
           await tx
             .update(visitorMaster)
@@ -2145,6 +2141,7 @@ export class DatabaseStorage implements IStorage {
             })
             .where(eq(visitorMaster.employeeCode, data.employeeCode));
         }
+
         return created;
       } catch (pgErr: any) {
         tx.rollback();
@@ -2154,116 +2151,26 @@ export class DatabaseStorage implements IStorage {
       }
     });
   }
+
   async updateVisitor(
     id: number,
     data: Partial<InsertVisitor>,
   ): Promise<Visitor> {
-    const currentVisitor = await db
+    const [currentVisitor] = await db
       .select()
       .from(visitors)
       .where(eq(visitors.id, id))
       .limit(1);
-    if (currentVisitor.length === 0) {
+
+    if (!currentVisitor) {
       throw new Error(
-        `Visitor update failed: Record with local ID '${id}' not found.`,
+        `Visitor update failed: Record with ID '${id}' not found.`,
       );
     }
-    const targetMsId = currentVisitor[0].msId;
-    const oldCardId = currentVisitor[0].visitorCardId;
-    if (!targetMsId) {
-      throw new Error(
-        `Visitor update failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`,
-      );
-    }
-    try {
-      if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
-        await mssqlPool.connect();
-      }
-      const request = mssqlPool.request();
-      const finalName =
-        data.nameOfVisitor !== undefined
-          ? data.nameOfVisitor
-          : currentVisitor[0].nameOfVisitor;
-      const finalContact =
-        data.contactNo !== undefined
-          ? data.contactNo
-          : currentVisitor[0].contactNo;
-      const finalEmail =
-        data.emailAddress !== undefined
-          ? data.emailAddress
-          : currentVisitor[0].emailAddress;
-      const finalLocationId =
-        data.locationId !== undefined
-          ? data.locationId
-          : currentVisitor[0].locationId;
-      const finalPurpose =
-        data.purpose !== undefined ? data.purpose : currentVisitor[0].purpose;
-      const finalToMeetId =
-        data.whomToMeet !== undefined
-          ? data.whomToMeet
-          : currentVisitor[0].whomToMeet;
-      const finalDeskId =
-        data.visitorDeskId !== undefined
-          ? data.visitorDeskId
-          : currentVisitor[0].visitorDeskId;
-      const finalCardId =
-        data.visitorCardId !== undefined
-          ? data.visitorCardId
-          : currentVisitor[0].visitorCardId;
-      const finalCompany =
-        data.visitorsCompanyName !== undefined
-          ? data.visitorsCompanyName
-          : currentVisitor[0].visitorsCompanyName;
-      const finalDesignation =
-        data.designation !== undefined
-          ? data.designation
-          : currentVisitor[0].designation;
-      const finalRemarks =
-        data.remark !== undefined ? data.remark : currentVisitor[0].remark;
-      request.input("TargetMsId", mssql.Int, targetMsId);
-      request.input("Name", mssql.NVarChar, finalName || null);
-      request.input("ContactNumber", mssql.NVarChar, finalContact || null);
-      request.input("Email", mssql.NVarChar, finalEmail || null);
-      request.input(
-        "LocationId",
-        mssql.Int,
-        finalLocationId ? Number(finalLocationId) : null,
-      );
-      request.input("Purpose", mssql.NVarChar, finalPurpose || null);
-      request.input("ToMeetId", mssql.NVarChar, finalToMeetId || null);
-      request.input(
-        "VisitorDeskId",
-        mssql.Int,
-        finalDeskId ? Number(finalDeskId) : null,
-      );
-      request.input(
-        "VisitorCardId",
-        mssql.Int,
-        finalCardId ? Number(finalCardId) : null,
-      );
-      request.input("Company", mssql.NVarChar, finalCompany || null);
-      request.input("Designation", mssql.NVarChar, finalDesignation || null);
-      request.input("Remarks", mssql.NVarChar, finalRemarks || null);
-      await request.query(`
-      UPDATE VisitorLogs 
-      SET Name = @Name,
-          ContactNumber = @ContactNumber,
-          Email = @Email,
-          LocationId = @LocationId,
-          Purpose = @Purpose,
-          ToMeetId = @ToMeetId,
-          VisitorDeskId = @VisitorDeskId,
-          VisitorCardId = @VisitorCardId,
-          Company = @Company,
-          Designation = @Designation,
-          Remarks = @Remarks
-      WHERE Id = @TargetMsId
-    `);
-    } catch (msSqlErr: any) {
-      throw new Error(
-        `MS SQL Update Failed: ${msSqlErr.message || "Unknown Sync Error"}`,
-      );
-    }
+
+    const oldCode = currentVisitor.employeeCode;
+    const newCode = data.employeeCode;
+
     return await db.transaction(async (tx) => {
       try {
         const [updated] = await tx
@@ -2274,154 +2181,100 @@ export class DatabaseStorage implements IStorage {
           })
           .where(eq(visitors.id, id))
           .returning();
-        if (
-          data.visitorCardId !== undefined &&
-          oldCardId !== data.visitorCardId
-        ) {
-          if (oldCardId) {
+
+        if (newCode !== undefined && oldCode !== newCode) {
+          if (oldCode) {
             await tx
-              .update(visitorCards)
+              .update(visitorMaster)
               .set({ isAssigned: false, updatedAt: new Date() })
-              .where(
-                or(
-                  eq(visitorCards.id, Number(oldCardId)),
-                  eq(visitorCards.msId, Number(oldCardId)),
-                ),
-              );
+              .where(eq(visitorMaster.employeeCode, oldCode));
           }
-          if (data.visitorCardId) {
+
+          if (newCode) {
             await tx
-              .update(visitorCards)
-              .set({ isAssigned: true, updatedAt: new Date() })
-              .where(
-                or(
-                  eq(visitorCards.id, Number(data.visitorCardId)),
-                  eq(visitorCards.msId, Number(data.visitorCardId)),
-                ),
-              );
+              .update(visitorMaster)
+              .set({ isAssigned: true, status: "active", updatedAt: new Date() })
+              .where(eq(visitorMaster.employeeCode, newCode));
           }
         }
+
         return updated;
       } catch (pgErr: any) {
         tx.rollback();
         throw new Error(
-          `Postgres transaction failed and rolled back: ${pgErr.message}`,
+          `Postgres update visitor failed and rolled back: ${pgErr.message}`,
         );
       }
     });
   }
   async deleteVisitor(id: number): Promise<void> {
-    const currentVisitor = await db
+    const [currentVisitor] = await db
       .select()
       .from(visitors)
       .where(eq(visitors.id, id))
       .limit(1);
-    if (currentVisitor.length === 0) {
+
+    if (!currentVisitor) {
       throw new Error(
-        `Visitor deletion failed: Record with local ID '${id}' not found.`,
+        `Visitor deletion failed: Record with ID '${id}' not found.`,
       );
     }
-    const targetMsId = currentVisitor[0].msId;
-    if (!targetMsId) {
-      throw new Error(
-        `Visitor deletion failed: This record doesn't have a valid MS SQL Link ('msId' is missing).`,
-      );
-    }
+
     return await db.transaction(async (tx) => {
       try {
+        if (currentVisitor.employeeCode) {
+          await tx
+            .update(visitorMaster)
+            .set({ isAssigned: false, updatedAt: new Date() })
+            .where(eq(visitorMaster.employeeCode, currentVisitor.employeeCode));
+        }
+
         await tx.delete(visitors).where(eq(visitors.id, id));
       } catch (pgErr: any) {
         tx.rollback();
-        throw new Error(`Postgres Deletion Failed: ${pgErr.message}`);
-      }
-      try {
-        if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
-          await mssqlPool.connect();
-        }
-        const request = mssqlPool.request();
-        request.input("TargetMsId", mssql.Int, targetMsId);
-        await request.query(`
-        DELETE FROM VisitorLogs 
-        WHERE Id = @TargetMsId
-      `);
-      } catch (msSqlErr: any) {
-        console.error("MS SQL Sync Delete Error inside transaction:", msSqlErr);
-        tx.rollback();
-        throw new Error(
-          `Sync Failed: MS SQL failed to delete. Postgres changes rolled back. Reason: ${msSqlErr.message}`,
-        );
+        throw new Error(`Postgres deletion failed and rolled back: ${pgErr.message}`);
       }
     });
   }
   async outVisitor(id: number): Promise<Visitor> {
-    const currentVisitor = await db
+    const [currentVisitor] = await db
       .select()
       .from(visitors)
       .where(eq(visitors.id, id))
       .limit(1);
-    if (currentVisitor.length === 0) {
+
+    if (!currentVisitor) {
       throw new Error(
-        `Visitor checkout failed: Record with local ID '${id}' not found.`,
+        `Visitor checkout failed: Record with ID '${id}' not found.`,
       );
     }
-    const targetMsId = currentVisitor[0].msId;
-    const cardIdToFree = currentVisitor[0].visitorCardId;
-    const tzOffset = new Date().getTimezoneOffset() * 60000;
-    const localISOTime = new Date(Date.now() - tzOffset).toISOString();
-    const currentIsoDate = localISOTime.slice(0, 19).replace("T", " ");
-    if (targetMsId) {
-      try {
-        if (!mssqlPool.connected && typeof mssqlPool.connect === "function") {
-          await mssqlPool.connect();
-        }
-        const request = mssqlPool.request();
-        request.input("TargetMsId", mssql.Int, targetMsId);
-        request.input("OutDate", mssql.DateTime, currentIsoDate);
-        await request.query(`
-        UPDATE VisitorLogs 
-        SET OutDate =GETDATE()
-        WHERE Id = @TargetMsId
-      `);
-      } catch (msSqlErr: any) {
-        throw new Error(
-          `MS SQL OutDate Update Failed: ${msSqlErr.message || "Unknown Sync Error"}`,
-        );
-      }
-    }
+
     return await db.transaction(async (tx) => {
       try {
         const [updated] = await tx
           .update(visitors)
           .set({
-            permissionDateTo: currentIsoDate,
-            updatedAt: new Date(
-              Date.now() - new Date().getTimezoneOffset() * 60000,
-            ),
+            permissionDateTo: new Date().toISOString(),
+            updatedAt: new Date(),
           })
           .where(eq(visitors.id, id))
           .returning();
-        if (cardIdToFree) {
-          const targetCardId = Number(cardIdToFree);
+
+        if (currentVisitor.employeeCode) {
           await tx
-            .update(visitorCards)
+            .update(visitorMaster)
             .set({
               isAssigned: false,
-              updatedAt: new Date(
-                Date.now() - new Date().getTimezoneOffset() * 60000,
-              ),
+              updatedAt: new Date(),
             })
-            .where(
-              or(
-                eq(visitorCards.id, targetCardId),
-                eq(visitorCards.msId, targetCardId),
-              ),
-            );
+            .where(eq(visitorMaster.employeeCode, currentVisitor.employeeCode));
         }
+
         return updated;
       } catch (pgErr: any) {
         tx.rollback();
         throw new Error(
-          `Postgres transaction failed and rolled back: ${pgErr.message}`,
+          `Postgres checkout failed and rolled back: ${pgErr.message}`,
         );
       }
     });
