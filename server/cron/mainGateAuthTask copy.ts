@@ -197,7 +197,51 @@ export async function runMasterAuthSync() {
                 }
                 await helpers.updateDeviceStatus(empCode, machine, shouldBlock);
             }
+            
+            // const userLockout = activeLockouts.find(l => l.employeeCode === empCode && l.status === 'active');
+            // const assignment = allAssignments.find(a => a.employeeCode === empCode);
+            // const normalAllowedIds = Array.isArray(assignment?.doorIds) ? assignment.doorIds.map(Number) : [];
 
+            // for (const machine of allDevices) {
+            //     const mDM = allDoorDevices.find((dd) =>
+            //         [...(dd.inDeviceIds || []), ...(dd.outDeviceIds || [])].map(Number).includes(Number(machine.msId))
+            //     );
+            //     if (!mDM) continue;
+
+            //     const targetDoor = allDoors.find(d => d.id === mDM.doorId);
+            //     if (!targetDoor) continue;
+
+            //     const isTargetMainGate = targetDoor.code === MAIN_GATE_SYNC.CODE;
+            //     const mDoorId = Number(mDM.doorId);
+            //     const isTargetUnit1 = helpers.isUnit1Door(targetDoor.unit); // Unit Check
+
+            //     let shouldBlock = true;
+
+            //     if (newZone === ZONES.OUT) {
+            //         // Agar user OUT zone me hai:
+            //         if (!isTargetUnit1) {
+            //             // Non-UNIT_1 doors ke liye access assign rule ke basis par milega bina Main Gate IN kiye bhi
+            //             shouldBlock = userLockout
+            //                 ? (mDoorId !== Number(userLockout.doorId))
+            //                 : !normalAllowedIds.includes(mDoorId);
+            //         } else {
+            //             // UNIT_1 doors ke liye OUT par block rahega jab tak Main Gate IN na ho
+            //             shouldBlock = !isTargetMainGate;
+            //         }
+            //     } else if (newZone === ZONES.CABIN) {
+            //         shouldBlock = (mDoorId !== Number(doorMapping.doorId));
+            //     } else if (newZone === ZONES.IN) {
+            //         if (isTargetMainGate) {
+            //             shouldBlock = false;
+            //         } else {
+            //             shouldBlock = userLockout
+            //                 ? (mDoorId !== Number(userLockout.doorId))
+            //                 : !normalAllowedIds.includes(mDoorId);
+            //         }
+            //     }
+
+            //     await helpers.updateDeviceStatus(empCode, machine, shouldBlock);
+            // }
             // STEP 7: DB UPDATE (Updating new field)
             await db.update(people).set({
                 lastSeenTime: punchTime,

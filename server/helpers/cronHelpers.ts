@@ -1,8 +1,8 @@
 import { db } from "../db";
-import { people, blockUnblockLogs } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { people, blockUnblockLogs, visitorMaster } from "@shared/schema";
+import { eq, and, desc, inArray } from "drizzle-orm";
 import { esslService } from "../services/essl-service";
-import { UNIT_TYPE, ZONES } from "../constant";
+import { UNIT_TYPE, VISITOR_PREFIX, ZONES } from "../constant";
 
 /**
  * Hardware Sync Logic: Block ya Unblock command bhejta hai
@@ -105,4 +105,44 @@ export function isUserActiveToday(emp: any, todayStart: Date): boolean {
 export function isUnit1Door(doorUnit?: string | null): boolean {
     if (!doorUnit) return false;
     return doorUnit.trim().toUpperCase() === UNIT_TYPE.UNIT_1.toUpperCase();
+}
+
+// =========================================================================
+// 🚀 NEW VISITOR HELPERS ADDED BELOW (Naye Visitor Functions)
+// =========================================================================
+
+export interface VisitorPunchSyncParams {
+    empCode: string;
+    punchTime: Date;
+    doorId: number;
+    ruleId: number;
+}
+
+/**
+ * 1. Prefix ("zimvis") se identify karega ki code Visitor ka hai ya nahi
+ */
+export function isVisitorCode(code: string): boolean {
+    return code.toLowerCase().startsWith(VISITOR_PREFIX.toLowerCase());
+}
+
+/**
+ * 2. Incoming Batch me se sirf Visitors ka Data Fetch karega
+ */
+export async function getPunchingVisitors(codes: string[]) {
+    const visitorCodes = codes.filter(isVisitorCode);
+    if (visitorCodes.length === 0) return [];
+
+    return await db.select().from(visitorMaster).where(inArray(visitorMaster.employeeCode, visitorCodes));
+}
+
+/**
+ * 3. Visitor Table (`visitorMaster`) me details Update karega
+ */
+export async function handleVisitorPunchUpdate({ empCode, punchTime, doorId, ruleId }: VisitorPunchSyncParams): Promise<void> {
+    await db.update(visitorMaster).set({
+        lastSeenTime: punchTime,
+        lastPunchDoorId: doorId,
+        ruleid: ruleId,
+        updatedAt: new Date()
+    }).where(eq(visitorMaster.employeeCode, empCode));
 }
