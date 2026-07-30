@@ -23,6 +23,7 @@ import {
   UserCheck,
   ShieldCheck,
   UserPlus,
+  LogOut,
 } from "lucide-react";
 import {
   Tooltip,
@@ -81,7 +82,33 @@ export default function VisitorCardsPage() {
     queryKey: ["/api/door-devices"],
   });
   const [deviceStatusOpen, setDeviceStatusOpen] = useState(false);
-
+  const fetchVisitors = async () => {
+    try {
+      const res = await fetch(
+        `/api/visitors?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`,
+      );
+      const data = await res.json();
+      setPagedResponse(data);
+    } catch (err) {
+      // Silent catch
+    }
+  };
+  const checkoutVisitor = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await apiRequest("POST", `/api/visitors/${id}/checkout`, {});
+      return r.json();
+    },
+    onSuccess: () => {
+      fetchVisitors();
+      toast({ title: "Visitor checked out successfully" });
+    },
+    onError: (e: Error) =>
+      toast({
+        title: "Checkout Error",
+        description: e.message,
+        variant: "destructive",
+      }),
+  });
   const { data: deviceLogs = [], refetch: refetchLogs } = useQuery({
     queryKey: ["/api/device-status", deviceViewPerson?.employeeCode],
     enabled: !!deviceViewPerson && deviceStatusOpen, // Modal open ho aur person selected ho tabhi query active rahegi
@@ -267,7 +294,6 @@ export default function VisitorCardsPage() {
     },
     { key: "expiryFrom", label: "Expiry From", type: "date" },
     { key: "expiryTo", label: "Expiry To", type: "date" },
-    { key: "location", label: "Location ID", type: "number" },
   ];
 
   // 2. Visitor Form Fields
@@ -357,6 +383,11 @@ export default function VisitorCardsPage() {
   // 3. Grid Columns
   const columns = [
     {
+      key: "visitorname",
+      label: "Visitor Name",
+      render: (s: any) => <span className="font-medium">{s.visitorName}</span>,
+    },
+    {
       key: "name",
       label: "Card Code",
       render: (s: any) => <span className="font-medium">{s.employeeCode}</span>,
@@ -371,7 +402,7 @@ export default function VisitorCardsPage() {
       label: "Cabin Lockout",
       hideOnMobile: true,
       render: (s: any) => {
-        const isEnabled = s.is_lockout_enabled;
+        const isEnabled = s.isLockoutEnabled;
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
@@ -428,24 +459,13 @@ export default function VisitorCardsPage() {
         );
       },
     },
+    
     {
-      key: "lastSeenTime",
-      label: "Last Seen",
-      hideOnMobile: true,
+      key: "isassign",
+      label: "IsAssign",
       render: (s: any) => (
-        <div className="text-sm">
-          <span className="font-medium text-foreground">
-            {formatDateTime(s?.lastSeenTime)}
-          </span>
-        </div>
-      ),
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (s: Person) => (
-        <Badge variant={statusColors[s.status || "active"] as any}>
-          {s.status}
+        <Badge variant={s.isAssigned ? "default" : "secondary"}>
+          {s.isAssigned ? "Assigned" : "Not Assigned"}
         </Badge>
       ),
     },
@@ -489,7 +509,11 @@ export default function VisitorCardsPage() {
                       variant="ghost"
                       onClick={(e) => {
                         e.stopPropagation();
+
+                        console.log("Selected Person Object (s):", s); // 🔍 Debugging ke liye console log
+
                         setSelectedCardForDevice(s);
+                        setDeviceViewPerson(s); // 👈 YEH MISSING THA! Isko add karein.
                         setSelectedDoorIds([]); // Selection Reset
                         setDeviceStatusOpen(true);
                       }}
@@ -526,7 +550,7 @@ export default function VisitorCardsPage() {
               )}
 
               {/* Edit Action Button */}
-              {canEdit && (
+              {/* {canEdit && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -546,63 +570,209 @@ export default function VisitorCardsPage() {
                     <p>Edit</p>
                   </TooltipContent>
                 </Tooltip>
-              )}
+              )} */}
+              {/* Check-out Action Button */}
 
-              {/* Delete Action Button */}
-              {canDelete && (
+              {canEdit && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       size="icon"
                       variant="ghost"
-                      className="hover:text-destructive text-red-500"
+                      // 🔒 Enable tabhi hoga jab Card Assigned ho
+                      disabled={checkoutVisitor.isPending || !s.isAssigned}
                       onClick={async (e) => {
                         e.stopPropagation();
-                        const confirmed = await confirm({
-                          title: "Delete Visitor Card?",
-                          description: `Are you sure you want to delete card "${s.name}"? This action cannot be undone.`,
-                          confirmText: "Yes, Delete",
-                          cancelText: "Cancel",
-                          variant: "destructive",
-                        });
 
-                        if (!confirmed) return;
+                        // 🌟 GUARD 1: Agar card assigned hi nahi hai
+                        if (!s.isAssigned) {
+                          toast({
+                            title: "Card Not Assigned",
+                            description:
+                              "This card is currently not assigned to any active visitor.",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+
+                        const currentCardRfid = s.rfidCardNo || s.rfid_card_no;
+                        const currentCardId = s.id;
+
+                        let targetVisitorId = null;
+                        let visitorName = "Visitor";
 
                         try {
-                          await remove(s.id);
-                          setPagedResponse((prev: any) => {
-                            if (!prev) return prev;
-                            if (Array.isArray(prev)) {
-                              return prev.filter(
-                                (item: any) => item.id !== s.id,
-                              );
-                            }
-                            return {
-                              ...prev,
-                              data: prev.data
-                                ? prev.data.filter(
-                                    (item: any) => item.id !== s.id,
-                                  )
-                                : [],
-                              totalCount: prev.totalCount
-                                ? prev.totalCount - 1
-                                : 0,
-                            };
+                          // 🔍 API se direct latest active visitors list fetch karein
+                          const res = await fetch("/api/visitors?pageSize=100");
+                          const result = await res.json();
+                          const allVisitors = Array.isArray(result)
+                            ? result
+                            : result.items || result.data || [];
+
+                          // Target active visitor search
+                          const activeVisitor = allVisitors.find((v: any) => {
+                            const matchesCard =
+                              (currentCardRfid &&
+                                (v.rfidCardNo === currentCardRfid ||
+                                  v.rfid_card_no === currentCardRfid)) ||
+                              (v.visitorCardId &&
+                                Number(v.visitorCardId) ===
+                                  Number(currentCardId));
+
+                            const isStillCheckedIn =
+                              !v.permissionDateTo && !v.permission_date_to;
+
+                            return matchesCard && isStillCheckedIn;
                           });
-                          await fetchVisitorCards();
+
+                          targetVisitorId =
+                            activeVisitor?.id ||
+                            s.activeVisitorId ||
+                            s.visitorId;
+                          if (
+                            activeVisitor?.nameOfVisitor ||
+                            activeVisitor?.name_of_visitor
+                          ) {
+                            visitorName =
+                              activeVisitor.nameOfVisitor ||
+                              activeVisitor.name_of_visitor;
+                          }
                         } catch (err) {
-                          console.error("Failed to delete card:", err);
+                          console.error(
+                            "Failed to fetch active visitor info:",
+                            err,
+                          );
+                        }
+
+                        // 🛑 Active record validation
+                        if (!targetVisitorId) {
+                          toast({
+                            title: "Visitor Not Found",
+                            description:
+                              "Could not find an active checked-in visitor record for this card.",
+                            variant: "destructive",
+                          });
+                          return;
+                        }
+
+                        // 🌟 CONFIRMATION DIALOG
+                        const confirmed = await confirm({
+                          title: "Mark Visitor Exit?",
+                          description: `Are you sure you want to check out ${visitorName}? This will set their departure time.`,
+                          confirmText: "Yes, Check-out",
+                          cancelText: "Cancel",
+                          variant: "default",
+                        });
+
+                        if (confirmed) {
+                          // 🚀 Pass actual 'visitors' table primary ID (e.g., ID: 2)
+                          checkoutVisitor.mutate(targetVisitorId, {
+                            onSuccess: async () => {
+                              toast({
+                                title: "Visitor Checked Out",
+                                description: `${visitorName} has been checked out successfully.`,
+                              });
+
+                              if (typeof fetchVisitorCards === "function") {
+                                await fetchVisitorCards();
+                              }
+                            },
+                          });
                         }
                       }}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <LogOut
+                        className={`w-4 h-4 ${
+                          !s.isAssigned
+                            ? "text-muted-foreground/30 cursor-not-allowed"
+                            : "text-emerald-500 hover:text-emerald-600"
+                        }`}
+                      />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Delete</p>
+                    <p>
+                      {!s.isAssigned ? "Not Assigned" : "Mark Exit / Check-out"}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               )}
+
+              {/* Delete Action Button */}
+{canDelete && (
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <Button
+        size="icon"
+        variant="ghost"
+        // 🔒 Agar card assigned hai toh delete button disable rahega
+        disabled={s.isAssigned}
+        className={`hover:text-destructive ${
+          s.isAssigned
+            ? "text-muted-foreground/30 cursor-not-allowed"
+            : "text-red-500"
+        }`}
+        onClick={async (e) => {
+          e.stopPropagation();
+
+          // 🛑 GUARD: Agar card abhi kisi visitor ko assign hai
+          if (s.isAssigned) {
+            toast({
+              title: "Cannot Delete Card",
+              description: `Card "${s.name || s.cardNumber || s.id}" is currently assigned to a visitor. Please check out the visitor before deleting.`,
+              variant: "destructive",
+            });
+            return; // Delete process yahan ruk jayega
+          }
+
+          const confirmed = await confirm({
+            title: "Delete Visitor Card?",
+            description: `Are you sure you want to delete card "${s.name || s.cardNumber || s.id}"? This action cannot be undone.`,
+            confirmText: "Yes, Delete",
+            cancelText: "Cancel",
+            variant: "destructive",
+          });
+
+          if (!confirmed) return;
+
+          try {
+            await remove(s.id);
+            setPagedResponse((prev: any) => {
+              if (!prev) return prev;
+              if (Array.isArray(prev)) {
+                return prev.filter((item: any) => item.id !== s.id);
+              }
+              return {
+                ...prev,
+                data: prev.data
+                  ? prev.data.filter((item: any) => item.id !== s.id)
+                  : [],
+                totalCount: prev.totalCount ? prev.totalCount - 1 : 0,
+              };
+            });
+            await fetchVisitorCards();
+            toast({
+              title: "Card Deleted",
+              description: "Visitor card has been successfully deleted.",
+            });
+          } catch (err) {
+            console.error("Failed to delete card:", err);
+            toast({
+              title: "Delete Failed",
+              description: "Failed to delete visitor card.",
+              variant: "destructive",
+            });
+          }
+        }}
+      >
+        <Trash2 className="w-4 h-4" />
+      </Button>
+    </TooltipTrigger>
+    <TooltipContent>
+      <p>{s.isAssigned ? "Cannot delete assigned card" : "Delete"}</p>
+    </TooltipContent>
+  </Tooltip>
+)}
             </div>
           </TooltipProvider>
         );
@@ -820,162 +990,175 @@ export default function VisitorCardsPage() {
 
       {/* Assign Visitor / Register Visitor Dialog */}
       <CrudDialog
-  open={visitorDialog}
-  errors={errors}
-  onClose={() => {
-    setVisitorDialog(false);
-    setEditingVisitor(null);
-    setSelectedCardForAssign(null);
-    setErrors({});
-  }}
-  title={
-    editingVisitor
-      ? "Modify Visitor Profile"
-      : selectedCardForAssign
-        ? `Assign Visitor to Card (${selectedCardForAssign.name || selectedCardForAssign.cardNumber})`
-        : "Register New Visitor"
-  }
-  fields={visitorFields}
-  initialData={
-    editingVisitor
-      ? { ...editingVisitor }
-      : selectedCardForAssign
-        ? { visitorCardId: selectedCardForAssign.id }
-        : undefined
-  }
-  onSubmit={async (data) => {
-    setErrors({});
+        open={visitorDialog}
+        errors={errors}
+        onClose={() => {
+          setVisitorDialog(false);
+          setEditingVisitor(null);
+          setSelectedCardForAssign(null);
+          setErrors({});
+        }}
+        title={
+          editingVisitor
+            ? "Modify Visitor Profile"
+            : selectedCardForAssign
+              ? `Assign Visitor to Card (${selectedCardForAssign.name || selectedCardForAssign.cardNumber})`
+              : "Register New Visitor"
+        }
+        fields={visitorFields}
+        initialData={
+          editingVisitor
+            ? { ...editingVisitor }
+            : selectedCardForAssign
+              ? { visitorCardId: selectedCardForAssign.id }
+              : undefined
+        }
+        onSubmit={async (data) => {
+          setErrors({});
 
-    const validationErrors = validateNoHtml(data) || {};
+          const validationErrors = validateNoHtml(data) || {};
 
-    const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
-    const cleanedContact = String(data.contactNo || "").trim();
-    const cleanedEmail = String(data.emailAddress || "").trim();
+          const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
+          const cleanedContact = String(data.contactNo || "").trim();
+          const cleanedEmail = String(data.emailAddress || "").trim();
 
-    const selectedWhomToMeet = String(data.whomToMeet || "").trim();
-    const selectedInTime = String(data.permissionDateFrom || "").trim();
+          const selectedWhomToMeet = String(data.whomToMeet || "").trim();
+          const selectedInTime = String(data.permissionDateFrom || "").trim();
 
-    // 1. Visitor Name Check
-    if (!cleanedVisitorName) {
-      validationErrors.nameOfVisitor = "Visitor name is required.";
-    }
+          // 1. Visitor Name Check
+          if (!cleanedVisitorName) {
+            validationErrors.nameOfVisitor = "Visitor name is required.";
+          }
 
-    // 2. Whom To Meet Validation
-    if (
-      !selectedWhomToMeet ||
-      selectedWhomToMeet === "undefined" ||
-      selectedWhomToMeet === "null"
-    ) {
-      validationErrors.whomToMeet = "Please select the employee to meet.";
-    }
+          // 2. Whom To Meet Validation
+          if (
+            !selectedWhomToMeet ||
+            selectedWhomToMeet === "undefined" ||
+            selectedWhomToMeet === "null"
+          ) {
+            validationErrors.whomToMeet = "Please select the employee to meet.";
+          }
 
-    // 3. In Time Validation
-    if (
-      !selectedInTime ||
-      selectedInTime === "undefined" ||
-      selectedInTime === "null"
-    ) {
-      validationErrors.permissionDateFrom = "Please select the In Time.";
-    }
+          // 3. In Time Validation
+          if (
+            !selectedInTime ||
+            selectedInTime === "undefined" ||
+            selectedInTime === "null"
+          ) {
+            validationErrors.permissionDateFrom = "Please select the In Time.";
+          }
 
-    // 4. Contact Number Format Checks
-    if (!cleanedContact) {
-      validationErrors.contactNo = "Contact number is required.";
-    } else if (!/^\d{10}$/.test(cleanedContact)) {
-      validationErrors.contactNo =
-        "Contact number must be exactly 10 digits.";
-    } else {
-      const firstDigit = Number(cleanedContact.charAt(0));
-      if (firstDigit <= 5) {
-        validationErrors.contactNo =
-          "Contact number must start with 6, 7, 8, or 9.";
-      }
-    }
+          // 4. Contact Number Format Checks
+          if (!cleanedContact) {
+            validationErrors.contactNo = "Contact number is required.";
+          } else if (!/^\d{10}$/.test(cleanedContact)) {
+            validationErrors.contactNo =
+              "Contact number must be exactly 10 digits.";
+          } else {
+            const firstDigit = Number(cleanedContact.charAt(0));
+            if (firstDigit <= 5) {
+              validationErrors.contactNo =
+                "Contact number must start with 6, 7, 8, or 9.";
+            }
+          }
 
-    // 5. Email Validation
-    if (
-      cleanedEmail &&
-      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
-    ) {
-      validationErrors.emailAddress =
-        "Please enter a valid email address.";
-    }
+          // 5. Email Validation
+          if (
+            cleanedEmail &&
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanedEmail)
+          ) {
+            validationErrors.emailAddress =
+              "Please enter a valid email address.";
+          }
 
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
+          if (Object.keys(validationErrors).length > 0) {
+            setErrors(validationErrors);
+            return;
+          }
 
-    // 🚀 Extract Employee Code from "Name (Code)" string
-    const rawWhomToMeet = String(data.whomToMeet || "").trim();
-    const extractedCode =
-      rawWhomToMeet.includes("(") && rawWhomToMeet.includes(")")
-        ? rawWhomToMeet.match(/\(([^)]+)\)/)?.[1]?.trim() || rawWhomToMeet
-        : rawWhomToMeet;
+          // 🚀 Extract Employee Code from "Name (Code)" string
+          const rawWhomToMeet = String(data.whomToMeet || "").trim();
+          const extractedCode =
+            rawWhomToMeet.includes("(") && rawWhomToMeet.includes(")")
+              ? rawWhomToMeet.match(/\(([^)]+)\)/)?.[1]?.trim() || rawWhomToMeet
+              : rawWhomToMeet;
 
-    // 🚀 Card Info Extraction
-    const targetCard = selectedCardForAssign || editingVisitor;
-    const cardId = Number(selectedCardForAssign?.id || data.visitorCardId);
-    const cardCode =
-      targetCard?.employeeCode || targetCard?.employee_code || "";
+          // 🚀 Target Card Object
+          const targetCard: any = selectedCardForAssign || editingVisitor;
+          const cardId = Number(
+            selectedCardForAssign?.id || data.visitorCardId,
+          );
+          const cardCode =
+            targetCard?.employeeCode || targetCard?.employee_code || "";
 
-    // 🚀 Payload setup (Dono pass kar rahe hain - ID as Number & Code as String)
-    const { rfidCardNo, ...cleanData } = data;
-    const payload = {
-      ...cleanData,
-      whomToMeet: extractedCode,
-      visitorCardId: cardId,      // 👈 Integer ID (Zod schema expect: number)
-      employeeCode: cardCode,    // 👈 String Code (e.g. "zimvis001")
-    };
+          // 💳 Safe RFID Extraction from all possible sources & key names
+          const cardRfidNo =
+            data.rfidCardNo ||
+            data.rfid_card_no ||
+            targetCard?.rfidCardNo ||
+            targetCard?.rfid_card_no ||
+            targetCard?.cardNumber ||
+            targetCard?.cardNo ||
+            "";
 
-    try {
-      setIsSubmittingVisitor(true);
+          // 🚀 Payload setup (CamelCase & snake_case compatibility)
+          const payload = {
+            ...data,
+            whomToMeet: extractedCode,
+            visitorCardId: cardId,
+            employeeCode: cardCode,
+            rfidCardNo: String(cardRfidNo).trim(),
+            rfid_card_no: String(cardRfidNo).trim(),
+          };
 
-      const targetEndpoint = `/api/visitors?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`;
+          try {
+            setIsSubmittingVisitor(true);
 
-      const res = await fetch(targetEndpoint, {
-        method: editingVisitor ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+            const targetEndpoint = `/api/visitors?page=${page}&pageSize=${pageSize}&search=${encodeURIComponent(search)}`;
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(
-          errorData.message || "Failed to submit visitor details",
-        );
-      }
+            const res = await fetch(targetEndpoint, {
+              method: editingVisitor ? "PUT" : "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(payload),
+            });
 
-      toast({
-        title: "Success",
-        description: editingVisitor
-          ? "Visitor details updated successfully."
-          : "Visitor assigned successfully.",
-      });
+            if (!res.ok) {
+              const errorData = await res.json().catch(() => ({}));
+              throw new Error(
+                errorData.message || "Failed to submit visitor details",
+              );
+            }
 
-      setVisitorDialog(false);
-      setEditingVisitor(null);
-      setSelectedCardForAssign(null);
+            toast({
+              title: "Success",
+              description: editingVisitor
+                ? "Visitor details updated successfully."
+                : "Visitor assigned successfully.",
+            });
 
-      await fetchVisitorCards();
-    } catch (err: any) {
-      console.error("Visitor operation failed:", err);
-      setErrors({
-        general: err?.message || "Failed to submit visitor details",
-      });
-      toast({
-        title: "Error",
-        description: err?.message || "Failed to submit visitor details",
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmittingVisitor(false);
-    }
-  }}
-  isPending={isSubmittingVisitor}
-/>
+            setVisitorDialog(false);
+            setEditingVisitor(null);
+            setSelectedCardForAssign(null);
+
+            await fetchVisitorCards();
+          } catch (err: any) {
+            console.error("Visitor operation failed:", err);
+            setErrors({
+              general: err?.message || "Failed to submit visitor details",
+            });
+            toast({
+              title: "Error",
+              description: err?.message || "Failed to submit visitor details",
+              variant: "destructive",
+            });
+          } finally {
+            setIsSubmittingVisitor(false);
+          }
+        }}
+        isPending={isSubmittingVisitor}
+      />
 
       {/* Door Access / Device Status Modal */}
       <Dialog open={deviceStatusOpen} onOpenChange={setDeviceStatusOpen}>
@@ -1463,14 +1646,28 @@ export default function VisitorCardsPage() {
               className="rounded-xl px-6 bg-blue-600 hover:bg-blue-700"
               onClick={async () => {
                 try {
+                  // 1. Main gate find karein
+                  const mainGate = doors?.find(
+                    (d) => d.code === MAIN_GATE_SYNC.CODE,
+                  );
+
+                  // 2. Ensure karein ki Main Gate ki ID final Payload mein ho
+                  const finalDoorIds = Array.from(
+                    new Set([
+                      ...(selectedDoorIds || []),
+                      ...(mainGate ? [mainGate.id] : []),
+                    ]),
+                  );
+
                   const response = await apiRequest(
                     "POST",
                     "/api/employee-door-assignments",
                     {
                       employeeCode: roleassign?.employeeCode,
-                      doorIds: selectedDoorIds,
+                      doorIds: finalDoorIds, // 👈 `selectedDoorIds` ki jagah `finalDoorIds` bhein
                     },
                   );
+
                   if (response) {
                     toast({
                       title: "Success",
