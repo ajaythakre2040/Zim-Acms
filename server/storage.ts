@@ -2237,48 +2237,54 @@ export class DatabaseStorage implements IStorage {
     });
   }
   async outVisitor(id: number): Promise<Visitor> {
-    const [currentVisitor] = await db
-      .select()
-      .from(visitors)
-      .where(eq(visitors.id, id))
-      .limit(1);
+  const [currentVisitor] = await db
+    .select()
+    .from(visitors)
+    .where(eq(visitors.id, id))
+    .limit(1);
 
-    if (!currentVisitor) {
-      throw new Error(
-        `Visitor checkout failed: Record with ID '${id}' not found.`,
-      );
-    }
+  if (!currentVisitor) {
+    throw new Error(
+      `Visitor checkout failed: Record with ID '${id}' not found.`,
+    );
+  }
 
-    return await db.transaction(async (tx) => {
-      try {
-        const [updated] = await tx
-          .update(visitors)
+  // 🕒 Local Time Generator (IST without 'Z' / UTC shift)
+  const now = new Date();
+  const localISTISO = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 19); // Result format: "2026-07-30T12:54:56" (Same as In Time)
+
+  return await db.transaction(async (tx) => {
+    try {
+      const [updated] = await tx
+        .update(visitors)
+        .set({
+          permissionDateTo: localISTISO, // 👈 Fixed: Ab 5:30 ghante peeche nahi jayega
+          updatedAt: new Date(),
+        })
+        .where(eq(visitors.id, id))
+        .returning();
+
+      if (currentVisitor.employeeCode) {
+        await tx
+          .update(visitorMaster)
           .set({
-            permissionDateTo: new Date().toISOString(),
+            isAssigned: false,
             updatedAt: new Date(),
           })
-          .where(eq(visitors.id, id))
-          .returning();
-
-        if (currentVisitor.employeeCode) {
-          await tx
-            .update(visitorMaster)
-            .set({
-              isAssigned: false,
-              updatedAt: new Date(),
-            })
-            .where(eq(visitorMaster.employeeCode, currentVisitor.employeeCode));
-        }
-
-        return updated;
-      } catch (pgErr: any) {
-        tx.rollback();
-        throw new Error(
-          `Postgres checkout failed and rolled back: ${pgErr.message}`,
-        );
+          .where(eq(visitorMaster.employeeCode, currentVisitor.employeeCode));
       }
-    });
-  }
+
+      return updated;
+    } catch (pgErr: any) {
+      tx.rollback();
+      throw new Error(
+        `Postgres checkout failed and rolled back: ${pgErr.message}`,
+      );
+    }
+  });
+}
   async getVisits(status?: string): Promise<Visit[]> {
     if (status) {
       return await db
@@ -6405,97 +6411,216 @@ ${fromDate} || ' to ' || ${toDate}
       alertId: alertEntry ? alertEntry.id : null,
     };
   }
+  // async getVisitorMasters(
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  //   search?: string,
+  //   status?: string,
+  //   ruleid?: number | string
+  // ) {
+  //   const conditions = [];
+
+  //   if (search && search.trim() !== "") {
+  //     const searchTerm = `%${search.trim()}%`;
+  //     conditions.push(
+  //       or(
+  //         ilike(visitorMaster.employeeName, searchTerm),
+  //         ilike(visitorMaster.employeeCode, searchTerm)
+  //       )
+  //     );
+  //   }
+
+  //   if (status) {
+  //     conditions.push(eq(visitorMaster.status, status));
+  //   }
+
+  //   if (ruleid !== undefined && ruleid !== null && ruleid !== "all" && !isNaN(Number(ruleid))) {
+  //     conditions.push(eq(visitorMaster.ruleid, Number(ruleid)));
+  //   }
+
+  //   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  //   const ruleIdToName = Object.fromEntries(
+  //     Object.entries(ACCESS_RULES).map(([key, value]) => [value, key])
+  //   );
+
+  //   let baseQuery = db
+  //     .select({
+  //       id: visitorMaster.id,
+  //       msId: visitorMaster.msId,
+  //       employeeCode: visitorMaster.employeeCode,
+  //       employeeName: visitorMaster.employeeName,
+  //       rfidCardNo: visitorMaster.rfidCardNo,
+  //       ruleid: visitorMaster.ruleid,
+  //       locationId: visitorMaster.locationId,
+  //       lastPunchDoorId: visitorMaster.lastPunchDoorId,
+  //       lastPunchDoorName: doors.name,
+  //       lastSeenTime: sql<string>`TO_CHAR(${visitorMaster.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')`,
+  //       externalId: visitorMaster.externalId,
+  //       personType: visitorMaster.personType,
+  //       status: visitorMaster.status,
+  //       isLockoutEnabled: visitorMaster.isLockoutEnabled,
+  //       createdAt: visitorMaster.createdAt,
+  //       updatedAt: visitorMaster.updatedAt,
+  //       isAssigned: visitorMaster.isAssigned,
+  //     })
+  //     .from(visitorMaster)
+  //     .leftJoin(doors, eq(visitorMaster.lastPunchDoorId, doors.id))
+  //     .where(whereClause)
+  //     .orderBy(sql`${visitorMaster.id} DESC`);
+
+  //   const result = await withPagination(
+  //     db,
+  //     visitorMaster,
+  //     baseQuery,
+  //     page,
+  //     pageSize,
+  //     whereClause
+  //   );
+
+  //   if (Array.isArray(result)) {
+  //     return result.map((item) => ({
+  //       ...item,
+  //       lastPunchDoorName: item.lastPunchDoorName || "No Door",
+  //       ruleName:
+  //         item.ruleid !== null && item.ruleid !== undefined
+  //           ? ruleIdToName[item.ruleid] || "UNKNOWN_RULE"
+  //           : "NO_RULE",
+  //     }));
+  //   }
+
+  //   return {
+  //     ...result,
+  //     data: result.data.map((item: any) => ({
+  //       ...item,
+  //       lastPunchDoorName: item.lastPunchDoorName || "No Door",
+  //       ruleName:
+  //         item.ruleid !== null && item.ruleid !== undefined
+  //           ? ruleIdToName[item.ruleid] || "UNKNOWN_RULE"
+  //           : "NO_RULE",
+  //     })),
+  //   };
+  // }
+
   async getVisitorMasters(
-    page?: number | string,
-    pageSize?: number | string,
-    search?: string,
-    status?: string,
-    ruleid?: number | string
-  ) {
-    const conditions = [];
+  page?: number | string,
+  pageSize?: number | string,
+  search?: string,
+  status?: string,
+  ruleid?: number | string
+) {
+  const conditions = [];
 
-    if (search && search.trim() !== "") {
-      const searchTerm = `%${search.trim()}%`;
-      conditions.push(
-        or(
-          ilike(visitorMaster.employeeName, searchTerm),
-          ilike(visitorMaster.employeeCode, searchTerm)
-        )
-      );
-    }
-
-    if (status) {
-      conditions.push(eq(visitorMaster.status, status));
-    }
-
-    if (ruleid !== undefined && ruleid !== null && ruleid !== "all" && !isNaN(Number(ruleid))) {
-      conditions.push(eq(visitorMaster.ruleid, Number(ruleid)));
-    }
-
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
-
-    const ruleIdToName = Object.fromEntries(
-      Object.entries(ACCESS_RULES).map(([key, value]) => [value, key])
+  if (search && search.trim() !== "") {
+    const searchTerm = `%${search.trim()}%`;
+    conditions.push(
+      or(
+        ilike(visitorMaster.employeeName, searchTerm),
+        ilike(visitorMaster.employeeCode, searchTerm)
+      )
     );
-
-    let baseQuery = db
-      .select({
-        id: visitorMaster.id,
-        msId: visitorMaster.msId,
-        employeeCode: visitorMaster.employeeCode,
-        employeeName: visitorMaster.employeeName,
-        rfidCardNo: visitorMaster.rfidCardNo,
-        ruleid: visitorMaster.ruleid,
-        locationId: visitorMaster.locationId,
-        lastPunchDoorId: visitorMaster.lastPunchDoorId,
-        lastPunchDoorName: doors.name,
-        lastSeenTime: sql<string>`TO_CHAR(${visitorMaster.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')`,
-        externalId: visitorMaster.externalId,
-        personType: visitorMaster.personType,
-        status: visitorMaster.status,
-        isLockoutEnabled: visitorMaster.isLockoutEnabled,
-        createdAt: visitorMaster.createdAt,
-        updatedAt: visitorMaster.updatedAt,
-        isAssigned: visitorMaster.isAssigned,
-      })
-      .from(visitorMaster)
-      .leftJoin(doors, eq(visitorMaster.lastPunchDoorId, doors.id))
-      .where(whereClause)
-      .orderBy(sql`${visitorMaster.id} DESC`);
-
-    const result = await withPagination(
-      db,
-      visitorMaster,
-      baseQuery,
-      page,
-      pageSize,
-      whereClause
-    );
-
-    if (Array.isArray(result)) {
-      return result.map((item) => ({
-        ...item,
-        lastPunchDoorName: item.lastPunchDoorName || "No Door",
-        ruleName:
-          item.ruleid !== null && item.ruleid !== undefined
-            ? ruleIdToName[item.ruleid] || "UNKNOWN_RULE"
-            : "NO_RULE",
-      }));
-    }
-
-    return {
-      ...result,
-      data: result.data.map((item: any) => ({
-        ...item,
-        lastPunchDoorName: item.lastPunchDoorName || "No Door",
-        ruleName:
-          item.ruleid !== null && item.ruleid !== undefined
-            ? ruleIdToName[item.ruleid] || "UNKNOWN_RULE"
-            : "NO_RULE",
-      })),
-    };
   }
 
+  if (status) {
+    conditions.push(eq(visitorMaster.status, status));
+  }
+
+  if (ruleid !== undefined && ruleid !== null && ruleid !== "all" && !isNaN(Number(ruleid))) {
+    conditions.push(eq(visitorMaster.ruleid, Number(ruleid)));
+  }
+
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const ruleIdToName = Object.fromEntries(
+    Object.entries(ACCESS_RULES).map(([key, value]) => [value, key])
+  );
+
+  // 🔍 SQL Subquery: Matching RFID ke basis par Visitors table se Latest Record & Permission Check
+  const latestVisitorSubquery = db
+    .select({
+      rfidCardNo: visitors.rfidCardNo,
+      nameOfVisitor: visitors.nameOfVisitor,
+      permissionDateTo: visitors.permissionDateTo,
+      // Latest record prioritize karne ke liye Row Numbering / Rank
+      rowNum: sql<number>`ROW_NUMBER() OVER (
+        PARTITION BY ${visitors.rfidCardNo} 
+        ORDER BY ${visitors.id} DESC
+      )`.as("row_num"),
+    })
+    .from(visitors)
+    .as("latest_v");
+
+  let baseQuery = db
+    .select({
+      id: visitorMaster.id,
+      msId: visitorMaster.msId,
+      employeeCode: visitorMaster.employeeCode,
+      employeeName: visitorMaster.employeeName,
+      rfidCardNo: visitorMaster.rfidCardNo,
+      ruleid: visitorMaster.ruleid,
+      locationId: visitorMaster.locationId,
+      lastPunchDoorId: visitorMaster.lastPunchDoorId,
+      lastPunchDoorName: doors.name,
+      lastSeenTime: sql<string>`TO_CHAR(${visitorMaster.lastSeenTime}, 'YYYY-MM-DD"T"HH24:MI:SS')`,
+      externalId: visitorMaster.externalId,
+      personType: visitorMaster.personType,
+      status: visitorMaster.status,
+      isLockoutEnabled: visitorMaster.isLockoutEnabled,
+      createdAt: visitorMaster.createdAt,
+      updatedAt: visitorMaster.updatedAt,
+      isAssigned: visitorMaster.isAssigned,
+      
+      // 🌟 Dynamic Visitor Name Evaluation:
+      // Agar latest record me permissionDateTo NULL hai, tabhi visitor name aayega, warna "-"
+      activeVisitorName: sql<string>`
+        CASE 
+          WHEN ${latestVisitorSubquery.permissionDateTo} IS NULL 
+               AND ${latestVisitorSubquery.nameOfVisitor} IS NOT NULL 
+          THEN ${latestVisitorSubquery.nameOfVisitor}
+          ELSE '-'
+        END
+      `,
+    })
+    .from(visitorMaster)
+    .leftJoin(doors, eq(visitorMaster.lastPunchDoorId, doors.id))
+    .leftJoin(
+      latestVisitorSubquery,
+      and(
+        eq(visitorMaster.rfidCardNo, latestVisitorSubquery.rfidCardNo),
+        eq(latestVisitorSubquery.rowNum, 1) // Sirf latest record ke sath join hoga
+      )
+    )
+    .where(whereClause)
+    .orderBy(sql`${visitorMaster.id} DESC`);
+
+  const result = await withPagination(
+    db,
+    visitorMaster,
+    baseQuery,
+    page,
+    pageSize,
+    whereClause
+  );
+
+  const formatItem = (item: any) => ({
+    ...item,
+    lastPunchDoorName: item.lastPunchDoorName || "No Door",
+    visitorName: item.activeVisitorName || "-", // 👈 Final Visitor Name field
+    ruleName:
+      item.ruleid !== null && item.ruleid !== undefined
+        ? ruleIdToName[item.ruleid] || "UNKNOWN_RULE"
+        : "NO_RULE",
+  });
+
+  if (Array.isArray(result)) {
+    return result.map(formatItem);
+  }
+
+  return {
+    ...result,
+    data: result.data.map(formatItem),
+  };
+}
   async getVisitorMasterById(id: number | string) {
     const numId = Number(id);
     if (isNaN(numId)) return null;

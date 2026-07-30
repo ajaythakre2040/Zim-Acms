@@ -412,43 +412,7 @@ export default function VisitorsPage() {
       label: "Actions",
       render: (v: any) => (
         <div className="flex items-center space-x-1">
-          {/* EXIT BUTTON */}
-          <Button
-            size="icon"
-            variant="ghost"
-            title="Mark Exit / Check-out"
-            onClick={async (e) => {
-              e.stopPropagation();
-
-              // 🌟 CHECK: Agar visitor already check-out ho chuka hai (Out Time majood hai)
-              if (v.permissionDateTo) {
-                toast({
-                  title: "Already Checked Out",
-                  description: `${v.nameOfVisitor} has already logged out at ${new Date(v.permissionDateTo).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`,
-                  variant: "destructive", // Ya fir "default" jaisa aapko sahi lage
-                });
-                return; // Aage ka confirmation block aur mutation trigger nahi hoga 🛑
-              }
-
-              // Agar checked-out nahi hai, toh hi confirm box open hoga
-              const confirmed = await confirm({
-                title: "Mark Visitor Exit?",
-                description: `Are you sure you want to check out ${v.nameOfVisitor}? This will update their departure timestamp.`,
-                confirmText: "Yes, Check-out",
-                cancelText: "Cancel",
-                variant: "default",
-              });
-              if (confirmed) {
-                checkoutVisitor.mutate(v.id);
-              }
-            }}
-            disabled={checkoutVisitor.isPending}
-          >
-            {/* 🌟 STYLING OPTION: Agar visitor already logged out hai toh icon thoda fade/gray-out dikhe */}
-            <LogOut
-              className={`w-4 h-4 ${v.permissionDateTo ? "text-muted-foreground/50" : "text-emerald-500"}`}
-            />
-          </Button>
+          
 
           {/* VIEW BUTTON */}
           <Button
@@ -483,7 +447,7 @@ export default function VisitorsPage() {
               </Button>
 
               {/* DELETE BUTTON */}
-              <Button
+              {/* <Button
                 size="icon"
                 variant="ghost"
                 title="Delete Visitor"
@@ -502,7 +466,7 @@ export default function VisitorsPage() {
                 }}
               >
                 <Trash2 className="w-4 h-4 text-destructive" />
-              </Button>
+              </Button> */}
             </>
           )}
         </div>
@@ -531,7 +495,7 @@ export default function VisitorsPage() {
           />
         </div>
 
-        <Button
+        {/* <Button
           onClick={() => {
             setEditingVisitor(null);
             setErrors({}); // Fresh form ke liye errors reset
@@ -539,7 +503,7 @@ export default function VisitorsPage() {
           }}
         >
           <Plus className="w-4 h-4 mr-1" /> Register Visitor
-        </Button>
+        </Button> */}
       </div>
 
       {/* Main Grid View */}
