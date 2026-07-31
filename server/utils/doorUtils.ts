@@ -112,6 +112,53 @@ export async function getActiveDevicesByDoorCode(doorCode: string) {
  * Helper function: Fetches a Set of Employee Codes who punched 'IN' TODAY 
  * at any Main Gate device (or specified devices) from MSSQL DeviceLogs.
  */
+// export async function getValidTodayMainInEmployeeCodes(
+//   targetDeviceIds: number[]
+// ): Promise<Set<string>> {
+//   const validInEmpCodesToday = new Set<string>();
+
+//   if (!targetDeviceIds || targetDeviceIds.length === 0) {
+//     return validInEmpCodesToday;
+//   }
+
+//   // Current Date ka Start Time (Today 00:00:00 AM)
+//   const todayStart = new Date();
+//   todayStart.setHours(0, 0, 0, 0);
+
+//   try {
+//     if (!mssqlPool.connected) {
+//       await mssqlPool.connect();
+//     }
+
+//     const request = mssqlPool.request();
+//     request.input("todayStart", todayStart);
+
+//     const deviceIdsCsv = targetDeviceIds.join(",");
+
+//     const query = `
+//       SELECT DISTINCT EmployeeCode 
+//       FROM DeviceLogs 
+//       WHERE DeviceId IN (${deviceIdsCsv})
+//         AND UPPER(Direction) = 'IN' 
+//         AND LogDate >= @todayStart
+//     `;
+
+//     const result = await request.query(query);
+
+//     if (result && result.recordset) {
+//       for (const row of result.recordset) {
+//         if (row?.EmployeeCode) {
+//           validInEmpCodesToday.add(String(row.EmployeeCode).trim());
+//         }
+//       }
+//     }
+//   } catch (err) {
+//     console.error(`[ERROR] Failed to fetch Today's IN logs from MSSQL:`, err);
+//   }
+
+//   return validInEmpCodesToday;
+// }
+
 export async function getValidTodayMainInEmployeeCodes(
   targetDeviceIds: number[]
 ): Promise<Set<string>> {
@@ -121,9 +168,14 @@ export async function getValidTodayMainInEmployeeCodes(
     return validInEmpCodesToday;
   }
 
-  // Current Date ka Start Time (Today 00:00:00 AM)
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
+  // Local Date String (YYYY-MM-DD 00:00:00)
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  
+  // Format: '2026-07-31 00:00:00'
+  const todayStartStr = `${year}-${month}-${day} 00:00:00`;
 
   try {
     if (!mssqlPool.connected) {
@@ -131,16 +183,21 @@ export async function getValidTodayMainInEmployeeCodes(
     }
 
     const request = mssqlPool.request();
-    request.input("todayStart", todayStart);
+    request.input("todayStartStr", todayStartStr);
 
     const deviceIdsCsv = targetDeviceIds.join(",");
 
+    // CONVERT() lagane se raw exact string milegi, bina kisi 5:30 hr offset issue ke!
     const query = `
-      SELECT DISTINCT EmployeeCode 
+      SELECT DISTINCT 
+        EmployeeCode, 
+        CONVERT(VARCHAR(19), LogDate, 120) AS FormattedLogDate, 
+        Direction 
       FROM DeviceLogs 
       WHERE DeviceId IN (${deviceIdsCsv})
         AND UPPER(Direction) = 'IN' 
-        AND LogDate >= @todayStart
+        AND LogDate >= @todayStartStr
+      ORDER BY FormattedLogDate DESC
     `;
 
     const result = await request.query(query);
@@ -148,7 +205,9 @@ export async function getValidTodayMainInEmployeeCodes(
     if (result && result.recordset) {
       for (const row of result.recordset) {
         if (row?.EmployeeCode) {
-          validInEmpCodesToday.add(String(row.EmployeeCode).trim());
+          const empCode = String(row.EmployeeCode).trim();
+          validInEmpCodesToday.add(empCode);
+
         }
       }
     }

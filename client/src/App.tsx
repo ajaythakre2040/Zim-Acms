@@ -324,9 +324,12 @@ function AuthenticatedApp() {
       queryClient.invalidateQueries({ queryKey: ["/api/people"] });
       toast({ title: "Success", description: res.message });
 
-      const expiryTime = Date.now() + 1 * 60 * 1000;
-      localStorage.setItem("emergency_unblock_cooldown", expiryTime.toString());
-      setUnblockCooldown(10);
+      // ⚡ Emergency Unblock Cooldown: 15 Minutes (900 Seconds)
+      const UNBLOCK_COOLDOWN_SECONDS = 15 * 60;
+      const unblockExpiry = Date.now() + UNBLOCK_COOLDOWN_SECONDS * 1000;
+
+      localStorage.setItem("emergency_unblock_cooldown", unblockExpiry.toString());
+      setUnblockCooldown(UNBLOCK_COOLDOWN_SECONDS);
     },
     onError: (err: any) => {
       toast({
@@ -351,7 +354,7 @@ function AuthenticatedApp() {
       });
 
       // ⚡ UPDATED: Cooldown ko 1 min (60 sec) kar diya gaya hai
-      const REFRESH_COOLDOWN_SECONDS = 60; // Aap yahan 30 sec ya jitna chahein rakh sakte hain
+      const REFRESH_COOLDOWN_SECONDS = 15 * 60; // Aap yahan 30 sec ya jitna chahein rakh sakte hain
       const expiryTime = Date.now() + REFRESH_COOLDOWN_SECONDS * 1000;
 
       localStorage.setItem("refresh_doors_cooldown", expiryTime.toString());
