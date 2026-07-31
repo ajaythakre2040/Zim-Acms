@@ -175,8 +175,9 @@ import path from "path";
 import { DeviceSecurityService } from "./services/deviceSecurityService";
 import {
   getActiveDevicesByDoorCode,
+  getActiveDoors,
   getActiveDoorsWithDevices,
-  getValidTodayInEmployeeCodes,
+  getValidTodayMainInEmployeeCodes,
 } from "./utils/doorUtils";
 import { syncDoorActivationHardware } from "./utils/syncDoorActivationHardware";
 import { SyncService, VisitorSyncService } from "./services/sync.service.js";
@@ -4187,7 +4188,7 @@ export class DatabaseStorage implements IStorage {
         .map((d: any) => Number(d.msId));
 
       // 2. Common Function Call: Get Today's Valid IN Employees from MSSQL
-      const validInEmpCodesToday = await getValidTodayInEmployeeCodes(
+      const validInEmpCodesToday = await getValidTodayMainInEmployeeCodes(
         gateDeviceIdsArr,
       );
 
@@ -6575,7 +6576,17 @@ async executeNewDevicebulkBlock(
         and(eq(devices.isActive, true), gt(devices.lastPing, fiveMinutesAgo)),
       )) ?? [];
 
-  const { activeDoors, activeDevices } = await getActiveDoorsWithDevices();
+  // Active Doors ko doorUtils ke getActiveDoors() function se call kar rahe hain
+  const activeDoorsList = (await getActiveDoors()) ?? [];
+
+  const { activeDevices } = await getActiveDoorsWithDevices();
+
+  // Active Doors IDs ka Set
+  const activeDoorIds = new Set<number>(
+    activeDoorsList
+      .filter((door: any) => door && door.id !== null && door.id !== undefined)
+      .map((door: any) => Number(door.id)),
+  );
 
   const activeDeviceMsIds = new Set<number>(
     activeDevices
@@ -6583,6 +6594,7 @@ async executeNewDevicebulkBlock(
       .map((d: any) => Number(d.msId)) ?? [],
   );
 
+  // Filter Active + Online Devices
   const allOnlineDevices = rawOnlineDevices.filter(
     (d: any) => d?.msId && activeDeviceMsIds.has(Number(d.msId)),
   );
@@ -6599,7 +6611,7 @@ async executeNewDevicebulkBlock(
   const gateDeviceIds = new Set<number>(gateDeviceIdsArr);
 
   // 3. COMMON FUNCTION CALL: Get Today's Valid IN Employees from MSSQL
-  const validInEmpCodesToday = await getValidTodayInEmployeeCodes(gateDeviceIdsArr);
+  const validInEmpCodesToday = await getValidTodayMainInEmployeeCodes(gateDeviceIdsArr);
 
   // 4. Schema-based Mapping: deviceMsId -> doorId using door_devices Junction Table
   const deviceToDoorMap = new Map<number, number>();
@@ -6618,6 +6630,9 @@ async executeNewDevicebulkBlock(
     for (const record of mappingRecords) {
       if (!record?.doorId) continue;
       const doorId = Number(record.doorId);
+
+      // Inactive Doors ke devices ko skip karega
+      if (!activeDoorIds.has(doorId)) continue;
 
       const inDevs = Array.isArray(record.inDeviceIds) ? record.inDeviceIds : [];
       const outDevs = Array.isArray(record.outDeviceIds) ? record.outDeviceIds : [];
@@ -6673,7 +6688,7 @@ async executeNewDevicebulkBlock(
     const hasMainGateInToday = validInEmpCodesToday.has(currentEmpCode);
 
     if (!hasMainGateInToday) {
-      // OUT or Old Stale IN Employees (No Main Gate Punch Today): Block on all non-gate devices
+      // OUT or Old Stale IN Employees: Block on all non-gate online devices
       for (const dev of allOnlineDevices) {
         if (!dev?.msId || !dev?.serialNumber) continue;
         const currentDevId = Number(dev.msId);
@@ -6718,7 +6733,7 @@ async executeNewDevicebulkBlock(
           isDoorAssignedToEmp = assignedPersonDoorsSet.has(matchKey);
         }
 
-        // AGAR AAJ KA MAIN GATE IN HAIN + DOOR ASSIGNED HAI -> UNBLOCK (SKIP BLOCK)
+        // AGAR AAJ KA MAIN GATE IN HAIN + DOOR ASSIGNED HAI -> SKIP BLOCK
         if (isDoorAssignedToEmp) continue;
 
         // AGAR DOOR ASSIGNED NAHI HAI -> BLOCK

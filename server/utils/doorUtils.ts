@@ -112,7 +112,7 @@ export async function getActiveDevicesByDoorCode(doorCode: string) {
  * Helper function: Fetches a Set of Employee Codes who punched 'IN' TODAY 
  * at any Main Gate device (or specified devices) from MSSQL DeviceLogs.
  */
-export async function getValidTodayInEmployeeCodes(
+export async function getValidTodayMainInEmployeeCodes(
   targetDeviceIds: number[]
 ): Promise<Set<string>> {
   const validInEmpCodesToday = new Set<string>();
