@@ -362,12 +362,14 @@ export default function VisitorsPage() {
   const columns = [
     {
       key: "nameOfVisitor",
-      label: "Name",
-      render: (v: any) => (
-        <span className="font-semibold text-foreground">{v.nameOfVisitor}</span>
-      ),
+      label: "Visitor Name",
+      render: (v: any) => v.nameOfVisitor,
     },
-    { key: "whomToMeet", label: "Whom To Meet" },
+    {
+      key: "nameOfEmployee",
+      label: "Employee Name",
+      render: (v: any) => v.employeeName,
+    },
     {
       key: "rfidCardNo",
       label: "RFID Card",
@@ -380,7 +382,7 @@ export default function VisitorsPage() {
         if (!v.permissionDateFrom) return "-";
         const date = new Date(v.permissionDateFrom);
         return (
-          <span className="text-xs text-muted-foreground font-medium">
+          <span className="text-muted-foreground font-medium">
             {date.toLocaleDateString()}{" "}
             {date.toLocaleTimeString([], {
               hour: "2-digit",
@@ -412,8 +414,6 @@ export default function VisitorsPage() {
       label: "Actions",
       render: (v: any) => (
         <div className="flex items-center space-x-1">
-          
-
           {/* VIEW BUTTON */}
           <Button
             size="icon"

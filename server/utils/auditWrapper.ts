@@ -130,7 +130,7 @@ const getChangedFields = (oldData: any, newData: any): string[] => {
 // };
 export const withAudit = (
     tableName: TableNames,
-    action: "ADD" | "UPDATE" | "DELETE" | "ADD/UPDATE" | "EMERGENCY_BLOCK" | "EMERGENCY_UNBLOCK" |"EMERGENCY_BLOCK_ALL"| "EMERGENCY_UNBLOCK_ALL" | "BULK_EMPOYEE_UPDATE" | "BULK_DOOR_ASIGNMENT" | "BULK_CONTRACTOR_UPLOAD" |((req: any) => string),
+    action: "ADD" | "UPDATE" | "DELETE" | "ADD/UPDATE" | "EMERGENCY_BLOCK" | "SINGLE_DOOR_EMERGENCY_UNLOCK" |"EMERGENCY_BLOCK_ALL"| "SINGLE_DOOR_REFRESH"| "EMERGENCY_UNBLOCK_ALL" | "BULK_EMPOYEE_UPDATE" | "BULK_DOOR_ASIGNMENT" | "BULK_CONTRACTOR_UPLOAD" |((req: any) => string),
     storageOperation: (req: any) => Promise<any>,
     statusCode = 200
 ) => {
