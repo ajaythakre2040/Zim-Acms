@@ -133,8 +133,8 @@ export class SyncService {
                 const existing = currentPgData[existingIndex];
                 const hasChanged =
                     existing.employeeName !== mapped.employeeName ||
-                    existing.employeeCode !== mapped.employeeCode ||
-                    existing.ruleid !== mapped.ruleid;
+                    existing.employeeCode !== mapped.employeeCode 
+                    // existing.ruleid !== mapped.ruleid;
 
                 if (hasChanged) {
                     try {
@@ -143,7 +143,7 @@ export class SyncService {
                             .set({
                                 employeeName: mapped.employeeName ?? "Unknown",
                                 employeeCode: mapped.employeeCode,
-                                ruleid: mapped.ruleid ?? null,
+                                // ruleid: mapped.ruleid ?? null,
                                 updatedAt: new Date(),
                             })
                             .where(eq(people.msId, mapped.msId))
