@@ -1079,53 +1079,67 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(doors).values(data).returning();
     return created;
   }
-  async updateDoor(id: number, data: Partial<InsertDoor>): Promise<Door> {
-    const [existingDoor] = await db
+ async updateDoor(id: number, data: Partial<InsertDoor>): Promise<Door> {
+  const [existingDoor] = await db
+    .select()
+    .from(doors)
+    .where(eq(doors.id, id))
+    .limit(1);
+
+  if (!existingDoor) {
+    throw new Error("Door not found");
+  }
+
+  if (data.name) {
+    const [existing] = await db
       .select()
       .from(doors)
-      .where(eq(doors.id, id))
-      .limit(1);
-    if (!existingDoor) {
-      throw new Error("Door not found");
-    }
-    if (data.name) {
-      const [existing] = await db
-        .select()
-        .from(doors)
-        .where(and(eq(doors.name, data.name), ne(doors.id, id)));
-      if (existing) throw new Error(`Door name '${data.name}' already exists.`);
-    }
-    if (data.code) {
-      const [existingCode] = await db
-        .select()
-        .from(doors)
-        .where(and(eq(doors.code, data.code), ne(doors.id, id)));
-      if (existingCode)
-        throw new Error(`Door code '${data.code}' already exists.`);
-    }
-    const [updated] = await db
-      .update(doors)
-      .set(data)
-      .where(eq(doors.id, id))
-      .returning();
-    if (!updated) throw new Error("Door not found");
-    const isActivated = !existingDoor.isActive && updated.isActive;
-    if (isActivated) {
-      syncDoorActivationHardware(updated.id)
-        .then((count) => {
-          console.log(
-            `🚀 [DOOR ACTIVATED] Hardware re-synced for ${count} employees inside building on Door ID: ${updated.id}`,
-          );
-        })
-        .catch((err) => {
-          console.error(
-            `🔥 [DOOR ACTIVATION ERROR] Sync failed for Door ID: ${updated.id}`,
-            err,
-          );
-        });
-    }
-    return updated;
+      .where(and(eq(doors.name, data.name), ne(doors.id, id)));
+    if (existing) throw new Error(`Door name '${data.name}' already exists.`);
   }
+
+  if (data.code) {
+    const [existingCode] = await db
+      .select()
+      .from(doors)
+      .where(and(eq(doors.code, data.code), ne(doors.id, id)));
+    if (existingCode)
+      throw new Error(`Door code '${data.code}' already exists.`);
+  }
+
+  // 🆕 Automatically update lastRefreshedAt & updatedAt on every door update/refresh
+  const updateData = {
+    ...data,
+    lastRefreshedAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const [updated] = await db
+    .update(doors)
+    .set(updateData)
+    .where(eq(doors.id, id))
+    .returning();
+
+  if (!updated) throw new Error("Door not found");
+
+  const isActivated = !existingDoor.isActive && updated.isActive;
+  if (isActivated) {
+    syncDoorActivationHardware(updated.id)
+      .then((count) => {
+        console.log(
+          `🚀 [DOOR ACTIVATED] Hardware re-synced for ${count} employees inside building on Door ID: ${updated.id}`,
+        );
+      })
+      .catch((err) => {
+        console.error(
+          `🔥 [DOOR ACTIVATION ERROR] Sync failed for Door ID: ${updated.id}`,
+          err,
+        );
+      });
+  }
+
+  return updated;
+}
   async deleteDoor(id: number): Promise<void> {
     await db.execute(sql`
     UPDATE ${schema.employeeDoorAssignments} 
@@ -7101,6 +7115,21 @@ async executeNewDevicebulkBlock(
   const safeUserName = userName || "System Admin";
   const targetDoorIdNum = Number(doorId);
 
+  // Helper Function: Door Refresh Time Update karne ke liye
+  const updateDoorTimestamp = async () => {
+    try {
+      await db
+        .update(doors)
+        .set({
+          lastRefreshedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(doors.id, targetDoorIdNum));
+    } catch (err) {
+      console.error(`Failed to update lastRefreshedAt for Door ID ${targetDoorIdNum}:`, err);
+    }
+  };
+
   // 1. Target Door active hai ya nahi check karein
   const activeDoorsList = (await getActiveDoors()) ?? [];
   const activeDoorIds = new Set<number>(
@@ -7124,6 +7153,8 @@ async executeNewDevicebulkBlock(
     .where(eq(doorDevices.doorId, targetDoorIdNum));
 
   if (!doorDeviceRecord || doorDeviceRecord.length === 0) {
+    // 💡 Button Click hua hai, to timestamp update hoga
+    await updateDoorTimestamp();
     return {
       status: "Empty",
       processedCount: 0,
@@ -7139,6 +7170,8 @@ async executeNewDevicebulkBlock(
   );
 
   if (rawTargetDeviceIds.length === 0) {
+    // 💡 Timestamp update
+    await updateDoorTimestamp();
     return {
       status: "Empty",
       processedCount: 0,
@@ -7173,6 +7206,8 @@ async executeNewDevicebulkBlock(
   }
 
   if (targetDevicesList.length === 0) {
+    // 💡 Timestamp update
+    await updateDoorTimestamp();
     return {
       status: "Empty",
       processedCount: 0,
@@ -7286,7 +7321,11 @@ async executeNewDevicebulkBlock(
     }
   }
 
+  // 💥 FIX: NO RECORDS MATCHED CASE
   if (taskQueue.length === 0) {
+    // 🔥 Button press hua hai, bhale hi block karne ko records na milen!
+    await updateDoorTimestamp();
+
     return {
       status: "Empty",
       processedCount: 0,
@@ -7353,6 +7392,9 @@ async executeNewDevicebulkBlock(
     );
     await new Promise((res) => setTimeout(res, 100));
   }
+
+  // 9. UPDATE LAST_REFRESHED_AT AFTER SUCCESSFUL BLOCK PROCESSING
+  await updateDoorTimestamp();
 
   return {
     status: "Success",

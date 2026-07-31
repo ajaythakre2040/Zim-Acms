@@ -449,7 +449,7 @@ export default function ZonesDoorsPage() {
       key: "inDevices",
       label: "IN Devices",
       render: (d: any) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
+        <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
           {d.inDevices?.length > 0 ? (
             d.inDevices.map((dev: any) => (
               <Badge
@@ -461,9 +461,12 @@ export default function ZonesDoorsPage() {
               </Badge>
             ))
           ) : (
-            <span className="text-[10px] text-muted-foreground italic">
+            <Badge
+              variant="outline"
+              className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
+            >
               None
-            </span>
+            </Badge>
           )}
         </div>
       ),
@@ -472,7 +475,7 @@ export default function ZonesDoorsPage() {
       key: "outDevices",
       label: "OUT Devices",
       render: (d: any) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
+        <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
           {d.outDevices?.length > 0 ? (
             d.outDevices.map((dev: any) => (
               <Badge
@@ -484,11 +487,29 @@ export default function ZonesDoorsPage() {
               </Badge>
             ))
           ) : (
-            <span className="text-[10px] text-muted-foreground italic">
+            <Badge
+              variant="outline"
+              className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
+            >
               None
-            </span>
+            </Badge>
           )}
         </div>
+      ),
+    },
+    {
+      key: "lastRefreshedAt",
+      label: "Last Refreshed",
+      render: (d: any) => (
+        <span className="text-xs text-muted-foreground font-mono">
+          {d.lastRefreshedAt
+            ? new Date(d.lastRefreshedAt).toLocaleString("en-IN", {
+                dateStyle: "short",
+                timeStyle: "medium",
+                timeZone: "Asia/Kolkata",
+              })
+            : "—"}
+        </span>
       ),
     },
     {
