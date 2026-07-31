@@ -144,8 +144,10 @@ export const doors = pgTable("doors", {
   status: text("status", { enum: ["normal", "locked", "unlocked", "alarm", "maintenance"] }).default("normal"),
   isActive: boolean("is_active").default(true),
   is_lockout_enabled: boolean("is_lockout_enabled").default(false),
+  lastRefreshedAt: timestamp("last_refreshed_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+ 
 });
 export const devices = pgTable("devices", {
   id: serial("id").primaryKey(),

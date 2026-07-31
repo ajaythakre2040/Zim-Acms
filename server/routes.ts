@@ -2,20 +2,43 @@ import type { Express, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import type { Server } from "http";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+import {
+  setupAuth,
+  registerAuthRoutes,
+  isAuthenticated,
+} from "./replit_integrations/auth";
 import { storage } from "./storage";
 import { z } from "zod";
 import dayjs from "dayjs";
 import {
-  insertCompanySchema, insertDepartmentSchema, insertDesignationSchema,
-  insertCategorySchema, insertVendorSchema, insertSiteSchema, insertBuildingSchema,
-  insertFloorSchema, insertZoneSchema, insertDoorSchema, insertDeviceSchema,
-  insertPersonSchema, insertCredentialSchema, insertAccessCardSchema,
-  insertShiftSchema, insertShiftAssignmentSchema, insertHolidaySchema,
-  insertAccessLevelSchema, insertAccessRuleSchema, insertPersonAccessSchema,
-  insertVisitorSchema, insertVisitSchema, insertAttendanceSchema,
-  insertAccessLogSchema, insertAlertSchema, insertExceptionSchema,
-  insertSystemSettingSchema, insertUserProfileSchema,
+  insertCompanySchema,
+  insertDepartmentSchema,
+  insertDesignationSchema,
+  insertCategorySchema,
+  insertVendorSchema,
+  insertSiteSchema,
+  insertBuildingSchema,
+  insertFloorSchema,
+  insertZoneSchema,
+  insertDoorSchema,
+  insertDeviceSchema,
+  insertPersonSchema,
+  insertCredentialSchema,
+  insertAccessCardSchema,
+  insertShiftSchema,
+  insertShiftAssignmentSchema,
+  insertHolidaySchema,
+  insertAccessLevelSchema,
+  insertAccessRuleSchema,
+  insertPersonAccessSchema,
+  insertVisitorSchema,
+  insertVisitSchema,
+  insertAttendanceSchema,
+  insertAccessLogSchema,
+  insertAlertSchema,
+  insertExceptionSchema,
+  insertSystemSettingSchema,
+  insertUserProfileSchema,
   insertRoleSchema,
   insertCronMasterSchema,
   insertDoorDeviceSchema,
@@ -29,7 +52,12 @@ import {
   visitors,
   insertVisitorMasterSchema,
 } from "@shared/schema";
-import { CABIN_LOCKOUT_CONFIG, MAIN_GATE_SYNC, TableNames, TABLES } from "./constant";
+import {
+  CABIN_LOCKOUT_CONFIG,
+  MAIN_GATE_SYNC,
+  TableNames,
+  TABLES,
+} from "./constant";
 import { logProfileAudit, withAudit } from "./utils/auditWrapper";
 import { eq, desc } from "drizzle-orm";
 import { db } from "./db";
@@ -37,11 +65,15 @@ import { validateNoHtml } from "@/lib/validation";
 import { validatePasswordStrength } from "./utils/validators";
 import bcrypt from "bcryptjs";
 import { appendErrors } from "react-hook-form";
-import { processDoorUpdate, processEmployeeBulkUpdateOnly } from "./services/uploadService";
+import {
+  processDoorUpdate,
+  processEmployeeBulkUpdateOnly,
+} from "./services/uploadService";
 import { processContractorBulkUploadOnly } from "./services/contractors_bulk_upload";
 import { syncVisitorCardsFromMsSql } from "./services/syncVisitorCardsFromMsSql";
 function requireAuth(req: any, res: any, next: any) {
-  if (!req.session?.authenticated || !req.session?.userId) return res.sendStatus(401);
+  if (!req.session?.authenticated || !req.session?.userId)
+    return res.sendStatus(401);
   next();
 }
 function crudRoutes<T>(
@@ -53,7 +85,7 @@ function crudRoutes<T>(
   update?: (id: number, data: any) => Promise<any>,
   remove?: (id: number) => Promise<void>,
   getOne?: (id: number) => Promise<any>,
-  tableNameParam?: TableNames
+  tableNameParam?: TableNames,
 ) {
   const tableName = tableNameParam || (basePath.split("/").pop() as TableNames);
   const handleDbError = (e: any, res: any) => {
@@ -62,7 +94,7 @@ function crudRoutes<T>(
     const isDuplicate =
       e.number === 2627 ||
       e.number === 2601 ||
-      e.code === '23505' ||
+      e.code === "23505" ||
       errorMessage.includes("UNIQUE KEY") ||
       errorMessage.includes("duplicate") ||
       errorMessage.includes("already exists");
@@ -74,22 +106,25 @@ function crudRoutes<T>(
       else if (lowerMsg.includes("mac")) fieldName = "MAC Address";
       else if (lowerMsg.includes("serial")) fieldName = "Serial Number";
       else if (lowerMsg.includes("ip")) fieldName = "IP Address";
-      else if (lowerMsg.includes("role_menu_unique")) fieldName = "Permission Mapping";
+      else if (lowerMsg.includes("role_menu_unique"))
+        fieldName = "Permission Mapping";
       return res.status(400).json({
         isDuplicate: true,
-        message: `${fieldName} is already in use. Please provide a unique value.`
+        message: `${fieldName} is already in use. Please provide a unique value.`,
       });
     }
     res.status(500).json({
       message: "An unexpected database error occurred.",
-      devDetails: errorMessage
+      devDetails: errorMessage,
     });
   };
   app.get(basePath, async (req, res) => {
     try {
       const result = await getAll(req.query);
       res.json(result);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   if (getOne) {
     app.get(`${basePath}/:id`, async (req, res) => {
@@ -98,14 +133,21 @@ function crudRoutes<T>(
         const item = await getOne(id);
         if (!item) return res.status(404).json({ message: "Not found" });
         res.json(item);
-      } catch (e: any) { res.status(500).json({ message: e.message }); }
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
     });
   }
   app.post(basePath, requireAuth, (req: any, res: any) => {
-    return withAudit(tableName, "ADD", async (innerReq) => {
-      const input = schema.parse(innerReq.body);
-      return await create(input);
-    }, 201)(req, res).catch((e) => {
+    return withAudit(
+      tableName,
+      "ADD",
+      async (innerReq) => {
+        const input = schema.parse(innerReq.body);
+        return await create(input);
+      },
+      201,
+    )(req, res).catch((e) => {
       if (e instanceof z.ZodError) return res.status(400).json(e.errors);
       handleDbError(e, res);
     });
@@ -114,10 +156,15 @@ function crudRoutes<T>(
     app.put(`${basePath}/:id`, requireAuth, (req: any, res: any) => {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      return withAudit(tableName, "UPDATE", async (innerReq) => {
-        const input = schema.partial().parse(innerReq.body);
-        return await update(id, input);
-      }, 200)(req, res).catch((e) => {
+      return withAudit(
+        tableName,
+        "UPDATE",
+        async (innerReq) => {
+          const input = schema.partial().parse(innerReq.body);
+          return await update(id, input);
+        },
+        200,
+      )(req, res).catch((e) => {
         if (e instanceof z.ZodError) return res.status(400).json(e.errors);
         handleDbError(e, res);
       });
@@ -127,64 +174,100 @@ function crudRoutes<T>(
     app.delete(`${basePath}/:id`, requireAuth, (req: any, res: any) => {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid ID" });
-      return withAudit(tableName, "DELETE", async () => {
-        await remove(id);
-        return null;
-      }, 204)(req, res).catch((e) => handleDbError(e, res));
+      return withAudit(
+        tableName,
+        "DELETE",
+        async () => {
+          await remove(id);
+          return null;
+        },
+        204,
+      )(req, res).catch((e) => handleDbError(e, res));
     });
   }
 }
-export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
+export async function registerRoutes(
+  httpServer: Server,
+  app: Express,
+): Promise<Server> {
   await setupAuth(app);
   registerAuthRoutes(app);
   app.get("/api/dashboard/stats", requireAuth, async (_req, res) => {
     try {
       const stats = await storage.getDashboardStats();
       res.json(stats);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-  app.get("/api/dashboard/attendance/door-wise-stats", requireAuth, async (req, res) => {
-    try {
-      const date = (req.query.date as string) || new Date().toISOString().split("T")[0];
-      const doorStats = await storage.getDoorWiseStats(date);
-      res.json(doorStats);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/dashboard/attendance/machine-logs", requireAuth, async (req, res) => {
-    try {
-      const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-      const logs = await storage.getMachineAccessLogs(date);
-      res.json(logs);
-    } catch (e: any) {
-      console.error("Machine Logs Error:", e.message);
-      res.status(500).json({ message: "Failed to fetch machine logs" });
-    }
-  });
-  app.get("/api/dashboard/visitor/visitor-machine-logs", requireAuth, async (req, res) => {
-  try {
-    const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-    const search = req.query.search as string;
-    const fromDate = req.query.fromDate as string;
-    const toDate = req.query.toDate as string;
-    const logs = await storage.getVisitorMachineAccessLogs(date, { search, fromDate, toDate });
-    res.json(logs);
-  } catch (e: any) {
-    console.error("Visitor Machine Logs Error:", e.message);
-    res.status(500).json({ message: "Failed to fetch visitor machine logs" });
-  }
-});
-  app.get("/api/dashboard/attendance/shift-door-stats", requireAuth, async (req, res) => {
-    try {
-      const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
-      const shiftStats = await storage.getShiftWiseStats(date);
-      res.json(shiftStats);
-    } catch (e: any) {
-      console.error("Shift Stats Error:", e.message);
-      res.status(500).json({ message: "Error fetching shift stats" });
-    }
-  });
+  app.get(
+    "/api/dashboard/attendance/door-wise-stats",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const date =
+          (req.query.date as string) || new Date().toISOString().split("T")[0];
+        const doorStats = await storage.getDoorWiseStats(date);
+        res.json(doorStats);
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    },
+  );
+  app.get(
+    "/api/dashboard/attendance/machine-logs",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const date =
+          (req.query.date as string) || new Date().toISOString().split("T")[0];
+        const logs = await storage.getMachineAccessLogs(date);
+        res.json(logs);
+      } catch (e: any) {
+        console.error("Machine Logs Error:", e.message);
+        res.status(500).json({ message: "Failed to fetch machine logs" });
+      }
+    },
+  );
+  app.get(
+    "/api/dashboard/visitor/visitor-machine-logs",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const date =
+          (req.query.date as string) || new Date().toISOString().split("T")[0];
+        const search = req.query.search as string;
+        const fromDate = req.query.fromDate as string;
+        const toDate = req.query.toDate as string;
+        const logs = await storage.getVisitorMachineAccessLogs(date, {
+          search,
+          fromDate,
+          toDate,
+        });
+        res.json(logs);
+      } catch (e: any) {
+        console.error("Visitor Machine Logs Error:", e.message);
+        res
+          .status(500)
+          .json({ message: "Failed to fetch visitor machine logs" });
+      }
+    },
+  );
+  app.get(
+    "/api/dashboard/attendance/shift-door-stats",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const date =
+          (req.query.date as string) || new Date().toISOString().split("T")[0];
+        const shiftStats = await storage.getShiftWiseStats(date);
+        res.json(shiftStats);
+      } catch (e: any) {
+        console.error("Shift Stats Error:", e.message);
+        res.status(500).json({ message: "Error fetching shift stats" });
+      }
+    },
+  );
   app.get("/api/user-profiles", requireAuth, async (req, res) => {
     try {
       const page = req.query.page as string | undefined;
@@ -197,56 +280,100 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/user-profiles/me", requireAuth, async (req, res) => {
     try {
       const userId = (req.session as any)?.userId;
-      if (!userId) return res.status(401).json({ message: "Not authenticated" });
+      if (!userId)
+        return res.status(401).json({ message: "Not authenticated" });
       const profile = await storage.getUserProfileByUserId(userId);
       res.json(profile || null);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  app.post("/api/user-profiles", requireAuth, withAudit(TABLES.USERS, "ADD", async (req) => {
-    const newUser = await storage.upsertUser(req.body);
-    await logProfileAudit(req, "ADD", newUser.id);
-    return newUser;
-  }, 201));
-  app.put("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "UPDATE", async (req) => {
-    const userIdFromParams = req.params.id;
-    const [oldProfile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userIdFromParams)).limit(1);
-    const updatedUser = await storage.upsertUser({ ...req.body, id: userIdFromParams });
-    const [newProfile] = await db.select().from(userProfiles).where(eq(userProfiles.userId, userIdFromParams)).limit(1);
-    await logProfileAudit(req, "UPDATE", userIdFromParams, oldProfile, newProfile);
-    return updatedUser;
-  }, 200));
-  app.delete("/api/user-profiles/:id", requireAuth, withAudit(TABLES.USERS, "DELETE", async (req) => {
-    const targetUserId = req.params.id;
-    await logProfileAudit(req, "DELETE", targetUserId);
-    await storage.deleteUser(targetUserId);
-    return { id: targetUserId };
-  }, 200));
+  app.post(
+    "/api/user-profiles",
+    requireAuth,
+    withAudit(
+      TABLES.USERS,
+      "ADD",
+      async (req) => {
+        const newUser = await storage.upsertUser(req.body);
+        await logProfileAudit(req, "ADD", newUser.id);
+        return newUser;
+      },
+      201,
+    ),
+  );
+  app.put(
+    "/api/user-profiles/:id",
+    requireAuth,
+    withAudit(
+      TABLES.USERS,
+      "UPDATE",
+      async (req) => {
+        const userIdFromParams = req.params.id;
+        const [oldProfile] = await db
+          .select()
+          .from(userProfiles)
+          .where(eq(userProfiles.userId, userIdFromParams))
+          .limit(1);
+        const updatedUser = await storage.upsertUser({
+          ...req.body,
+          id: userIdFromParams,
+        });
+        const [newProfile] = await db
+          .select()
+          .from(userProfiles)
+          .where(eq(userProfiles.userId, userIdFromParams))
+          .limit(1);
+        await logProfileAudit(
+          req,
+          "UPDATE",
+          userIdFromParams,
+          oldProfile,
+          newProfile,
+        );
+        return updatedUser;
+      },
+      200,
+    ),
+  );
+  app.delete(
+    "/api/user-profiles/:id",
+    requireAuth,
+    withAudit(
+      TABLES.USERS,
+      "DELETE",
+      async (req) => {
+        const targetUserId = req.params.id;
+        await logProfileAudit(req, "DELETE", targetUserId);
+        await storage.deleteUser(targetUserId);
+        return { id: targetUserId };
+      },
+      200,
+    ),
+  );
   crudRoutes(
     app,
     "/api/companies",
     insertCompanySchema,
     (query: any) =>
-      storage.getCompanies(
-        query.page,
-        query.pageSize,
-        query.search   
-      ),
+      storage.getCompanies(query.page, query.pageSize, query.search),
     (d) => storage.createCompany(d),
     (id, d) => storage.updateCompany(id, d),
     (id) => storage.deleteCompany(id),
     undefined,
-    TABLES.COMPANIES
+    TABLES.COMPANIES,
   );
   crudRoutes(
     app,
     "/api/departments",
     insertDepartmentSchema,
-    (query: any) => storage.getDepartments(query.page, query.pageSize, query.search),
+    (query: any) =>
+      storage.getDepartments(query.page, query.pageSize, query.search),
     (d) => storage.createDepartment(d),
     (id, d) => storage.updateDepartment(id, d),
     (id) => storage.deleteDepartment(id),
     undefined,
-    TABLES.DEPARTMENTS
+    TABLES.DEPARTMENTS,
   );
   crudRoutes(
     app,
@@ -256,13 +383,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       storage.getDesignations(
         Number(query.page),
         Number(query.pageSize),
-        query.search
+        query.search,
       ),
     (d) => storage.createDesignation(d),
     (id, d) => storage.updateDesignation(id, d),
     (id) => storage.deleteDesignation(id),
     undefined,
-    TABLES.DESIGNATIONS
+    TABLES.DESIGNATIONS,
   );
   crudRoutes(
     app,
@@ -273,7 +400,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     (id, d) => storage.updateCategory(id, d),
     (id) => storage.deleteCategory(id),
     undefined,
-    TABLES.CATEGORIES
+    TABLES.CATEGORIES,
   );
   crudRoutes(
     app,
@@ -283,57 +410,103 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       storage.getCategories(
         Number(query.page),
         Number(query.pageSize),
-        query.search
+        query.search,
       ),
     (d) => storage.createCategory(d),
     (id, d) => storage.updateCategory(id, d),
     (id) => storage.deleteCategory(id),
     undefined,
-    TABLES.CATEGORIES
+    TABLES.CATEGORIES,
   );
-  crudRoutes(app, "/api/vendors", insertVendorSchema,
-    () => storage.getVendors(), (d) => storage.createVendor(d),
-    (id, d) => storage.updateVendor(id, d), (id) => storage.deleteVendor(id), undefined, TABLES.VENDORS);
-  crudRoutes(app, "/api/sites", insertSiteSchema,
-    () => storage.getSites(), (d) => storage.createSite(d),
-    (id, d) => storage.updateSite(id, d), (id) => storage.deleteSite(id), undefined, TABLES.SITES);
+  crudRoutes(
+    app,
+    "/api/vendors",
+    insertVendorSchema,
+    () => storage.getVendors(),
+    (d) => storage.createVendor(d),
+    (id, d) => storage.updateVendor(id, d),
+    (id) => storage.deleteVendor(id),
+    undefined,
+    TABLES.VENDORS,
+  );
+  crudRoutes(
+    app,
+    "/api/sites",
+    insertSiteSchema,
+    () => storage.getSites(),
+    (d) => storage.createSite(d),
+    (id, d) => storage.updateSite(id, d),
+    (id) => storage.deleteSite(id),
+    undefined,
+    TABLES.SITES,
+  );
   app.get("/api/buildings", requireAuth, async (req, res) => {
     try {
-      const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
+      const siteId = req.query.siteId
+        ? parseInt(req.query.siteId as string)
+        : undefined;
       res.json(await storage.getBuildings(siteId));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  crudRoutes(app, "/api/buildings", insertBuildingSchema,
-    () => storage.getBuildings(), (d) => storage.createBuilding(d),
-    (id, d) => storage.updateBuilding(id, d), (id) => storage.deleteBuilding(id), undefined, TABLES.BUILDINGS);
+  crudRoutes(
+    app,
+    "/api/buildings",
+    insertBuildingSchema,
+    () => storage.getBuildings(),
+    (d) => storage.createBuilding(d),
+    (id, d) => storage.updateBuilding(id, d),
+    (id) => storage.deleteBuilding(id),
+    undefined,
+    TABLES.BUILDINGS,
+  );
   app.get("/api/floors", requireAuth, async (req, res) => {
     try {
-      const buildingId = req.query.buildingId ? parseInt(req.query.buildingId as string) : undefined;
+      const buildingId = req.query.buildingId
+        ? parseInt(req.query.buildingId as string)
+        : undefined;
       res.json(await storage.getFloors(buildingId));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  crudRoutes(app, "/api/floors", insertFloorSchema,
-    () => storage.getFloors(), (d) => storage.createFloor(d),
-    (id, d) => storage.updateFloor(id, d), (id) => storage.deleteFloor(id));
+  crudRoutes(
+    app,
+    "/api/floors",
+    insertFloorSchema,
+    () => storage.getFloors(),
+    (d) => storage.createFloor(d),
+    (id, d) => storage.updateFloor(id, d),
+    (id) => storage.deleteFloor(id),
+  );
   app.get("/api/zones", requireAuth, async (req, res) => {
     try {
-      const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
+      const siteId = req.query.siteId
+        ? parseInt(req.query.siteId as string)
+        : undefined;
       res.json(await storage.getZones(siteId));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  crudRoutes(app, "/api/zones", insertZoneSchema,
-    () => storage.getZones(), (d) => storage.createZone(d),
-    (id, d) => storage.updateZone(id, d), (id) => storage.deleteZone(id), undefined, TABLES.ZONES);
+  crudRoutes(
+    app,
+    "/api/zones",
+    insertZoneSchema,
+    () => storage.getZones(),
+    (d) => storage.createZone(d),
+    (id, d) => storage.updateZone(id, d),
+    (id) => storage.deleteZone(id),
+    undefined,
+    TABLES.ZONES,
+  );
   crudRoutes(
     app,
     "/api/doors",
     insertDoorSchema,
     async (query: any) => {
-      return await storage.getDoors(
-        query.page,
-        query.pageSize,
-        query.search
-      );
+      return await storage.getDoors(query.page, query.pageSize, query.search);
     },
     async (data: any) => {
       return await storage.createDoor(data);
@@ -345,7 +518,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return await storage.deleteDoor(id);
     },
     undefined,
-    TABLES.DOORS
+    TABLES.DOORS,
   );
   crudRoutes(
     app,
@@ -357,15 +530,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         query.pageSize,
         query.search,
         query.status,
-        query.ruleid
+        query.ruleid,
       ),
     (data: any) => storage.createVisitorMaster(data),
     (id: any, data: any) => storage.updateVisitorMaster(id, data),
     async (id: any) => {
       await storage.deleteVisitorMaster(id);
-    }, 
-    undefined, 
-    TABLES.VISITOR_MASTER
+    },
+    undefined,
+    TABLES.VISITOR_MASTER,
   );
   crudRoutes(
     app,
@@ -377,15 +550,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         query.pageSize,
         query.search,
         query.status,
-        query.ruleid
+        query.ruleid,
       ),
     (data: any) => storage.createVisitorMaster(data),
     (id: any, data: any) => storage.updateVisitorMaster(id, data),
     async (id: any) => {
       await storage.deleteVisitorMaster(id);
-    }, 
-    undefined, 
-    TABLES.VISITOR_MASTER
+    },
+    undefined,
+    TABLES.VISITOR_MASTER,
   );
   app.get("/api/visitor-master/:id", async (req, res) => {
     try {
@@ -413,46 +586,42 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     (id, d) => storage.updateDevice(id, d),
     (id) => storage.deleteDevice(id),
     undefined,
-    TABLES.DEVICES
+    TABLES.DEVICES,
   );
   app.get("/api/people", requireAuth, async (req, res) => {
-  try {
-    const search = req.query.search as string | undefined;
-    const dept = req.query.dept as string | undefined;
-    const status = req.query.status as string | undefined;
-    const lockout = req.query.lockout as string | undefined;
-    const rule = req.query.rule as string | undefined;
-    const page = req.query.page as string | undefined;
-    const pageSize = req.query.pageSize as string | undefined;
-    res.json(
-      await storage.getPeople(
-        search,
-        page,
-        pageSize,
-        dept,
-        status,
-        lockout,
-        rule
-      )
-    );
-  } catch (e: any) {
-    res.status(500).json({ message: e.message });
-  }
-});
+    try {
+      const search = req.query.search as string | undefined;
+      const dept = req.query.dept as string | undefined;
+      const status = req.query.status as string | undefined;
+      const lockout = req.query.lockout as string | undefined;
+      const rule = req.query.rule as string | undefined;
+      const page = req.query.page as string | undefined;
+      const pageSize = req.query.pageSize as string | undefined;
+      res.json(
+        await storage.getPeople(
+          search,
+          page,
+          pageSize,
+          dept,
+          status,
+          lockout,
+          rule,
+        ),
+      );
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
   app.get("/api/syncpeople", requireAuth, async (req, res) => {
     try {
-        res.json(
-        await storage.syncPeople()
-      );
+      res.json(await storage.syncPeople());
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
   });
   app.get("/api/syncVisitors", requireAuth, async (req, res) => {
     try {
-      res.json(
-        await storage.syncVisitors()
-      );
+      res.json(await storage.syncVisitors());
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -462,95 +631,174 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const person = await storage.getPerson(parseInt(req.params.id));
       if (!person) return res.status(404).json({ message: "Not found" });
       res.json(person);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-  app.get("/api/peoplebycode/:code", requireAuth, async (req, res) => {
-    try {
-      const person = await storage.getPersonByCode(req.params.code);
-      return person ? res.json(person) : res.status(404).json({ message: `Employee Code '${req.params.code}' does not exist.` });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
   });
-  app.post("/api/people", requireAuth, withAudit(TABLES.PEOPLE, "ADD/UPDATE", async (req) => await storage.createPerson(insertPersonSchema.parse(req.body)), 201));
+  app.get("/api/peoplebycode/:code", requireAuth, async (req, res) => {
+    try {
+      const person = await storage.getPersonByCode(req.params.code);
+      return person
+        ? res.json(person)
+        : res
+            .status(404)
+            .json({
+              message: `Employee Code '${req.params.code}' does not exist.`,
+            });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+  app.post(
+    "/api/people",
+    requireAuth,
+    withAudit(
+      TABLES.PEOPLE,
+      "ADD/UPDATE",
+      async (req) =>
+        await storage.createPerson(insertPersonSchema.parse(req.body)),
+      201,
+    ),
+  );
   app.patch(
     "/api/people/:id",
     requireAuth,
-    withAudit(TABLES.PEOPLE, "UPDATE", async (req) => {
-      const personId = parseInt(req.params.id);
-      if (isNaN(personId)) {
-        throw new Error("Invalid Person ID");
-      }
-      const updatedPerson = await storage.updatePerson(personId, req.body);
-      return updatedPerson;
-    }, 200)
+    withAudit(
+      TABLES.PEOPLE,
+      "UPDATE",
+      async (req) => {
+        const personId = parseInt(req.params.id);
+        if (isNaN(personId)) {
+          throw new Error("Invalid Person ID");
+        }
+        const updatedPerson = await storage.updatePerson(personId, req.body);
+        return updatedPerson;
+      },
+      200,
+    ),
   );
-    app.delete("/api/people/:id", requireAuth, withAudit(TABLES.PEOPLE, "DELETE", async (req) => { await storage.deletePerson(parseInt(req.params.id)); return null; }, 204));
+  app.delete(
+    "/api/people/:id",
+    requireAuth,
+    withAudit(
+      TABLES.PEOPLE,
+      "DELETE",
+      async (req) => {
+        await storage.deletePerson(parseInt(req.params.id));
+        return null;
+      },
+      204,
+    ),
+  );
   app.get("/api/credentials", requireAuth, async (req, res) => {
     try {
-      const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
+      const personId = req.query.personId
+        ? parseInt(req.query.personId as string)
+        : undefined;
       res.json(await storage.getCredentials(personId));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  crudRoutes(app, "/api/credentials", insertCredentialSchema,
-    () => storage.getCredentials(), (d) => storage.createCredential(d),
-    (id, d) => storage.updateCredential(id, d), (id) => storage.deleteCredential(id), undefined, TABLES.CREDENTIALS);
-  crudRoutes(app, "/api/access-cards", insertAccessCardSchema,
-    () => storage.getAccessCards(), (d) => storage.createAccessCard(d),
-    (id, d) => storage.updateAccessCard(id, d), (id) => storage.deleteAccessCard(id), undefined, TABLES.ACCESS_CARDS);
+  crudRoutes(
+    app,
+    "/api/credentials",
+    insertCredentialSchema,
+    () => storage.getCredentials(),
+    (d) => storage.createCredential(d),
+    (id, d) => storage.updateCredential(id, d),
+    (id) => storage.deleteCredential(id),
+    undefined,
+    TABLES.CREDENTIALS,
+  );
+  crudRoutes(
+    app,
+    "/api/access-cards",
+    insertAccessCardSchema,
+    () => storage.getAccessCards(),
+    (d) => storage.createAccessCard(d),
+    (id, d) => storage.updateAccessCard(id, d),
+    (id) => storage.deleteAccessCard(id),
+    undefined,
+    TABLES.ACCESS_CARDS,
+  );
   crudRoutes(
     app,
     "/api/shifts",
     insertShiftSchema,
     async (query: any) => {
-      return await storage.getShifts(
-        query.page,
-        query.pageSize,
-        query.search
-      );
+      return await storage.getShifts(query.page, query.pageSize, query.search);
     },
     (d) => storage.createShift(d),
     (id, d) => storage.updateShift(id, d),
     (id) => storage.deleteShift(id),
     undefined,
-    TABLES.SHIFTS
+    TABLES.SHIFTS,
   );
   app.get("/api/shift-assignments", requireAuth, async (req, res) => {
     try {
-      const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
+      const personId = req.query.personId
+        ? parseInt(req.query.personId as string)
+        : undefined;
       res.json(await storage.getShiftAssignments(personId));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  crudRoutes(app, "/api/shift-assignments", insertShiftAssignmentSchema,
-    () => storage.getShiftAssignments(), (d) => storage.createShiftAssignment(d),
-    (id, d) => storage.updateShiftAssignment(id, d), (id) => storage.deleteShiftAssignment(id), undefined, TABLES.SHIFT_ASSIGNMENTS);
+  crudRoutes(
+    app,
+    "/api/shift-assignments",
+    insertShiftAssignmentSchema,
+    () => storage.getShiftAssignments(),
+    (d) => storage.createShiftAssignment(d),
+    (id, d) => storage.updateShiftAssignment(id, d),
+    (id) => storage.deleteShiftAssignment(id),
+    undefined,
+    TABLES.SHIFT_ASSIGNMENTS,
+  );
   crudRoutes(
     app,
     "/api/holidays",
     insertHolidaySchema,
     (query: any) =>
-      storage.getHolidays(
-        query.page,
-        query.pageSize,
-        query.search,
-      ),
+      storage.getHolidays(query.page, query.pageSize, query.search),
     (d) => storage.createHoliday(d),
     (id, d) => storage.updateHoliday(id, d),
     (id) => storage.deleteHoliday(id),
     undefined,
-    TABLES.HOLIDAYS
+    TABLES.HOLIDAYS,
   );
-  crudRoutes(app, "/api/access-levels", insertAccessLevelSchema,
-    () => storage.getAccessLevels(), (d) => storage.createAccessLevel(d),
-    (id, d) => storage.updateAccessLevel(id, d), (id) => storage.deleteAccessLevel(id), undefined, TABLES.ACCESS_LEVELS);
-  crudRoutes(app, "/api/access-rules", insertAccessRuleSchema,
-    () => storage.getAccessRules(), (d) => storage.createAccessRule(d),
-    (id, d) => storage.updateAccessRule(id, d), (id) => storage.deleteAccessRule(id), undefined, TABLES.ACCESS_RULES);
+  crudRoutes(
+    app,
+    "/api/access-levels",
+    insertAccessLevelSchema,
+    () => storage.getAccessLevels(),
+    (d) => storage.createAccessLevel(d),
+    (id, d) => storage.updateAccessLevel(id, d),
+    (id) => storage.deleteAccessLevel(id),
+    undefined,
+    TABLES.ACCESS_LEVELS,
+  );
+  crudRoutes(
+    app,
+    "/api/access-rules",
+    insertAccessRuleSchema,
+    () => storage.getAccessRules(),
+    (d) => storage.createAccessRule(d),
+    (id, d) => storage.updateAccessRule(id, d),
+    (id) => storage.deleteAccessRule(id),
+    undefined,
+    TABLES.ACCESS_RULES,
+  );
   app.get("/api/person-access", requireAuth, async (req, res) => {
     try {
-      const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
+      const personId = req.query.personId
+        ? parseInt(req.query.personId as string)
+        : undefined;
       res.json(await storage.getPersonAccess(personId));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.post("/api/person-access", requireAuth, async (req, res) => {
     try {
@@ -561,19 +809,45 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.post("/api/person-access", requireAuth, withAudit(TABLES.PERSON_ACCESS, "ADD", async (req) => await storage.createPersonAccess(insertPersonAccessSchema.parse(req.body)), 201));
-  app.delete("/api/person-access/:id", requireAuth, withAudit(TABLES.PERSON_ACCESS, "DELETE", async (req) => { await storage.deletePersonAccess(parseInt(req.params.id)); return null; }, 204));
+  app.post(
+    "/api/person-access",
+    requireAuth,
+    withAudit(
+      TABLES.PERSON_ACCESS,
+      "ADD",
+      async (req) =>
+        await storage.createPersonAccess(
+          insertPersonAccessSchema.parse(req.body),
+        ),
+      201,
+    ),
+  );
+  app.delete(
+    "/api/person-access/:id",
+    requireAuth,
+    withAudit(
+      TABLES.PERSON_ACCESS,
+      "DELETE",
+      async (req) => {
+        await storage.deletePersonAccess(parseInt(req.params.id));
+        return null;
+      },
+      204,
+    ),
+  );
   app.get("/api/visitors", requireAuth, async (req, res) => {
     try {
       const page = req.query.page ? Number(req.query.page) : undefined;
-      const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
+      const pageSize = req.query.pageSize
+        ? Number(req.query.pageSize)
+        : undefined;
       const search = req.query.search ? String(req.query.search) : undefined;
       console.log("Fetching visitors with params:", { page, pageSize, search });
       const result = await storage.getVisitors(page, pageSize, search);
       return res.json(result);
     } catch (error: any) {
       return res.status(500).json({
-        error: error.message || "Failed to fetch paginated visitors"
+        error: error.message || "Failed to fetch paginated visitors",
       });
     }
   });
@@ -587,26 +861,51 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       return res.status(500).json({ error: error.message });
     }
   });
-  app.post( "/api/visitors", requireAuth, withAudit( TABLES.VISITORS, "ADD", async (req) => await storage.createVisitor(insertVisitorSchema.parse(req.body)), 201 ) );
-  app.put( "/api/visitors/:id", requireAuth, withAudit( TABLES.VISITORS, "UPDATE",
+  app.post(
+    "/api/visitors",
+    requireAuth,
+    withAudit(
+      TABLES.VISITORS,
+      "ADD",
+      async (req) =>
+        await storage.createVisitor(insertVisitorSchema.parse(req.body)),
+      201,
+    ),
+  );
+  app.put(
+    "/api/visitors/:id",
+    requireAuth,
+    withAudit(
+      TABLES.VISITORS,
+      "UPDATE",
       async (req: any) => {
         const id = Number(req.params.id);
         const updated = await storage.updateVisitor(id, req.body);
         return updated;
       },
-      200 
-    )
+      200,
+    ),
   );
-  app.delete( "/api/visitors/:id", requireAuth, withAudit( TABLES.VISITORS, "DELETE",
+  app.delete(
+    "/api/visitors/:id",
+    requireAuth,
+    withAudit(
+      TABLES.VISITORS,
+      "DELETE",
       async (req: any) => {
         const id = Number(req.params.id);
         await storage.deleteVisitor(id);
         return { success: true, message: "Visitor deleted successfully" };
       },
-      200 
-    )
+      200,
+    ),
   );
-  app.post( "/api/visitors/:id/checkout", requireAuth, withAudit( "visitors", "UPDATE",
+  app.post(
+    "/api/visitors/:id/checkout",
+    requireAuth,
+    withAudit(
+      "visitors",
+      "UPDATE",
       async (req) => {
         const visitorId = Number(req.params.id);
         if (isNaN(visitorId)) {
@@ -614,14 +913,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         }
         return await storage.outVisitor(visitorId);
       },
-      200
-    )
+      200,
+    ),
   );
   app.get("/api/visits", requireAuth, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       res.json(await storage.getVisits(status));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.post("/api/visits", requireAuth, async (req, res) => {
     try {
@@ -636,26 +937,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     "/api/visits/:id",
     requireAuth,
     withAudit(
-      TABLES.VISITS, 
+      TABLES.VISITS,
       "UPDATE",
       async (req: any) => {
         try {
           const input = insertVisitSchema.partial().parse(req.body);
-          const updated = await storage.updateVisit(parseInt(req.params.id), input);
+          const updated = await storage.updateVisit(
+            parseInt(req.params.id),
+            input,
+          );
           return updated;
         } catch (e: any) {
           if (e instanceof z.ZodError) {
             throw {
               isCustom: true,
               status: 400,
-              errors: e.errors
+              errors: e.errors,
             };
           }
           throw e;
         }
       },
-      200 
-    )
+      200,
+    ),
   );
   app.post("/api/visits/:id/check-in", requireAuth, async (req, res) => {
     try {
@@ -664,7 +968,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         checkInAt: new Date(),
       } as any);
       res.json(visit);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.post("/api/visits/:id/check-out", requireAuth, async (req, res) => {
     try {
@@ -673,52 +979,153 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         checkOutAt: new Date(),
       } as any);
       res.json(visit);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.get("/api/attendance", requireAuth, async (req, res) => {
     try {
       const date = req.query.date as string | undefined;
-      const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
-      const personId = req.query.personId ? parseInt(req.query.personId as string) : undefined;
+      const siteId = req.query.siteId
+        ? parseInt(req.query.siteId as string)
+        : undefined;
+      const personId = req.query.personId
+        ? parseInt(req.query.personId as string)
+        : undefined;
       res.json(await storage.getAttendance(date, siteId, personId));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.get("/api/attendance/summary", requireAuth, async (req, res) => {
     try {
-      const date = req.query.date as string || new Date().toISOString().slice(0, 10);
+      const date =
+        (req.query.date as string) || new Date().toISOString().slice(0, 10);
       const records = await storage.getAttendance(date);
-      const present = records.filter(r => r.status === "present").length;
-      const late = records.filter(r => r.status === "late").length;
-      const absent = records.filter(r => r.status === "absent").length;
-      const halfDay = records.filter(r => r.status === "half_day").length;
-      const onLeave = records.filter(r => r.status === "on_leave").length;
-      res.json({ date, total: records.length, present, late, absent, halfDay, onLeave });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      const present = records.filter((r) => r.status === "present").length;
+      const late = records.filter((r) => r.status === "late").length;
+      const absent = records.filter((r) => r.status === "absent").length;
+      const halfDay = records.filter((r) => r.status === "half_day").length;
+      const onLeave = records.filter((r) => r.status === "on_leave").length;
+      res.json({
+        date,
+        total: records.length,
+        present,
+        late,
+        absent,
+        halfDay,
+        onLeave,
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  app.post("/api/attendance", requireAuth, withAudit(TABLES.ATTENDANCE, "ADD", async (req) => await storage.createAttendance(insertAttendanceSchema.parse(req.body)), 201));
-  app.put("/api/attendance/:id", requireAuth, withAudit(TABLES.ATTENDANCE, "UPDATE", async (req) => await storage.updateAttendance(parseInt(req.params.id), insertAttendanceSchema.partial().parse(req.body)), 200));
+  app.post(
+    "/api/attendance",
+    requireAuth,
+    withAudit(
+      TABLES.ATTENDANCE,
+      "ADD",
+      async (req) =>
+        await storage.createAttendance(insertAttendanceSchema.parse(req.body)),
+      201,
+    ),
+  );
+  app.put(
+    "/api/attendance/:id",
+    requireAuth,
+    withAudit(
+      TABLES.ATTENDANCE,
+      "UPDATE",
+      async (req) =>
+        await storage.updateAttendance(
+          parseInt(req.params.id),
+          insertAttendanceSchema.partial().parse(req.body),
+        ),
+      200,
+    ),
+  );
   app.get("/api/access-logs", requireAuth, async (req, res) => {
     try {
-      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
-      const siteId = req.query.siteId ? parseInt(req.query.siteId as string) : undefined;
+      const limit = req.query.limit
+        ? parseInt(req.query.limit as string)
+        : undefined;
+      const siteId = req.query.siteId
+        ? parseInt(req.query.siteId as string)
+        : undefined;
       res.json(await storage.getAccessLogs(limit, siteId));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  app.post("/api/access-logs", requireAuth, withAudit(TABLES.ACCESS_LOGS, "ADD/UPDATE", async (req) => await storage.createAccessLog(insertAccessLogSchema.parse(req.body)), 201));
+  app.post(
+    "/api/access-logs",
+    requireAuth,
+    withAudit(
+      TABLES.ACCESS_LOGS,
+      "ADD/UPDATE",
+      async (req) =>
+        await storage.createAccessLog(insertAccessLogSchema.parse(req.body)),
+      201,
+    ),
+  );
   app.get("/api/alerts", requireAuth, async (req, res) => {
     try {
-      const isResolved = req.query.resolved === "true" ? true : req.query.resolved === "false" ? false : undefined;
+      const isResolved =
+        req.query.resolved === "true"
+          ? true
+          : req.query.resolved === "false"
+            ? false
+            : undefined;
       res.json(await storage.getAlerts(isResolved));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  app.post("/api/alerts", requireAuth, withAudit(TABLES.ALERTS, "ADD", async (req) => await storage.createAlert(insertAlertSchema.parse(req.body)), 201));
-  app.put("/api/alerts/:id/acknowledge", requireAuth, withAudit(TABLES.ALERTS, "UPDATE", async (req) => await storage.updateAlert(parseInt(req.params.id), { isRead: true }), 200));
-  app.put("/api/alerts/:id/resolve", requireAuth, withAudit(TABLES.ALERTS, "UPDATE", async (req) => await storage.updateAlert(parseInt(req.params.id), { isResolved: true, resolvedBy: req.session?.userId, resolvedAt: new Date() }), 200));
+  app.post(
+    "/api/alerts",
+    requireAuth,
+    withAudit(
+      TABLES.ALERTS,
+      "ADD",
+      async (req) =>
+        await storage.createAlert(insertAlertSchema.parse(req.body)),
+      201,
+    ),
+  );
+  app.put(
+    "/api/alerts/:id/acknowledge",
+    requireAuth,
+    withAudit(
+      TABLES.ALERTS,
+      "UPDATE",
+      async (req) =>
+        await storage.updateAlert(parseInt(req.params.id), { isRead: true }),
+      200,
+    ),
+  );
+  app.put(
+    "/api/alerts/:id/resolve",
+    requireAuth,
+    withAudit(
+      TABLES.ALERTS,
+      "UPDATE",
+      async (req) =>
+        await storage.updateAlert(parseInt(req.params.id), {
+          isResolved: true,
+          resolvedBy: req.session?.userId,
+          resolvedAt: new Date(),
+        }),
+      200,
+    ),
+  );
   app.get("/api/exceptions", requireAuth, async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
       res.json(await storage.getExceptions(status));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.post("/api/exceptions", requireAuth, async (req, res) => {
     try {
@@ -738,7 +1145,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         approvedAt: new Date(),
       });
       res.json(exc);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.put("/api/exceptions/:id/reject", requireAuth, async (req, res) => {
     try {
@@ -749,13 +1158,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         rejectionReason: req.body.reason,
       });
       res.json(exc);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.get("/api/system-settings", requireAuth, async (_req, res) => {
-    try { res.json(await storage.getSystemSettings()); }
-    catch (e: any) { res.status(500).json({ message: e.message }); }
+    try {
+      res.json(await storage.getSystemSettings());
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
-  app.post("/api/system-settings", requireAuth, withAudit(TABLES.SYSTEM_SETTINGS, "ADD/UPDATE", async (req) => await storage.upsertSystemSetting(insertSystemSettingSchema.parse(req.body)), 200));
+  app.post(
+    "/api/system-settings",
+    requireAuth,
+    withAudit(
+      TABLES.SYSTEM_SETTINGS,
+      "ADD/UPDATE",
+      async (req) =>
+        await storage.upsertSystemSetting(
+          insertSystemSettingSchema.parse(req.body),
+        ),
+      200,
+    ),
+  );
   app.get("/api/reports/attendance", requireAuth, async (req, res) => {
     try {
       const filters = {
@@ -763,10 +1189,14 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         dateTo: req.query.dateTo as string | undefined,
         status: req.query.status as string | undefined,
         deviceId: req.query.deviceId ? String(req.query.deviceId) : undefined,
-        employeeCode: req.query.employeeCode ? String(req.query.employeeCode) : undefined,
+        employeeCode: req.query.employeeCode
+          ? String(req.query.employeeCode)
+          : undefined,
       };
       const page = req.query.page ? String(req.query.page) : undefined;
-      const pageSize = req.query.pageSize ? String(req.query.pageSize) : undefined;
+      const pageSize = req.query.pageSize
+        ? String(req.query.pageSize)
+        : undefined;
       const data = await storage.getAttendanceReport(filters, page, pageSize);
       res.json(data);
     } catch (e: any) {
@@ -780,26 +1210,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         dateFrom: req.query.dateFrom as string | undefined,
         dateTo: req.query.dateTo as string | undefined,
         status: "late" as const,
-        departmentId: req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined,
-        personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
-        siteId: req.query.siteId ? parseInt(req.query.siteId as string) : undefined,
+        departmentId: req.query.departmentId
+          ? parseInt(req.query.departmentId as string)
+          : undefined,
+        personId: req.query.personId
+          ? parseInt(req.query.personId as string)
+          : undefined,
+        siteId: req.query.siteId
+          ? parseInt(req.query.siteId as string)
+          : undefined,
       };
       res.json(await storage.getAttendanceReport(filters));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.get("/api/reports/early-going", requireAuth, async (req, res) => {
     try {
       const allFilters = {
         dateFrom: req.query.dateFrom as string | undefined,
         dateTo: req.query.dateTo as string | undefined,
-        departmentId: req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined,
-        personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
-        siteId: req.query.siteId ? parseInt(req.query.siteId as string) : undefined,
+        departmentId: req.query.departmentId
+          ? parseInt(req.query.departmentId as string)
+          : undefined,
+        personId: req.query.personId
+          ? parseInt(req.query.personId as string)
+          : undefined,
+        siteId: req.query.siteId
+          ? parseInt(req.query.siteId as string)
+          : undefined,
       };
       const data = await storage.getAttendanceReport(allFilters);
-      const earlyGoers = data.filter((r: any) => r.earlyByMins && r.earlyByMins > 0);
+      const earlyGoers = data.filter(
+        (r: any) => r.earlyByMins && r.earlyByMins > 0,
+      );
       res.json(earlyGoers);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.get("/api/reports/absentee", requireAuth, async (req, res) => {
     try {
@@ -807,26 +1255,44 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         dateFrom: req.query.dateFrom as string | undefined,
         dateTo: req.query.dateTo as string | undefined,
         status: "absent" as const,
-        departmentId: req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined,
-        personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
-        siteId: req.query.siteId ? parseInt(req.query.siteId as string) : undefined,
+        departmentId: req.query.departmentId
+          ? parseInt(req.query.departmentId as string)
+          : undefined,
+        personId: req.query.personId
+          ? parseInt(req.query.personId as string)
+          : undefined,
+        siteId: req.query.siteId
+          ? parseInt(req.query.siteId as string)
+          : undefined,
       };
       res.json(await storage.getAttendanceReport(filters));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.get("/api/reports/overtime", requireAuth, async (req, res) => {
     try {
       const allFilters = {
         dateFrom: req.query.dateFrom as string | undefined,
         dateTo: req.query.dateTo as string | undefined,
-        departmentId: req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined,
-        personId: req.query.personId ? parseInt(req.query.personId as string) : undefined,
-        siteId: req.query.siteId ? parseInt(req.query.siteId as string) : undefined,
+        departmentId: req.query.departmentId
+          ? parseInt(req.query.departmentId as string)
+          : undefined,
+        personId: req.query.personId
+          ? parseInt(req.query.personId as string)
+          : undefined,
+        siteId: req.query.siteId
+          ? parseInt(req.query.siteId as string)
+          : undefined,
       };
       const data = await storage.getAttendanceReport(allFilters);
-      const otRecords = data.filter((r: any) => r.overtimeHours && r.overtimeHours > 0);
+      const otRecords = data.filter(
+        (r: any) => r.overtimeHours && r.overtimeHours > 0,
+      );
       res.json(otRecords);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.get("/api/reports/access-log", requireAuth, async (req, res) => {
     try {
@@ -844,17 +1310,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           ? parseInt(req.query.doorId as string)
           : undefined,
       };
-      const page = req.query.page
-        ? String(req.query.page)
-        : undefined;
+      const page = req.query.page ? String(req.query.page) : undefined;
       const pageSize = req.query.pageSize
         ? String(req.query.pageSize)
         : undefined;
-      const data = await storage.getAccessLogReport(
-        filters,
-        page,
-        pageSize
-      );
+      const data = await storage.getAccessLogReport(filters, page, pageSize);
       res.json(data);
     } catch (e: any) {
       res.status(500).json({
@@ -870,17 +1330,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         status: req.query.status as string | undefined,
       };
       res.json(await storage.getVisitorReport(filters));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   app.get("/api/reports/employee-summary", requireAuth, async (req, res) => {
     try {
       const filters = {
-        departmentId: req.query.departmentId ? parseInt(req.query.departmentId as string) : undefined,
+        departmentId: req.query.departmentId
+          ? parseInt(req.query.departmentId as string)
+          : undefined,
         status: req.query.status as string | undefined,
         personType: req.query.personType as string | undefined,
       };
       res.json(await storage.getEmployeeSummaryReport(filters));
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
   });
   const connectionTestSchema = z.object({
     type: z.enum(["essl", "bios", "zkteco"]),
@@ -897,51 +1363,83 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
   app.post("/api/external-connections/test", requireAuth, async (req, res) => {
     const parsed = connectionTestSchema.safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ success: false, message: "Invalid input: " + parsed.error.issues.map(i => i.message).join(", ") });
+    if (!parsed.success)
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message:
+            "Invalid input: " +
+            parsed.error.issues.map((i) => i.message).join(", "),
+        });
     const { type, config } = parsed.data;
     try {
       if (type === "essl" || type === "bios") {
         const net = await import("net");
         const { host, port } = config;
-        const result = await new Promise<{ success: boolean; message: string }>((resolve) => {
-          const socket = new net.default.Socket();
-          socket.setTimeout(5000);
-          socket.on("connect", () => {
-            socket.destroy();
-            resolve({ success: true, message: `Successfully reached ${host}:${port}. SQL Server connection is reachable.` });
-          });
-          socket.on("timeout", () => {
-            socket.destroy();
-            resolve({ success: false, message: `Connection timed out to ${host}:${port}. Check if the SQL Server is running and accessible from this network.` });
-          });
-          socket.on("error", (err: any) => {
-            resolve({ success: false, message: `Cannot connect to ${host}:${port}: ${err.message}. Ensure the server is running and firewall allows connections.` });
-          });
-          socket.connect(parseInt(port) || 1433, host);
-        });
+        const result = await new Promise<{ success: boolean; message: string }>(
+          (resolve) => {
+            const socket = new net.default.Socket();
+            socket.setTimeout(5000);
+            socket.on("connect", () => {
+              socket.destroy();
+              resolve({
+                success: true,
+                message: `Successfully reached ${host}:${port}. SQL Server connection is reachable.`,
+              });
+            });
+            socket.on("timeout", () => {
+              socket.destroy();
+              resolve({
+                success: false,
+                message: `Connection timed out to ${host}:${port}. Check if the SQL Server is running and accessible from this network.`,
+              });
+            });
+            socket.on("error", (err: any) => {
+              resolve({
+                success: false,
+                message: `Cannot connect to ${host}:${port}: ${err.message}. Ensure the server is running and firewall allows connections.`,
+              });
+            });
+            socket.connect(parseInt(port) || 1433, host);
+          },
+        );
         res.json(result);
       } else if (type === "zkteco") {
         const net = await import("net");
         const { host, port } = config;
-        const result = await new Promise<{ success: boolean; message: string }>((resolve) => {
-          const socket = new net.default.Socket();
-          socket.setTimeout(5000);
-          socket.on("connect", () => {
-            socket.destroy();
-            resolve({ success: true, message: `Successfully reached ZKTeco controller at ${host}:${port}. TCP/IP connection is reachable.` });
-          });
-          socket.on("timeout", () => {
-            socket.destroy();
-            resolve({ success: false, message: `Connection timed out to ${host}:${port}. Check if the ZKTeco C3-400 is powered on and connected to the network.` });
-          });
-          socket.on("error", (err: any) => {
-            resolve({ success: false, message: `Cannot connect to ${host}:${port}: ${err.message}. Check IP address and ensure the controller is on the same network.` });
-          });
-          socket.connect(parseInt(port) || 4370, host);
-        });
+        const result = await new Promise<{ success: boolean; message: string }>(
+          (resolve) => {
+            const socket = new net.default.Socket();
+            socket.setTimeout(5000);
+            socket.on("connect", () => {
+              socket.destroy();
+              resolve({
+                success: true,
+                message: `Successfully reached ZKTeco controller at ${host}:${port}. TCP/IP connection is reachable.`,
+              });
+            });
+            socket.on("timeout", () => {
+              socket.destroy();
+              resolve({
+                success: false,
+                message: `Connection timed out to ${host}:${port}. Check if the ZKTeco C3-400 is powered on and connected to the network.`,
+              });
+            });
+            socket.on("error", (err: any) => {
+              resolve({
+                success: false,
+                message: `Cannot connect to ${host}:${port}: ${err.message}. Check IP address and ensure the controller is on the same network.`,
+              });
+            });
+            socket.connect(parseInt(port) || 4370, host);
+          },
+        );
         res.json(result);
       } else {
-        res.status(400).json({ success: false, message: "Unknown connection type" });
+        res
+          .status(400)
+          .json({ success: false, message: "Unknown connection type" });
       }
     } catch (e: any) {
       res.status(500).json({ success: false, message: e.message });
@@ -966,22 +1464,36 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/people/device-status/:empCode", requireAuth, async (req, res) => {
-    try {
-      const statuses = await storage.getEmployeeDeviceStatuses(req.params.empCode);
-      res.json(statuses);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
+  app.get(
+    "/api/people/device-status/:empCode",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const statuses = await storage.getEmployeeDeviceStatuses(
+          req.params.empCode,
+        );
+        res.json(statuses);
+      } catch (error: any) {
+        res.status(500).json({ message: error.message });
+      }
+    },
+  );
   app.post(
-    "/api/people/emergency-toggle", requireAuth,
-    withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, (req) => {
-      return req.body.action === "block" ? "EMERGENCY_BLOCK" : "EMERGENCY_UNBLOCK";
-    }, async (req) => {
-      const result = await storage.toggleEmployeeDeviceAccess(req.body);
-      return { success: true, data: result };
-    }, 200)
+    "/api/people/emergency-toggle",
+    requireAuth,
+    withAudit(
+      TABLES.USER_BLOCK_UNBLOCK_LOGS,
+      (req) => {
+        return req.body.action === "block"
+          ? "EMERGENCY_BLOCK"
+          : "EMERGENCY_UNBLOCK";
+      },
+      async (req) => {
+        const result = await storage.toggleEmployeeDeviceAccess(req.body);
+        return { success: true, data: result };
+      },
+      200,
+    ),
   );
   crudRoutes(
     app,
@@ -991,10 +1503,12 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     async (data: any) => {
       const existing = await storage.getCronMasters();
       const isDuplicate = existing.some(
-        (c) => c.code.toLowerCase() === data.code.toLowerCase()
+        (c) => c.code.toLowerCase() === data.code.toLowerCase(),
       );
       if (isDuplicate) {
-        const error: any = new Error("This Cron Key is already defined. Please use a unique key.");
+        const error: any = new Error(
+          "This Cron Key is already defined. Please use a unique key.",
+        );
         error.status = 400;
         throw error;
       }
@@ -1002,7 +1516,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         ...data,
         config: data.config || {},
         isActive: data.isActive ?? false,
-        lastRun: null
+        lastRun: null,
       };
       return await storage.createCronMaster(cronData);
     },
@@ -1011,18 +1525,20 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     },
     async (id) => {
       return await storage.deleteCronMaster(id);
-    }, undefined, TABLES.CRON_MASTER
+    },
+    undefined,
+    TABLES.CRON_MASTER,
   );
   app.get("/api/cron-jobs/main-gate", requireAuth, async (_req, res) => {
     const allCrons = await storage.getCronMasters();
-    const gateJob = allCrons.find(c => c.code === MAIN_GATE_SYNC.CODE);
+    const gateJob = allCrons.find((c) => c.code === MAIN_GATE_SYNC.CODE);
     res.json(gateJob ? [gateJob] : []);
   });
   app.get("/api/cron-jobs/cabin-lock", requireAuth, async (_req, res) => {
     const allCrons = await storage.getCronMasters();
-    const cabinJob = allCrons.find(c => c.code === CABIN_LOCKOUT_CONFIG.CODE);
+    const cabinJob = allCrons.find((c) => c.code === CABIN_LOCKOUT_CONFIG.CODE);
     res.json(cabinJob ? [cabinJob] : []);
-  })
+  });
   crudRoutes(
     app,
     "/api/door-devices",
@@ -1032,7 +1548,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const existing = await storage.getDoorDevices();
       const isDuplicate = existing.some((m) => m.doorId === data.doorId);
       if (isDuplicate) {
-        const error: any = new Error("Hardware mapping already exists for this door.");
+        const error: any = new Error(
+          "Hardware mapping already exists for this door.",
+        );
         error.status = 400;
         throw error;
       }
@@ -1043,7 +1561,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     },
     async (id) => {
       return await storage.deleteDoorDevice(id);
-    }, undefined, TABLES.DOOR_DEVICES
+    },
+    undefined,
+    TABLES.DOOR_DEVICES,
   );
   crudRoutes(
     app,
@@ -1058,14 +1578,16 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     },
     async (id) => {
       return await storage.deleteBlockUnblockLog(id);
-    }
+    },
   );
   app.get("/api/devices/role-eligible", requireAuth, async (_req, res) => {
     try {
       const devices = await storage.getRoleEligibleDevices();
       res.json(devices);
     } catch (error: any) {
-      res.status(500).json({ message: "Failed to fetch devices for role assignment" });
+      res
+        .status(500)
+        .json({ message: "Failed to fetch devices for role assignment" });
     }
   });
   app.get("/api/doors/lockout-eligible", requireAuth, async (req, res) => {
@@ -1086,44 +1608,149 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (disabledIds && disabledIds.length > 0) {
         await storage.updateDoorLockoutStatusBulk(disabledIds, false);
       }
-      return res.json({ success: true, message: "All doors synced successfully" });
+      return res.json({
+        success: true,
+        message: "All doors synced successfully",
+      });
     } catch (error) {
       console.error("Route Error:", error);
-      return res.status(500).json({ success: false, message: "Failed to sync doors" });
+      return res
+        .status(500)
+        .json({ success: false, message: "Failed to sync doors" });
     }
   });
-  app.post("/api/emergency/bulk-unblock", isAuthenticated, withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, "EMERGENCY_UNBLOCK_ALL", async (req) => {
-    const loginId = req.session?.userId;
-    if (!loginId) throw new Error("User session not found. Please re-login.");
-    const user = await storage.getUser(loginId.toString());
-    const result = await storage.executeEmergencybulkUnblock(loginId, user?.username || "Admin User");
-    return { success: true, message: `Emergency unblock initiated for ${result.processedCount} records.`, audit: { performedBy: user?.username || "Admin User", alertId: result.alertId } };
-  }, 200));
-  app.post("/api/doors/:id/emergency-unlock", isAuthenticated, withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, "EMERGENCY_UNBLOCK", async (req) => {
-    const loginId = req.session?.userId;
-    if (!loginId) throw new Error("User session not found. Please re-login.");
-    const doorId = Number(req.params.id);
-    if (isNaN(doorId)) throw new Error("Invalid Door ID provided.");
-    const user = await storage.getUser(loginId.toString());
-    const result = await storage.unlockSpecificDoor(doorId, loginId, user?.username || "Admin User");
-    return { 
-      success: true, 
-      message: `Emergency unlock initiated for door "${result.doorName}" (${result.unlockedDevicesCount} devices).`, 
-      audit: { 
-        doorId,
-        doorName: result.doorName,
-        performedBy: user?.username || "Admin User", 
-        alertId: result.alertId 
-      } 
-    };
-  }, 200));
-  app.post("/api/newDevice/bulk-block", isAuthenticated, withAudit(TABLES.USER_BLOCK_UNBLOCK_LOGS, "EMERGENCY_BLOCK_ALL", async (req) => {
-    const loginId = req.session?.userId;
-    if (!loginId) throw new Error("User session not found. Please re-login.");
-    const user = await storage.getUser(loginId.toString());
-    const result = await storage.executeNewDevicebulkBlock(loginId, user?.username || "Admin User");
-    return { success: true, message: `Emergency unblock initiated for ${result.processedCount} records.`, audit: { performedBy: user?.username || "Admin User", alertId: result.alertId } };
-  }, 200));
+  app.post(
+    "/api/emergency/bulk-unblock",
+    isAuthenticated,
+    withAudit(
+      TABLES.USER_BLOCK_UNBLOCK_LOGS,
+      "EMERGENCY_UNBLOCK_ALL",
+      async (req) => {
+        const loginId = req.session?.userId;
+        if (!loginId)
+          throw new Error("User session not found. Please re-login.");
+        const user = await storage.getUser(loginId.toString());
+        const result = await storage.executeEmergencybulkUnblock(
+          loginId,
+          user?.username || "Admin User",
+        );
+        return {
+          success: true,
+          message: `Emergency unblock initiated for ${result.processedCount} records.`,
+          audit: {
+            performedBy: user?.username || "Admin User",
+            alertId: result.alertId,
+          },
+        };
+      },
+      200,
+    ),
+  );
+  app.post(
+    "/api/doors/:id/emergency-unlock",
+    isAuthenticated,
+    withAudit(
+      TABLES.USER_BLOCK_UNBLOCK_LOGS,
+      "SINGLE_DOOR_EMERGENCY_UNLOCK",
+      async (req) => {
+        const loginId = req.session?.userId;
+        if (!loginId)
+          throw new Error("User session not found. Please re-login.");
+        const doorId = Number(req.params.id);
+        if (isNaN(doorId)) throw new Error("Invalid Door ID provided.");
+        const user = await storage.getUser(loginId.toString());
+        const result = await storage.unlockSpecificDoor(
+          doorId,
+          loginId,
+          user?.username || "Admin User",
+        );
+        return {
+          success: true,
+          message: `Emergency unlock initiated for door "${result.doorName}" (${result.unlockedDevicesCount} devices).`,
+          audit: {
+            doorId,
+            doorName: result.doorName,
+            performedBy: user?.username || "Admin User",
+            alertId: result.alertId,
+          },
+        };
+      },
+      200,
+    ),
+  );
+  app.post(
+    "/api/newDevice/bulk-block",
+    isAuthenticated,
+    withAudit(
+      TABLES.USER_BLOCK_UNBLOCK_LOGS,
+      "EMERGENCY_BLOCK_ALL",
+      async (req) => {
+        const loginId = req.session?.userId;
+        if (!loginId)
+          throw new Error("User session not found. Please re-login.");
+        const user = await storage.getUser(loginId.toString());
+        const result = await storage.executeNewDevicebulkBlock(
+          loginId,
+          user?.username || "Admin User",
+        );
+        return {
+          success: true,
+          message: `Emergency unblock initiated for ${result.processedCount} records.`,
+          audit: {
+            performedBy: user?.username || "Admin User",
+            alertId: result.alertId,
+          },
+        };
+      },
+      200,
+    ),
+  );
+
+  app.post(
+    "/api/doors/:id/refresh",
+    isAuthenticated,
+    withAudit(
+      TABLES.USER_BLOCK_UNBLOCK_LOGS,
+      "SINGLE_DOOR_REFRESH",
+      async (req) => {
+        const loginId = req.session?.userId;
+        if (!loginId)
+          throw new Error("User session not found. Please re-login.");
+
+        const doorId = Number(req.params.id);
+        if (isNaN(doorId)) {
+          throw new Error("Invalid Door ID provided.");
+        }
+
+        const user = await storage.getUser(loginId.toString());
+
+        // Dedicated single door function call
+        const result = await storage.executeSingleDoorBlock( doorId, loginId, user?.username || "Admin User", );
+
+        if (result.status === "Empty" || result.status === "Skipped") {
+          return {
+            success: true,
+            message: result.message,
+            audit: {
+              performedBy: user?.username || "Admin User",
+              alertId: result.alertId || null,
+            },
+          };
+        }
+
+        return {
+          success: true,
+          message: `Door refresh initiated successfully for ${result.processedCount} records.`,
+          audit: {
+            performedBy: user?.username || "Admin User",
+            alertId: result.alertId,
+          },
+        };
+      },
+      200,
+    ),
+  );
+  
   app.get("/api/reports/door-count", requireAuth, async (req, res) => {
     try {
       const { dateFrom, dateTo, deviceId } = req.query;
@@ -1140,9 +1767,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/reports/cabin-lockout", requireAuth, async (req, res) => {
     try {
       const { dateFrom, dateTo, employeeCode, doorId, status } = req.query;
-      const page = req.query.page
-        ? String(req.query.page)
-        : undefined;
+      const page = req.query.page ? String(req.query.page) : undefined;
       const pageSize = req.query.pageSize
         ? String(req.query.pageSize)
         : undefined;
@@ -1155,7 +1780,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           status: status as string,
         },
         page,
-        pageSize
+        pageSize,
       );
       res.json(data);
     } catch (error) {
@@ -1172,124 +1797,220 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Failed to fetch door assignments" });
     }
   });
-  app.get("/api/employee-door-assignments/:code", requireAuth, async (req, res) => {
-    try {
-      const data = await storage.getEmployeeDoorAssignmentByCode(req.params.code);
-      if (!data) {
-        return res.status(404).json({ message: "Assignment not found for this employee" });
+  app.get(
+    "/api/employee-door-assignments/:code",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const data = await storage.getEmployeeDoorAssignmentByCode(
+          req.params.code,
+        );
+        if (!data) {
+          return res
+            .status(404)
+            .json({ message: "Assignment not found for this employee" });
+        }
+        res.json(data);
+      } catch (error) {
+        res
+          .status(500)
+          .json({ message: "Failed to fetch employee door assignment" });
       }
-      res.json(data);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch employee door assignment" });
-    }
-  });
-  app.get("/api/doors/active", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const doors = await storage.getActiveDoors();
-      return res.status(200).json(doors);
-    } catch (error: any) {
-      return res.status(500).json({
-        message: "Failed to fetch active doors",
-        error: error.message
-      });
-    }
-  });
-  app.post("/api/employee-door-assignments", requireAuth, withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "ADD/UPDATE", async (req) => {
-    const { employeeCode, doorIds } = req.body;
-    if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");
-    return { status: "success", message: "Access privileges updated successfully.", data: await storage.upsertEmployeeDoorAssignment({ employeeCode, doorIds }) };
-  }, 200));
-  app.post("/api/visitor-door-assignments", requireAuth, withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "ADD/UPDATE", async (req) => {
-    const { employeeCode, doorIds } = req.body;
-    if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");
-    return { status: "success", message: "Access privileges updated successfully.", data: await storage.upsertVisitorDoorAssignment({ employeeCode, doorIds }) };
-  }, 200));
-  app.delete("/api/employee-door-assignments/:id", requireAuth, withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "DELETE", async (req) => { await storage.deleteEmployeeDoorAssignment(Number(req.params.id)); return { message: "Assignment deleted successfully" }; }, 200));
-  app.get("/api/reports/daily-performance", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const q = req.query as any;
-      const date = q.date || new Date().toISOString().split('T')[0];
-      const data = await storage.getDailyReport(date);
-      res.json(data);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-  app.get("/api/reports/muster-roll", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const q = req.query as any;
-      const page = q.page ? String(q.page) : undefined;
-      const pageSize = q.pageSize ? String(q.pageSize) : undefined;
-      const employeeCode = q.employeeCode ? String(q.employeeCode) : undefined;
-      const data = await storage.getRangeReport(
-        q.dateFrom,
-        q.dateTo,
-        employeeCode,
-        page,
-        pageSize
-      );
-      res.json(data);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-  app.get("/api/reports/ot-matrix", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const q = req.query as any;
-      const page = q.page ? String(q.page) : undefined;
-      const pageSize = q.pageSize ? String(q.pageSize) : undefined;
-      const employeeCode = q.employeeCode ? String(q.employeeCode) : undefined;
-      const data = await storage.getRangeReport(
-        q.dateFrom,
-        q.dateTo,
-        employeeCode,
-        page,
-        pageSize
-      );
-      res.json(data);
-    } catch (e: any) {
-      res.status(500).json({
-        message: e.message,
-      });
-    }
-  });
-  app.get("/api/reports/dept-summary", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const q = req.query as any;
-      const date = q.date || new Date().toISOString().split('T')[0];
-      const data = await storage.getDeptSummary(date);
-      res.json(data);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-  app.get("/api/reports/daily-efficiency", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const q = req.query as any;
-      const date = q.date || new Date().toISOString().split("T")[0];
-      const employeeCode = q.employeeCode || undefined;
-      const page = q.page ? String(q.page) : undefined;
-      const pageSize = q.pageSize ? String(q.pageSize) : undefined;
-      const data = await storage.getDailyReport(
-        date,
-        employeeCode,
-        page,
-        pageSize
-      );
-      res.json(data);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-  app.get("/api/reports/efficiency-analytics", requireAuth, async (req: Request, res: Response) => {
-    try {
-      const q = req.query as any;
-      const data = await storage.getEfficiencyAnalytics(q.dateFrom, q.dateTo, q.employeeCode);
-      res.json(data);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
+    },
+  );
+  app.get(
+    "/api/doors/active",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const doors = await storage.getActiveDoors();
+        return res.status(200).json(doors);
+      } catch (error: any) {
+        return res.status(500).json({
+          message: "Failed to fetch active doors",
+          error: error.message,
+        });
+      }
+    },
+  );
+  app.post(
+    "/api/employee-door-assignments",
+    requireAuth,
+    withAudit(
+      TABLES.EMPLOYEE_DOOR_ASSIGNMENTS,
+      "ADD/UPDATE",
+      async (req) => {
+        const { employeeCode, doorIds } = req.body;
+        if (!employeeCode || !Array.isArray(doorIds))
+          throw new Error(
+            "Required data missing: employeeCode (string) and doorIds (array) are mandatory.",
+          );
+        return {
+          status: "success",
+          message: "Access privileges updated successfully.",
+          data: await storage.upsertEmployeeDoorAssignment({
+            employeeCode,
+            doorIds,
+          }),
+        };
+      },
+      200,
+    ),
+  );
+  app.post(
+    "/api/visitor-door-assignments",
+    requireAuth,
+    withAudit(
+      TABLES.EMPLOYEE_DOOR_ASSIGNMENTS,
+      "ADD/UPDATE",
+      async (req) => {
+        const { employeeCode, doorIds } = req.body;
+        if (!employeeCode || !Array.isArray(doorIds))
+          throw new Error(
+            "Required data missing: employeeCode (string) and doorIds (array) are mandatory.",
+          );
+        return {
+          status: "success",
+          message: "Access privileges updated successfully.",
+          data: await storage.upsertVisitorDoorAssignment({
+            employeeCode,
+            doorIds,
+          }),
+        };
+      },
+      200,
+    ),
+  );
+  app.delete(
+    "/api/employee-door-assignments/:id",
+    requireAuth,
+    withAudit(
+      TABLES.EMPLOYEE_DOOR_ASSIGNMENTS,
+      "DELETE",
+      async (req) => {
+        await storage.deleteEmployeeDoorAssignment(Number(req.params.id));
+        return { message: "Assignment deleted successfully" };
+      },
+      200,
+    ),
+  );
+  app.get(
+    "/api/reports/daily-performance",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const q = req.query as any;
+        const date = q.date || new Date().toISOString().split("T")[0];
+        const data = await storage.getDailyReport(date);
+        res.json(data);
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    },
+  );
+  app.get(
+    "/api/reports/muster-roll",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const q = req.query as any;
+        const page = q.page ? String(q.page) : undefined;
+        const pageSize = q.pageSize ? String(q.pageSize) : undefined;
+        const employeeCode = q.employeeCode
+          ? String(q.employeeCode)
+          : undefined;
+        const data = await storage.getRangeReport(
+          q.dateFrom,
+          q.dateTo,
+          employeeCode,
+          page,
+          pageSize,
+        );
+        res.json(data);
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    },
+  );
+  app.get(
+    "/api/reports/ot-matrix",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const q = req.query as any;
+        const page = q.page ? String(q.page) : undefined;
+        const pageSize = q.pageSize ? String(q.pageSize) : undefined;
+        const employeeCode = q.employeeCode
+          ? String(q.employeeCode)
+          : undefined;
+        const data = await storage.getRangeReport(
+          q.dateFrom,
+          q.dateTo,
+          employeeCode,
+          page,
+          pageSize,
+        );
+        res.json(data);
+      } catch (e: any) {
+        res.status(500).json({
+          message: e.message,
+        });
+      }
+    },
+  );
+  app.get(
+    "/api/reports/dept-summary",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const q = req.query as any;
+        const date = q.date || new Date().toISOString().split("T")[0];
+        const data = await storage.getDeptSummary(date);
+        res.json(data);
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    },
+  );
+  app.get(
+    "/api/reports/daily-efficiency",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const q = req.query as any;
+        const date = q.date || new Date().toISOString().split("T")[0];
+        const employeeCode = q.employeeCode || undefined;
+        const page = q.page ? String(q.page) : undefined;
+        const pageSize = q.pageSize ? String(q.pageSize) : undefined;
+        const data = await storage.getDailyReport(
+          date,
+          employeeCode,
+          page,
+          pageSize,
+        );
+        res.json(data);
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    },
+  );
+  app.get(
+    "/api/reports/efficiency-analytics",
+    requireAuth,
+    async (req: Request, res: Response) => {
+      try {
+        const q = req.query as any;
+        const data = await storage.getEfficiencyAnalytics(
+          q.dateFrom,
+          q.dateTo,
+          q.employeeCode,
+        );
+        res.json(data);
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      }
+    },
+  );
   crudRoutes(
     app,
     "/api/menus",
@@ -1315,7 +2036,9 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         throw customError;
       }
     },
-    (id) => storage.deleteMenu(id), undefined, TABLES.MENU_MASTER
+    (id) => storage.deleteMenu(id),
+    undefined,
+    TABLES.MENU_MASTER,
   );
   app.get("/api/roles", requireAuth, async (_req, res) => {
     const roles = await storage.getRoles();
@@ -1329,16 +2052,50 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: e.message });
     }
   });
-  app.post("/api/roles-with-permissions", requireAuth, withAudit(TABLES.ROLES, "ADD/UPDATE", async (req) => {
-    const { role, permissions } = req.body;
-    if (!role?.code || !Array.isArray(permissions)) throw new Error("Required data missing: code (string) and permissions (array) are mandatory.");
-    const menuIds = permissions.map((p: any) => p.menuId);
-    if (new Set(menuIds).size !== menuIds.length) throw new Error("Duplicate Menu assignments detected. Each menu must have a unique permission set.");
-    const existingRole = await storage.getRoleByCode(role.code);
-    if (existingRole) throw new Error("This Role Code is already registered. Please use a unique code.");
-    return await storage.createRoleWithPermissions(role, permissions);
-  }, 201));
-  app.put("/api/roles-with-permissions/:id", requireAuth, withAudit(TABLES.ROLES, "UPDATE", async (req) => { await storage.updateRoleWithPermissions(parseInt(req.params.id), req.body.role, req.body.permissions); return { message: "Role and Permissions updated successfully" }; }, 200));
+  app.post(
+    "/api/roles-with-permissions",
+    requireAuth,
+    withAudit(
+      TABLES.ROLES,
+      "ADD/UPDATE",
+      async (req) => {
+        const { role, permissions } = req.body;
+        if (!role?.code || !Array.isArray(permissions))
+          throw new Error(
+            "Required data missing: code (string) and permissions (array) are mandatory.",
+          );
+        const menuIds = permissions.map((p: any) => p.menuId);
+        if (new Set(menuIds).size !== menuIds.length)
+          throw new Error(
+            "Duplicate Menu assignments detected. Each menu must have a unique permission set.",
+          );
+        const existingRole = await storage.getRoleByCode(role.code);
+        if (existingRole)
+          throw new Error(
+            "This Role Code is already registered. Please use a unique code.",
+          );
+        return await storage.createRoleWithPermissions(role, permissions);
+      },
+      201,
+    ),
+  );
+  app.put(
+    "/api/roles-with-permissions/:id",
+    requireAuth,
+    withAudit(
+      TABLES.ROLES,
+      "UPDATE",
+      async (req) => {
+        await storage.updateRoleWithPermissions(
+          parseInt(req.params.id),
+          req.body.role,
+          req.body.permissions,
+        );
+        return { message: "Role and Permissions updated successfully" };
+      },
+      200,
+    ),
+  );
   app.get("/api/roles-with-permissions/:id", requireAuth, async (req, res) => {
     try {
       const roleId = Number(req.params.id);
@@ -1350,11 +2107,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     } catch (error: any) {
       res.status(500).json({
         status: "error",
-        message: error.message || "Failed to fetch role data"
+        message: error.message || "Failed to fetch role data",
       });
     }
   });
-  app.delete("/api/roles/:id", requireAuth, withAudit(TABLES.ROLES, "DELETE", async (req) => { await storage.deleteRole(Number(req.params.id)); return null; }, 204));
+  app.delete(
+    "/api/roles/:id",
+    requireAuth,
+    withAudit(
+      TABLES.ROLES,
+      "DELETE",
+      async (req) => {
+        await storage.deleteRole(Number(req.params.id));
+        return null;
+      },
+      204,
+    ),
+  );
   app.get("/api/reports_access_logs", requireAuth, async (req, res) => {
     try {
       const filters = {
@@ -1365,225 +2134,250 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         doorName: req.query.doorName as string,
       };
       const page = req.query.page ? String(req.query.page) : undefined;
-      const pageSize = req.query.pageSize ? String(req.query.pageSize) : undefined;
-      const data = await storage.getDeviceLogsWithEmployee(filters, page, pageSize);
-      res.json(data);
-    } catch (e: any) {
-      console.error(e); res.status(500).json({ message: e.message, });
-    }
-  });
-  app.get("/api/reports/employee-productive-report", requireAuth, async (req, res) => {
-    try {
-      const { date, employeeCode } = req.query;
-      const page = req.query.page
-        ? String(req.query.page)
-        : undefined;
       const pageSize = req.query.pageSize
         ? String(req.query.pageSize)
         : undefined;
-      const data = await storage.getEmployeeProductiveReport(
-        {
-          date: date as string,
-          employeeCode: employeeCode as string,
-        },
-        page,
-        pageSize
-      );
-      res.json(data);
-    } catch (error: any) {
-      console.error("Employee Productive Report Error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch productive report",
-        error: error.message,
-      });
-    }
-  });
-  app.get("/api/reports/employee-efficiency-dateRange", requireAuth, async (req, res) => {
-    try {
-      const {
-        dateFrom,
-        dateTo,
-        employeeCode,
-        page,
-        pageSize
-      } = req.query;
-      if (!dateFrom || !dateTo) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Date range is required. Please select both Start Date and End Date to proceed."
-        });
-      }
-      const result = await storage.getEmplyeeEefficiency(
-        String(dateFrom),
-        String(dateTo),
-        employeeCode
-          ? String(employeeCode)
-          : undefined,
-        page
-          ? String(page)
-          : undefined,
-        pageSize
-          ? String(pageSize)
-          : undefined
-      );
-      res.json({
-        success: true,
-        count: result.totalCount,
-        ...result
-      });
-    } catch (error: any) {
-      console.error("Efficiency Report Error:", error);
-      res.status(500).json({
-        success: false,
-        message:
-          "An internal server error occurred while generating the efficiency report. Please try again later."
-      });
-    }
-  });
-  app.get("/api/reports/department-efficiency", requireAuth, async (req, res) => {
-    try {
-      const {
-        dateFrom,
-        dateTo,
-        deptId,
-        page,
-        pageSize
-      } = req.query;
-      if (!dateFrom || !dateTo) {
-        return res.status(400).json({
-          success: false,
-          message:
-            "Missing required parameters: fromDate and toDate are mandatory."
-        });
-      }
-      const result = await storage.getDepartmentEfficiencyReport(
-        String(dateFrom),
-        String(dateTo),
-        deptId
-          ? Number(deptId)
-          : undefined,
-        page
-          ? String(page)
-          : undefined,
-        pageSize
-          ? String(pageSize)
-          : undefined
-      );
-      res.status(200).json({
-        success: true,
-        count: result.totalCount,
-        ...result
-      });
-    } catch (error: any) {
-      console.error(
-        `[Report API Error] - ${new Date().toISOString()}:`,
-        error.stack
-      );
-      res.status(500).json({
-        success: false,
-        message:
-          "An internal server error occurred while generating the department efficiency report."
-      });
-    }
-  });
-  app.put("/api/users/:id/change-password", requireAuth, withAudit(TABLES.USERS, "UPDATE", async (req: any) => {
-    const targetUserId = req.params.id;
-    const { newPassword, confirmPassword } = req.body;
-    const validationErrors = validateNoHtml(req.body);
-    if (Object.keys(validationErrors).length > 0) {
-      throw new Error(Object.values(validationErrors).join(", "));
-    }
-    if (!newPassword || !confirmPassword) {
-      throw new Error("Both New Password and Confirm Password are required.");
-    }
-    if (newPassword !== confirmPassword) {
-      throw new Error("Validation Failed: New password and Confirm password do not match.");
-    }
-    if (!validatePasswordStrength(newPassword)) {
-      throw new Error("Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.");
-    }
-    const updatedUser = await storage.updateUserPassword(targetUserId, newPassword);
-    if (!updatedUser) {
-      throw new Error("User record not found in the database.");
-    }
-    return updatedUser;
-  }, 200));
-  app.get("/api/reports/employee-movement-logs", requireAuth, async (req, res) => {
-    try {
-      const { date, employeeCode } = req.query;
-      const page = req.query.page
-        ? String(req.query.page)
-        : undefined;
-      const pageSize = req.query.pageSize
-        ? String(req.query.pageSize)
-        : undefined;
-      const data = await storage.getEmployeeMovementLogsReport(
-        {
-          date: date as string,
-          employeeCode: employeeCode as string,
-        },
+      const data = await storage.getDeviceLogsWithEmployee(
+        filters,
         page,
         pageSize,
       );
       res.json(data);
-    } catch (error: any) {
-      console.error("Employee Movement Logs Report Error:", error);
-      res.status(500).json({
-        success: false,
-        message: "Failed to fetch employee movement logs report",
-        error: error.message,
-      });
+    } catch (e: any) {
+      console.error(e);
+      res.status(500).json({ message: e.message });
     }
   });
-  app.get("/api/reports/department-wise-manpower", requireAuth, async (req, res) => {
-    try {
-      const {
-        dateFrom,
-        dateTo,
-        employeeCode,
-        page = "1",
-        pageSize = "10",
-      } = req.query;
-      if (!dateFrom || !dateTo) {
-        return res.status(400).json({
+  app.get(
+    "/api/reports/employee-productive-report",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const { date, employeeCode } = req.query;
+        const page = req.query.page ? String(req.query.page) : undefined;
+        const pageSize = req.query.pageSize
+          ? String(req.query.pageSize)
+          : undefined;
+        const data = await storage.getEmployeeProductiveReport(
+          {
+            date: date as string,
+            employeeCode: employeeCode as string,
+          },
+          page,
+          pageSize,
+        );
+        res.json(data);
+      } catch (error: any) {
+        console.error("Employee Productive Report Error:", error);
+        res.status(500).json({
           success: false,
-          message: "dateFrom and dateTo are required",
+          message: "Failed to fetch productive report",
+          error: error.message,
         });
       }
-      const data = await storage.getDepartmentWiseManpowerReport(
-        {
-          dateFrom: String(dateFrom),
-          dateTo: String(dateTo),
-          employeeCode: employeeCode
-            ? String(employeeCode)
-            : undefined,
-        },
-        Number(page),
-        Number(pageSize)
-      );
-      return res.status(200).json({
-        success: true,
-        ...data,
-      });
-    } catch (error: any) {
-      console.error(
-        "Department Wise Manpower Report Error =>",
-        error
-      );
-      return res.status(500).json({
-        success: false,
-        message: error.message || "Internal Server Error",
-      });
-    }
-  });
-  app.post("/api/contractors", requireAuth, withAudit("contractors", "ADD", async (req: any) => {
-    return await storage.createContractor(req.body);
-  }, 201));
-  app.patch("/api/contractors/:id", requireAuth, withAudit("contractors", "UPDATE", async (req: any) => {
-    return await storage.updateContractor(Number(req.params.id), req.body);
-  }));
+    },
+  );
+  app.get(
+    "/api/reports/employee-efficiency-dateRange",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const { dateFrom, dateTo, employeeCode, page, pageSize } = req.query;
+        if (!dateFrom || !dateTo) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Date range is required. Please select both Start Date and End Date to proceed.",
+          });
+        }
+        const result = await storage.getEmplyeeEefficiency(
+          String(dateFrom),
+          String(dateTo),
+          employeeCode ? String(employeeCode) : undefined,
+          page ? String(page) : undefined,
+          pageSize ? String(pageSize) : undefined,
+        );
+        res.json({
+          success: true,
+          count: result.totalCount,
+          ...result,
+        });
+      } catch (error: any) {
+        console.error("Efficiency Report Error:", error);
+        res.status(500).json({
+          success: false,
+          message:
+            "An internal server error occurred while generating the efficiency report. Please try again later.",
+        });
+      }
+    },
+  );
+  app.get(
+    "/api/reports/department-efficiency",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const { dateFrom, dateTo, deptId, page, pageSize } = req.query;
+        if (!dateFrom || !dateTo) {
+          return res.status(400).json({
+            success: false,
+            message:
+              "Missing required parameters: fromDate and toDate are mandatory.",
+          });
+        }
+        const result = await storage.getDepartmentEfficiencyReport(
+          String(dateFrom),
+          String(dateTo),
+          deptId ? Number(deptId) : undefined,
+          page ? String(page) : undefined,
+          pageSize ? String(pageSize) : undefined,
+        );
+        res.status(200).json({
+          success: true,
+          count: result.totalCount,
+          ...result,
+        });
+      } catch (error: any) {
+        console.error(
+          `[Report API Error] - ${new Date().toISOString()}:`,
+          error.stack,
+        );
+        res.status(500).json({
+          success: false,
+          message:
+            "An internal server error occurred while generating the department efficiency report.",
+        });
+      }
+    },
+  );
+  app.put(
+    "/api/users/:id/change-password",
+    requireAuth,
+    withAudit(
+      TABLES.USERS,
+      "UPDATE",
+      async (req: any) => {
+        const targetUserId = req.params.id;
+        const { newPassword, confirmPassword } = req.body;
+        const validationErrors = validateNoHtml(req.body);
+        if (Object.keys(validationErrors).length > 0) {
+          throw new Error(Object.values(validationErrors).join(", "));
+        }
+        if (!newPassword || !confirmPassword) {
+          throw new Error(
+            "Both New Password and Confirm Password are required.",
+          );
+        }
+        if (newPassword !== confirmPassword) {
+          throw new Error(
+            "Validation Failed: New password and Confirm password do not match.",
+          );
+        }
+        if (!validatePasswordStrength(newPassword)) {
+          throw new Error(
+            "Password must be at least 8 characters long and include at least one uppercase letter, one lowercase letter, one number, and one special character.",
+          );
+        }
+        const updatedUser = await storage.updateUserPassword(
+          targetUserId,
+          newPassword,
+        );
+        if (!updatedUser) {
+          throw new Error("User record not found in the database.");
+        }
+        return updatedUser;
+      },
+      200,
+    ),
+  );
+  app.get(
+    "/api/reports/employee-movement-logs",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const { date, employeeCode } = req.query;
+        const page = req.query.page ? String(req.query.page) : undefined;
+        const pageSize = req.query.pageSize
+          ? String(req.query.pageSize)
+          : undefined;
+        const data = await storage.getEmployeeMovementLogsReport(
+          {
+            date: date as string,
+            employeeCode: employeeCode as string,
+          },
+          page,
+          pageSize,
+        );
+        res.json(data);
+      } catch (error: any) {
+        console.error("Employee Movement Logs Report Error:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch employee movement logs report",
+          error: error.message,
+        });
+      }
+    },
+  );
+  app.get(
+    "/api/reports/department-wise-manpower",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const {
+          dateFrom,
+          dateTo,
+          employeeCode,
+          page = "1",
+          pageSize = "10",
+        } = req.query;
+        if (!dateFrom || !dateTo) {
+          return res.status(400).json({
+            success: false,
+            message: "dateFrom and dateTo are required",
+          });
+        }
+        const data = await storage.getDepartmentWiseManpowerReport(
+          {
+            dateFrom: String(dateFrom),
+            dateTo: String(dateTo),
+            employeeCode: employeeCode ? String(employeeCode) : undefined,
+          },
+          Number(page),
+          Number(pageSize),
+        );
+        return res.status(200).json({
+          success: true,
+          ...data,
+        });
+      } catch (error: any) {
+        console.error("Department Wise Manpower Report Error =>", error);
+        return res.status(500).json({
+          success: false,
+          message: error.message || "Internal Server Error",
+        });
+      }
+    },
+  );
+  app.post(
+    "/api/contractors",
+    requireAuth,
+    withAudit(
+      "contractors",
+      "ADD",
+      async (req: any) => {
+        return await storage.createContractor(req.body);
+      },
+      201,
+    ),
+  );
+  app.patch(
+    "/api/contractors/:id",
+    requireAuth,
+    withAudit("contractors", "UPDATE", async (req: any) => {
+      return await storage.updateContractor(Number(req.params.id), req.body);
+    }),
+  );
   app.get("/api/contractors", requireAuth, async (req, res) => {
     try {
       const page = Number(req.query.page) || 1;
@@ -1598,24 +2392,40 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/contractors/:id", requireAuth, async (req, res) => {
     try {
       const data = await storage.getContractor(Number(req.params.id));
-      if (!data) return res.status(404).json({ message: "Contractor not found" });
+      if (!data)
+        return res.status(404).json({ message: "Contractor not found" });
       res.json(data);
     } catch (err: any) {
       res.status(500).json({ message: "Error fetching contractor details" });
     }
   });
-  app.delete("/api/contractors/:id", requireAuth, withAudit("contractors", "DELETE", async (req: any) => {
-    return await storage.deleteContractor(Number(req.params.id));
-  }, 204));
+  app.delete(
+    "/api/contractors/:id",
+    requireAuth,
+    withAudit(
+      "contractors",
+      "DELETE",
+      async (req: any) => {
+        return await storage.deleteContractor(Number(req.params.id));
+      },
+      204,
+    ),
+  );
   app.get("/api/audit-logs", requireAuth, async (req, res) => {
     try {
       const page = req.query.page ? Number(req.query.page) : undefined;
-      const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
+      const pageSize = req.query.pageSize
+        ? Number(req.query.pageSize)
+        : undefined;
       const search = req.query.search ? String(req.query.search) : undefined;
-      const performedBy = req.query.performedBy ? String(req.query.performedBy) : undefined;
+      const performedBy = req.query.performedBy
+        ? String(req.query.performedBy)
+        : undefined;
       const module = req.query.module ? String(req.query.module) : undefined;
       const action = req.query.action ? String(req.query.action) : undefined;
-      const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
+      const fromDate = req.query.fromDate
+        ? String(req.query.fromDate)
+        : undefined;
       const toDate = req.query.toDate ? String(req.query.toDate) : undefined;
       const result = await storage.getAuditLogs(
         page,
@@ -1625,7 +2435,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         module,
         action,
         fromDate,
-        toDate
+        toDate,
       );
       return res.json(result);
     } catch (error: any) {
@@ -1635,11 +2445,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   app.get("/api/login-logs", requireAuth, async (req, res) => {
     try {
       const page = req.query.page ? Number(req.query.page) : undefined;
-      const pageSize = req.query.pageSize ? Number(req.query.pageSize) : undefined;
+      const pageSize = req.query.pageSize
+        ? Number(req.query.pageSize)
+        : undefined;
       const search = req.query.search ? String(req.query.search) : undefined;
       const userId = req.query.userId ? String(req.query.userId) : undefined;
       const status = req.query.status ? String(req.query.status) : undefined;
-      const fromDate = req.query.fromDate ? String(req.query.fromDate) : undefined;
+      const fromDate = req.query.fromDate
+        ? String(req.query.fromDate)
+        : undefined;
       const toDate = req.query.toDate ? String(req.query.toDate) : undefined;
       const result = await storage.getLoginLogs(
         page,
@@ -1648,7 +2462,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         userId,
         status,
         fromDate,
-        toDate
+        toDate,
       );
       return res.json(result);
     } catch (error: any) {
@@ -1679,17 +2493,29 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       next(error);
     }
   });
-  app.post("/api/people/bulk-update", requireAuth, withAudit("people", "BULK_EMPOYEE_UPDATE", async (req: any) => {
-    return await processEmployeeBulkUpdateOnly(req.body.data);
-  }));
-  app.post("/api/doors/bulk-assign", requireAuth, withAudit("employee_door_assignments", "BULK_DOOR_ASIGNMENT", async (req: any) => {
-    return await processDoorUpdate(req.body.data);
-  }));
+  app.post(
+    "/api/people/bulk-update",
+    requireAuth,
+    withAudit("people", "BULK_EMPOYEE_UPDATE", async (req: any) => {
+      return await processEmployeeBulkUpdateOnly(req.body.data);
+    }),
+  );
+  app.post(
+    "/api/doors/bulk-assign",
+    requireAuth,
+    withAudit(
+      "employee_door_assignments",
+      "BULK_DOOR_ASIGNMENT",
+      async (req: any) => {
+        return await processDoorUpdate(req.body.data);
+      },
+    ),
+  );
   app.post(
     "/api/contractors/bulk-upload",
     requireAuth,
     withAudit(
-      "contractors", 
+      "contractors",
       "BULK_CONTRACTOR_UPLOAD",
       async (req: any) => {
         const result = await processContractorBulkUploadOnly(req.body.data);
@@ -1697,42 +2523,59 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           throw {
             isCustom: true,
             status: 400,
-            errors: result
+            errors: result,
           };
         }
         return result;
       },
-      200 
-    )
+      200,
+    ),
   );
-  app.get("/api/download/:type/:category/:folder/:filename", requireAuth, (req, res) => {
-    const { type, category, folder, filename } = req.params;
-    const filePath = path.join(process.cwd(), 'media', type, category, folder, filename);
-    if (fs.existsSync(filePath)) {
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      return res.download(filePath, filename, (err) => {
-        if (err) {
-          console.error("Download Error:", err);
-          res.status(500).send("File download failed.");
-        }
-      });
-    } else {
-      res.status(404).send("File not found");
-    }
-  });
-  app.patch("/api/users/:id/toggle-status", withAudit("users", "UPDATE", async (req: any) => {
-    const { id } = req.params;
-    if (!id) {
-      throw new Error("User ID is required");
-    }
-    const newStatus = await storage.toggleUserStatus(id);
-    return {
-      success: true,
-      newStatus: newStatus,
-      message: `User ${id} is now ${newStatus ? 'Active' : 'Blocked'}`
-    };
-  }));
+  app.get(
+    "/api/download/:type/:category/:folder/:filename",
+    requireAuth,
+    (req, res) => {
+      const { type, category, folder, filename } = req.params;
+      const filePath = path.join(
+        process.cwd(),
+        "media",
+        type,
+        category,
+        folder,
+        filename,
+      );
+      if (fs.existsSync(filePath)) {
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="${filename}"`,
+        );
+        return res.download(filePath, filename, (err) => {
+          if (err) {
+            console.error("Download Error:", err);
+            res.status(500).send("File download failed.");
+          }
+        });
+      } else {
+        res.status(404).send("File not found");
+      }
+    },
+  );
+  app.patch(
+    "/api/users/:id/toggle-status",
+    withAudit("users", "UPDATE", async (req: any) => {
+      const { id } = req.params;
+      if (!id) {
+        throw new Error("User ID is required");
+      }
+      const newStatus = await storage.toggleUserStatus(id);
+      return {
+        success: true,
+        newStatus: newStatus,
+        message: `User ${id} is now ${newStatus ? "Active" : "Blocked"}`,
+      };
+    }),
+  );
   crudRoutes(
     app,
     "/api/visitor_cards",
@@ -1741,34 +2584,38 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       storage.getVisitorCards(
         query.page ? parseInt(query.page as string) : undefined,
         query.pageSize ? parseInt(query.pageSize as string) : undefined,
-        query.search ? String(query.search) : undefined
+        query.search ? String(query.search) : undefined,
       ),
     async (d: any) => {
       await syncVisitorCardsFromMsSql();
       return {
         success: true,
-        message: "Sync completed"
+        message: "Sync completed",
       };
     },
     (id: number, d: any) => storage.updateVisitorCard(id, d),
     (id: number) => storage.deleteVisitorCard(id),
     undefined,
-    TABLES.VISITOR_CARDS
+    TABLES.VISITOR_CARDS,
   );
-  app.post("/api/visitor_cards/sync", requireAuth, async (req: any, res: any) => {
-    try {
-      await syncVisitorCardsFromMsSql();
-      res.status(200).json({
-        success: true,
-        message: "Sync completed"
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: error.message || "Sync failed"
-      });
-    }
-  });
+  app.post(
+    "/api/visitor_cards/sync",
+    requireAuth,
+    async (req: any, res: any) => {
+      try {
+        await syncVisitorCardsFromMsSql();
+        res.status(200).json({
+          success: true,
+          message: "Sync completed",
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          message: error.message || "Sync failed",
+        });
+      }
+    },
+  );
   app.get("/api/visitor_card_logs", requireAuth, async (req, res) => {
     try {
       const logs = await db
@@ -1783,7 +2630,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
           visitorName: visitors.nameOfVisitor,
         })
         .from(visitorCardLogs)
-        .leftJoin(visitors, eq(visitorCardLogs.visitorCardCode, visitors.rfidCardNo))
+        .leftJoin(
+          visitors,
+          eq(visitorCardLogs.visitorCardCode, visitors.rfidCardNo),
+        )
         .orderBy(desc(visitorCardLogs.syncDate))
         .limit(100);
       res.json(logs);
@@ -1823,19 +2673,23 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       res.status(500).json({ message: "Error fetching latest log" });
     }
   });
-  app.get("/api/visitor_cards/dropdown", requireAuth, async (req: any, res: any) => {
-    try {
-      const data = await storage.getAllCardsForDropdown();
-      res.status(200).json({
-        success: true,
-        data
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  });
+  app.get(
+    "/api/visitor_cards/dropdown",
+    requireAuth,
+    async (req: any, res: any) => {
+      try {
+        const data = await storage.getAllCardsForDropdown();
+        res.status(200).json({
+          success: true,
+          data,
+        });
+      } catch (error: any) {
+        res.status(500).json({
+          success: false,
+          message: error.message,
+        });
+      }
+    },
+  );
   return httpServer;
 }

@@ -33,6 +33,7 @@ import {
   ChevronDown,
   Check,
   LockOpen,
+  RotateCw,
 } from "lucide-react";
 import {
   Tooltip,
@@ -448,7 +449,7 @@ export default function ZonesDoorsPage() {
       key: "inDevices",
       label: "IN Devices",
       render: (d: any) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
+        <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
           {d.inDevices?.length > 0 ? (
             d.inDevices.map((dev: any) => (
               <Badge
@@ -460,9 +461,12 @@ export default function ZonesDoorsPage() {
               </Badge>
             ))
           ) : (
-            <span className="text-[10px] text-muted-foreground italic">
+            <Badge
+              variant="outline"
+              className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
+            >
               None
-            </span>
+            </Badge>
           )}
         </div>
       ),
@@ -471,7 +475,7 @@ export default function ZonesDoorsPage() {
       key: "outDevices",
       label: "OUT Devices",
       render: (d: any) => (
-        <div className="flex flex-wrap gap-1 max-w-[200px]">
+        <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
           {d.outDevices?.length > 0 ? (
             d.outDevices.map((dev: any) => (
               <Badge
@@ -483,11 +487,29 @@ export default function ZonesDoorsPage() {
               </Badge>
             ))
           ) : (
-            <span className="text-[10px] text-muted-foreground italic">
+            <Badge
+              variant="outline"
+              className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
+            >
               None
-            </span>
+            </Badge>
           )}
         </div>
+      ),
+    },
+    {
+      key: "lastRefreshedAt",
+      label: "Last Refreshed",
+      render: (d: any) => (
+        <span className="text-xs text-muted-foreground font-mono">
+          {d.lastRefreshedAt
+            ? new Date(d.lastRefreshedAt).toLocaleString("en-IN", {
+                dateStyle: "short",
+                timeStyle: "medium",
+                timeZone: "Asia/Kolkata",
+              })
+            : "—"}
+        </span>
       ),
     },
     {
@@ -591,6 +613,103 @@ export default function ZonesDoorsPage() {
               <TooltipContent>Emergency Unlock</TooltipContent>
             </Tooltip>
           )}
+          {/* 🔄 REFRESH DOOR BUTTON */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                onClick={(e) => {
+                  e.stopPropagation();
+
+                  const { dismiss } = toast({
+                    className:
+                      "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-slate-200 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
+                    description: (
+                      <div className="w-full flex flex-col gap-3">
+                        <div className="text-sm text-slate-800 dark:text-slate-200">
+                          <span className="font-bold text-slate-900 dark:text-white mr-1.5">
+                            Refresh Door:
+                          </span>
+                          <span>
+                            Are you sure you want to refresh block rules for{" "}
+                            <strong className="text-slate-900 dark:text-white font-semibold">
+                              "{d.name}"
+                            </strong>
+                            ?
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
+                            onClick={() => dismiss()}
+                          >
+                            Cancel
+                          </Button>
+
+                          <Button
+                            size="sm"
+                            className="h-8 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                            onClick={async () => {
+                              dismiss();
+                              
+                              // Loading indicator toast
+                              toast({
+                                title: "Processing...",
+                                description: `Refreshing status for "${d.name}"...`,
+                              });
+
+                              try {
+                                const response = await fetch(
+                                  `/api/doors/${d.id}/refresh`,
+                                  { method: "POST" }
+                                );
+                                const data = await response.json();
+
+                                if (response.ok && data.success) {
+                                  toast({
+                                    title: "Success",
+                                    description: data.message || `Door "${d.name}" refreshed successfully!`,
+                                  });
+                                  
+                                  // Doors data UI refresh
+                                  if (typeof fetchDoors === "function") {
+                                    fetchDoors();
+                                  }
+                                } else {
+                                  toast({
+                                    title: "Refresh Failed",
+                                    description:
+                                      data.message || "Failed to refresh door.",
+                                    variant: "destructive",
+                                  });
+                                }
+                              } catch (err) {
+                                toast({
+                                  title: "Error",
+                                  description: "Error sending door refresh command.",
+                                  variant: "destructive",
+                                });
+                              }
+                            }}
+                          >
+                            Refresh
+                          </Button>
+                        </div>
+                      </div>
+                    ),
+                  });
+                }}
+              >
+                <RotateCw className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh Door Status</TooltipContent>
+          </Tooltip>
 
           {/* 📱 ASSIGN HARDWARE */}
           {canEdit && (
