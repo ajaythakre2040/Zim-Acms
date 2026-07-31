@@ -459,7 +459,7 @@ export default function VisitorCardsPage() {
         );
       },
     },
-    
+
     {
       key: "isassign",
       label: "IsAssign",
@@ -480,22 +480,34 @@ export default function VisitorCardsPage() {
               {canEdit && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingVisitor(null);
-                        setSelectedCardForAssign(s);
-                        setErrors({});
-                        setVisitorDialog(true);
-                      }}
-                    >
-                      <UserCheck className="w-4 h-4 text-green-600" />
-                    </Button>
+                    {/* Disabled button par tooltip work kare isliye span wrapper use kiya hai */}
+                    <span className="inline-block">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        disabled={s.isAssigned} // 👈 Agar card assigned hai to disable ho jayega
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingVisitor(null);
+                          setSelectedCardForAssign(s);
+                          setErrors({});
+                          setVisitorDialog(true);
+                        }}
+                      >
+                        <UserCheck
+                          className={`w-4 h-4 ${
+                            s.isAssigned ? "text-slate-400" : "text-green-600"
+                          }`}
+                        />
+                      </Button>
+                    </span>
                   </TooltipTrigger>
                   <TooltipContent>
-                    <p>Assign Visitor</p>
+                    <p>
+                      {s.isAssigned
+                        ? "Card Currently Assigned"
+                        : "Assign Visitor"}
+                    </p>
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -699,80 +711,89 @@ export default function VisitorCardsPage() {
               )}
 
               {/* Delete Action Button */}
-{canDelete && (
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <Button
-        size="icon"
-        variant="ghost"
-        // 🔒 Agar card assigned hai toh delete button disable rahega
-        disabled={s.isAssigned}
-        className={`hover:text-destructive ${
-          s.isAssigned
-            ? "text-muted-foreground/30 cursor-not-allowed"
-            : "text-red-500"
-        }`}
-        onClick={async (e) => {
-          e.stopPropagation();
+              {canDelete && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      // 🔒 Agar card assigned hai toh delete button disable rahega
+                      disabled={s.isAssigned}
+                      className={`hover:text-destructive ${
+                        s.isAssigned
+                          ? "text-muted-foreground/30 cursor-not-allowed"
+                          : "text-red-500"
+                      }`}
+                      onClick={async (e) => {
+                        e.stopPropagation();
 
-          // 🛑 GUARD: Agar card abhi kisi visitor ko assign hai
-          if (s.isAssigned) {
-            toast({
-              title: "Cannot Delete Card",
-              description: `Card "${s.name || s.cardNumber || s.id}" is currently assigned to a visitor. Please check out the visitor before deleting.`,
-              variant: "destructive",
-            });
-            return; // Delete process yahan ruk jayega
-          }
+                        // 🛑 GUARD: Agar card abhi kisi visitor ko assign hai
+                        if (s.isAssigned) {
+                          toast({
+                            title: "Cannot Delete Card",
+                            description: `Card "${s.name || s.cardNumber || s.id}" is currently assigned to a visitor. Please check out the visitor before deleting.`,
+                            variant: "destructive",
+                          });
+                          return; // Delete process yahan ruk jayega
+                        }
 
-          const confirmed = await confirm({
-            title: "Delete Visitor Card?",
-            description: `Are you sure you want to delete card "${s.name || s.cardNumber || s.id}"? This action cannot be undone.`,
-            confirmText: "Yes, Delete",
-            cancelText: "Cancel",
-            variant: "destructive",
-          });
+                        const confirmed = await confirm({
+                          title: "Delete Visitor Card?",
+                          description: `Are you sure you want to delete card "${s.name || s.cardNumber || s.id}"? This action cannot be undone.`,
+                          confirmText: "Yes, Delete",
+                          cancelText: "Cancel",
+                          variant: "destructive",
+                        });
 
-          if (!confirmed) return;
+                        if (!confirmed) return;
 
-          try {
-            await remove(s.id);
-            setPagedResponse((prev: any) => {
-              if (!prev) return prev;
-              if (Array.isArray(prev)) {
-                return prev.filter((item: any) => item.id !== s.id);
-              }
-              return {
-                ...prev,
-                data: prev.data
-                  ? prev.data.filter((item: any) => item.id !== s.id)
-                  : [],
-                totalCount: prev.totalCount ? prev.totalCount - 1 : 0,
-              };
-            });
-            await fetchVisitorCards();
-            toast({
-              title: "Card Deleted",
-              description: "Visitor card has been successfully deleted.",
-            });
-          } catch (err) {
-            console.error("Failed to delete card:", err);
-            toast({
-              title: "Delete Failed",
-              description: "Failed to delete visitor card.",
-              variant: "destructive",
-            });
-          }
-        }}
-      >
-        <Trash2 className="w-4 h-4" />
-      </Button>
-    </TooltipTrigger>
-    <TooltipContent>
-      <p>{s.isAssigned ? "Cannot delete assigned card" : "Delete"}</p>
-    </TooltipContent>
-  </Tooltip>
-)}
+                        try {
+                          await remove(s.id);
+                          setPagedResponse((prev: any) => {
+                            if (!prev) return prev;
+                            if (Array.isArray(prev)) {
+                              return prev.filter(
+                                (item: any) => item.id !== s.id,
+                              );
+                            }
+                            return {
+                              ...prev,
+                              data: prev.data
+                                ? prev.data.filter(
+                                    (item: any) => item.id !== s.id,
+                                  )
+                                : [],
+                              totalCount: prev.totalCount
+                                ? prev.totalCount - 1
+                                : 0,
+                            };
+                          });
+                          await fetchVisitorCards();
+                          toast({
+                            title: "Card Deleted",
+                            description:
+                              "Visitor card has been successfully deleted.",
+                          });
+                        } catch (err) {
+                          console.error("Failed to delete card:", err);
+                          toast({
+                            title: "Delete Failed",
+                            description: "Failed to delete visitor card.",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {s.isAssigned ? "Cannot delete assigned card" : "Delete"}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
             </div>
           </TooltipProvider>
         );
@@ -1661,7 +1682,7 @@ export default function VisitorCardsPage() {
 
                   const response = await apiRequest(
                     "POST",
-                    "/api/employee-door-assignments",
+                    "/api/visitor-door-assignments",
                     {
                       employeeCode: roleassign?.employeeCode,
                       doorIds: finalDoorIds, // 👈 `selectedDoorIds` ki jagah `finalDoorIds` bhein
