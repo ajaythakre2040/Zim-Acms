@@ -652,8 +652,8 @@ export const employeeDoorAssignments = pgTable("employee_door_assignments", {
   id: serial("id").primaryKey(),
   employeeCode: varchar("employee_code", { length: 100 })
     .notNull()
-    .unique()
-    .references(() => people.employeeCode, { onDelete: 'cascade' }),
+    .unique(),
+    // .references(() => people.employeeCode, { onDelete: 'cascade' }),
   doorIds: integer("door_ids").array().notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow()

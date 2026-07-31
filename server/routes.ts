@@ -1199,6 +1199,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");
     return { status: "success", message: "Access privileges updated successfully.", data: await storage.upsertEmployeeDoorAssignment({ employeeCode, doorIds }) };
   }, 200));
+  app.post("/api/visitor-door-assignments", requireAuth, withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "ADD/UPDATE", async (req) => {
+    const { employeeCode, doorIds } = req.body;
+    if (!employeeCode || !Array.isArray(doorIds)) throw new Error("Required data missing: employeeCode (string) and doorIds (array) are mandatory.");
+    return { status: "success", message: "Access privileges updated successfully.", data: await storage.upsertVisitorDoorAssignment({ employeeCode, doorIds }) };
+  }, 200));
   app.delete("/api/employee-door-assignments/:id", requireAuth, withAudit(TABLES.EMPLOYEE_DOOR_ASSIGNMENTS, "DELETE", async (req) => { await storage.deleteEmployeeDoorAssignment(Number(req.params.id)); return { message: "Assignment deleted successfully" }; }, 200));
   app.get("/api/reports/daily-performance", requireAuth, async (req: Request, res: Response) => {
     try {

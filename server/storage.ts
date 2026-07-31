@@ -4211,7 +4211,117 @@ export class DatabaseStorage implements IStorage {
 
     return result.upserted;
   }
+  async upsertVisitorDoorAssignment(data: {
+    employeeCode: string;
+    doorIds: number[];
+  }) {
+    console.log(
+      `Upsert Visitor Door Assignment Request for Visitor/Employee ${data.employeeCode} with Doors: ${data.doorIds.join(
+        ",",
+      )}`,
+    );
 
+    const result = await db.transaction(async (tx: any) => {
+      const uniqueDoorIds = [...new Set(data.doorIds.map((id) => Number(id)))];
+
+      // 1. Check Visitor existence in visitorMaster table instead of people table
+      const [visitor] = await tx
+        .select()
+        .from(schema.visitorMaster)
+        .where(
+          eq(
+            schema.visitorMaster.employeeCode,
+            data.employeeCode.toString().trim(),
+          ),
+        )
+        .limit(1);
+
+      if (!visitor) {
+        throw new Error(`Visitor with code ${data.employeeCode} not found.`);
+      }
+
+      // 2. Validate requested Door IDs against Active Doors
+      if (uniqueDoorIds.length > 0) {
+        const validDoors = await tx
+          .select({ id: schema.doors.id })
+          .from(schema.doors)
+          .where(inArray(schema.doors.id, uniqueDoorIds));
+
+        if (validDoors.length !== uniqueDoorIds.length) {
+          throw new Error(`Invalid Door IDs detected.`);
+        }
+      }
+
+      // 3. Upsert Door Assignments in employeeDoorAssignments
+      const [upserted] = await tx
+        .insert(schema.employeeDoorAssignments)
+        .values({
+          employeeCode: data.employeeCode.toString().trim(),
+          doorIds: uniqueDoorIds,
+          updatedAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: schema.employeeDoorAssignments.employeeCode,
+          set: { doorIds: uniqueDoorIds, updatedAt: new Date() },
+        })
+        .returning();
+
+      // 4. Optionally mark Visitor as Assigned in visitorMaster
+      await tx
+        .update(schema.visitorMaster)
+        .set({
+          isAssigned: true,
+          updatedAt: new Date(),
+        })
+        .where(
+          eq(
+            schema.visitorMaster.employeeCode,
+            data.employeeCode.toString().trim(),
+          ),
+        );
+
+      return { upserted, visitor };
+    });
+
+    // ---------------------------------------------------------------------------
+    // Hardware Sync Execution (Preserving original Main Gate IN logic)
+    // ---------------------------------------------------------------------------
+    try {
+      const empCodeClean = data.employeeCode.toString().trim();
+
+      // 1. Fetch Main Gate Devices
+      const mainGateDevices = await getActiveDevicesByDoorCode(
+        MAIN_GATE_SYNC.CODE,
+      );
+
+      const gateDeviceIdsArr = mainGateDevices
+        .filter((d: any) => d && d.msId !== null && d.msId !== undefined)
+        .map((d: any) => Number(d.msId));
+
+      // 2. Common Function Call: Get Today's Valid IN Employees/Visitors from MSSQL
+      const validInEmpCodesToday = await getValidTodayMainInEmployeeCodes(
+        gateDeviceIdsArr,
+      );
+
+      // 3. Today's Main Gate Check Logic
+      const hasMainGateInToday = validInEmpCodesToday.has(empCodeClean);
+
+      // Agar Aaj Main Gate se IN hai -> Unblock (shouldBlockAll = false)
+      // Agar OUT / No Punch Today hai -> Block (shouldBlockAll = true)
+      const shouldBlockAll = !hasMainGateInToday;
+
+      // 4. Hardware Sync Execute
+      await this.executeHardwareSync(
+        empCodeClean,
+        null,
+        shouldBlockAll,
+      );
+    } catch (syncError) {
+      console.error(`[Hardware Sync Engine Error for Visitor]:`, syncError);
+    }
+
+    return result.upserted;
+  }
   async deleteEmployeeDoorAssignment(id: number): Promise<void> {
     await db
       .delete(schema.employeeDoorAssignments)
