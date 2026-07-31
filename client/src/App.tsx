@@ -249,7 +249,7 @@ function AuthenticatedApp() {
   const { toast } = useToast();
   const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
   const [isEmergencyBlockOpen, setIsEmergencyBlockOpen] = useState(false);
-  
+
   const [unblockCooldown, setUnblockCooldown] = useState<number>(0);
   const [refreshCooldown, setRefreshCooldown] = useState<number>(0);
 
@@ -324,9 +324,9 @@ function AuthenticatedApp() {
       queryClient.invalidateQueries({ queryKey: ["/api/people"] });
       toast({ title: "Success", description: res.message });
 
-      const expiryTime = Date.now() + 5 * 60 * 1000;
+      const expiryTime = Date.now() + 1 * 60 * 1000;
       localStorage.setItem("emergency_unblock_cooldown", expiryTime.toString());
-      setUnblockCooldown(300);
+      setUnblockCooldown(10);
     },
     onError: (err: any) => {
       toast({
@@ -349,10 +349,13 @@ function AuthenticatedApp() {
         title: "Success",
         description: res.message || "All devices blocked successfully.",
       });
-      
-      const expiryTime = Date.now() + 5 * 60 * 1000;
+
+      // ⚡ UPDATED: Cooldown ko 1 min (60 sec) kar diya gaya hai
+      const REFRESH_COOLDOWN_SECONDS = 60; // Aap yahan 30 sec ya jitna chahein rakh sakte hain
+      const expiryTime = Date.now() + REFRESH_COOLDOWN_SECONDS * 1000;
+
       localStorage.setItem("refresh_doors_cooldown", expiryTime.toString());
-      setRefreshCooldown(300);
+      setRefreshCooldown(REFRESH_COOLDOWN_SECONDS);
     },
     onError: (err: any) => {
       toast({

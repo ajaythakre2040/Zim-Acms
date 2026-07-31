@@ -1,4 +1,4 @@
-import { db } from "../db";
+import { db, mssqlPool} from "../db";
 import { doors, doorDevices, devices } from "@shared/schema";
 import { eq, inArray, and } from "drizzle-orm";
 
@@ -106,4 +106,55 @@ export async function getActiveDevicesByDoorCode(doorCode: string) {
                 eq(devices.isActive, true)
             )
         );
+}
+
+/**
+ * Helper function: Fetches a Set of Employee Codes who punched 'IN' TODAY 
+ * at any Main Gate device (or specified devices) from MSSQL DeviceLogs.
+ */
+export async function getValidTodayInEmployeeCodes(
+  targetDeviceIds: number[]
+): Promise<Set<string>> {
+  const validInEmpCodesToday = new Set<string>();
+
+  if (!targetDeviceIds || targetDeviceIds.length === 0) {
+    return validInEmpCodesToday;
+  }
+
+  // Current Date ka Start Time (Today 00:00:00 AM)
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  try {
+    if (!mssqlPool.connected) {
+      await mssqlPool.connect();
+    }
+
+    const request = mssqlPool.request();
+    request.input("todayStart", todayStart);
+
+    const deviceIdsCsv = targetDeviceIds.join(",");
+
+    const query = `
+      SELECT DISTINCT EmployeeCode 
+      FROM DeviceLogs 
+      WHERE DeviceId IN (${deviceIdsCsv})
+        AND UPPER(Direction) = 'IN' 
+        AND LogDate >= @todayStart
+    `;
+
+    const result = await request.query(query);
+
+    if (result && result.recordset) {
+      for (const row of result.recordset) {
+        if (row?.EmployeeCode) {
+          validInEmpCodesToday.add(String(row.EmployeeCode).trim());
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[ERROR] Failed to fetch Today's IN logs from MSSQL:`, err);
+  }
+
+  return validInEmpCodesToday;
 }
