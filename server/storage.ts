@@ -4415,89 +4415,99 @@ export class DatabaseStorage implements IStorage {
   //   return result.upserted;
   // }
   async upsertEmployeeDoorAssignment(data: {
-    employeeCode: string;
-    doorIds: number[];
-  }) {
-    console.log(
-      `Upsert Request for Employee ${data.employeeCode} with Doors: ${data.doorIds.join(
-        ",",
-      )}`,
-    );
+  employeeCode: string;
+  doorIds: number[];
+}) {
+  const empCodeClean = data.employeeCode.toString().trim();
 
     const result = await db.transaction(async (tx: any) => {
-      const uniqueDoorIds = [...new Set(data.doorIds.map((id) => Number(id)))];
+    const uniqueDoorIds = [...new Set(data.doorIds.map((id) => Number(id)))];
 
-      const [person] = await tx
-        .select()
-        .from(schema.people)
-        .where(eq(schema.people.employeeCode, data.employeeCode.toString()))
-        .limit(1);
+    // 1. Employee existence check & Fetch Zone
+    const [person] = await tx
+      .select()
+      .from(schema.people)
+      .where(eq(schema.people.employeeCode, empCodeClean))
+      .limit(1);
 
-      if (!person) throw new Error(`Employee ${data.employeeCode} not found.`);
-
-      if (uniqueDoorIds.length > 0) {
-        const validDoors = await tx
-          .select({ id: schema.doors.id })
-          .from(schema.doors)
-          .where(inArray(schema.doors.id, uniqueDoorIds));
-
-        if (validDoors.length !== uniqueDoorIds.length) {
-          throw new Error(`Invalid Door IDs detected.`);
-        }
-      }
-
-      const [upserted] = await tx
-        .insert(schema.employeeDoorAssignments)
-        .values({
-          employeeCode: data.employeeCode.toString(),
-          doorIds: uniqueDoorIds,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: schema.employeeDoorAssignments.employeeCode,
-          set: { doorIds: uniqueDoorIds, updatedAt: new Date() },
-        })
-        .returning();
-
-      return { upserted, person };
-    });
-
-    try {
-      const empCodeClean = data.employeeCode.toString().trim();
-
-      // 1. Fetch Main Gate Devices
-      const mainGateDevices = await getActiveDevicesByDoorCode(
-        MAIN_GATE_SYNC.CODE,
-      );
-
-      const gateDeviceIdsArr = mainGateDevices
-        .filter((d: any) => d && d.msId !== null && d.msId !== undefined)
-        .map((d: any) => Number(d.msId));
-
-      // 2. Common Function Call: Get Today's Valid IN Employees from MSSQL
-      const validInEmpCodesToday = await getValidTodayMainInEmployeeCodes(
-        gateDeviceIdsArr,
-      );
-
-      // 3. Today's Main Gate Check Logic
-      const hasMainGateInToday = validInEmpCodesToday.has(empCodeClean);
-
-      // Agar Aaj Main Gate se IN hai -> Unblock (shouldBlockAll = false)
-      // Agar OUT / No Punch Today hai -> Block (shouldBlockAll = true)
-      const shouldBlockAll = !hasMainGateInToday;
-
-      // 4. Hardware Sync Execute
-      await this.executeHardwareSync(
-        empCodeClean,
-        null,
-        shouldBlockAll,
-      );
-    } catch (syncError) {
-      console.error(`[Hardware Sync Engine Error]:`, syncError);
+    if (!person) {
+      console.error(`❌ [ERROR] Employee "${empCodeClean}" not found in database.`);
+      throw new Error(`Employee ${data.employeeCode} not found.`);
     }
 
-    return result.upserted;
-  }
+    // 2. Validate Doors
+    if (uniqueDoorIds.length > 0) {
+      const validDoors = await tx
+        .select({ id: schema.doors.id })
+        .from(schema.doors)
+        .where(inArray(schema.doors.id, uniqueDoorIds));
+
+      if (validDoors.length !== uniqueDoorIds.length) {
+        throw new Error(`Invalid Door IDs detected.`);
+      }
+    }
+
+    // 3. Upsert Door Assignments
+    const [upserted] = await tx
+      .insert(schema.employeeDoorAssignments)
+      .values({
+        employeeCode: empCodeClean,
+        doorIds: uniqueDoorIds,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: schema.employeeDoorAssignments.employeeCode,
+        set: { doorIds: uniqueDoorIds, updatedAt: new Date() },
+      })
+      .returning();
+
+    return { upserted, person };
+  });
+
+  // Hardware Sync Logic based on Today's IN + Zone Status
+  try {
+    const { person } = result;
+
+    // 1. Check Current Zone
+    const isZoneInside =
+      person.currentZone === ZONES.IN || person.currentZone === ZONES.CABIN;
+
+    // 2. Fetch Main Gate Devices & Today's IN punches from MSSQL
+    const mainGateDevices = await getActiveDevicesByDoorCode(
+      MAIN_GATE_SYNC.CODE,
+    );
+    const gateDeviceIdsArr = mainGateDevices
+      .filter((d: any) => d && d.msId !== null && d.msId !== undefined)
+      .map((d: any) => Number(d.msId));
+
+    const validInEmpCodesToday = await getValidTodayMainInEmployeeCodes(
+      gateDeviceIdsArr,
+    );
+
+    // Check ki employee ka IN punch AAJ KA HI HAI na?
+    const hasMainGateInToday = validInEmpCodesToday.has(empCodeClean);
+
+    /**
+     * 🎯 STRICT SECURITY RULE:
+     * Unblock TABHI hoga jab:
+     * 1. Person Zone = 'IN' / 'CABIN'
+     * AND
+     * 2. Main Gate IN Punch = TODAY (Aaj ka)
+     */
+    const isCurrentlyInsideToday = isZoneInside && hasMainGateInToday;
+    const shouldBlockAll = !isCurrentlyInsideToday;
+
+    await this.executeHardwareSync(
+      empCodeClean,
+      null,
+      shouldBlockAll,
+    );
+
+    } catch (syncError) {
+   }
+
+  return result.upserted;
+}
   async upsertVisitorDoorAssignment(data: {
     employeeCode: string;
     doorIds: number[];
