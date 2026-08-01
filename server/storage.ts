@@ -3849,6 +3849,141 @@ export class DatabaseStorage implements IStorage {
       console.error("💀 Engine Failure:", error.message);
     }
   }
+  // async executeEmergencybulkUnblock(
+  //   userId: string,
+  //   userName: string,
+  // ): Promise<any> {
+  //   const { activeDoors, activeDevices } = await getActiveDoorsWithDevices();
+  //   const mainGateDevices = await getActiveDevicesByDoorCode(
+  //     MAIN_GATE_SYNC.CODE,
+  //   );
+  //   const allPeople = await db
+  //     .select()
+  //     .from(people)
+  //     .where(eq(people.status, "active"));
+  //   if (activeDevices.length === 0) {
+  //     return {
+  //       status: "Empty",
+  //       processedCount: 0,
+  //       message: "No active devices found.",
+  //     };
+  //   }
+  //   const [alertEntry] = await db
+  //     .insert(alerts)
+  //     .values({
+  //       alertType: "security",
+  //       severity: "critical",
+  //       title: "🚨 EMERGENCY DOOR UNLOCK & MAIN GATE UNBLOCK",
+  //       message: `Emergency unlock triggered by ${userName} for ${activeDevices.length} devices and main gate unblock for ${allPeople.length} employees.`,
+  //       createdBy: userId,
+  //       resolvedBy: userName,
+  //       isRead: false,
+  //       isResolved: true,
+  //       resolvedAt: new Date(),
+  //       createdAt: new Date(),
+  //     })
+  //     .returning();
+  //   let unlockedDevicesCount = 0;
+  //   const generalLogsToInsert: any[] = [];
+  //   await Promise.all(
+  //     activeDevices.map(async (device) => {
+  //       if (!device.serialNumber) return;
+  //       try {
+  //         await esslService.unlockDoor(device.serialNumber.trim());
+  //         if (device.msId !== null && device.msId !== undefined) {
+  //           generalLogsToInsert.push({
+  //             employeeCode: "EMERGENCY_DOOR_UNLOCK",
+  //             deviceId: Number(device.msId),
+  //             type: "unblock",
+  //             createdAt: new Date(),
+  //             updatedAt: new Date(),
+  //           });
+  //         }
+  //         unlockedDevicesCount++;
+  //       } catch (err) {
+  //         console.error(
+  //           `Door Unlock Error for Serial [${device.serialNumber}]:`,
+  //           err,
+  //         );
+  //       }
+  //     }),
+  //   );
+  //   if (generalLogsToInsert.length > 0) {
+  //     try {
+  //       await db.insert(blockUnblockLogs).values(generalLogsToInsert);
+  //     } catch (err) {
+  //       console.error("Failed to insert door unlock logs:", err);
+  //     }
+  //   }
+  //   let mainGateUnblockedCount = 0;
+  //   if (mainGateDevices.length > 0 && allPeople.length > 0) {
+  //     const userUnblockQueue: Array<{
+  //       employeeCode: string;
+  //       deviceMsId: number;
+  //       serialNumber: string;
+  //     }> = [];
+  //     for (const person of allPeople) {
+  //       if (!person.employeeCode) continue;
+  //       for (const device of mainGateDevices) {
+  //         if (
+  //           device.serialNumber &&
+  //           device.msId !== null &&
+  //           device.msId !== undefined
+  //         ) {
+  //           userUnblockQueue.push({
+  //             employeeCode: person.employeeCode,
+  //             deviceMsId: Number(device.msId),
+  //             serialNumber: device.serialNumber.trim(),
+  //           });
+  //         }
+  //       }
+  //     }
+  //     const BATCH_SIZE = 50;
+  //     for (let i = 0; i < userUnblockQueue.length; i += BATCH_SIZE) {
+  //       const batch = userUnblockQueue.slice(i, i + BATCH_SIZE);
+  //       const batchLogs: any[] = [];
+  //       await Promise.all(
+  //         batch.map(async (task) => {
+  //           try {
+  //             await esslService.syncUserBlockStatus(
+  //               task.employeeCode,
+  //               task.serialNumber,
+  //               false,
+  //             );
+  //             batchLogs.push({
+  //               employeeCode: task.employeeCode,
+  //               deviceId: task.deviceMsId,
+  //               type: "unblock",
+  //               createdAt: new Date(),
+  //               updatedAt: new Date(),
+  //             });
+  //             mainGateUnblockedCount++;
+  //           } catch (err) {
+  //             console.error(
+  //               `Main Gate Unblock Sync Fail for ${task.employeeCode} on ${task.serialNumber}:`,
+  //               err,
+  //             );
+  //           }
+  //         }),
+  //       );
+  //       if (batchLogs.length > 0) {
+  //         try {
+  //           await db.insert(blockUnblockLogs).values(batchLogs);
+  //         } catch (err) {
+  //           console.error("Batch log insert error:", err);
+  //         }
+  //       }
+  //       await new Promise((res) => setTimeout(res, 50));
+  //     }
+  //   }
+  //   return {
+  //     status: "Success",
+  //     unlockedDevicesCount,
+  //     totalDevicesCount: activeDevices.length,
+  //     mainGateUnblockedRecords: mainGateUnblockedCount,
+  //     alertId: alertEntry.id,
+  //   };
+  // }
   async executeEmergencybulkUnblock(
     userId: string,
     userName: string,
@@ -3861,6 +3996,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(people)
       .where(eq(people.status, "active"));
+
     if (activeDevices.length === 0) {
       return {
         status: "Empty",
@@ -3868,6 +4004,8 @@ export class DatabaseStorage implements IStorage {
         message: "No active devices found.",
       };
     }
+
+    // 1. Alert Log Entry (Exact original logic)
     const [alertEntry] = await db
       .insert(alerts)
       .values({
@@ -3883,8 +4021,11 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
       })
       .returning();
+
     let unlockedDevicesCount = 0;
     const generalLogsToInsert: any[] = [];
+
+    // 2. Unlock Active Hardware Devices (Exact original logic)
     await Promise.all(
       activeDevices.map(async (device) => {
         if (!device.serialNumber) return;
@@ -3908,6 +4049,7 @@ export class DatabaseStorage implements IStorage {
         }
       }),
     );
+
     if (generalLogsToInsert.length > 0) {
       try {
         await db.insert(blockUnblockLogs).values(generalLogsToInsert);
@@ -3915,33 +4057,77 @@ export class DatabaseStorage implements IStorage {
         console.error("Failed to insert door unlock logs:", err);
       }
     }
+
     let mainGateUnblockedCount = 0;
+
+    // 3. Main Gate Unblock Sync with Duplicate Check Filter
     if (mainGateDevices.length > 0 && allPeople.length > 0) {
+
+      // Existing DB status fetch करने के लिए IDs extract करें
+      const mainGateDeviceMsIds = mainGateDevices
+        .map((d) => (d.msId !== null && d.msId !== undefined ? Number(d.msId) : null))
+        .filter((id): id is number => id !== null);
+
+      // DB से Latest Log Status Map तैयार करें
+      const latestStatusMap = new Map<string, string>();
+      if (mainGateDeviceMsIds.length > 0) {
+        const existingLogs = await db
+          .select({
+            employeeCode: blockUnblockLogs.employeeCode,
+            deviceId: blockUnblockLogs.deviceId,
+            type: blockUnblockLogs.type,
+          })
+          .from(blockUnblockLogs)
+          .where(inArray(blockUnblockLogs.deviceId, mainGateDeviceMsIds))
+          .orderBy(desc(blockUnblockLogs.createdAt));
+
+        for (const log of existingLogs) {
+          const key = `${log.employeeCode}_${log.deviceId}`;
+          if (!latestStatusMap.has(key)) {
+            latestStatusMap.set(key, log.type); // Save only the most recent status
+          }
+        }
+      }
+
       const userUnblockQueue: Array<{
         employeeCode: string;
         deviceMsId: number;
         serialNumber: string;
       }> = [];
+
       for (const person of allPeople) {
         if (!person.employeeCode) continue;
+
         for (const device of mainGateDevices) {
           if (
             device.serialNumber &&
             device.msId !== null &&
             device.msId !== undefined
           ) {
+            const deviceMsId = Number(device.msId);
+            const key = `${person.employeeCode}_${deviceMsId}`;
+            const lastStatus = latestStatusMap.get(key);
+
+            // 🔴 SKIP: अगर DB में Latest status पहले से "unblock" है, तो इसे Queue में न डालें
+            if (lastStatus === "unblock") {
+              continue;
+            }
+
             userUnblockQueue.push({
               employeeCode: person.employeeCode,
-              deviceMsId: Number(device.msId),
+              deviceMsId: deviceMsId,
               serialNumber: device.serialNumber.trim(),
             });
           }
         }
       }
+
+      // 4. Batch Execution (Exact original logic with BATCH_SIZE = 50 & 50ms delay)
       const BATCH_SIZE = 50;
       for (let i = 0; i < userUnblockQueue.length; i += BATCH_SIZE) {
         const batch = userUnblockQueue.slice(i, i + BATCH_SIZE);
         const batchLogs: any[] = [];
+
         await Promise.all(
           batch.map(async (task) => {
             try {
@@ -3966,6 +4152,7 @@ export class DatabaseStorage implements IStorage {
             }
           }),
         );
+
         if (batchLogs.length > 0) {
           try {
             await db.insert(blockUnblockLogs).values(batchLogs);
@@ -3973,9 +4160,12 @@ export class DatabaseStorage implements IStorage {
             console.error("Batch log insert error:", err);
           }
         }
+
         await new Promise((res) => setTimeout(res, 50));
       }
     }
+
+    // Exact original return object format
     return {
       status: "Success",
       unlockedDevicesCount,
