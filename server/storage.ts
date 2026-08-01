@@ -7804,13 +7804,53 @@ ${fromDate} || ' to ' || ${toDate}
     return updatedVisitorMaster || null;
   }
 
+  // async deleteVisitorMaster(id: number | string) {
+  //   const [deletedVisitorMaster] = await db
+  //     .delete(visitorMaster)
+  //     .where(eq(visitorMaster.id, Number(id)))
+  //     .returning();
+  //   return deletedVisitorMaster || null;
+  // }
   async deleteVisitorMaster(id: number | string) {
-    const [deletedVisitorMaster] = await db
-      .delete(visitorMaster)
-      .where(eq(visitorMaster.id, Number(id)))
-      .returning();
-    return deletedVisitorMaster || null;
+  const visitorId = Number(id);
+
+  // 1. Fetch the Visitor Record first to get the employeeCode (e.g., zimvis0001)
+  const [visitor] = await db
+    .select()
+    .from(visitorMaster)
+    .where(eq(visitorMaster.id, visitorId));
+
+  if (!visitor) {
+    return null;
   }
+
+  // 2. Try deleting from eSSL Hardware Service / MS SQL
+  if (visitor.employeeCode) {
+    try {
+      await esslService.deleteEmployee(visitor.employeeCode.toString());
+    } catch (e) {
+      console.error("eSSL Visitor Deletion Failed:", e);
+      // Continuation: Error aane par bhi local cleanup hone dein
+    }
+
+    // 3. Delete Door Assignments for this visitor from PostgreSQL
+    try {
+      await db
+        .delete(employeeDoorAssignments)
+        .where(eq(employeeDoorAssignments.employeeCode, visitor.employeeCode));
+    } catch (e) {
+      console.error("Failed to delete visitor door assignment:", e);
+    }
+  }
+
+  // 4. Finally, delete the Visitor Master record from PostgreSQL
+  const [deletedVisitorMaster] = await db
+    .delete(visitorMaster)
+    .where(eq(visitorMaster.id, visitorId))
+    .returning();
+
+  return deletedVisitorMaster || null;
+}
 
 }
 export const storage = new DatabaseStorage();
