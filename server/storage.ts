@@ -129,7 +129,7 @@ import {
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
-import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not, gt, } from "drizzle-orm";
+import { eq, desc, or, and, ne, count, sql, ilike, notInArray, inArray, asc, lte, gte, between, not, gt, isNull} from "drizzle-orm";
 import { authStorage } from "./replit_integrations/auth/storage";
 import {
   DeviceAdapter,
@@ -2974,10 +2974,13 @@ export class DatabaseStorage implements IStorage {
       throw error;
     }
   }
+
+
   // async getVisitorMachineAccessLogs(
   //   date: string,
   //   filters?: { search?: string; fromDate?: string; toDate?: string },
   // ) {
+  //   // 1. Fetch Door to Device mappings
   //   const doorMappings = await db
   //     .select({
   //       doorName: doors.name,
@@ -2994,14 +2997,15 @@ export class DatabaseStorage implements IStorage {
   //     effectiveToDate = filters.toDate || effectiveFromDate;
   //   }
 
-  //   // Dynamic Pattern e.g. "zimvis%"
-  //   const visitorPattern = `${VISITOR_PREFIX.toLowerCase()}%`;
+  //   // Exact SQL LIKE Pattern: "zimvis%"
+  //   const visitorPrefixPattern = `${VISITOR_PREFIX}%`;
 
+  //   // 2. Fetch MS SQL Logs ONLY for EmployeeCode starting with "zimvis"
   //   const msSqlData = await mssqlPool
   //     .request()
   //     .input("fromDate", effectiveFromDate)
   //     .input("toDate", effectiveToDate)
-  //     .input("visitorPrefix", visitorPattern)
+  //     .input("visitorPrefix", visitorPrefixPattern)
   //     .query(`
   //     SELECT 
   //       l.EmployeeCode, 
@@ -3012,12 +3016,13 @@ export class DatabaseStorage implements IStorage {
   //     FROM DeviceLogs l
   //     LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
   //     WHERE CAST(l.LogDate AS DATE) BETWEEN @fromDate AND @toDate
-  //       AND LOWER(l.EmployeeCode) LIKE @visitorPrefix -- Dynamic Prefix filter for Visitors
+  //       AND l.EmployeeCode LIKE @visitorPrefix -- Only 'zimvis%' records fetched
   //     ORDER BY l.LogDate DESC
   //   `);
 
   //   const logs = msSqlData.recordset;
 
+  //   // 3. Extract Card Identifiers (e.g. "zimvis0001" -> 1)
   //   const cardIdentifiers = logs
   //     .map((l) => {
   //       if (!l.EmployeeCode) return null;
@@ -3026,6 +3031,7 @@ export class DatabaseStorage implements IStorage {
   //     })
   //     .filter((id): id is number => id !== null);
 
+  //   // 4. Fetch Visitor Details from Postgres Database
   //   let visitorDetails: any[] = [];
   //   if (cardIdentifiers.length > 0) {
   //     const uniqueCardIds = [...new Set(cardIdentifiers)];
@@ -3069,78 +3075,59 @@ export class DatabaseStorage implements IStorage {
   //     return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
   //   });
 
-  //   let machineFeed = logs
-  //     .map((log) => {
-  //       const door = doorMappings.find(
-  //         (m) =>
-  //           (m.inIds || []).includes(log.DeviceId) ||
-  //           (m.outIds || []).includes(log.DeviceId),
-  //       );
-  //       const idMatch = log.EmployeeCode
-  //         ? String(log.EmployeeCode).match(/\d+/)
-  //         : null;
-  //       const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
-  //       const logTimeStr = toLocalString(log.LogDate);
+  //   // 5. Map MS SQL Feed with Door Names and Postgres Visitors
+  //   let machineFeed = logs.map((log) => {
+  //     const door = doorMappings.find(
+  //       (m) =>
+  //         (m.inIds || []).includes(log.DeviceId) ||
+  //         (m.outIds || []).includes(log.DeviceId),
+  //     );
+  //     const idMatch = log.EmployeeCode
+  //       ? String(log.EmployeeCode).match(/\d+/)
+  //       : null;
+  //     const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
+  //     const logTimeStr = toLocalString(log.LogDate);
 
-  //       const dbVisitor = sortedVisitors.find((v) => {
-  //         const isCardMatch =
-  //           (v.cardMsId !== null &&
-  //             Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-  //           (v.cardNo !== null &&
-  //             String(v.cardNo) === String(numericCardIdentifier)) ||
-  //           (v.rfidCardNo !== null &&
-  //             String(v.rfidCardNo) === String(numericCardIdentifier));
-  //         if (!isCardMatch) return false;
-  //         if (!v.inTime) return false;
-  //         const visitorInStr = toLocalString(v.inTime);
-  //         if (logTimeStr < visitorInStr) return false;
-  //         if (v.outTime) {
-  //           const visitorOutStr = toLocalString(v.outTime);
-  //           return logTimeStr <= visitorOutStr;
-  //         } else {
-  //           const nextVisitorOnSameCard = sortedVisitors.find((other) => {
-  //             if (other.id === v.id) return false;
-  //             const otherCardMatch =
-  //               (other.cardMsId !== null &&
-  //                 Number(other.cardMsId) === Number(numericCardIdentifier)) ||
-  //               (other.cardNo !== null &&
-  //                 String(other.cardNo) === String(numericCardIdentifier)) ||
-  //               (other.rfidCardNo !== null &&
-  //                 String(other.rfidCardNo) === String(numericCardIdentifier));
-  //             if (!otherCardMatch || !other.inTime) return false;
-  //             return toLocalString(other.inTime) > visitorInStr;
-  //           });
-  //           if (nextVisitorOnSameCard) {
-  //             const nextVisitorInStr = toLocalString(
-  //               nextVisitorOnSameCard.inTime,
-  //             );
-  //             return logTimeStr < nextVisitorInStr;
-  //           }
-  //           return true;
-  //         }
-  //       });
+  //     const dbVisitor = sortedVisitors.find((v) => {
+  //       const isCardMatch =
+  //         (v.cardMsId !== null &&
+  //           Number(v.cardMsId) === Number(numericCardIdentifier)) ||
+  //         (v.cardNo !== null &&
+  //           String(v.cardNo) === String(numericCardIdentifier)) ||
+  //         (v.rfidCardNo !== null &&
+  //           String(v.rfidCardNo) === String(numericCardIdentifier));
+  //       if (!isCardMatch) return false;
+  //       if (!v.inTime) return false;
+  //       const visitorInStr = toLocalString(v.inTime);
+  //       if (logTimeStr < visitorInStr) return false;
+  //       if (v.outTime) {
+  //         const visitorOutStr = toLocalString(v.outTime);
+  //         return logTimeStr <= visitorOutStr;
+  //       }
+  //       return true;
+  //     });
 
-  //       // Strict check: Ignore log if no visitor was assigned in PostgreSQL DB
-  //       if (!dbVisitor) return null;
+  //     return {
+  //       visitorName: dbVisitor ? dbVisitor.visitorName : "Unassigned Visitor",
+  //       visitorId: numericCardIdentifier,
+  //       visitorCode: log.EmployeeCode,
+  //       rfidCardNo: dbVisitor
+  //         ? dbVisitor.cardNo || dbVisitor.rfidCardNo || ""
+  //         : log.EmployeeCode,
+  //       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+  //       direction: log.Direction,
+  //       logDate: log.LogDate,
+  //       doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+  //     };
+  //   });
 
-  //       return {
-  //         visitorName: dbVisitor.visitorName,
-  //         visitorId: numericCardIdentifier,
-  //         visitorCode: log.EmployeeCode,
-  //         rfidCardNo: dbVisitor.cardNo || dbVisitor.rfidCardNo || (numericCardIdentifier ? String(numericCardIdentifier) : ""),
-  //         deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
-  //         direction: log.Direction,
-  //         logDate: log.LogDate,
-  //         doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
-  //       };
-  //     })
-  //     .filter((item): item is NonNullable<typeof item> => item !== null); // Unassigned logs remove kar dega
-
+  //   // 6. Search Filter Implementation
   //   if (filters && filters.search) {
   //     const lowerSearch = filters.search.toLowerCase();
   //     machineFeed = machineFeed.filter(
   //       (item) =>
   //         item.visitorName.toLowerCase().includes(lowerSearch) ||
+  //         item.visitorCode.toLowerCase().includes(lowerSearch) ||
   //         (item.rfidCardNo &&
   //           item.rfidCardNo.toLowerCase().includes(lowerSearch)),
   //     );
@@ -3148,11 +3135,11 @@ export class DatabaseStorage implements IStorage {
 
   //   return { machineFeed };
   // }
-
   async getVisitorMachineAccessLogs(
     date: string,
     filters?: { search?: string; fromDate?: string; toDate?: string },
-  ) {
+) {
+
     // 1. Fetch Door to Device mappings
     const doorMappings = await db
       .select({
@@ -3170,10 +3157,9 @@ export class DatabaseStorage implements IStorage {
       effectiveToDate = filters.toDate || effectiveFromDate;
     }
 
-    // Exact SQL LIKE Pattern: "zimvis%"
     const visitorPrefixPattern = `${VISITOR_PREFIX}%`;
 
-    // 2. Fetch MS SQL Logs ONLY for EmployeeCode starting with "zimvis"
+    // 2. Fetch MS SQL Logs for EmployeeCode starting with "zimvis"
     const msSqlData = await mssqlPool
       .request()
       .input("fromDate", effectiveFromDate)
@@ -3189,30 +3175,33 @@ export class DatabaseStorage implements IStorage {
       FROM DeviceLogs l
       LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
       WHERE CAST(l.LogDate AS DATE) BETWEEN @fromDate AND @toDate
-        AND l.EmployeeCode LIKE @visitorPrefix -- Only 'zimvis%' records fetched
+        AND l.EmployeeCode LIKE @visitorPrefix
       ORDER BY l.LogDate DESC
     `);
 
     const logs = msSqlData.recordset;
 
-    // 3. Extract Card Identifiers (e.g. "zimvis0001" -> 1)
-    const cardIdentifiers = logs
-      .map((l) => {
-        if (!l.EmployeeCode) return null;
-        const matched = String(l.EmployeeCode).match(/\d+/);
-        return matched ? Number(matched[0]) : null;
-      })
-      .filter((id): id is number => id !== null);
+    // 3. Extract Unique Visitor Codes
+    const activeVisitorCodes = [...new Set(logs.map((l) => l.EmployeeCode).filter(Boolean))];
 
-    // 4. Fetch Visitor Details from Postgres Database
+    // Helper: Exact Timestamp Parser
+    const parseToTimestamp = (dateInput: any) => {
+      if (!dateInput) return null;
+      let str = String(dateInput).replace("T", " ").split(".")[0];
+      if (str.length === 16) str += ":00";
+      const d = new Date(str);
+      return isNaN(d.getTime()) ? null : d.getTime();
+    };
+
+    // 4. Fetch Visitors Data from Postgres
     let visitorDetails: any[] = [];
-    if (cardIdentifiers.length > 0) {
-      const uniqueCardIds = [...new Set(cardIdentifiers)];
+    if (activeVisitorCodes.length > 0) {
       visitorDetails = await db
         .select({
           id: schema.visitors.id,
           visitorName: schema.visitors.nameOfVisitor,
           rfidCardNo: schema.visitors.rfidCardNo,
+          employeeCode: schema.visitors.employeeCode,
           cardMsId: visitorCards.msId,
           cardNo: visitorCards.cardNumber,
           inTime: schema.visitors.permissionDateFrom,
@@ -3225,68 +3214,84 @@ export class DatabaseStorage implements IStorage {
         )
         .where(
           or(
-            inArray(visitorCards.msId, uniqueCardIds),
-            inArray(visitorCards.cardNumber, uniqueCardIds.map(String)),
-          ),
+            inArray(schema.visitors.rfidCardNo, activeVisitorCodes),
+            inArray(schema.visitors.employeeCode, activeVisitorCodes),
+            inArray(visitorCards.cardNumber, activeVisitorCodes)
+          )
         );
     }
 
-    const toLocalString = (dateInput: any) => {
-      if (!dateInput) return "";
-      if (typeof dateInput === "string") {
-        let cleanStr = dateInput.replace("T", " ").split(".")[0];
-        if (cleanStr.length === 16) cleanStr += ":00";
-        return cleanStr;
+    // Map Card Codes to physical RFID Card Numbers (for unassigned logs too)
+    const cardMap: Record<string, string> = {};
+    visitorDetails.forEach((v) => {
+      const code = v.employeeCode || v.rfidCardNo || v.cardNo;
+      const physicalRfid = v.rfidCardNo || v.cardNo;
+      if (code && physicalRfid) {
+        cardMap[code] = physicalRfid;
       }
-      const d = new Date(dateInput);
-      if (isNaN(d.getTime())) return "";
-      const pad = (n: number) => String(n).padStart(2, "0");
-      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    };
-
-    const sortedVisitors = [...visitorDetails].sort((a, b) => {
-      return toLocalString(a.inTime).localeCompare(toLocalString(b.inTime));
     });
 
-    // 5. Map MS SQL Feed with Door Names and Postgres Visitors
-    let machineFeed = logs.map((log) => {
+    // 5. Map MS SQL Logs with Visitor Details
+    let machineFeed = logs.map((log, index) => {
       const door = doorMappings.find(
         (m) =>
           (m.inIds || []).includes(log.DeviceId) ||
           (m.outIds || []).includes(log.DeviceId),
       );
+
+      const logTime = parseToTimestamp(log.LogDate);
+
+      // Find ALL matching candidates for this card code
+      const matchingCandidates = visitorDetails.filter((v) => {
+        const isCardMatch =
+          v.rfidCardNo === log.EmployeeCode ||
+          v.employeeCode === log.EmployeeCode ||
+          v.cardNo === log.EmployeeCode;
+
+        if (!isCardMatch || !logTime) return false;
+
+        const visitorInTime = parseToTimestamp(v.inTime);
+        const visitorOutTime = parseToTimestamp(v.outTime);
+
+        // Strict Check: Log date must be >= permissionInTime
+        if (visitorInTime && logTime < visitorInTime) {
+          return false;
+        }
+
+        // Strict Check: Log date must be <= permissionOutTime (if outTime is set)
+        if (visitorOutTime && logTime > visitorOutTime) {
+          return false;
+        }
+
+        return true;
+      });
+
+      // Pick the Candidate whose inTime is closest/most recent to logTime
+      let dbVisitor = null;
+      if (matchingCandidates.length > 0) {
+        matchingCandidates.sort((a, b) => {
+          const timeA = parseToTimestamp(a.inTime) || 0;
+          const timeB = parseToTimestamp(b.inTime) || 0;
+          return timeB - timeA; // Latest inTime first
+        });
+        dbVisitor = matchingCandidates[0];
+      }
       const idMatch = log.EmployeeCode
         ? String(log.EmployeeCode).match(/\d+/)
         : null;
       const numericCardIdentifier = idMatch ? Number(idMatch[0]) : null;
-      const logTimeStr = toLocalString(log.LogDate);
 
-      const dbVisitor = sortedVisitors.find((v) => {
-        const isCardMatch =
-          (v.cardMsId !== null &&
-            Number(v.cardMsId) === Number(numericCardIdentifier)) ||
-          (v.cardNo !== null &&
-            String(v.cardNo) === String(numericCardIdentifier)) ||
-          (v.rfidCardNo !== null &&
-            String(v.rfidCardNo) === String(numericCardIdentifier));
-        if (!isCardMatch) return false;
-        if (!v.inTime) return false;
-        const visitorInStr = toLocalString(v.inTime);
-        if (logTimeStr < visitorInStr) return false;
-        if (v.outTime) {
-          const visitorOutStr = toLocalString(v.outTime);
-          return logTimeStr <= visitorOutStr;
-        }
-        return true;
-      });
+      // Ensure Physical RFID Number is used instead of zimvis code
+      const resolvedRfidCardNo =
+        (dbVisitor && (dbVisitor.rfidCardNo || dbVisitor.cardNo)) ||
+        cardMap[log.EmployeeCode] ||
+        log.EmployeeCode;
 
       return {
         visitorName: dbVisitor ? dbVisitor.visitorName : "Unassigned Visitor",
         visitorId: numericCardIdentifier,
         visitorCode: log.EmployeeCode,
-        rfidCardNo: dbVisitor
-          ? dbVisitor.cardNo || dbVisitor.rfidCardNo || ""
-          : log.EmployeeCode,
+        rfidCardNo: resolvedRfidCardNo,
         deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
         direction: log.Direction,
         logDate: log.LogDate,
@@ -3307,7 +3312,7 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { machineFeed };
-  }
+}
 
   // async getMachineAccessLogs(date: string) {
   //   const doorMappings = await db
