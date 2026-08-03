@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
+// Code yahan rakha hai par comment kar diya hai:
 // import { ThemeToggle } from "@/components/theme-toggle";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
@@ -138,12 +139,13 @@ function LoginPage({ auth }: { auth: ReturnType<typeof useAuth> }) {
   const [username, setUsername] = useState("admin");
   const [password, setPassword] = useState("Admin@123");
   const [showPassword, setShowPassword] = useState(false);
-
+  const { canView: canViewEmergency } = usePermission(
+    MENU_CONFIG.EMERGENCY_UNBLOCK?.code || "Emergency Unblock All"
+  );
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     await login({ username, password });
   };
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-[#f3f4f6]">
       <div className="w-full max-w-lg mx-4">
@@ -248,11 +250,54 @@ function AuthenticatedApp() {
   const [isEmergencyAlertOpen, setIsEmergencyAlertOpen] = useState(false);
   const [isEmergencyBlockOpen, setIsEmergencyBlockOpen] = useState(false);
 
-  // 🧹 Cleans up any existing timers from LocalStorage on component mount
+  const [unblockCooldown, setUnblockCooldown] = useState<number>(0);
+  const [refreshCooldown, setRefreshCooldown] = useState<number>(0);
+
   useEffect(() => {
-    localStorage.removeItem("emergency_unblock_cooldown");
-    localStorage.removeItem("refresh_doors_cooldown");
+    const savedUnblock = localStorage.getItem("emergency_unblock_cooldown");
+    if (savedUnblock) {
+      const remaining = Math.floor((parseInt(savedUnblock) - Date.now()) / 1000);
+      if (remaining > 0) setUnblockCooldown(remaining);
+      else localStorage.removeItem("emergency_unblock_cooldown");
+    }
+
+    const savedRefresh = localStorage.getItem("refresh_doors_cooldown");
+    if (savedRefresh) {
+      const remaining = Math.floor((parseInt(savedRefresh) - Date.now()) / 1000);
+      if (remaining > 0) setRefreshCooldown(remaining);
+      else localStorage.removeItem("refresh_doors_cooldown");
+    }
   }, []);
+
+  useEffect(() => {
+    if (unblockCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setUnblockCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          localStorage.removeItem("emergency_unblock_cooldown");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [unblockCooldown]);
+
+  useEffect(() => {
+    if (refreshCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setRefreshCooldown((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          localStorage.removeItem("refresh_doors_cooldown");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [refreshCooldown]);
 
   const { canView: canViewEmergencyUnblock } = usePermission(
     MENU_CONFIG.EMERGENCY_UNBLOCK?.code || "Emergency Unblock All"
@@ -279,8 +324,12 @@ function AuthenticatedApp() {
       queryClient.invalidateQueries({ queryKey: ["/api/people"] });
       toast({ title: "Success", description: res.message });
 
-      // 🧹 LocalStorage fully cleared
-      localStorage.removeItem("emergency_unblock_cooldown");
+      // ⚡ Emergency Unblock Cooldown: 15 Minutes (900 Seconds)
+      const UNBLOCK_COOLDOWN_SECONDS = 15 * 60;
+      const unblockExpiry = Date.now() + UNBLOCK_COOLDOWN_SECONDS * 1000;
+
+      localStorage.setItem("emergency_unblock_cooldown", unblockExpiry.toString());
+      setUnblockCooldown(UNBLOCK_COOLDOWN_SECONDS);
     },
     onError: (err: any) => {
       toast({
@@ -304,8 +353,12 @@ function AuthenticatedApp() {
         description: res.message || "All devices blocked successfully.",
       });
 
-      // 🧹 LocalStorage fully cleared
-      localStorage.removeItem("refresh_doors_cooldown");
+      // ⚡ UPDATED: Cooldown ko 1 min (60 sec) kar diya gaya hai
+      const REFRESH_COOLDOWN_SECONDS = 15 * 60; // Aap yahan 30 sec ya jitna chahein rakh sakte hain
+      const expiryTime = Date.now() + REFRESH_COOLDOWN_SECONDS * 1000;
+
+      localStorage.setItem("refresh_doors_cooldown", expiryTime.toString());
+      setRefreshCooldown(REFRESH_COOLDOWN_SECONDS);
     },
     onError: (err: any) => {
       toast({
@@ -380,10 +433,12 @@ function AuthenticatedApp() {
                     size="sm"
                     className="bg-green-600 text-white hover:bg-green-700"
                     onClick={() => setIsEmergencyAlertOpen(true)}
-                    disabled={bulkEmergencyUnblockMut.isPending}
+                    disabled={unblockCooldown > 0 || bulkEmergencyUnblockMut.isPending}
                   >
-                    <RefreshCw className={`w-4 h-4 mr-2 ${bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""}`} />
-                    Emergency Unblock
+                    <RefreshCw className={`w-4 h-4 mr-2 ${unblockCooldown > 0 || bulkEmergencyUnblockMut.isPending ? "animate-spin" : ""}`} />
+                    {unblockCooldown > 0
+                      ? `Emergency Unblock (${Math.floor(unblockCooldown / 60)}:${String(unblockCooldown % 60).padStart(2, '0')})`
+                      : "Emergency Unblock"}
                   </Button>
                 )}
                 {canViewBlockNewDevice && (
@@ -392,14 +447,16 @@ function AuthenticatedApp() {
                     size="sm"
                     className="bg-red-600 text-white hover:bg-red-700"
                     onClick={() => setIsEmergencyBlockOpen(true)}
-                    disabled={bulkEmergencyBlockMut.isPending}
+                    disabled={refreshCooldown > 0 || bulkEmergencyBlockMut.isPending}
                   >
-                    {bulkEmergencyBlockMut.isPending ? (
+                    {refreshCooldown > 0 || bulkEmergencyBlockMut.isPending ? (
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
                     ) : (
                       <Lock className="w-4 h-4 mr-2" />
                     )}
-                    Refresh Doors
+                    {refreshCooldown > 0
+                      ? `Refresh Doors (${Math.floor(refreshCooldown / 60)}:${String(refreshCooldown % 60).padStart(2, '0')})`
+                      : "Refresh Doors"}
                   </Button>
                 )}
                 {/* Dark Red Logout Button with Icon on Right */}
