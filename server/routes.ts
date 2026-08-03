@@ -2691,5 +2691,12 @@ export async function registerRoutes(
       }
     },
   );
+  app.get("/api/doors/pending-commands-count", async (req, res) => {
+  try {
+    res.json(await storage.getPendingDeviceCommandsCountByDoor());
+  } catch (e: any) {
+    res.status(500).json({ message: e.message });
+  }
+});
   return httpServer;
 }

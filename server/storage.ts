@@ -1041,6 +1041,7 @@ export class DatabaseStorage implements IStorage {
         : [];
     }
   }
+
   async createDoor(data: InsertDoor): Promise<Door> {
     if (data.name) {
       const [existingName] = await db
@@ -1125,6 +1126,157 @@ export class DatabaseStorage implements IStorage {
   `);
     await db.delete(doors).where(eq(doors.id, id));
   }
+
+  async getPendingDeviceCommandsCountByDoor() {
+  // Step 1: Active Doors and Devices fetch karein
+  const { activeDoors } = await getActiveDoorsWithDevices();
+
+  if (activeDoors.length === 0) {
+    return [];
+  }
+
+  const activeDoorIds = activeDoors.map((d) => d.id);
+
+  // Step 2: In active doors ki mappings fetch karein
+  const activeMappings = await db
+    .select()
+    .from(doorDevices)
+    .where(
+      and(
+        inArray(doorDevices.doorId, activeDoorIds),
+        eq(doorDevices.isActive, true)
+      )
+    );
+
+  const doorToDeviceMsIdsMap = new Map<number, Set<number>>();
+  const allDeviceMsIds = new Set<number>();
+
+  activeMappings.forEach((mapping) => {
+    if (!mapping.doorId) return;
+
+    if (!doorToDeviceMsIdsMap.has(mapping.doorId)) {
+      doorToDeviceMsIdsMap.set(mapping.doorId, new Set<number>());
+    }
+
+    const deviceSet = doorToDeviceMsIdsMap.get(mapping.doorId)!;
+
+    (mapping.inDeviceIds || []).forEach((id) => {
+      const numId = Number(id);
+      deviceSet.add(numId);
+      allDeviceMsIds.add(numId);
+    });
+
+    (mapping.outDeviceIds || []).forEach((id) => {
+      const numId = Number(id);
+      deviceSet.add(numId);
+      allDeviceMsIds.add(numId);
+    });
+  });
+
+  // Edge case: Agar devices hi mapped nahi hain
+  if (allDeviceMsIds.size === 0) {
+    return activeDoors.map((door) => ({
+      doorId: door.id,
+      doorName: door.name,
+      doorCode: door.code,
+      pendingCount: 0,
+      deviceIds: [],
+      pendingDetails: [],
+    }));
+  }
+
+  // Step 3: MSSQL se Pending Commands, Cleaned Employee Code, & Employee Name Join karke fetch karein
+  const deviceIdsArray = Array.from(allDeviceMsIds);
+
+  const mssqlResult = await mssqlPool
+    .request()
+    .query(`
+      SELECT 
+        dc.DeviceID,
+        dc.DeviceCommandId,
+        dc.Title,
+        dc.Type,
+        dc.CreationDate,
+        -- Extract Employee Code by removing 'Block User ' and 'UnBlock User '
+        LTRIM(RTRIM(
+          REPLACE(
+            REPLACE(dc.Title, 'UnBlock User ', ''), 
+            'Block User ', ''
+          )
+        )) AS ExtractedEmpCode,
+        e.EmployeeName -- Employees table se Name
+      FROM DeviceCommands dc
+      LEFT JOIN Employees e 
+        ON LTRIM(RTRIM(
+          REPLACE(
+            REPLACE(dc.Title, 'UnBlock User ', ''), 
+            'Block User ', ''
+          )
+        )) = LTRIM(RTRIM(e.EmployeeCode))
+      WHERE dc.Status = 'Pending'
+        AND dc.DeviceID IN (${deviceIdsArray.join(",")})
+      ORDER BY dc.CreationDate DESC
+    `);
+
+  // DeviceID -> List of Pending Items mapping banao
+  const devicePendingMap = new Map<number, Array<{
+    commandId: number;
+    employeeCode: string;
+    employeeName: string | null;
+    actionType: string;
+    creationDate: string;
+  }>>();
+
+  (mssqlResult.recordset || []).forEach((row: any) => {
+    const devId = Number(row.DeviceID);
+    if (!devicePendingMap.has(devId)) {
+      devicePendingMap.set(devId, []);
+    }
+
+    devicePendingMap.get(devId)!.push({
+      commandId: row.DeviceCommandId,
+      employeeCode: row.ExtractedEmpCode,
+      employeeName: row.EmployeeName || "Unknown",
+      actionType: row.Title?.toLowerCase().includes("unblock") ? "Unblock" : "Block",
+      creationDate: row.CreationDate,
+    });
+  });
+
+  // Step 4: Final Door-wise Response Prepare Karein
+  return activeDoors.map((door) => {
+    const associatedDeviceIds = Array.from(
+      doorToDeviceMsIdsMap.get(door.id) || []
+    );
+
+    const pendingDetails: Array<{
+      deviceId: number;
+      commandId: number;
+      employeeCode: string;
+      employeeName: string | null;
+      actionType: string;
+      creationDate: string;
+    }> = [];
+
+    associatedDeviceIds.forEach((devId) => {
+      const items = devicePendingMap.get(devId) || [];
+      items.forEach((item) => {
+        pendingDetails.push({
+          deviceId: devId,
+          ...item,
+        });
+      });
+    });
+
+    return {
+      doorId: door.id,
+      doorName: door.name,
+      doorCode: door.code,
+      pendingCount: pendingDetails.length,
+      deviceIds: associatedDeviceIds,
+      pendingDetails, // Employee-wise pending list
+    };
+  });
+}
   async createDevice(data: InsertDevice): Promise<Device> {
     let mssqlId: number | null = null;
     try {

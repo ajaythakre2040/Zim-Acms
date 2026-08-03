@@ -116,6 +116,7 @@ export default function ZonesDoorsPage() {
 
     setPagedDoors(data);
   };
+  
 
   // ==========================
   // INITIAL + PAGE CHANGE FETCH
@@ -143,6 +144,27 @@ export default function ZonesDoorsPage() {
   const currentMapping = mappingCrud.data?.find(
     (m: any) => m.doorId === selectedDoorForMapping?.id,
   );
+
+  // ==========================
+  // FETCH PENDING COMMANDS COUNT
+  // ==========================
+  const { data: pendingData = [] } = useQuery<any[]>({
+    queryKey: ["/api/doors/pending-commands-count"],
+  });
+
+  // ==========================
+  // MERGE DOORS DATA WITH PENDING COUNT
+  // ==========================
+  const doorsWithPending = useMemo(() => {
+    const pendingMap = new Map<number, number>(
+      (pendingData || []).map((item: any) => [item.doorId, item.pendingCount])
+    );
+
+    return doors.map((door: any) => ({
+      ...door,
+      pendingCount: pendingMap.get(door.id) || 0,
+    }));
+  }, [doors, pendingData]);
 
   useEffect(() => {
     if (mappingDialog && selectedDoorForMapping) {
@@ -513,6 +535,22 @@ export default function ZonesDoorsPage() {
       ),
     },
     {
+      key: "pendingCount",
+      label: "Status",
+      render: (d: any) => {
+        const count = d.pendingCount || 0;
+
+        return (
+          <Badge
+            variant={count > 0 ? "destructive" : "secondary"}
+            className={count === 0 ? "bg-green-50 text-green-700 border-green-200 font-normal" : "font-normal"}
+          >
+            {count > 0 ? `${count} Pending` : "0 Pending"}
+          </Badge>
+        );
+      },
+    },
+    {
   key: "actions",
   label: "Actions",
   headerClassName: "text-left",
@@ -832,7 +870,7 @@ export default function ZonesDoorsPage() {
           </div>
           <DataTable
             columns={doorColumns}
-            data={doors}
+            data={doorsWithPending}
             isLoading={doorCrud.isLoading}
             pageSize={pageSize}
           />
