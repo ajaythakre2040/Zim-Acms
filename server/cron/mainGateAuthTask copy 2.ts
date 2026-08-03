@@ -11,89 +11,6 @@ import {
 import { eq, and, gt, sql, inArray, lt } from "drizzle-orm";
 import { ZONES, MAIN_GATE_SYNC, ACCESS_RULES } from "../constant";
 import * as helpers from "../helpers/cronHelpers";
-
-const HARDWARE_BATCH_SIZE = 50;
-
-async function runInBatches<T>(
-    items: T[],
-    batchSize: number,
-    worker: (item: T) => Promise<void>,
-) {
-    for (let i = 0; i < items.length; i += batchSize) {
-        const batch = items.slice(i, i + batchSize);
-        const results = await Promise.allSettled(batch.map(worker));
-        for (const result of results) {
-            if (result.status === "rejected") {
-                console.error("❌ Hardware command failed:", result.reason);
-            }
-        }
-    }
-}
-
-async function syncDeviceStatusWithCommandCheck(
-    employeeCode: string,
-    machine: any,
-    shouldBlock: boolean,
-) {
-    const empCode = String(employeeCode ?? "").trim();
-    const deviceId = Number(machine?.msId);
-
-    if (!empCode || !Number.isFinite(deviceId) || deviceId <= 0) return;
-
-    const requiredState = shouldBlock ? "block" : "unblock";
-    const request = mssqlPool.request();
-    request.input("deviceId", deviceId);
-    request.input("employeePin", `PIN=${empCode}`);
-
-    const result = await request.query(`
-        SELECT TOP 1
-            DeviceCommandId,
-            DeviceId,
-            Title,
-            Status,
-            CreationDate,
-            ExecutionDate
-        FROM DeviceCommands
-        WHERE DeviceId = @deviceId
-          AND CHARINDEX(
-                @employeePin COLLATE DATABASE_DEFAULT,
-                DeviceCommand COLLATE DATABASE_DEFAULT
-              ) > 0
-          AND (
-                Title COLLATE DATABASE_DEFAULT LIKE 'Block User%'
-                OR Title COLLATE DATABASE_DEFAULT LIKE 'UnBlock User%'
-              )
-        ORDER BY DeviceCommandId DESC
-    `);
-
-    const latest = result.recordset?.[0];
-
-    if (latest) {
-        const title = String(latest.Title ?? "").trim().toLowerCase();
-        const status = String(latest.Status ?? "").trim().toLowerCase();
-        const latestState = title.startsWith("unblock user")
-            ? "unblock"
-            : title.startsWith("block user")
-                ? "block"
-                : "";
-
-        if (latestState === requiredState && status === "success") {
-            return;
-        }
-
-        if (status === "pending" || status === "failed") {
-            const deleteRequest = mssqlPool.request();
-            deleteRequest.input("deviceCommandId", Number(latest.DeviceCommandId));
-            await deleteRequest.query(`
-                DELETE FROM DeviceCommands
-                WHERE DeviceCommandId = @deviceCommandId
-                  AND LOWER(Status COLLATE DATABASE_DEFAULT) IN ('pending', 'failed')
-            `);
-        }
-    }
-
-    await helpers.updateDeviceStatus(empCode, machine, shouldBlock);
-}
 export async function runMasterAuthSync() {
     const CRON_CODE = MAIN_GATE_SYNC.CODE;
     const startTime = Date.now();
@@ -175,42 +92,16 @@ export async function runMasterAuthSync() {
             db.select().from(employeeDoorAssignments).where(inArray(employeeDoorAssignments.employeeCode, uniqueEmpCodes)),
             db.select().from(cabinLockouts).where(and(inArray(cabinLockouts.employeeCode, uniqueEmpCodes), eq(cabinLockouts.status, 'active'), gt(cabinLockouts.lockoutExpiry, now)))
         ]);
-
-        // FAST LOOKUP MAPS: avoid repeated .find() / array scans inside punch + device loops
-        const peopleMap = new Map(
-            punchingPeople.map((p: any) => [String(p.employeeCode ?? "").trim(), p]),
-        );
-        const visitorMap = new Map(
-            punchingVisitors.map((v: any) => [String(v.employeeCode ?? "").trim(), v]),
-        );
-        const assignmentMap = new Map(
-            allAssignments.map((a: any) => [String(a.employeeCode ?? "").trim(), a]),
-        );
-        const doorMap = new Map(
-            allDoors.map((d: any) => [Number(d.id), d]),
-        );
-        const deviceDoorMap = new Map<number, any>();
-        for (const dd of allDoorDevices) {
-            for (const id of [...(dd.inDeviceIds || []), ...(dd.outDeviceIds || [])]) {
-                deviceDoorMap.set(Number(id), dd);
-            }
-        }
-        const lockoutMap = new Map(
-            activeLockouts.map((l: any) => [String(l.employeeCode ?? "").trim(), l]),
-        );
-
-        console.log(
-            `⚡ [AUTH SYNC] Punches=${punches.length}, Employees=${uniqueEmpCodes.length}, Devices=${allDevices.length}, HW concurrency=${HARDWARE_BATCH_SIZE}`
-        );
-
         // STEP 5: LOOP THROUGH PUNCHES
         for (const punch of punches) {
             const currentLogId = Number(punch.DeviceLogId);
             const empCode = (punch.EmployeeCode || "").toString().trim();
             const deviceId = Number(punch.DeviceId);
             const punchTime = new Date(punch.LogDate);
-            const doorMapping = deviceDoorMap.get(deviceId);
-            const doorDetails = doorMapping ? doorMap.get(Number(doorMapping.doorId)) : undefined;
+            const doorMapping = allDoorDevices.find((d) =>
+                [...(d.inDeviceIds || []), ...(d.outDeviceIds || [])].map(Number).includes(deviceId)
+            );
+            const doorDetails = allDoors.find((d) => d.id === doorMapping?.doorId);
             // const emp = punchingPeople.find((p) => p.employeeCode === empCode);
             // if (!emp || !doorMapping || !doorDetails) {
             //     await db.update(cronMaster).set({ lastProcessedId: currentLogId }).where(eq(cronMaster.code, CRON_CODE));
@@ -220,8 +111,8 @@ export async function runMasterAuthSync() {
             // visitor logic start
             // 👈 Visitor prefix ("zimvis") चेक करेंगे
             const isVisitor = helpers.isVisitorCode(empCode);
-            const emp = !isVisitor ? peopleMap.get(empCode) : null;
-            const visitor = isVisitor ? visitorMap.get(empCode) : null;
+            const emp = !isVisitor ? punchingPeople.find((p) => p.employeeCode === empCode) : null;
+            const visitor = isVisitor ? punchingVisitors.find((v) => v.employeeCode === empCode) : null;
 
             // 👈 Agar dono me se koi bhi nahi mila to skip
             if ((!emp && !visitor) || !doorMapping || !doorDetails) {
@@ -255,7 +146,7 @@ export async function runMasterAuthSync() {
             }
             // --- Lockout Table Insertion (Strict Logic Same) ---
             if (newZone === ZONES.CABIN && doorDetails.is_lockout_enabled) {
-                const alreadyLocked = lockoutMap.has(empCode);
+                const alreadyLocked = activeLockouts.some(l => l.employeeCode === empCode && l.status === 'active');
                 if (!alreadyLocked) {
                     const expiryTime = new Date();
                     expiryTime.setHours(23, 59, 59, 999);
@@ -267,52 +158,38 @@ export async function runMasterAuthSync() {
                         lockoutExpiry: sql`${expiryString}`,
                         status: "active"
                     });
-                    const newLockout = { employeeCode: empCode, doorId: doorDetails.id, status: 'active', lockoutExpiry: expiryTime } as any;
-                    activeLockouts.push(newLockout);
-                    lockoutMap.set(empCode, newLockout);
+                    activeLockouts.push({ employeeCode: empCode, doorId: doorDetails.id, status: 'active', lockoutExpiry: expiryTime } as any);
                 }
             }
             // STEP 6: HARDWARE SYNC (Logic Same)
-            const userLockout = lockoutMap.get(empCode);
-            const assignment = assignmentMap.get(empCode);
+            const userLockout = activeLockouts.find(l => l.employeeCode === empCode && l.status === 'active');
+            const assignment = allAssignments.find(a => a.employeeCode === empCode);
             const normalAllowedIds = Array.isArray(assignment?.doorIds) ? assignment.doorIds.map(Number) : [];
-            const hardwareTasks = allDevices
-                .map((machine) => {
-                    const mDM = deviceDoorMap.get(Number(machine.msId));
-                    if (!mDM) return null;
-
-                    const targetDoor = doorMap.get(Number(mDM.doorId));
-                    if (!targetDoor) return null;
-
-                    const isTargetMainGate = targetDoor.code === MAIN_GATE_SYNC.CODE;
-                    const mDoorId = Number(mDM.doorId);
-                    let shouldBlock = true;
-
-                    if (newZone === ZONES.OUT) {
-                        shouldBlock = !isTargetMainGate;
-                    } else if (newZone === ZONES.CABIN) {
-                        shouldBlock = mDoorId !== Number(doorMapping.doorId);
-                    } else if (newZone === ZONES.IN) {
-                        if (isTargetMainGate) {
-                            shouldBlock = false;
-                        } else {
-                            shouldBlock = userLockout
-                                ? mDoorId !== Number(userLockout.doorId)
-                                : !normalAllowedIds.includes(mDoorId);
-                        }
+            for (const machine of allDevices) {
+                const mDM = allDoorDevices.find((dd) =>
+                    [...(dd.inDeviceIds || []), ...(dd.outDeviceIds || [])].map(Number).includes(Number(machine.msId))
+                );
+                if (!mDM) continue;
+                const targetDoor = allDoors.find(d => d.id === mDM.doorId);
+                if (!targetDoor) continue;
+                const isTargetMainGate = targetDoor?.code === MAIN_GATE_SYNC.CODE;
+                const mDoorId = Number(mDM.doorId);
+                let shouldBlock = true;
+                if (newZone === ZONES.OUT) {
+                    shouldBlock = !isTargetMainGate;
+                } else if (newZone === ZONES.CABIN) {
+                    shouldBlock = (mDoorId !== Number(doorMapping.doorId));
+                } else if (newZone === ZONES.IN) {
+                    if (isTargetMainGate) {
+                        shouldBlock = false;
+                    } else {
+                        shouldBlock = userLockout
+                            ? (mDoorId !== Number(userLockout.doorId))
+                            : !normalAllowedIds.includes(mDoorId);
                     }
-
-                    return { machine, shouldBlock };
-                })
-                .filter(Boolean) as Array<{ machine: any; shouldBlock: boolean }>;
-
-            await runInBatches(
-                hardwareTasks,
-                HARDWARE_BATCH_SIZE,
-                async ({ machine, shouldBlock }) => {
-                    await syncDeviceStatusWithCommandCheck(empCode, machine, shouldBlock);
-                },
-            );
+                }
+                await helpers.updateDeviceStatus(empCode, machine, shouldBlock);
+            }
             // const userLockout = activeLockouts.find(l => l.employeeCode === empCode && l.status === 'active');
             // const assignment = allAssignments.find(a => a.employeeCode === empCode);
             // const normalAllowedIds = Array.isArray(assignment?.doorIds) ? assignment.doorIds.map(Number) : [];
