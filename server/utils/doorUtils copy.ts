@@ -47,8 +47,7 @@ export async function getActiveDoorsWithDevices() {
         .where(
             and(
                 inArray(devices.msId, Array.from(activeDeviceMsIds)),
-                eq(devices.isActive, true),
-                eq(devices.status, "online")
+                eq(devices.isActive, true)
             )
         );
     return {
@@ -90,8 +89,7 @@ export async function getActiveDevicesByDoorCode(doorCode: string) {
         .where(
             and(
                 inArray(devices.msId, Array.from(deviceMsIds)),
-                eq(devices.isActive, true),
-                eq(devices.status, "online")
+                eq(devices.isActive, true)
             )
         );
 }

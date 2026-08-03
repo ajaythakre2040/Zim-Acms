@@ -1671,7 +1671,7 @@ export class DatabaseStorage implements IStorage {
   private async executeHardwareSyncBackground(employeeCode: string) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     try {
-      await this.executeHardwareSync(employeeCode, null, false);
+      await this.executeHardwareSyncPeople(employeeCode, null, false);
     } catch (err: any) {
       console.error(
         `❌ Background Hardware Sync Failed for ${employeeCode}:`,
@@ -3861,106 +3861,645 @@ export class DatabaseStorage implements IStorage {
     return updatedDoors;
   }
 
-  // async executeHardwareSync(
-  //   employeeCode: string,
-  //   roleId: number | null = null,
-  //   blockAll: boolean = false,
-  // )
-  //  {
-  //   try {
-  //     const taskConfig = await db.query.cronMaster.findFirst({
-  //       where: eq(cronMaster.code, MAIN_GATE_SYNC.CODE),
-  //     });
-  //     if (!taskConfig?.doorId) return;
-  //     const activeGateId = Number(taskConfig.doorId);
-  //     const [msDevicesRaw, allDoorMappings, empAssignment, lastLogs] =
-  //       await Promise.all([
-  //         mssqlPool
-  //           .request()
-  //           .query("SELECT DeviceID, SerialNumber FROM Devices")
-  //           .then((res: any) => res.recordset as any[]),
-  //         db.select().from(doorDevices).execute(),
-  //         db.query.employeeDoorAssignments.findFirst({
-  //           where: eq(
-  //             schema.employeeDoorAssignments.employeeCode,
-  //             employeeCode.trim(),
-  //           ),
-  //         }),
-  //         db
-  //           .select()
-  //           .from(blockUnblockLogs)
-  //           .where(eq(blockUnblockLogs.employeeCode, employeeCode.trim())),
-  //       ]);
-  //     if (!msDevicesRaw) return;
-  //     const allowedDoorIds = new Set<number>(
-  //       Array.isArray(empAssignment?.doorIds)
-  //         ? (empAssignment.doorIds as number[]).map(Number)
-  //         : [],
-  //     );
-  //     const deviceToDoorMap = new Map<number, number>();
-  //     const mainGateWhitelistedIds = new Set<number>();
-  //     allDoorMappings.forEach((mapping: any) => {
-  //       const devIds = [
-  //         ...(mapping.inDeviceIds || []),
-  //         ...(mapping.outDeviceIds || []),
-  //       ].map(Number);
-  //       devIds.forEach((dId) => {
-  //         const doorId = Number(mapping.doorId);
-  //         deviceToDoorMap.set(dId, doorId);
-  //         if (doorId === activeGateId) mainGateWhitelistedIds.add(dId);
-  //       });
-  //     });
-  //     const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
-  //       const msDeviceId = Number(msDevice.DeviceID || msDevice.DeviceId);
-  //       const serialNumber = msDevice.SerialNumber?.trim();
-  //       if (!serialNumber) return;
-  //       const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
-  //       let shouldBlock: boolean;
-  //       if (isMainGate) {
-  //         shouldBlock = false;
-  //       } else {
-  //         const doorIdForThisDevice = deviceToDoorMap.get(msDeviceId);
-  //         const isDoorAllowed = doorIdForThisDevice
-  //           ? allowedDoorIds.has(doorIdForThisDevice)
-  //           : false;
-  //         shouldBlock = blockAll || !isDoorAllowed;
-  //       }
-  //       const currentStatus = shouldBlock ? "block" : "unblock";
-  //       const lastDeviceLog = lastLogs
-  //         .filter((l) => l.deviceId === msDeviceId)
-  //         .sort(
-  //           (a, b) =>
-  //             new Date(b.updatedAt!).getTime() -
-  //             new Date(a.updatedAt!).getTime(),
-  //         )[0];
-  //       const hasStatusChanged =
-  //         !lastDeviceLog || lastDeviceLog.type !== currentStatus;
-  //       try {
-  //         await esslService.syncUserBlockStatus(
-  //           employeeCode.trim(),
-  //           serialNumber,
-  //           shouldBlock,
-  //         );
-  //         if (hasStatusChanged) {
-  //           await db.insert(blockUnblockLogs).values({
-  //             employeeCode: employeeCode.trim(),
-  //             deviceId: msDeviceId,
-  //             type: currentStatus,
-  //             updatedAt: new Date(),
-  //           });
-  //         }
-  //       } catch (err: any) {
-  //         console.error(
-  //           `❌ Hardware Error: ${employeeCode} on Device ${msDeviceId}: ${err.message}`,
-  //         );
-  //       }
-  //     });
-  //     await Promise.all(syncPromises);
-  //   } catch (error: any) {
-  //     console.error("💀 Engine Failure:", error.message);
-  //   }
-  // }
+  async executeHardwareSyncPeople(
+    employeeCode: string,
+    roleId: number | null = null,
+    blockAll: boolean = false,
+  )
+   {
+    try {
+      const taskConfig = await db.query.cronMaster.findFirst({
+        where: eq(cronMaster.code, MAIN_GATE_SYNC.CODE),
+      });
+      if (!taskConfig?.doorId) return;
+      const activeGateId = Number(taskConfig.doorId);
+      const [msDevicesRaw, allDoorMappings, empAssignment, lastLogs] =
+        await Promise.all([
+          mssqlPool
+            .request()
+            .query("SELECT DeviceID, SerialNumber FROM Devices")
+            .then((res: any) => res.recordset as any[]),
+          db.select().from(doorDevices).execute(),
+          db.query.employeeDoorAssignments.findFirst({
+            where: eq(
+              schema.employeeDoorAssignments.employeeCode,
+              employeeCode.trim(),
+            ),
+          }),
+          db
+            .select()
+            .from(blockUnblockLogs)
+            .where(eq(blockUnblockLogs.employeeCode, employeeCode.trim())),
+        ]);
+      if (!msDevicesRaw) return;
+      const allowedDoorIds = new Set<number>(
+        Array.isArray(empAssignment?.doorIds)
+          ? (empAssignment.doorIds as number[]).map(Number)
+          : [],
+      );
+      const deviceToDoorMap = new Map<number, number>();
+      const mainGateWhitelistedIds = new Set<number>();
+      allDoorMappings.forEach((mapping: any) => {
+        const devIds = [
+          ...(mapping.inDeviceIds || []),
+          ...(mapping.outDeviceIds || []),
+        ].map(Number);
+        devIds.forEach((dId) => {
+          const doorId = Number(mapping.doorId);
+          deviceToDoorMap.set(dId, doorId);
+          if (doorId === activeGateId) mainGateWhitelistedIds.add(dId);
+        });
+      });
+      const syncPromises = msDevicesRaw.map(async (msDevice: any) => {
+        const msDeviceId = Number(msDevice.DeviceID || msDevice.DeviceId);
+        const serialNumber = msDevice.SerialNumber?.trim();
+        if (!serialNumber) return;
+        const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
+        let shouldBlock: boolean;
+        if (isMainGate) {
+          shouldBlock = false;
+        } else {
+          const doorIdForThisDevice = deviceToDoorMap.get(msDeviceId);
+          const isDoorAllowed = doorIdForThisDevice
+            ? allowedDoorIds.has(doorIdForThisDevice)
+            : false;
+          shouldBlock = blockAll || !isDoorAllowed;
+        }
+        const currentStatus = shouldBlock ? "block" : "unblock";
+        const lastDeviceLog = lastLogs
+          .filter((l) => l.deviceId === msDeviceId)
+          .sort(
+            (a, b) =>
+              new Date(b.updatedAt!).getTime() -
+              new Date(a.updatedAt!).getTime(),
+          )[0];
+        const hasStatusChanged =
+          !lastDeviceLog || lastDeviceLog.type !== currentStatus;
+        try {
+          await esslService.syncUserBlockStatus(
+            employeeCode.trim(),
+            serialNumber,
+            shouldBlock,
+          );
+          if (hasStatusChanged) {
+            await db.insert(blockUnblockLogs).values({
+              employeeCode: employeeCode.trim(),
+              deviceId: msDeviceId,
+              type: currentStatus,
+              updatedAt: new Date(),
+            });
+          }
+        } catch (err: any) {
+          console.error(
+            `❌ Hardware Error: ${employeeCode} on Device ${msDeviceId}: ${err.message}`,
+          );
+        }
+      });
+      await Promise.all(syncPromises);
+    } catch (error: any) {
+      console.error("💀 Engine Failure:", error.message);
+    }
+  }
 
+// async executeHardwareSync( employeeCode: string, roleId: number | null = null, blockAll: boolean = false, ) {
+//   const empCodeClean = String(employeeCode ?? "").trim();
+//   const startTime = Date.now();
+//   let totalDevices = 0;
+//   let sentCount = 0;
+//   let skippedCount = 0;
+//   let failedCount = 0;
+//   let deletedPendingFailedCount = 0;
+//   try {
+//     if (!empCodeClean) {
+//       return;
+//     }
+//     if (!mssqlPool.connected) {
+//       await mssqlPool.connect();
+//     }
+//     const taskConfig =
+//       await db.query.cronMaster.findFirst({
+//         where: eq(
+//           cronMaster.code,
+//           MAIN_GATE_SYNC.CODE,
+//         ),
+//       });
+//     if (!taskConfig?.doorId) {
+//       console.log("Main Gate configuration not found.");
+//       return;
+//     }
+//     const activeGateId =
+//       Number(taskConfig.doorId);
+//     const [
+//       msDevicesRaw,
+//       allDoorMappings,
+//       empAssignment,
+//     ] = await Promise.all([
+//       mssqlPool
+//         .request()
+//         .query(`
+//           SELECT
+//             DeviceID,
+//             SerialNumber
+//           FROM Devices
+//         `)
+//         .then(
+//           (res: any) =>
+//             res.recordset as any[],
+//         ),
+//       db
+//         .select()
+//         .from(doorDevices)
+//         .execute(),
+//       db.query.employeeDoorAssignments.findFirst({
+//         where: eq(
+//           schema
+//             .employeeDoorAssignments
+//             .employeeCode,
+//           empCodeClean,
+//         ),
+//       }),
+//     ]);
+//     if (
+//       !msDevicesRaw ||
+//       msDevicesRaw.length === 0
+//     ) {
+//       return;
+//     }
+//     const allowedDoorIds =
+//       new Set<number>(
+//         Array.isArray(
+//           empAssignment?.doorIds,
+//         )
+//           ? (
+//               empAssignment.doorIds as number[]
+//             )
+//               .map(Number)
+//               .filter(
+//                 (id) =>
+//                   Number.isFinite(id) &&
+//                   id > 0,
+//               )
+//           : [],
+//       );
+//     const deviceToDoorMap =
+//       new Map<number, number>();
+//     const mainGateWhitelistedIds =
+//       new Set<number>();
+//     for (
+//       const mapping of
+//       allDoorMappings
+//     ) {
+//       const doorId =
+//         Number(mapping.doorId);
+//       if (
+//         !Number.isFinite(doorId)
+//       ) {
+//         continue;
+//       }
+//       const deviceIds = [
+//         ...(Array.isArray(
+//           mapping.inDeviceIds,
+//         )
+//           ? mapping.inDeviceIds
+//           : []),
+//         ...(Array.isArray(
+//           mapping.outDeviceIds,
+//         )
+//           ? mapping.outDeviceIds
+//           : []),
+//       ]
+//         .map(Number)
+//         .filter(
+//           (id) =>
+//             Number.isFinite(id) &&
+//             id > 0,
+//         );
+//       for (
+//         const deviceId of
+//         deviceIds
+//       ) {
+//         deviceToDoorMap.set(
+//           deviceId,
+//           doorId,
+//         );
+//         if (
+//           doorId ===
+//           activeGateId
+//         ) {
+//           mainGateWhitelistedIds.add(
+//             deviceId,
+//           );
+//         }
+//       }
+//     }
+//     const deviceIds =
+//       msDevicesRaw
+//         .map((device: any) =>
+//           Number(
+//             device.DeviceID ??
+//               device.DeviceId,
+//           ),
+//         )
+//         .filter(
+//           (id: number) =>
+//             Number.isFinite(id) &&
+//             id > 0,
+//         );
+//     if (
+//       deviceIds.length === 0
+//     ) {
+//       return;
+//     }
+//     const deviceIdsCsv =
+//       deviceIds.join(",");
+//     /*
+//      * Fetch latest relevant DeviceCommand for
+//      * this employee + each device in ONE MSSQL query.
+//      *
+//      * ROW_NUMBER avoids repeated MSSQL query per device.
+//      */
+//     const commandRequest =
+//       mssqlPool.request();
+//     commandRequest.input(
+//       "employeePin",
+//       `PIN=${empCodeClean}`,
+//     );
+//     const latestCommandResult =
+//       await commandRequest.query(`
+//         WITH EmployeeCommands AS
+//         (
+//           SELECT
+//             dc.DeviceCommandId,
+//             dc.DeviceId,
+//             dc.Title,
+//             dc.DeviceCommand,
+//             dc.Status,
+//             dc.Type,
+//             dc.CreationDate,
+//             dc.ExecutionDate,
+//             ROW_NUMBER() OVER
+//             (
+//               PARTITION BY dc.DeviceId
+//               ORDER BY
+//                 dc.DeviceCommandId DESC
+//             ) AS rn
+//           FROM DeviceCommands dc
+//           WHERE dc.DeviceId IN (${deviceIdsCsv})
+//             AND CHARINDEX(
+//               @employeePin COLLATE DATABASE_DEFAULT,
+//               dc.DeviceCommand COLLATE DATABASE_DEFAULT
+//             ) > 0
+//             AND
+//             (
+//               dc.Title COLLATE DATABASE_DEFAULT
+//                 LIKE 'Block User%'
+//               OR
+//               dc.Title COLLATE DATABASE_DEFAULT
+//                 LIKE 'UnBlock User%'
+//             )
+//         )
+//         SELECT
+//           DeviceCommandId,
+//           DeviceId,
+//           Title,
+//           DeviceCommand,
+//           Status,
+//           Type,
+//           CreationDate,
+//           ExecutionDate
+//         FROM EmployeeCommands
+//         WHERE rn = 1
+//       `);
+//     const latestCommandByDevice =
+//       new Map<number, any>();
+//     for (
+//       const row of
+//       latestCommandResult.recordset ?? []
+//     ) {
+//       latestCommandByDevice.set(
+//         Number(row.DeviceId),
+//         row,
+//       );
+//     }
+//     for (
+//       const [
+//         deviceId,
+//         command,
+//       ] of latestCommandByDevice
+//     ) {
+      
+//     }
+//     const commandQueue: Array<{
+//       deviceId: number;
+//       serialNumber: string;
+//       doorId: number | null;
+//       shouldBlock: boolean;
+//       requiredState:
+//         | "block"
+//         | "unblock";
+//     }> = [];
+//     for (
+//       const msDevice of
+//       msDevicesRaw
+//     ) {
+//       const msDeviceId =
+//         Number(
+//           msDevice.DeviceID ??
+//             msDevice.DeviceId,
+//         );
+//       const serialNumber =
+//         String(
+//           msDevice.SerialNumber ?? "",
+//         ).trim();
+//       if (
+//         !Number.isFinite(
+//           msDeviceId,
+//         ) ||
+//         msDeviceId <= 0 ||
+//         !serialNumber
+//       ) {
+//         continue;
+//       }
+//       totalDevices++;
+//       const isMainGate =
+//         mainGateWhitelistedIds.has(
+//           msDeviceId,
+//         );
+//       const doorId =
+//         deviceToDoorMap.get(
+//           msDeviceId,
+//         );
+//       let shouldBlock: boolean;
+//       if (isMainGate) {
+//         shouldBlock = false;
+//       } else {
+//         const isDoorAllowed =
+//           doorId !== undefined &&
+//           allowedDoorIds.has(
+//             doorId,
+//           );
+//         shouldBlock =
+//           blockAll ||
+//           !isDoorAllowed;
+//       }
+//       const requiredState:
+//         | "block"
+//         | "unblock" =
+//         shouldBlock
+//           ? "block"
+//           : "unblock";
+//       const latestCommand =
+//         latestCommandByDevice.get(
+//           msDeviceId,
+//         );
+//       let latestState = "";
+//       let latestStatus = "";
+//       let latestCommandId:
+//         number | null = null;
+//       if (latestCommand) {
+//         latestCommandId =
+//           Number(
+//             latestCommand.DeviceCommandId,
+//           );
+//         latestStatus =
+//           String(
+//             latestCommand.Status ?? "",
+//           )
+//             .trim()
+//             .toLowerCase();
+//         const title =
+//           String(
+//             latestCommand.Title ?? "",
+//           )
+//             .trim()
+//             .toLowerCase();
+//         if (
+//           title.startsWith(
+//             "unblock user",
+//           )
+//         ) {
+//           latestState =
+//             "unblock";
+//         } else if (
+//           title.startsWith(
+//             "block user",
+//           )
+//         ) {
+//           latestState =
+//             "block";
+//         }
+//       }
+//        /*
+//        * SUCCESS + same required command
+//        *
+//        * Hardware already has correct state.
+//        * No eSSL command required.
+//        */
+//       if (
+//         latestState ===
+//           requiredState &&
+//         latestStatus ===
+//           "success"
+//       ) {
+//         skippedCount++;
+//         continue;
+//       }
+//       /*
+//        * PENDING / FAILED
+//        *
+//        * Delete old matching command.
+//        *
+//        * We delete it even when state is same,
+//        * because user wants fresh command generated.
+//        */
+//       if (
+//         latestCommandId &&
+//         (
+//           latestStatus ===
+//             "pending" ||
+//           latestStatus ===
+//             "failed"
+//         )
+//       ) {
+//         try {
+//           const deleteRequest =
+//             mssqlPool.request();
+//           deleteRequest.input(
+//             "deviceCommandId",
+//             latestCommandId,
+//           );
+//           const deleteResult =
+//             await deleteRequest.query(`
+//               DELETE FROM DeviceCommands
+//               WHERE DeviceCommandId =
+//                     @deviceCommandId
+//                 AND LOWER(
+//                       Status COLLATE DATABASE_DEFAULT
+//                     ) IN (
+//                       'pending',
+//                       'failed'
+//                     );
+//               SELECT @@ROWCOUNT AS DeletedCount;
+//             `);
+//           const deleted =
+//             Number(
+//               deleteResult
+//                 .recordset?.[0]
+//                 ?.DeletedCount ??
+//                 0,
+//             );
+//           deletedPendingFailedCount +=
+//             deleted;
+//           console.log(
+//             `  DELETE OLD      : ${deleted}`,
+//           );
+//         } catch (
+//           deleteError: any
+//         ) {
+//           console.error(
+//             `  DELETE FAILED   : ${deleteError?.message ?? deleteError}`,
+//           );
+//           /*
+//            * Don't send another command if
+//            * stale Pending/Failed command
+//            * could not be deleted.
+//            */
+//           failedCount++;
+//           continue;
+//         }
+//       }
+//       commandQueue.push({
+//         deviceId:
+//           msDeviceId,
+//         serialNumber,
+//         doorId:
+//           doorId ?? null,
+//         shouldBlock,
+//         requiredState,
+//       });
+//     }
+//     if (
+//       commandQueue.length === 0
+//     ) {
+//       return {
+//         status: "Skipped",
+//         employeeCode:
+//           empCodeClean,
+//         totalDevices,
+//         sentCount: 0,
+//         skippedCount,
+//         failedCount,
+//         deletedPendingFailedCount,
+//         durationMs:
+//           Date.now() -
+//           startTime,
+//       };
+//     }
+//     const ESSL_BATCH_SIZE = 20;
+//     for (
+//       let i = 0;
+//       i <
+//       commandQueue.length;
+//       i += ESSL_BATCH_SIZE
+//     ) {
+//       const batch =
+//         commandQueue.slice(
+//           i,
+//           i +
+//             ESSL_BATCH_SIZE,
+//         );
+//       const results =
+//         await Promise.allSettled(
+//           batch.map(
+//             async (command) => {
+          
+//               /*
+//                * syncUserBlockStatus()
+//                * creates fresh DeviceCommands entry.
+//                */
+//               await esslService
+//                 .syncUserBlockStatus(
+//                   empCodeClean,
+//                   command.serialNumber,
+//                   command.shouldBlock,
+//                 );
+//               /*
+//                * Keep PG audit log only after
+//                * eSSL call succeeds.
+//                */
+//               await db
+//                 .insert(
+//                   blockUnblockLogs,
+//                 )
+//                 .values({
+//                   employeeCode:
+//                     empCodeClean,
+//                   deviceId:
+//                     command.deviceId,
+//                   type:
+//                     command.requiredState,
+//                   updatedAt:
+//                     new Date(),
+//                 });
+//               return command;
+//             },
+//           ),
+//         );
+//       results.forEach(
+//         (result, index) => {
+//           const command =
+//             batch[index];
+//           if (
+//             result.status ===
+//             "fulfilled"
+//           ) {
+//             sentCount++;
+//             } else {
+//             failedCount++;
+//             console.error(
+//               `Hardware Error | Emp=${empCodeClean} | Device=${command.deviceId}`,
+//               result.reason,
+//             );
+//           }
+//         },
+//       );
+//     }
+//     const totalTime =
+//       Date.now() -
+//       startTime;
+//     return {
+//       status:
+//         failedCount === 0
+//           ? "Success"
+//           : sentCount > 0
+//             ? "Partial Success"
+//             : "Failed",
+//       employeeCode:
+//         empCodeClean,
+//       totalDevices,
+//       sentCount,
+//       skippedCount,
+//       failedCount,
+//       deletedPendingFailedCount,
+//       durationMs:
+//         totalTime,
+//     };
+//   } catch (error: any) {
+//     console.error(
+//       "ENGINE FAILURE:",
+//       error?.message ??
+//         error,
+//     );
+//     return {
+//       status: "Failed",
+//       employeeCode:
+//         empCodeClean,
+//       error:
+//         error?.message ??
+//         String(error),
+//     };
+//   }
+// }
 async executeHardwareSync(
   employeeCode: string,
   roleId: number | null = null,
@@ -3973,538 +4512,701 @@ async executeHardwareSync(
   let skippedCount = 0;
   let failedCount = 0;
   let deletedPendingFailedCount = 0;
+
+  console.log(`\n=================== [SYNC START: Emp ${empCodeClean}] ===================`);
+
   try {
     if (!empCodeClean) {
+      console.log("[SYNC LOG] Employee code empty. Skipping.");
       return;
     }
+
     if (!mssqlPool.connected) {
       await mssqlPool.connect();
     }
-    const taskConfig =
-      await db.query.cronMaster.findFirst({
-        where: eq(
-          cronMaster.code,
-          MAIN_GATE_SYNC.CODE,
-        ),
-      });
-    if (!taskConfig?.doorId) {
-      console.log("Main Gate configuration not found.");
+
+    // 1. Fetch Main Gate Active Devices using Utility Function
+    const mainGateDevices = await getActiveDevicesByDoorCode(MAIN_GATE_SYNC.CODE);
+    const mainGateWhitelistedIds = new Set<number>(
+      mainGateDevices
+        .filter((d: any) => d && d.msId !== null && d.msId !== undefined)
+        .map((d: any) => Number(d.msId))
+    );
+
+    // 2. Fetch All Active Doors and Active + ONLINE Devices
+    const { activeDoors, activeDevices } = await getActiveDoorsWithDevices();
+    const activeDoorIdsSet = new Set<number>(activeDoors.map((d) => Number(d.id)));
+
+    if (activeDevices.length === 0) {
+      console.log("[SYNC LOG] No active online devices found for sync.");
       return;
     }
-    const activeGateId =
-      Number(taskConfig.doorId);
-    const [
-      msDevicesRaw,
-      allDoorMappings,
-      empAssignment,
-    ] = await Promise.all([
+
+    // =========================================================================
+    // ADDED: Create a Set of Online Device MS IDs from Postgres
+    // =========================================================================
+    const onlineDeviceMsIdsSet = new Set<number>(
+      activeDevices
+        .filter((d: any) => d && d.msId !== null && d.msId !== undefined)
+        .map((d: any) => Number(d.msId))
+    );
+
+    // 3. Parallel Async Calls: MSSQL All Devices, Door Mappings & Employee Assignments
+    const [msDevicesRaw, allDoorMappings, empAssignment] = await Promise.all([
       mssqlPool
         .request()
-        .query(`
-          SELECT
-            DeviceID,
-            SerialNumber
-          FROM Devices
-        `)
-        .then(
-          (res: any) =>
-            res.recordset as any[],
-        ),
-      db
-        .select()
-        .from(doorDevices)
-        .execute(),
+        .query(`SELECT DeviceID, SerialNumber FROM Devices`)
+        .then((res: any) => res.recordset as any[]),
+      db.select().from(doorDevices).execute(),
       db.query.employeeDoorAssignments.findFirst({
-        where: eq(
-          schema
-            .employeeDoorAssignments
-            .employeeCode,
-          empCodeClean,
-        ),
+        where: eq(schema.employeeDoorAssignments.employeeCode, empCodeClean),
       }),
     ]);
-    if (
-      !msDevicesRaw ||
-      msDevicesRaw.length === 0
-    ) {
+
+    if (!msDevicesRaw || msDevicesRaw.length === 0) {
+      console.log("[SYNC LOG] No MSSQL devices found.");
       return;
     }
-    const allowedDoorIds =
-      new Set<number>(
-        Array.isArray(
-          empAssignment?.doorIds,
-        )
-          ? (
-              empAssignment.doorIds as number[]
-            )
-              .map(Number)
-              .filter(
-                (id) =>
-                  Number.isFinite(id) &&
-                  id > 0,
-              )
-          : [],
-      );
-    const deviceToDoorMap =
-      new Map<number, number>();
-    const mainGateWhitelistedIds =
-      new Set<number>();
-    for (
-      const mapping of
-      allDoorMappings
-    ) {
-      const doorId =
-        Number(mapping.doorId);
-      if (
-        !Number.isFinite(doorId)
-      ) {
+
+    // 4. Check Employee's Allowed Doors
+    const allowedDoorIds = new Set<number>(
+      Array.isArray(empAssignment?.doorIds)
+        ? (empAssignment.doorIds as number[])
+            .map(Number)
+            .filter((id) => Number.isFinite(id) && id > 0 && activeDoorIdsSet.has(id))
+        : []
+    );
+
+    console.log(`[SYNC LOG] Assigned Doors for Emp ${empCodeClean}:`, Array.from(allowedDoorIds));
+
+    // 5. Map Devices to Doors
+    const deviceToDoorMap = new Map<number, number>();
+    for (const mapping of allDoorMappings) {
+      const doorId = Number(mapping.doorId);
+      if (!Number.isFinite(doorId) || !activeDoorIdsSet.has(doorId)) {
         continue;
       }
+
       const deviceIds = [
-        ...(Array.isArray(
-          mapping.inDeviceIds,
-        )
-          ? mapping.inDeviceIds
-          : []),
-        ...(Array.isArray(
-          mapping.outDeviceIds,
-        )
-          ? mapping.outDeviceIds
-          : []),
+        ...(Array.isArray(mapping.inDeviceIds) ? mapping.inDeviceIds : []),
+        ...(Array.isArray(mapping.outDeviceIds) ? mapping.outDeviceIds : []),
       ]
         .map(Number)
-        .filter(
-          (id) =>
-            Number.isFinite(id) &&
-            id > 0,
-        );
-      for (
-        const deviceId of
-        deviceIds
-      ) {
-        deviceToDoorMap.set(
-          deviceId,
-          doorId,
-        );
-        if (
-          doorId ===
-          activeGateId
-        ) {
-          mainGateWhitelistedIds.add(
-            deviceId,
-          );
-        }
+        .filter((id) => Number.isFinite(id) && id > 0);
+
+      for (const deviceId of deviceIds) {
+        deviceToDoorMap.set(deviceId, doorId);
       }
     }
-    const deviceIds =
-      msDevicesRaw
-        .map((device: any) =>
-          Number(
-            device.DeviceID ??
-              device.DeviceId,
-          ),
-        )
-        .filter(
-          (id: number) =>
-            Number.isFinite(id) &&
-            id > 0,
-        );
-    if (
-      deviceIds.length === 0
-    ) {
+
+    // 6. Check Today's Main Gate 'IN' Status using Utility Function
+    const gateDeviceIdsArr = Array.from(mainGateWhitelistedIds);
+    const validInEmpCodesToday = await getValidTodayMainInEmployeeCodes(gateDeviceIdsArr);
+    const hasMainGateInToday = validInEmpCodesToday.has(empCodeClean);
+
+    console.log(`[SYNC LOG] Emp ${empCodeClean} | Main Gate Today IN Status: ${hasMainGateInToday}`);
+
+    // 7. Extract Target MSSQL Device IDs
+    const deviceIds = msDevicesRaw
+      .map((device: any) => Number(device.DeviceID ?? device.DeviceId))
+      .filter((id: number) => Number.isFinite(id) && id > 0);
+
+    if (deviceIds.length === 0) {
       return;
     }
-    const deviceIdsCsv =
-      deviceIds.join(",");
-    /*
-     * Fetch latest relevant DeviceCommand for
-     * this employee + each device in ONE MSSQL query.
-     *
-     * ROW_NUMBER avoids repeated MSSQL query per device.
-     */
-    const commandRequest =
-      mssqlPool.request();
-    commandRequest.input(
-      "employeePin",
-      `PIN=${empCodeClean}`,
-    );
-    const latestCommandResult =
-      await commandRequest.query(`
-        WITH EmployeeCommands AS
-        (
-          SELECT
-            dc.DeviceCommandId,
-            dc.DeviceId,
-            dc.Title,
-            dc.DeviceCommand,
-            dc.Status,
-            dc.Type,
-            dc.CreationDate,
-            dc.ExecutionDate,
-            ROW_NUMBER() OVER
-            (
-              PARTITION BY dc.DeviceId
-              ORDER BY
-                dc.DeviceCommandId DESC
-            ) AS rn
-          FROM DeviceCommands dc
-          WHERE dc.DeviceId IN (${deviceIdsCsv})
-            AND CHARINDEX(
-              @employeePin COLLATE DATABASE_DEFAULT,
-              dc.DeviceCommand COLLATE DATABASE_DEFAULT
-            ) > 0
-            AND
-            (
-              dc.Title COLLATE DATABASE_DEFAULT
-                LIKE 'Block User%'
-              OR
-              dc.Title COLLATE DATABASE_DEFAULT
-                LIKE 'UnBlock User%'
-            )
-        )
+
+    const deviceIdsCsv = deviceIds.join(",");
+
+    // 8. Fetch Latest Commands from MSSQL
+    const commandRequest = mssqlPool.request();
+    commandRequest.input("employeePin", `PIN=${empCodeClean}`);
+
+    const latestCommandResult = await commandRequest.query(`
+      WITH EmployeeCommands AS
+      (
         SELECT
-          DeviceCommandId,
-          DeviceId,
-          Title,
-          DeviceCommand,
-          Status,
-          Type,
-          CreationDate,
-          ExecutionDate
-        FROM EmployeeCommands
-        WHERE rn = 1
-      `);
-    const latestCommandByDevice =
-      new Map<number, any>();
-    for (
-      const row of
-      latestCommandResult.recordset ?? []
-    ) {
-      latestCommandByDevice.set(
-        Number(row.DeviceId),
-        row,
-      );
+          dc.DeviceCommandId,
+          dc.DeviceId,
+          dc.Title,
+          dc.DeviceCommand,
+          dc.Status,
+          dc.Type,
+          dc.CreationDate,
+          dc.ExecutionDate,
+          ROW_NUMBER() OVER
+          (
+            PARTITION BY dc.DeviceId
+            ORDER BY dc.DeviceCommandId DESC
+          ) AS rn
+        FROM DeviceCommands dc
+        WHERE dc.DeviceId IN (${deviceIdsCsv})
+          AND CHARINDEX(
+            @employeePin COLLATE DATABASE_DEFAULT,
+            dc.DeviceCommand COLLATE DATABASE_DEFAULT
+          ) > 0
+          AND
+          (
+            dc.Title COLLATE DATABASE_DEFAULT LIKE 'Block User%'
+            OR
+            dc.Title COLLATE DATABASE_DEFAULT LIKE 'UnBlock User%'
+          )
+      )
+      SELECT
+        DeviceCommandId,
+        DeviceId,
+        Title,
+        DeviceCommand,
+        Status,
+        Type,
+        CreationDate,
+        ExecutionDate
+      FROM EmployeeCommands
+      WHERE rn = 1
+    `);
+
+    const latestCommandByDevice = new Map<number, any>();
+    for (const row of latestCommandResult.recordset ?? []) {
+      latestCommandByDevice.set(Number(row.DeviceId), row);
     }
-    for (
-      const [
-        deviceId,
-        command,
-      ] of latestCommandByDevice
-    ) {
-      
-    }
+
+    // 9. Build Command Queue based on Rules
     const commandQueue: Array<{
       deviceId: number;
       serialNumber: string;
       doorId: number | null;
       shouldBlock: boolean;
-      requiredState:
-        | "block"
-        | "unblock";
+      requiredState: "block" | "unblock";
     }> = [];
-    for (
-      const msDevice of
-      msDevicesRaw
-    ) {
-      const msDeviceId =
-        Number(
-          msDevice.DeviceID ??
-            msDevice.DeviceId,
-        );
-      const serialNumber =
-        String(
-          msDevice.SerialNumber ?? "",
-        ).trim();
-      if (
-        !Number.isFinite(
-          msDeviceId,
-        ) ||
-        msDeviceId <= 0 ||
-        !serialNumber
-      ) {
+
+    for (const msDevice of msDevicesRaw) {
+      const msDeviceId = Number(msDevice.DeviceID ?? msDevice.DeviceId);
+      const serialNumber = String(msDevice.SerialNumber ?? "").trim();
+
+      if (!Number.isFinite(msDeviceId) || msDeviceId <= 0 || !serialNumber) {
         continue;
       }
+
+      // =========================================================================
+      // ADDED: Offline Device Skip Condition
+      // =========================================================================
+      if (!onlineDeviceMsIdsSet.has(msDeviceId)) {
+        console.log(`[OFFLINE SKIP] DeviceID=${msDeviceId} is offline in Postgres. Skipping sync.`);
+        skippedCount++;
+        continue; // Immediately jumps to next device iteration
+      }
+
       totalDevices++;
-      const isMainGate =
-        mainGateWhitelistedIds.has(
-          msDeviceId,
-        );
-      const doorId =
-        deviceToDoorMap.get(
-          msDeviceId,
-        );
+
+      const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
+      const doorId = deviceToDoorMap.get(msDeviceId);
+
+      // Check if employee has access to this door
+      const isDoorAllowed = doorId !== undefined && allowedDoorIds.has(doorId);
+
       let shouldBlock: boolean;
+
       if (isMainGate) {
+        // Main gate devices must remain unblocked
         shouldBlock = false;
       } else {
-        const isDoorAllowed =
-          doorId !== undefined &&
-          allowedDoorIds.has(
-            doorId,
-          );
-        shouldBlock =
-          blockAll ||
-          !isDoorAllowed;
-      }
-      const requiredState:
-        | "block"
-        | "unblock" =
-        shouldBlock
-          ? "block"
-          : "unblock";
-      const latestCommand =
-        latestCommandByDevice.get(
-          msDeviceId,
-        );
-      let latestState = "";
-      let latestStatus = "";
-      let latestCommandId:
-        number | null = null;
-      if (latestCommand) {
-        latestCommandId =
-          Number(
-            latestCommand.DeviceCommandId,
-          );
-        latestStatus =
-          String(
-            latestCommand.Status ?? "",
-          )
-            .trim()
-            .toLowerCase();
-        const title =
-          String(
-            latestCommand.Title ?? "",
-          )
-            .trim()
-            .toLowerCase();
-        if (
-          title.startsWith(
-            "unblock user",
-          )
-        ) {
-          latestState =
-            "unblock";
-        } else if (
-          title.startsWith(
-            "block user",
-          )
-        ) {
-          latestState =
-            "block";
+        // CORE SECURITY RULE:
+        if (!hasMainGateInToday || !isDoorAllowed || blockAll) {
+          shouldBlock = true;
+        } else {
+          shouldBlock = false;
         }
       }
-       /*
-       * SUCCESS + same required command
-       *
-       * Hardware already has correct state.
-       * No eSSL command required.
-       */
-      if (
-        latestState ===
-          requiredState &&
-        latestStatus ===
-          "success"
-      ) {
+
+      const requiredState: "block" | "unblock" = shouldBlock ? "block" : "unblock";
+      const latestCommand = latestCommandByDevice.get(msDeviceId);
+
+      let latestState = "";
+      let latestStatus = "";
+      let latestCommandId: number | null = null;
+
+      if (latestCommand) {
+        latestCommandId = Number(latestCommand.DeviceCommandId);
+        latestStatus = String(latestCommand.Status ?? "").trim().toLowerCase();
+        const title = String(latestCommand.Title ?? "").trim().toLowerCase();
+
+        if (title.startsWith("unblock user")) {
+          latestState = "unblock";
+        } else if (title.startsWith("block user")) {
+          latestState = "block";
+        }
+      }
+
+      console.log(
+        `[DECISION LOG] Emp=${empCodeClean} | DeviceID=${msDeviceId} | DoorID=${doorId ?? "None"} | IsMainGate=${isMainGate} | DoorAllowed=${isDoorAllowed} | HasMainGateIN=${hasMainGateInToday} ==> TargetState=${requiredState.toUpperCase()} (CurrentInMSSQL: ${latestState || "NONE"})`
+      );
+
+      // Check 1: Skip if already in required state and status was successful
+      if (latestState === requiredState && latestStatus === "success") {
+        console.log(`[SKIP LOG] DeviceID=${msDeviceId} already in state '${requiredState}' with status 'success'. Skipping.`);
         skippedCount++;
         continue;
       }
-      /*
-       * PENDING / FAILED
-       *
-       * Delete old matching command.
-       *
-       * We delete it even when state is same,
-       * because user wants fresh command generated.
-       */
-      if (
-        latestCommandId &&
-        (
-          latestStatus ===
-            "pending" ||
-          latestStatus ===
-            "failed"
-        )
-      ) {
+
+      // Check 2: Delete Old Pending/Failed Commands
+      if (latestCommandId && (latestStatus === "pending" || latestStatus === "failed")) {
         try {
-          const deleteRequest =
-            mssqlPool.request();
-          deleteRequest.input(
-            "deviceCommandId",
-            latestCommandId,
-          );
-          const deleteResult =
-            await deleteRequest.query(`
-              DELETE FROM DeviceCommands
-              WHERE DeviceCommandId =
-                    @deviceCommandId
-                AND LOWER(
-                      Status COLLATE DATABASE_DEFAULT
-                    ) IN (
-                      'pending',
-                      'failed'
-                    );
-              SELECT @@ROWCOUNT AS DeletedCount;
-            `);
-          const deleted =
-            Number(
-              deleteResult
-                .recordset?.[0]
-                ?.DeletedCount ??
-                0,
-            );
-          deletedPendingFailedCount +=
-            deleted;
-          console.log(
-            `  DELETE OLD      : ${deleted}`,
-          );
-        } catch (
-          deleteError: any
-        ) {
-          console.error(
-            `  DELETE FAILED   : ${deleteError?.message ?? deleteError}`,
-          );
-          /*
-           * Don't send another command if
-           * stale Pending/Failed command
-           * could not be deleted.
-           */
+          const deleteRequest = mssqlPool.request();
+          deleteRequest.input("deviceCommandId", latestCommandId);
+
+          const deleteResult = await deleteRequest.query(`
+            DELETE FROM DeviceCommands
+            WHERE DeviceCommandId = @deviceCommandId
+              AND LOWER(Status COLLATE DATABASE_DEFAULT) IN ('pending', 'failed');
+            SELECT @@ROWCOUNT AS DeletedCount;
+          `);
+
+          const deleted = Number(deleteResult.recordset?.[0]?.DeletedCount ?? 0);
+          deletedPendingFailedCount += deleted;
+        } catch (deleteError: any) {
+          console.error(`DELETE FAILED: ${deleteError?.message ?? deleteError}`);
           failedCount++;
           continue;
         }
       }
+
       commandQueue.push({
-        deviceId:
-          msDeviceId,
+        deviceId: msDeviceId,
         serialNumber,
-        doorId:
-          doorId ?? null,
+        doorId: doorId ?? null,
         shouldBlock,
         requiredState,
       });
     }
-    if (
-      commandQueue.length === 0
-    ) {
+
+    console.log(`[QUEUE LOG] Total Devices: ${totalDevices} | Skipped: ${skippedCount} | Queue to Process: ${commandQueue.length}`);
+
+    if (commandQueue.length === 0) {
+      console.log(`=================== [SYNC END: Emp ${empCodeClean} - Nothing to Sync] ===================\n`);
       return {
         status: "Skipped",
-        employeeCode:
-          empCodeClean,
+        employeeCode: empCodeClean,
         totalDevices,
         sentCount: 0,
         skippedCount,
         failedCount,
         deletedPendingFailedCount,
-        durationMs:
-          Date.now() -
-          startTime,
+        durationMs: Date.now() - startTime,
       };
     }
-    const ESSL_BATCH_SIZE = 20;
-    for (
-      let i = 0;
-      i <
-      commandQueue.length;
-      i += ESSL_BATCH_SIZE
-    ) {
-      const batch =
-        commandQueue.slice(
-          i,
-          i +
-            ESSL_BATCH_SIZE,
-        );
-      const results =
-        await Promise.allSettled(
-          batch.map(
-            async (command) => {
-          
-              /*
-               * syncUserBlockStatus()
-               * creates fresh DeviceCommands entry.
-               */
-              await esslService
-                .syncUserBlockStatus(
-                  empCodeClean,
-                  command.serialNumber,
-                  command.shouldBlock,
-                );
-              /*
-               * Keep PG audit log only after
-               * eSSL call succeeds.
-               */
-              await db
-                .insert(
-                  blockUnblockLogs,
-                )
-                .values({
-                  employeeCode:
-                    empCodeClean,
-                  deviceId:
-                    command.deviceId,
-                  type:
-                    command.requiredState,
-                  updatedAt:
-                    new Date(),
-                });
-              return command;
-            },
-          ),
-        );
-      results.forEach(
-        (result, index) => {
-          const command =
-            batch[index];
-          if (
-            result.status ===
-            "fulfilled"
-          ) {
-            sentCount++;
-            } else {
-            failedCount++;
-            console.error(
-              `Hardware Error | Emp=${empCodeClean} | Device=${command.deviceId}`,
-              result.reason,
-            );
-          }
-        },
+
+    // 10. Execute Commands via eSSL Service in Batches
+    const ESSL_BATCH_SIZE = 10;
+    for (let i = 0; i < commandQueue.length; i += ESSL_BATCH_SIZE) {
+      const batch = commandQueue.slice(i, i + ESSL_BATCH_SIZE);
+      
+      const results = await Promise.allSettled(
+        batch.map(async (command) => {
+          await esslService.syncUserBlockStatus(
+            empCodeClean,
+            command.serialNumber,
+            command.shouldBlock
+          );
+          return command;
+        })
       );
+
+      const logsToInsert: Array<{ employeeCode: string; deviceId: number; type: string; updatedAt: Date }> = [];
+
+      results.forEach((result, index) => {
+        const command = batch[index];
+        if (result.status === "fulfilled") {
+          sentCount++;
+          logsToInsert.push({
+            employeeCode: empCodeClean,
+            deviceId: command.deviceId,
+            type: command.requiredState,
+            updatedAt: new Date(),
+          });
+          console.log(`[EXEC SUCCESS] DeviceID=${command.deviceId} | Action=${command.requiredState.toUpperCase()}`);
+        } else {
+          failedCount++;
+          console.error(
+            `[EXEC ERROR] DeviceID=${command.deviceId} | Action=${command.requiredState.toUpperCase()} | Error:`,
+            result.reason?.message ?? result.reason
+          );
+        }
+      });
+
+      if (logsToInsert.length > 0) {
+        try {
+          await db.insert(blockUnblockLogs).values(logsToInsert);
+        } catch (dbErr: any) {
+          console.error(`[DB INSERT ERROR] Failed inserting blockUnblockLogs:`, dbErr?.message ?? dbErr);
+        }
+      }
     }
-    const totalTime =
-      Date.now() -
-      startTime;
+
+    console.log(`=================== [SYNC END: Emp ${empCodeClean} - Sent: ${sentCount}, Failed: ${failedCount}] ===================\n`);
+
     return {
-      status:
-        failedCount === 0
-          ? "Success"
-          : sentCount > 0
-            ? "Partial Success"
-            : "Failed",
-      employeeCode:
-        empCodeClean,
+      status: failedCount === 0 ? "Success" : sentCount > 0 ? "Partial Success" : "Failed",
+      employeeCode: empCodeClean,
       totalDevices,
       sentCount,
       skippedCount,
       failedCount,
       deletedPendingFailedCount,
-      durationMs:
-        totalTime,
+      durationMs: Date.now() - startTime,
     };
   } catch (error: any) {
-    console.error(
-      "ENGINE FAILURE:",
-      error?.message ??
-        error,
-    );
+    console.error("ENGINE FAILURE:", error?.message ?? error);
     return {
       status: "Failed",
-      employeeCode:
-        empCodeClean,
-      error:
-        error?.message ??
-        String(error),
+      employeeCode: empCodeClean,
+      error: error?.message ?? String(error),
     };
   }
 }
+// async executeHardwareSync(
+//   employeeCode: string,
+//   roleId: number | null = null,
+//   blockAll: boolean = false,
+// ) {
+//   const empCodeClean = String(employeeCode ?? "").trim();
+//   const startTime = Date.now();
+//   let totalDevices = 0;
+//   let sentCount = 0;
+//   let skippedCount = 0;
+//   let failedCount = 0;
+//   let deletedPendingFailedCount = 0;
 
+//   console.log(`\n=================== [SYNC START: Emp ${empCodeClean}] ===================`);
+
+//   try {
+//     if (!empCodeClean) {
+//       console.log("[SYNC LOG] Employee code empty. Skipping.");
+//       return;
+//     }
+
+//     if (!mssqlPool.connected) {
+//       await mssqlPool.connect();
+//     }
+
+//     // 1. Fetch Main Gate Active Devices using Utility Function
+//     const mainGateDevices = await getActiveDevicesByDoorCode(MAIN_GATE_SYNC.CODE);
+//     const mainGateWhitelistedIds = new Set<number>(
+//       mainGateDevices
+//         .filter((d: any) => d && d.msId !== null && d.msId !== undefined)
+//         .map((d: any) => Number(d.msId))
+//     );
+
+//     // 2. Fetch All Active Doors and Active Devices
+//     const { activeDoors, activeDevices } = await getActiveDoorsWithDevices();
+//     const activeDoorIdsSet = new Set<number>(activeDoors.map((d) => Number(d.id)));
+
+//     if (activeDevices.length === 0) {
+//       console.log("[SYNC LOG] No active devices found for sync.");
+//       return;
+//     }
+
+//     // 3. Parallel Async Calls: MSSQL All Devices, Door Mappings & Employee Assignments
+//     const [msDevicesRaw, allDoorMappings, empAssignment] = await Promise.all([
+//       mssqlPool
+//         .request()
+//         .query(`SELECT DeviceID, SerialNumber FROM Devices`)
+//         .then((res: any) => res.recordset as any[]),
+//       db.select().from(doorDevices).execute(),
+//       db.query.employeeDoorAssignments.findFirst({
+//         where: eq(schema.employeeDoorAssignments.employeeCode, empCodeClean),
+//       }),
+//     ]);
+
+//     if (!msDevicesRaw || msDevicesRaw.length === 0) {
+//       console.log("[SYNC LOG] No MSSQL devices found.");
+//       return;
+//     }
+
+//     // 4. Check Employee's Allowed Doors
+//     const allowedDoorIds = new Set<number>(
+//       Array.isArray(empAssignment?.doorIds)
+//         ? (empAssignment.doorIds as number[])
+//             .map(Number)
+//             .filter((id) => Number.isFinite(id) && id > 0 && activeDoorIdsSet.has(id))
+//         : []
+//     );
+
+//     console.log(`[SYNC LOG] Assigned Doors for Emp ${empCodeClean}:`, Array.from(allowedDoorIds));
+
+//     // 5. Map Devices to Doors
+//     const deviceToDoorMap = new Map<number, number>();
+//     for (const mapping of allDoorMappings) {
+//       const doorId = Number(mapping.doorId);
+//       if (!Number.isFinite(doorId) || !activeDoorIdsSet.has(doorId)) {
+//         continue;
+//       }
+
+//       const deviceIds = [
+//         ...(Array.isArray(mapping.inDeviceIds) ? mapping.inDeviceIds : []),
+//         ...(Array.isArray(mapping.outDeviceIds) ? mapping.outDeviceIds : []),
+//       ]
+//         .map(Number)
+//         .filter((id) => Number.isFinite(id) && id > 0);
+
+//       for (const deviceId of deviceIds) {
+//         deviceToDoorMap.set(deviceId, doorId);
+//       }
+//     }
+
+//     // 6. Check Today's Main Gate 'IN' Status using Utility Function
+//     const gateDeviceIdsArr = Array.from(mainGateWhitelistedIds);
+//     const validInEmpCodesToday = await getValidTodayMainInEmployeeCodes(gateDeviceIdsArr);
+//     const hasMainGateInToday = validInEmpCodesToday.has(empCodeClean);
+
+//     console.log(`[SYNC LOG] Emp ${empCodeClean} | Main Gate Today IN Status: ${hasMainGateInToday}`);
+
+//     // 7. Extract Target MSSQL Device IDs
+//     const deviceIds = msDevicesRaw
+//       .map((device: any) => Number(device.DeviceID ?? device.DeviceId))
+//       .filter((id: number) => Number.isFinite(id) && id > 0);
+
+//     if (deviceIds.length === 0) {
+//       return;
+//     }
+
+//     const deviceIdsCsv = deviceIds.join(",");
+
+//     // 8. Fetch Latest Commands from MSSQL
+//     const commandRequest = mssqlPool.request();
+//     commandRequest.input("employeePin", `PIN=${empCodeClean}`);
+
+//     const latestCommandResult = await commandRequest.query(`
+//       WITH EmployeeCommands AS
+//       (
+//         SELECT
+//           dc.DeviceCommandId,
+//           dc.DeviceId,
+//           dc.Title,
+//           dc.DeviceCommand,
+//           dc.Status,
+//           dc.Type,
+//           dc.CreationDate,
+//           dc.ExecutionDate,
+//           ROW_NUMBER() OVER
+//           (
+//             PARTITION BY dc.DeviceId
+//             ORDER BY dc.DeviceCommandId DESC
+//           ) AS rn
+//         FROM DeviceCommands dc
+//         WHERE dc.DeviceId IN (${deviceIdsCsv})
+//           AND CHARINDEX(
+//             @employeePin COLLATE DATABASE_DEFAULT,
+//             dc.DeviceCommand COLLATE DATABASE_DEFAULT
+//           ) > 0
+//           AND
+//           (
+//             dc.Title COLLATE DATABASE_DEFAULT LIKE 'Block User%'
+//             OR
+//             dc.Title COLLATE DATABASE_DEFAULT LIKE 'UnBlock User%'
+//           )
+//       )
+//       SELECT
+//         DeviceCommandId,
+//         DeviceId,
+//         Title,
+//         DeviceCommand,
+//         Status,
+//         Type,
+//         CreationDate,
+//         ExecutionDate
+//       FROM EmployeeCommands
+//       WHERE rn = 1
+//     `);
+
+//     const latestCommandByDevice = new Map<number, any>();
+//     for (const row of latestCommandResult.recordset ?? []) {
+//       latestCommandByDevice.set(Number(row.DeviceId), row);
+//     }
+
+//     // 9. Build Command Queue based on Rules
+//     const commandQueue: Array<{
+//       deviceId: number;
+//       serialNumber: string;
+//       doorId: number | null;
+//       shouldBlock: boolean;
+//       requiredState: "block" | "unblock";
+//     }> = [];
+
+//     for (const msDevice of msDevicesRaw) {
+//       const msDeviceId = Number(msDevice.DeviceID ?? msDevice.DeviceId);
+//       const serialNumber = String(msDevice.SerialNumber ?? "").trim();
+
+//       if (!Number.isFinite(msDeviceId) || msDeviceId <= 0 || !serialNumber) {
+//         continue;
+//       }
+
+//       totalDevices++;
+
+//       const isMainGate = mainGateWhitelistedIds.has(msDeviceId);
+//       const doorId = deviceToDoorMap.get(msDeviceId);
+
+//       // Check if employee has access to this door
+//       const isDoorAllowed = doorId !== undefined && allowedDoorIds.has(doorId);
+
+//       let shouldBlock: boolean;
+
+//       if (isMainGate) {
+//         // Main gate devices must remain unblocked
+//         shouldBlock = false;
+//       } else {
+//         // CORE SECURITY RULE:
+//         // Agar Main Gate pe IN nahi hai, YA employee ko ye door assign NAHI hai, YA blockAll true hai -> BLOCK (True)
+//         if (!hasMainGateInToday || !isDoorAllowed || blockAll) {
+//           shouldBlock = true;
+//         } else {
+//           shouldBlock = false;
+//         }
+//       }
+
+//       const requiredState: "block" | "unblock" = shouldBlock ? "block" : "unblock";
+//       const latestCommand = latestCommandByDevice.get(msDeviceId);
+
+//       let latestState = "";
+//       let latestStatus = "";
+//       let latestCommandId: number | null = null;
+
+//       if (latestCommand) {
+//         latestCommandId = Number(latestCommand.DeviceCommandId);
+//         latestStatus = String(latestCommand.Status ?? "").trim().toLowerCase();
+//         const title = String(latestCommand.Title ?? "").trim().toLowerCase();
+
+//         if (title.startsWith("unblock user")) {
+//           latestState = "unblock";
+//         } else if (title.startsWith("block user")) {
+//           latestState = "block";
+//         }
+//       }
+
+//       console.log(
+//         `[DECISION LOG] Emp=${empCodeClean} | DeviceID=${msDeviceId} | DoorID=${doorId ?? "None"} | IsMainGate=${isMainGate} | DoorAllowed=${isDoorAllowed} | HasMainGateIN=${hasMainGateInToday} ==> TargetState=${requiredState.toUpperCase()} (CurrentInMSSQL: ${latestState || "NONE"})`
+//       );
+
+//       // Check 1: Skip if already in required state and status was successful
+//       if (latestState === requiredState && latestStatus === "success") {
+//         console.log(`[SKIP LOG] DeviceID=${msDeviceId} already in state '${requiredState}' with status 'success'. Skipping.`);
+//         skippedCount++;
+//         continue;
+//       }
+
+//       // Check 2: Delete Old Pending/Failed Commands
+//       if (latestCommandId && (latestStatus === "pending" || latestStatus === "failed")) {
+//         try {
+//           const deleteRequest = mssqlPool.request();
+//           deleteRequest.input("deviceCommandId", latestCommandId);
+
+//           const deleteResult = await deleteRequest.query(`
+//             DELETE FROM DeviceCommands
+//             WHERE DeviceCommandId = @deviceCommandId
+//               AND LOWER(Status COLLATE DATABASE_DEFAULT) IN ('pending', 'failed');
+//             SELECT @@ROWCOUNT AS DeletedCount;
+//           `);
+
+//           const deleted = Number(deleteResult.recordset?.[0]?.DeletedCount ?? 0);
+//           deletedPendingFailedCount += deleted;
+//         } catch (deleteError: any) {
+//           console.error(`DELETE FAILED: ${deleteError?.message ?? deleteError}`);
+//           failedCount++;
+//           continue;
+//         }
+//       }
+
+//       commandQueue.push({
+//         deviceId: msDeviceId,
+//         serialNumber,
+//         doorId: doorId ?? null,
+//         shouldBlock,
+//         requiredState,
+//       });
+//     }
+
+//     console.log(`[QUEUE LOG] Total Devices: ${totalDevices} | Skipped: ${skippedCount} | Queue to Process: ${commandQueue.length}`);
+
+//     if (commandQueue.length === 0) {
+//       console.log(`=================== [SYNC END: Emp ${empCodeClean} - Nothing to Sync] ===================\n`);
+//       return {
+//         status: "Skipped",
+//         employeeCode: empCodeClean,
+//         totalDevices,
+//         sentCount: 0,
+//         skippedCount,
+//         failedCount,
+//         deletedPendingFailedCount,
+//         durationMs: Date.now() - startTime,
+//       };
+//     }
+
+//     // 10. Execute Commands via eSSL Service in Batches
+//     const ESSL_BATCH_SIZE = 10;
+//     for (let i = 0; i < commandQueue.length; i += ESSL_BATCH_SIZE) {
+//       const batch = commandQueue.slice(i, i + ESSL_BATCH_SIZE);
+      
+//       const results = await Promise.allSettled(
+//         batch.map(async (command) => {
+//           await esslService.syncUserBlockStatus(
+//             empCodeClean,
+//             command.serialNumber,
+//             command.shouldBlock
+//           );
+//           return command;
+//         })
+//       );
+
+//       const logsToInsert: Array<{ employeeCode: string; deviceId: number; type: string; updatedAt: Date }> = [];
+
+//       results.forEach((result, index) => {
+//         const command = batch[index];
+//         if (result.status === "fulfilled") {
+//           sentCount++;
+//           logsToInsert.push({
+//             employeeCode: empCodeClean,
+//             deviceId: command.deviceId,
+//             type: command.requiredState,
+//             updatedAt: new Date(),
+//           });
+//           console.log(`[EXEC SUCCESS] DeviceID=${command.deviceId} | Action=${command.requiredState.toUpperCase()}`);
+//         } else {
+//           failedCount++;
+//           console.error(
+//             `[EXEC ERROR] DeviceID=${command.deviceId} | Action=${command.requiredState.toUpperCase()} | Error:`,
+//             result.reason?.message ?? result.reason
+//           );
+//         }
+//       });
+
+//       if (logsToInsert.length > 0) {
+//         try {
+//           await db.insert(blockUnblockLogs).values(logsToInsert);
+//         } catch (dbErr: any) {
+//           console.error(`[DB INSERT ERROR] Failed inserting blockUnblockLogs:`, dbErr?.message ?? dbErr);
+//         }
+//       }
+//     }
+
+//     console.log(`=================== [SYNC END: Emp ${empCodeClean} - Sent: ${sentCount}, Failed: ${failedCount}] ===================\n`);
+
+//     return {
+//       status: failedCount === 0 ? "Success" : sentCount > 0 ? "Partial Success" : "Failed",
+//       employeeCode: empCodeClean,
+//       totalDevices,
+//       sentCount,
+//       skippedCount,
+//       failedCount,
+//       deletedPendingFailedCount,
+//       durationMs: Date.now() - startTime,
+//     };
+//   } catch (error: any) {
+//     console.error("ENGINE FAILURE:", error?.message ?? error);
+//     return {
+//       status: "Failed",
+//       employeeCode: empCodeClean,
+//       error: error?.message ?? String(error),
+//     };
+//   }
+// }
 
 
 
@@ -5341,13 +6043,7 @@ async executeHardwareSync(
       // Check ki employee ka IN punch AAJ KA HI HAI na?
       const hasMainGateInToday = validInEmpCodesToday.has(empCodeClean);
 
-      /**
-       * 🎯 STRICT SECURITY RULE:
-       * Unblock TABHI hoga jab:
-       * 1. Person Zone = 'IN' / 'CABIN'
-       * AND
-       * 2. Main Gate IN Punch = TODAY (Aaj ka)
-       */
+      
       const isCurrentlyInsideToday = isZoneInside && hasMainGateInToday;
       const shouldBlockAll = !isCurrentlyInsideToday;
 
@@ -5356,6 +6052,7 @@ async executeHardwareSync(
 
     return result.upserted;
   }
+
   async upsertVisitorDoorAssignment(data: {
     employeeCode: string;
     doorIds: number[];
