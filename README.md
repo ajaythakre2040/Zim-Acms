@@ -89,7 +89,7 @@ or run the server directly in PowerShell:
 $env:NODE_ENV = "development"
 npx tsx server/index.ts
 ```
-<!-- port alredy use erorr solve -- npx tsx server/utils/encrypted.ts>
+ <!-- port alredy use erorr solve -- npx tsx server/utils/encrypted.ts> -->
 npx kill-port 5000
 
  <!-- jspdf jspdf-autotable insall -->

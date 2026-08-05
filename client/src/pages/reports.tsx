@@ -8,6 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { capitalizeFirst, cn, formatDateTime, formatTime } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronsUpDown } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -240,24 +243,24 @@ function ReportFilters({
         </div>
         <div className="flex flex-col lg:flex-row gap-4 items-end">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 flex-1">
-            
+
             {/* DAILY EFFICIENCY → SINGLE DATE */}
             {["daily-efficiency", "employee-movement-logs"].includes(
               activeReport,
             ) && (
-              <div className="space-y-1">
-                <Label className="text-[10px] text-muted-foreground">
-                  DATE
-                </Label>
-                <Input
-                  type="date"
-                  value={filters.date || ""}
-                  onChange={(e) =>
-                    setFilters({ ...filters, date: e.target.value })
-                  }
-                />
-              </div>
-            )}
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">
+                    DATE
+                  </Label>
+                  <Input
+                    type="date"
+                    value={filters.date || ""}
+                    onChange={(e) =>
+                      setFilters({ ...filters, date: e.target.value })
+                    }
+                  />
+                </div>
+              )}
 
             {/* OTHER REPORTS → FROM DATE */}
             {!["daily-efficiency", "employee-movement-logs"].includes(
@@ -347,59 +350,81 @@ function ReportFilters({
                   EMPLOYEE
                 </Label>
 
-                <Input
-                  type="text"
-                  list="employee-list"
-                  placeholder="Search Employee..."
-                  value={empSearchText}
-                  onFocus={() => {
-                    // Dropdown menu open hone par full list dikhane ke liye clearing
-                    setEmpSearchText("");
-                  }}
-                  onInput={(e: React.FormEvent<HTMLInputElement>) => {
-                    const val = e.currentTarget.value;
-                    setEmpSearchText(val);
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
+  style={{ borderColor: 'hsl(var(--input))' }}
+                    >
 
-                    // Matching logic for typed text or selected option
-                    const selectedPerson = people.find((p: any) => {
-                      const formattedOption = `${capitalizeFirst(p.employeeName || "")} (${p.employeeCode || ""})`;
-                      return (
-                        formattedOption === val ||
-                        String(p.employeeCode) === val ||
-                        String(p.employeeName || "").toLowerCase() === val.toLowerCase()
-                      );
-                    });
+                      <span className="truncate">
+                        {filters.employeeCode
+                          ? (() => {
+                            const selected = people.find(
+                              (p: any) => String(p.employeeCode) === String(filters.employeeCode)
+                            );
+                            return selected
+                              ? `${capitalizeFirst(selected.employeeName || "")} (${selected.employeeCode})`
+                              : "Select Employee...";
+                          })()
+                          : "All Employees"}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search employee..." className="text-xs h-9" />
+                      <CommandList>
+                        <CommandEmpty>No employee found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem
+                            value="all-employees"
+                            onSelect={() => {
+                              setFilters({ ...filters, employeeCode: "" });
+                            }}
+                            className="text-xs"
+                          >
+                            <Check
+                              className={`mr-2 h-4 w-4 ${!filters.employeeCode ? "opacity-100" : "opacity-0"
+                                }`}
+                            />
+                            All Employees
+                          </CommandItem>
 
-                    if (selectedPerson) {
-                      const empCode = String(selectedPerson.employeeCode);
-                      const formattedText = `${capitalizeFirst(selectedPerson.employeeName || "")} (${empCode})`;
+                          {people.map((p: any) => {
+                            const empCode = String(p.employeeCode || "");
+                            const empName = capitalizeFirst(p.employeeName || "");
+                            const displayText = `${empName} (${empCode})`;
+                            const isSelected = String(filters.employeeCode) === empCode;
 
-                      // 1. Payload state update (Direct Object pass karke TS error 2345 fix kiya)
-                      setFilters({
-                        ...filters,
-                        employeeCode: empCode,
-                      });
-
-                      // 2. Browser Datalist Timing Fix (Micro-task queue me display text set karna)
-                      setTimeout(() => {
-                        setEmpSearchText(formattedText);
-                      }, 0);
-                    } else if (val === "") {
-                      setFilters({
-                        ...filters,
-                        employeeCode: "",
-                      });
-                    }
-                  }}
-                  className="text-xs h-9"
-                />
-
-                <datalist id="employee-list">
-                  {people.map((p: any) => {
-                    const labelText = `${capitalizeFirst(p.employeeName || "")} (${p.employeeCode || ""})`;
-                    return <option key={p.id} value={labelText} />;
-                  })}
-                </datalist>
+                            return (
+                              <CommandItem
+                                key={p.id}
+                                value={`${empName} ${empCode}`}
+                                onSelect={() => {
+                                  setFilters({
+                                    ...filters,
+                                    employeeCode: isSelected ? "" : empCode,
+                                  });
+                                }}
+                                className="text-xs"
+                              >
+                                <Check
+                                  className={`mr-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"
+                                    }`}
+                                />
+                                {displayText}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
             )}
             {/* DOOR */}
@@ -1079,11 +1104,10 @@ function DaliyPerformanceOvertimeSummaryTable({
                         className="text-center p-1 border-x text-[10px]"
                       >
                         <span
-                          className={`${
-                            Number(hours) > 0
+                          className={`${Number(hours) > 0
                               ? "text-green-600 font-bold"
                               : "text-black font-normal"
-                          }`}
+                            }`}
                         >
                           {hours !== undefined ? Number(hours).toFixed(0) : 0}
                         </span>
@@ -1415,10 +1439,10 @@ function DailyEfficiencyTable({ data, doors }: { data?: any[]; doors: any[] }) {
                   Efficiency:{" "}
                   {Number(r.totalPresenceMinutes || 0) > 0
                     ? `${(
-                        (Number(r.productiveMinutes || 0) /
-                          Number(r.totalPresenceMinutes || 0)) *
-                        100
-                      ).toFixed(2)}%`
+                      (Number(r.productiveMinutes || 0) /
+                        Number(r.totalPresenceMinutes || 0)) *
+                      100
+                    ).toFixed(2)}%`
                     : "-"}
                 </div>
               </div>
@@ -2113,11 +2137,11 @@ function EmployeePerformanceTable({ data }: { data?: any[] }) {
                   <td className="border p-3 text-center whitespace-nowrap">
                     {r.dateRange
                       ? r.dateRange
-                          .split(" to ")
-                          .map((d: string) =>
-                            new Date(d).toLocaleDateString("en-GB"),
-                          )
-                          .join(" To ")
+                        .split(" to ")
+                        .map((d: string) =>
+                          new Date(d).toLocaleDateString("en-GB"),
+                        )
+                        .join(" To ")
                       : "-"}
                   </td>
 
@@ -2207,11 +2231,11 @@ function DepartmentEfficiencyTable({ data }: { data?: any[] }) {
                   <td className="border p-3 text-center whitespace-nowrap">
                     {r.dateRange
                       ? r.dateRange
-                          .split(" to ")
-                          .map((d: string) =>
-                            new Date(d).toLocaleDateString("en-GB"),
-                          )
-                          .join(" To ")
+                        .split(" to ")
+                        .map((d: string) =>
+                          new Date(d).toLocaleDateString("en-GB"),
+                        )
+                        .join(" To ")
                       : "-"}
                   </td>
 
@@ -3019,11 +3043,10 @@ export default function ReportsPage() {
                 setAccessLogsPage(1);
               }
             }}
-            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${
-              activeReport === rt.id
+            className={`flex flex-col items-center p-3 rounded-xl border transition-all ${activeReport === rt.id
                 ? `${rt.bgColor} border-primary/20 shadow-sm ring-1 ring-primary/20`
                 : "bg-card hover:bg-muted/50"
-            }`}
+              }`}
           >
             <rt.icon
               className={`w-5 h-5 mb-2 ${activeReport === rt.id ? rt.color : "text-muted-foreground"}`}
