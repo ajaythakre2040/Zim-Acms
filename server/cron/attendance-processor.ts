@@ -162,6 +162,7 @@ export async function processAttendanceBatch(rawPunches: any[]) {
             isProductive: !doorName.toLowerCase().includes("gate"),
             shiftName: detShiftName,
             shiftTime: detShiftTime,
+            verificationType: punch.VerificationType || punch.verificationtype || "N/A",
           })
           .onConflictDoNothing();
 

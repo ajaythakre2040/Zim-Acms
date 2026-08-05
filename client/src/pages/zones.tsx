@@ -473,59 +473,80 @@ export default function ZonesDoorsPage() {
         );
       },
     },
+{
+    key: "inDevices",
+    label: "IN Devices",
+    render: (d: any) => (
+      <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
+        {d.inDevices?.length > 0 ? (
+          d.inDevices.map((dev: any) => {
+            const isOnline = dev.status === "online";
 
-    {
-      key: "inDevices",
-      label: "IN Devices",
-      render: (d: any) => (
-        <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
-          {d.inDevices?.length > 0 ? (
-            d.inDevices.map((dev: any) => (
+            return (
               <Badge
                 key={dev.id}
                 variant="secondary"
-                className="text-[10px] bg-blue-50 text-blue-700 border-blue-100 font-normal"
+                className="text-[10px] bg-blue-50 text-blue-700 border-blue-100 font-normal flex items-center gap-1.5 py-0.5"
               >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shadow-sm ${
+                    isOnline 
+                      ? "bg-green-500 shadow-green-300 animate-pulse-green" 
+                      : "bg-red-500 shadow-red-300"
+                  }`}
+                />
                 {dev.name}
               </Badge>
-            ))
-          ) : (
-            <Badge
-              variant="outline"
-              className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
-            >
-              None
-            </Badge>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: "outDevices",
-      label: "OUT Devices",
-      render: (d: any) => (
-        <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
-          {d.outDevices?.length > 0 ? (
-            d.outDevices.map((dev: any) => (
+            );
+          })
+        ) : (
+          <Badge
+            variant="outline"
+            className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
+          >
+            None
+          </Badge>
+        )}
+      </div>
+    ),
+  },
+  {
+    key: "outDevices",
+    label: "OUT Devices",
+    render: (d: any) => (
+      <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
+        {d.outDevices?.length > 0 ? (
+          d.outDevices.map((dev: any) => {
+            const isOnline = dev.status === "online";
+
+            return (
               <Badge
                 key={dev.id}
                 variant="secondary"
-                className="text-[10px] bg-green-50 text-green-700 border-green-100 font-normal"
+                className="text-[10px] bg-green-50 text-green-700 border-green-100 font-normal flex items-center gap-1.5 py-0.5"
               >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shadow-sm ${
+                    isOnline 
+                      ? "bg-green-500 shadow-green-300 animate-pulse-green" 
+                      : "bg-red-500 shadow-red-300"
+                  }`}
+                />
                 {dev.name}
               </Badge>
-            ))
-          ) : (
-            <Badge
-              variant="outline"
-              className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
-            >
-              None
-            </Badge>
-          )}
-        </div>
-      ),
-    },
+            );
+          })
+        ) : (
+          <Badge
+            variant="outline"
+            className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
+          >
+            None
+          </Badge>
+        )}
+      </div>
+    ),
+  },
     {
       key: "lastRefreshedAt",
       label: "Last Refreshed",

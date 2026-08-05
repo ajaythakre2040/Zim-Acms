@@ -751,6 +751,7 @@ export const employeeActivityLogs = pgTable("employee_activity_logs", {
   isProductive: boolean("is_productive").default(false),
   departmentId: integer("department_id"),
   designationId: integer("designation_id"),
+  verificationtype: text("verification_type"),
 }, (table) => ({
   empDateIdx: index("idx_logs_emp_date").on(table.employeeCode, table.onlyDate),
 }));

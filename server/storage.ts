@@ -971,21 +971,39 @@ export class DatabaseStorage implements IStorage {
         db.select().from(doorDevices),
         db.select().from(devices),
       ]);
+
       const resolvedDoors = allDoors.map((door) => {
         const mapping = allDoorDevices.find((md) => md.doorId === door.id);
+
         const resolveDevices = (ids: any[] | null) => {
           if (!ids || !Array.isArray(ids)) return [];
           return ids
             .map((id) => {
               const dev = allDevices.find((d) => Number(d.msId) === Number(id));
               return dev
-                ? { id: dev.id, msId: dev.msId, name: dev.name }
+                ? {
+                    id: dev.id,
+                    msId: dev.msId,
+                    name: dev.name,
+                    status: dev.status || "offline", // 👈 Device Status (online/offline) Added Here
+                    lastHeartbeat: dev.lastHeartbeat,
+                    isActive: dev.isActive,
+                  }
                 : null;
             })
-            .filter(Boolean) as { id: number; msId: number; name: string }[];
+            .filter(Boolean) as {
+              id: number;
+              msId: number;
+              name: string;
+              status: string;
+              lastHeartbeat: Date | null;
+              isActive: boolean | null;
+            }[];
         };
+
         const inDevices = resolveDevices(mapping?.inDeviceIds || []);
         const outDevices = resolveDevices(mapping?.outDeviceIds || []);
+
         return {
           ...door,
           inDevices,
@@ -994,19 +1012,23 @@ export class DatabaseStorage implements IStorage {
           outCount: outDevices.length,
         };
       });
+
       const searchText = search?.toLowerCase().trim();
+
       const filteredDoors = searchText
         ? resolvedDoors.filter((door) => {
-          return (
-            door.name?.toLowerCase().includes(searchText) ||
-            door.code?.toLowerCase().includes(searchText) ||
-            door.doorType?.toLowerCase().includes(searchText)
-          );
-        })
+            return (
+              door.name?.toLowerCase().includes(searchText) ||
+              door.code?.toLowerCase().includes(searchText) ||
+              door.doorType?.toLowerCase().includes(searchText)
+            );
+          })
         : resolvedDoors;
+
       if (!pageSize) {
         return filteredDoors;
       }
+
       if (pageSize === -1 || pageSize === "-1") {
         return {
           data: filteredDoors,
@@ -1016,11 +1038,15 @@ export class DatabaseStorage implements IStorage {
           pageSize: filteredDoors.length,
         };
       }
+
       const p = page && Number(page) > 0 ? Number(page) : 1;
       const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+
       const start = (p - 1) * size;
       const end = start + size;
+
       const paginatedData = filteredDoors.slice(start, end);
+
       return {
         data: paginatedData,
         totalCount: filteredDoors.length,
@@ -1032,15 +1058,96 @@ export class DatabaseStorage implements IStorage {
       console.error("getDoors Error:", error);
       return pageSize
         ? {
-          data: [],
-          totalCount: 0,
-          totalPages: 0,
-          currentPage: 1,
-          pageSize: 0,
-        }
+            data: [],
+            totalCount: 0,
+            totalPages: 0,
+            currentPage: 1,
+            pageSize: 0,
+          }
         : [];
     }
   }
+  // async getDoors(
+  //   page?: number | string,
+  //   pageSize?: number | string,
+  //   search?: string,
+  // ): Promise<any> {
+  //   try {
+  //     const [allDoors, allDoorDevices, allDevices] = await Promise.all([
+  //       db.select().from(doors).orderBy(asc(doors.id)),
+  //       db.select().from(doorDevices),
+  //       db.select().from(devices),
+  //     ]);
+  //     const resolvedDoors = allDoors.map((door) => {
+  //       const mapping = allDoorDevices.find((md) => md.doorId === door.id);
+  //       const resolveDevices = (ids: any[] | null) => {
+  //         if (!ids || !Array.isArray(ids)) return [];
+  //         return ids
+  //           .map((id) => {
+  //             const dev = allDevices.find((d) => Number(d.msId) === Number(id));
+  //             return dev
+  //               ? { id: dev.id, msId: dev.msId, name: dev.name }
+  //               : null;
+  //           })
+  //           .filter(Boolean) as { id: number; msId: number; name: string }[];
+  //       };
+  //       const inDevices = resolveDevices(mapping?.inDeviceIds || []);
+  //       const outDevices = resolveDevices(mapping?.outDeviceIds || []);
+  //       return {
+  //         ...door,
+  //         inDevices,
+  //         outDevices,
+  //         inCount: inDevices.length,
+  //         outCount: outDevices.length,
+  //       };
+  //     });
+  //     const searchText = search?.toLowerCase().trim();
+  //     const filteredDoors = searchText
+  //       ? resolvedDoors.filter((door) => {
+  //         return (
+  //           door.name?.toLowerCase().includes(searchText) ||
+  //           door.code?.toLowerCase().includes(searchText) ||
+  //           door.doorType?.toLowerCase().includes(searchText)
+  //         );
+  //       })
+  //       : resolvedDoors;
+  //     if (!pageSize) {
+  //       return filteredDoors;
+  //     }
+  //     if (pageSize === -1 || pageSize === "-1") {
+  //       return {
+  //         data: filteredDoors,
+  //         totalCount: filteredDoors.length,
+  //         totalPages: 1,
+  //         currentPage: 1,
+  //         pageSize: filteredDoors.length,
+  //       };
+  //     }
+  //     const p = page && Number(page) > 0 ? Number(page) : 1;
+  //     const size = Number(pageSize) > 0 ? Number(pageSize) : 10;
+  //     const start = (p - 1) * size;
+  //     const end = start + size;
+  //     const paginatedData = filteredDoors.slice(start, end);
+  //     return {
+  //       data: paginatedData,
+  //       totalCount: filteredDoors.length,
+  //       totalPages: Math.ceil(filteredDoors.length / size),
+  //       currentPage: p,
+  //       pageSize: size,
+  //     };
+  //   } catch (error) {
+  //     console.error("getDoors Error:", error);
+  //     return pageSize
+  //       ? {
+  //         data: [],
+  //         totalCount: 0,
+  //         totalPages: 0,
+  //         currentPage: 1,
+  //         pageSize: 0,
+  //       }
+  //       : [];
+  //   }
+  // }
 
   async createDoor(data: InsertDoor): Promise<Door> {
     if (data.name) {
