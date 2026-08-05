@@ -547,10 +547,8 @@ function AttendanceTable({ data }: { data: any[] }) {
 }
 function AccessLogs({ data }: { data: any[] }) {
   return (
-    // 'max-h-[500px]' ya koi bhi fix height set karein aur 'overflow-y-auto' add karein
     <div className="overflow-x-auto overflow-y-auto max-h-[600px] border rounded-md">
       <table className="w-full text-xs">
-        {/* 'sticky top-0' use karein taki scroll karte waqt header upar hi rahe */}
         <thead className="sticky top-0 z-10">
           <tr className="border-b bg-muted/90 backdrop-blur-sm">
             <th className="p-3 text-left">Device Log ID</th>
@@ -561,6 +559,7 @@ function AccessLogs({ data }: { data: any[] }) {
             <th className="p-3 text-left">Device Name</th>
             <th className="p-3 text-left">Door Name</th>
             <th className="p-3 text-left">Direction</th>
+            <th className="p-3 text-left">Verification Type</th>
             <th className="p-3 text-left">Log Date</th>
           </tr>
         </thead>
@@ -579,6 +578,9 @@ function AccessLogs({ data }: { data: any[] }) {
               <td className="p-3">{r.device_name || r.Device_Name || "-"}</td>
               <td className="p-3">{r.door_name || r.DoorName || "-"}</td>
               <td className="p-3">{r.direction || "-"}</td>
+              <td className="p-3">
+                {r.verification_type_name || r.VerificationTypeName || r.verificationtype || r.VerificationType || "-"}
+              </td>
               <td className="p-3">
                 {r.logdate || r.LogDate
                   ? formatDateTime(r.logdate || r.LogDate).toLocaleString()
