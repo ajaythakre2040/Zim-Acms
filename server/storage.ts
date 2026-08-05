@@ -1134,25 +1134,42 @@ export class DatabaseStorage implements IStorage {
   page?: number | string,
   pageSize?: number | string,
 ) {
-  // Step 1: Active Doors and Devices fetch karein
+  // Step 1: Active Doors fetch karein
   const { activeDoors } = await getActiveDoorsWithDevices();
 
+  const pageNum = Math.max(1, Number(page) || 1);
+  const sizeNum = Math.max(1, Number(pageSize) || 10);
+  const offset = (pageNum - 1) * sizeNum;
+
   if (activeDoors.length === 0) {
-    return withPagination(null, null, [], page, pageSize);
+    return {
+      page: pageNum,
+      pageSize: sizeNum,
+      totalCount: 0,
+      totalPages: 0,
+      data: [],
+    };
   }
 
   // Filter Active Doors if doorId is provided
-  const filteredActiveDoors = doorId && doorId !== "ALL"
-    ? activeDoors.filter((d) => Number(d.id) === Number(doorId))
-    : activeDoors;
+  const filteredActiveDoors =
+    doorId && doorId !== "ALL" && doorId !== "all"
+      ? activeDoors.filter((d) => Number(d.id) === Number(doorId))
+      : activeDoors;
 
   if (filteredActiveDoors.length === 0) {
-    return withPagination(null, null, [], page, pageSize);
+    return {
+      page: pageNum,
+      pageSize: sizeNum,
+      totalCount: 0,
+      totalPages: 0,
+      data: [],
+    };
   }
 
   const activeDoorIds = filteredActiveDoors.map((d) => d.id);
 
-  // Step 2: In active doors ki mappings fetch karein
+  // Step 2: Door to Devices mappings fetch karein
   const activeMappings = await db
     .select()
     .from(doorDevices)
@@ -1163,11 +1180,18 @@ export class DatabaseStorage implements IStorage {
       )
     );
 
+  const deviceToDoorMap = new Map<
+    number,
+    { doorId: number; doorName: string; doorCode: string }
+  >();
   const doorToDeviceMsIdsMap = new Map<number, Set<number>>();
   const allDeviceMsIds = new Set<number>();
 
   activeMappings.forEach((mapping) => {
     if (!mapping.doorId) return;
+
+    const doorInfo = filteredActiveDoors.find((d) => d.id === mapping.doorId);
+    if (!doorInfo) return;
 
     if (!doorToDeviceMsIdsMap.has(mapping.doorId)) {
       doorToDeviceMsIdsMap.set(mapping.doorId, new Set<number>());
@@ -1175,39 +1199,36 @@ export class DatabaseStorage implements IStorage {
 
     const deviceSet = doorToDeviceMsIdsMap.get(mapping.doorId)!;
 
-    (mapping.inDeviceIds || []).forEach((id) => {
+    const mapDevice = (id: any) => {
       const numId = Number(id);
-      deviceSet.add(numId);
       allDeviceMsIds.add(numId);
-    });
+      deviceSet.add(numId);
+      deviceToDoorMap.set(numId, {
+        doorId: doorInfo.id,
+        doorName: doorInfo.name,
+        doorCode: doorInfo.code,
+      });
+    };
 
-    (mapping.outDeviceIds || []).forEach((id) => {
-      const numId = Number(id);
-      deviceSet.add(numId);
-      allDeviceMsIds.add(numId);
-    });
+    (mapping.inDeviceIds || []).forEach(mapDevice);
+    (mapping.outDeviceIds || []).forEach(mapDevice);
   });
 
-  // Edge case: Agar devices hi mapped nahi hain
   if (allDeviceMsIds.size === 0) {
-    const emptyResult = filteredActiveDoors.map((door) => ({
-      doorId: door.id,
-      doorName: door.name,
-      doorCode: door.code,
-      pendingCount: 0,
-      deviceIds: [],
-      pendingDetails: [],
-    }));
-    return withPagination(null, null, emptyResult, page, pageSize);
+    return {
+      page: pageNum,
+      pageSize: sizeNum,
+      totalCount: 0,
+      totalPages: 0,
+      data: [],
+    };
   }
 
-  // Step 3: MSSQL Query with Dynamic Filters
+  // Step 3: Where Clause Construction
   const deviceIdsArray = Array.from(allDeviceMsIds);
-
   let mssqlWhereClause = `dc.Status = 'Pending' AND dc.DeviceID IN (${deviceIdsArray.join(",")})`;
 
-  // Optional MSSQL Filters
-  if (actionType && actionType !== "ALL") {
+  if (actionType && actionType !== "ALL" && actionType !== "all") {
     if (actionType.toLowerCase() === "unblock") {
       mssqlWhereClause += ` AND dc.Title LIKE '%UnBlock User%'`;
     } else if (actionType.toLowerCase() === "block") {
@@ -1215,97 +1236,102 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  const mssqlResult = await mssqlPool
-    .request()
-    .query(`
-      SELECT 
-        dc.DeviceID,
-        dev.DeviceName,
-        dc.DeviceCommandId,
-        dc.Title,
-        dc.Type,
-        dc.CreationDate,
-        LTRIM(RTRIM(
-          REPLACE(
-            REPLACE(dc.Title, 'UnBlock User ', ''), 
-            'Block User ', ''
-          )
-        )) AS ExtractedEmpCode,
-        e.EmployeeName
-      FROM DeviceCommands dc
-      LEFT JOIN Devices dev 
-        ON dc.DeviceID = dev.DeviceID
-      LEFT JOIN Employees e 
-        ON LTRIM(RTRIM(
-          REPLACE(
-            REPLACE(dc.Title, 'UnBlock User ', ''), 
-            'Block User ', ''
-          )
-        )) = LTRIM(RTRIM(e.EmployeeCode))
-      WHERE ${mssqlWhereClause}
-      ORDER BY dc.CreationDate DESC
-    `);
+  if (employeeCode && employeeCode.trim() !== "" && employeeCode !== "all") {
+    const cleanSearch = employeeCode.replace(/'/g, "''").trim();
+    mssqlWhereClause += ` AND (
+      LTRIM(RTRIM(REPLACE(REPLACE(dc.Title, 'UnBlock User ', ''), 'Block User ', ''))) LIKE '%${cleanSearch}%'
+      OR e.EmployeeName LIKE '%${cleanSearch}%'
+    )`;
+  }
 
-  // DeviceID -> List of Pending Items mapping
-  const devicePendingMap = new Map<number, Array<any>>();
+  // Total Count fetch karein
+  const countResult = await mssqlPool.request().query(`
+    SELECT COUNT(*) AS TotalCount
+    FROM DeviceCommands dc
+    LEFT JOIN Employees e 
+      ON LTRIM(RTRIM(REPLACE(REPLACE(dc.Title, 'UnBlock User ', ''), 'Block User ', ''))) = LTRIM(RTRIM(e.EmployeeCode))
+    WHERE ${mssqlWhereClause}
+  `);
 
-  (mssqlResult.recordset || []).forEach((row: any) => {
-    const extractedCode = row.ExtractedEmpCode || "";
-    const empName = row.EmployeeName || "Unknown";
+  const totalCount = countResult.recordset[0]?.TotalCount || 0;
+  const totalPages = Math.ceil(totalCount / sizeNum);
 
-    // Filter by Employee Code / Employee Name if passed
-    if (employeeCode && employeeCode.trim() !== "") {
-      const search = employeeCode.toLowerCase().trim();
-      const matchCode = extractedCode.toLowerCase().includes(search);
-      const matchName = empName.toLowerCase().includes(search);
-      if (!matchCode && !matchName) return;
-    }
+  // Step 4: Paginated Query
+  const mssqlResult = await mssqlPool.request().query(`
+    SELECT 
+      dc.DeviceID,
+      dev.DeviceName,
+      dc.DeviceCommandId,
+      dc.Title,
+      dc.Type,
+      dc.CreationDate,
+      LTRIM(RTRIM(REPLACE(REPLACE(dc.Title, 'UnBlock User ', ''), 'Block User ', ''))) AS ExtractedEmpCode,
+      e.EmployeeName
+    FROM DeviceCommands dc
+    LEFT JOIN Devices dev ON dc.DeviceID = dev.DeviceID
+    LEFT JOIN Employees e 
+      ON LTRIM(RTRIM(REPLACE(REPLACE(dc.Title, 'UnBlock User ', ''), 'Block User ', ''))) = LTRIM(RTRIM(e.EmployeeCode))
+    WHERE ${mssqlWhereClause}
+    ORDER BY dc.CreationDate DESC
+    OFFSET ${offset} ROWS
+    FETCH NEXT ${sizeNum} ROWS ONLY
+  `);
 
+  // Step 5: Data Mapping with Compatible Structure
+  const commandsList = (mssqlResult.recordset || []).map((row: any) => {
     const devId = Number(row.DeviceID);
-    if (!devicePendingMap.has(devId)) {
-      devicePendingMap.set(devId, []);
-    }
+    const doorDetails = deviceToDoorMap.get(devId);
 
-    devicePendingMap.get(devId)!.push({
-      commandId: row.DeviceCommandId,
-      deviceName: row.DeviceName || "Unknown Device",
-      employeeCode: extractedCode,
-      employeeName: empName,
-      actionType: row.Title?.toLowerCase().includes("unblock") ? "Unblock" : "Block",
-      creationDate: row.CreationDate,
-    });
-  });
-
-  // Step 4: Final Door-wise Aggregation
-  const finalResult = filteredActiveDoors.map((door) => {
-    const associatedDeviceIds = Array.from(
-      doorToDeviceMsIdsMap.get(door.id) || []
-    );
-
-    const pendingDetails: Array<any> = [];
-
-    associatedDeviceIds.forEach((devId) => {
-      const items = devicePendingMap.get(devId) || [];
-      items.forEach((item) => {
-        pendingDetails.push({
-          deviceId: devId,
-          ...item,
-        });
-      });
-    });
+    // Date Format fix (Z remove to prevent timezone shift)
+    const rawDate = row.CreationDate;
+    const cleanDate =
+      typeof rawDate === "string" ? rawDate.replace(/Z$/i, "") : rawDate;
 
     return {
-      doorId: door.id,
-      doorName: door.name,
-      doorCode: door.code,
-      pendingCount: pendingDetails.length,
-      deviceIds: associatedDeviceIds,
-      pendingDetails,
+      commandId: row.DeviceCommandId,
+      deviceId: devId,
+      deviceName: row.DeviceName || "Unknown Device",
+      doorId: doorDetails?.doorId || null,
+      doorName: doorDetails?.doorName || "-",
+      doorCode: doorDetails?.doorCode || "-",
+      employeeCode: row.ExtractedEmpCode || "",
+      employeeName: row.EmployeeName || "Unknown",
+      actionType: row.Title?.toLowerCase().includes("unblock")
+        ? "Unblock"
+        : "Block",
+      creationDate: cleanDate,
     };
   });
 
-  // Step 5: Return with Pagination (Same like getRangeReport)
-  return withPagination(null, null, finalResult, page, pageSize);
+  // Flat data list ke saath-saath aggregated Door details safe render support ke liye
+  const doorGroupMap = new Map<number, any>();
+  filteredActiveDoors.forEach((door) => {
+    doorGroupMap.set(door.id, {
+      doorId: door.id,
+      doorName: door.name,
+      doorCode: door.code,
+      pendingCount: 0,
+      deviceIds: Array.from(doorToDeviceMsIdsMap.get(door.id) || []),
+      pendingDetails: [],
+    });
+  });
+
+  commandsList.forEach((cmd) => {
+    if (cmd.doorId && doorGroupMap.has(cmd.doorId)) {
+      const doorObj = doorGroupMap.get(cmd.doorId);
+      doorObj.pendingDetails.push(cmd);
+      doorObj.pendingCount += 1;
+    }
+  });
+
+  return {
+    page: pageNum,
+    pageSize: sizeNum,
+    totalCount,
+    totalPages,
+    data: commandsList,
+    doors: Array.from(doorGroupMap.values()), // /doors page safety mapping
+  };
 }
   async createDevice(data: InsertDevice): Promise<Device> {
     let mssqlId: number | null = null;
