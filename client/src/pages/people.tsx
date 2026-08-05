@@ -65,7 +65,6 @@ import {
   formatDateTime,
   exportCSV,
   exportEmployeeCSV,
-  exportEmployeePDF,
 } from "@/lib/utils";
 import { usePermission } from "@/hooks/use-permission";
 import { MENU_CONFIG } from "../../../server/constant";
@@ -180,28 +179,28 @@ export default function PeoplePage() {
   const totalPages = peopleResponse?.totalPages || 1;
   const totalCount = peopleResponse?.totalCount || 0;
   const handleExport = async () => {
-    // 1. Filtered data fetch karne ke liye parameters
-    const params = new URLSearchParams({
-      search: search,
-      dept: filterDept,
-      status: filterStatus,
-      lockout: filterLockout,
-      rule: filterRule,
-      pageSize: "10000", // Pura data mangne ke liye limit badhayi
-    });
-    try {
-      const res = await apiRequest("GET", `/api/people?${params.toString()}`);
-      const result = await res.json();
-      // 2. CSV Export trigger karein
-      if (result?.data?.length > 0) {
-        exportCSV("Employees_Export", result.data);
-      } else {
-        alert("No data available to export.");
-      }
-    } catch (err) {
-      console.error("Export failed:", err);
+  const params = new URLSearchParams({
+    search: search,
+    dept: filterDept,
+    status: filterStatus,
+    lockout: filterLockout,
+    rule: filterRule,
+    pageSize: "10000",
+  });
+  try {
+    const res = await apiRequest("GET", `/api/people?${params.toString()}`);
+    const result = await res.json();
+
+    if (result?.data?.length > 0) {
+      // Generic exportCSV ki jagah aapka custom exportEmployeeCSV call karein
+      exportEmployeeCSV(result.data);
+    } else {
+      alert("No data available to export.");
     }
-  };
+  } catch (err) {
+    console.error("Export failed:", err);
+  }
+};
   const { data: departments = [] } = useQuery<Department[]>({
     queryKey: ["/api/departments"],
   });
@@ -785,32 +784,32 @@ export default function PeoplePage() {
           </Button>
 
           {/* 4. Export Data */}
-          {canExport && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="default"
-                  size="sm"
-                  className="h-9 bg-green-600 text-white hover:bg-green-700"
-                  onClick={handleExport}
-                >
-                  <Download className="w-4 h-4 mr-2" /> Export
-                </Button>
-              </DropdownMenuTrigger>
+{canExport && (
+  <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <Button
+        variant="default"
+        size="sm"
+        className="h-9 bg-green-600 text-white hover:bg-green-700"
+      >
+        <Download className="w-4 h-4 mr-2" /> Export
+      </Button>
+    </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => exportEmployeeCSV(people)}>
-                  <FileSpreadsheet className="w-4 h-4 mr-2" />
-                  CSV
-                </DropdownMenuItem>
+    <DropdownMenuContent align="end">
+      {/* handleExport function ko yahan click handler me call karein */}
+      <DropdownMenuItem onClick={handleExport}>
+        <FileSpreadsheet className="w-4 h-4 mr-2" />
+        CSV
+      </DropdownMenuItem>
 
-                {/* <DropdownMenuItem onClick={() => exportEmployeePDF(people)}>
-                  <FileText className="w-4 h-4 mr-2" />
-                  PDF
-                </DropdownMenuItem> */}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+      {/* <DropdownMenuItem onClick={() => exportEmployeePDF(people)}>
+        <FileText className="w-4 h-4 mr-2" />
+        PDF
+      </DropdownMenuItem> */}
+    </DropdownMenuContent>
+  </DropdownMenu>
+)}
         </div>
       }
     />
