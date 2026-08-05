@@ -167,7 +167,7 @@ export default function LiveLogsDashboard() {
                   <th className="px-4 py-3 font-semibold">Device Name</th>
                   <th className="px-4 py-3 font-semibold">Direction</th>
                   <th className="px-4 py-3 font-semibold">Log Date</th>
-                  <th className="px-4 py-3 font-semibold">verificationTypeName</th>
+                  <th className="px-4 py-3 font-semibold">verificationType</th>
                 </tr>
               </thead>
 
