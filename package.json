@@ -83,7 +83,7 @@
     "react-hook-form": "^7.55.0",
     "react-icons": "^5.4.0",
     "react-resizable-panels": "^2.1.7",
-    "react-router-dom": "^7.14.1",
+    "react-router-dom": "^7.11.0",
     "recharts": "^2.15.2",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
@@ -117,7 +117,7 @@
     "@vitejs/plugin-react": "^6.0.5",
     "autoprefixer": "^10.4.20",
     "cross-env": "^10.1.0",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^0.18.1",
     "esbuild": "^0.28.1",
     "nodemon": "^3.1.14",
     "postcss": "^8.4.47",
@@ -127,9 +127,8 @@
     "vite": "^8.0.10"
   },
   "overrides": {
-    "drizzle-kit": {
-      "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
-    }
+    "uuid": "^11.1.1",
+    "react-router": "$react-router-dom"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
