@@ -473,80 +473,78 @@ export default function ZonesDoorsPage() {
         );
       },
     },
-{
-    key: "inDevices",
-    label: "IN Devices",
-    render: (d: any) => (
-      <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
-        {d.inDevices?.length > 0 ? (
-          d.inDevices.map((dev: any) => {
-            const isOnline = dev.status === "online";
+    {
+      key: "inDevices",
+      label: "IN Devices",
+      render: (d: any) => (
+        <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
+          {d.inDevices?.length > 0 ? (
+            d.inDevices.map((dev: any) => {
+              const isOnline = dev.status === "online";
 
-            return (
-              <Badge
-                key={dev.id}
-                variant="secondary"
-                className="text-[10px] bg-blue-50 text-blue-700 border-blue-100 font-normal flex items-center gap-1.5 py-0.5"
-              >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full shadow-sm ${
-                    isOnline 
-                      ? "bg-green-500 shadow-green-300 animate-pulse-green" 
+              return (
+                <Badge
+                  key={dev.id}
+                  variant="secondary"
+                  className="text-[10px] bg-blue-50 text-blue-700 border-blue-100 font-normal flex items-center gap-1.5 py-0.5"
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full shadow-sm ${isOnline
+                      ? "bg-green-500 shadow-green-300 animate-pulse-green"
                       : "bg-red-500 shadow-red-300"
-                  }`}
-                />
-                {dev.name}
-              </Badge>
-            );
-          })
-        ) : (
-          <Badge
-            variant="outline"
-            className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
-          >
-            None
-          </Badge>
-        )}
-      </div>
-    ),
-  },
-  {
-    key: "outDevices",
-    label: "OUT Devices",
-    render: (d: any) => (
-      <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
-        {d.outDevices?.length > 0 ? (
-          d.outDevices.map((dev: any) => {
-            const isOnline = dev.status === "online";
+                      }`}
+                  />
+                  {dev.name}
+                </Badge>
+              );
+            })
+          ) : (
+            <Badge
+              variant="outline"
+              className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
+            >
+              None
+            </Badge>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "outDevices",
+      label: "OUT Devices",
+      render: (d: any) => (
+        <div className="flex flex-wrap items-center gap-1 max-w-[200px]">
+          {d.outDevices?.length > 0 ? (
+            d.outDevices.map((dev: any) => {
+              const isOnline = dev.status === "online";
 
-            return (
-              <Badge
-                key={dev.id}
-                variant="secondary"
-                className="text-[10px] bg-green-50 text-green-700 border-green-100 font-normal flex items-center gap-1.5 py-0.5"
-              >
-                <span
-                  className={`w-1.5 h-1.5 rounded-full shadow-sm ${
-                    isOnline 
-                      ? "bg-green-500 shadow-green-300 animate-pulse-green" 
+              return (
+                <Badge
+                  key={dev.id}
+                  variant="secondary"
+                  className="text-[10px] bg-green-50 text-green-700 border-green-100 font-normal flex items-center gap-1.5 py-0.5"
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full shadow-sm ${isOnline
+                      ? "bg-green-500 shadow-green-300 animate-pulse-green"
                       : "bg-red-500 shadow-red-300"
-                  }`}
-                />
-                {dev.name}
-              </Badge>
-            );
-          })
-        ) : (
-          <Badge
-            variant="outline"
-            className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
-          >
-            None
-          </Badge>
-        )}
-      </div>
-    ),
-  },
+                      }`}
+                  />
+                  {dev.name}
+                </Badge>
+              );
+            })
+          ) : (
+            <Badge
+              variant="outline"
+              className="text-[10px] bg-slate-50 text-slate-400 border-slate-200 font-normal italic"
+            >
+              None
+            </Badge>
+          )}
+        </div>
+      ),
+    },
     {
       key: "lastRefreshedAt",
       label: "Last Refreshed",
@@ -554,10 +552,10 @@ export default function ZonesDoorsPage() {
         <span className="text-xs text-muted-foreground font-mono">
           {d.lastRefreshedAt
             ? new Date(d.lastRefreshedAt).toLocaleString("en-IN", {
-                dateStyle: "short",
-                timeStyle: "medium",
-                timeZone: "Asia/Kolkata",
-              })
+              dateStyle: "short",
+              timeStyle: "medium",
+              timeZone: "Asia/Kolkata",
+            })
             : "—"}
         </span>
       ),
@@ -582,114 +580,38 @@ export default function ZonesDoorsPage() {
         );
       },
     },
-    {
-      key: "actions",
-      label: "Actions",
-      headerClassName: "text-left",
-      className: "text-left",
-      render: (d: Door) => {
-        // 🔒 Check using the constant
-        const isMainGate = d.code === MAIN_GATE_SYNC.CODE;
+{
+    key: "actions",
+    label: "Actions",
+    headerClassName: "text-left",
+    className: "text-left",
+    render: (d: Door) => {
+      // 🔒 Check using the constant
+      const isMainGate = d.code === MAIN_GATE_SYNC.CODE;
 
-        return (
-          <div className="flex gap-1 justify-start items-center">
-            <TooltipProvider delayDuration={300}>
-              {/* 🔓 EMERGENCY UNLOCK BUTTON */}
-              {canEdit && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-                      onClick={(e) => {
-                        e.stopPropagation();
+      // ⏱️ Global 20 Minutes Cooldown Check
+      const COOLDOWN_TIME = 20 * 60 * 1000;
+      const GLOBAL_REFRESH_KEY = "global_doors_refresh_timestamp";
+      
+      const lastRefreshTime = localStorage.getItem(GLOBAL_REFRESH_KEY);
+      const currentTime = Date.now();
+      const timeElapsed = lastRefreshTime ? currentTime - Number(lastRefreshTime) : Infinity;
+      const isCooldown = timeElapsed < COOLDOWN_TIME;
 
-                        const { dismiss } = toast({
-                          className:
-                            "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-slate-200 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
-                          description: (
-                            <div className="w-full flex flex-col gap-3">
-                              <div className="text-sm text-slate-800 dark:text-slate-200">
-                                <span className="font-bold text-slate-900 dark:text-white mr-1.5">
-                                  Emergency Unlock:
-                                </span>
-                                <span>
-                                  Are you sure you want to unlock{" "}
-                                  <strong className="text-slate-900 dark:text-white font-semibold">
-                                    "{d.name}"
-                                  </strong>
-                                  ?
-                                </span>
-                              </div>
+      // Kitne minutes bache hain calculate karne ke liye
+      const remainingMinutes = Math.ceil((COOLDOWN_TIME - timeElapsed) / (60 * 1000));
 
-                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
-                                  onClick={() => dismiss()}
-                                >
-                                  Cancel
-                                </Button>
-
-                                <Button
-                                  size="sm"
-                                  className="h-8 px-4 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                                  onClick={async () => {
-                                    dismiss();
-                                    try {
-                                      const response = await fetch(
-                                        `/api/doors/${d.id}/emergency-unlock`,
-                                        { method: "POST" },
-                                      );
-                                      const data = await response.json();
-
-                                      if (response.ok) {
-                                        toast({
-                                          title: "Success",
-                                          description: `Door "${d.name}" unlocked successfully!`,
-                                        });
-                                      } else {
-                                        toast({
-                                          title: "Unlock Failed",
-                                          description:
-                                            data.message ||
-                                            "Failed to unlock door.",
-                                          variant: "destructive",
-                                        });
-                                      }
-                                    } catch (err) {
-                                      toast({
-                                        title: "Error",
-                                        description:
-                                          "Error sending unlock command.",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }}
-                                >
-                                  Unlock
-                                </Button>
-                              </div>
-                            </div>
-                          ),
-                        });
-                      }}
-                    >
-                      <LockOpen className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Emergency Unlock</TooltipContent>
-                </Tooltip>
-              )}
-              {/* 🔄 REFRESH DOOR BUTTON */}
+      return (
+        <div className="flex gap-1 justify-start items-center">
+          <TooltipProvider delayDuration={300}>
+            {/* 🔓 EMERGENCY UNLOCK BUTTON */}
+            {canEdit && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                    className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
                     onClick={(e) => {
                       e.stopPropagation();
 
@@ -700,10 +622,10 @@ export default function ZonesDoorsPage() {
                           <div className="w-full flex flex-col gap-3">
                             <div className="text-sm text-slate-800 dark:text-slate-200">
                               <span className="font-bold text-slate-900 dark:text-white mr-1.5">
-                                Refresh Door:
+                                Emergency Unlock:
                               </span>
                               <span>
-                                Are you sure you want to refresh block rules for{" "}
+                                Are you sure you want to unlock{" "}
                                 <strong className="text-slate-900 dark:text-white font-semibold">
                                   "{d.name}"
                                 </strong>
@@ -723,11 +645,120 @@ export default function ZonesDoorsPage() {
 
                               <Button
                                 size="sm"
+                                className="h-8 px-4 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                onClick={async () => {
+                                  dismiss();
+                                  try {
+                                    const response = await fetch(
+                                      `/api/doors/${d.id}/emergency-unlock`,
+                                      { method: "POST" },
+                                    );
+                                    const data = await response.json();
+
+                                    if (response.ok) {
+                                      toast({
+                                        title: "Success",
+                                        description: `Door "${d.name}" unlocked successfully!`,
+                                      });
+                                    } else {
+                                      toast({
+                                        title: "Unlock Failed",
+                                        description:
+                                          data.message ||
+                                          "Failed to unlock door.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  } catch (err) {
+                                    toast({
+                                      title: "Error",
+                                      description:
+                                        "Error sending unlock command.",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                              >
+                                Unlock
+                              </Button>
+                            </div>
+                          </div>
+                        ),
+                      });
+                    }}
+                  >
+                    <LockOpen className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Emergency Unlock</TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* 🔄 REFRESH DOOR BUTTON WITH GLOBAL 20 MIN COOLDOWN */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    disabled={isCooldown}
+                    className={`h-8 w-8 ${
+                      isCooldown
+                        ? "opacity-50 cursor-not-allowed bg-slate-100 text-slate-400 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-500"
+                        : "text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                    }`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isCooldown) {
+                        toast({
+                          title: "Cooldown Active",
+                          description: `Aap 20 minutes ke baad hi dobara refresh kar sakte hain. (Approx. ${remainingMinutes} min(s) remaining)`,
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+
+                      const { dismiss } = toast({
+                        className:
+                          "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-slate-200 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
+                        description: (
+                          <div className="w-full flex flex-col gap-3">
+                            <div className="text-sm text-slate-800 dark:text-slate-200">
+                              <span className="font-bold text-slate-900 dark:text-white mr-1.5">
+                                Refresh Door:
+                              </span>
+                              <span>
+                                Are you sure you want to refresh block rules for{" "}
+                                <strong className="text-slate-900 dark:text-white font-semibold">
+                                  "{d.name}"
+                                </strong>
+                                ? (Yeh saare doors par 20 minutes ka cooldown laga dega)
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
+                                onClick={() => dismiss()}
+                              >
+                                Cancel
+                              </Button>
+
+                              <Button
+                                size="sm"
                                 className="h-8 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                                 onClick={async () => {
                                   dismiss();
 
-                                  // Loading indicator toast
+                                  // Set GLOBAL timestamp so ALL doors go on cooldown
+                                  localStorage.setItem(GLOBAL_REFRESH_KEY, Date.now().toString());
+
+                                  if (typeof fetchDoors === "function") {
+                                    fetchDoors();
+                                  }
+
                                   toast({
                                     title: "Processing...",
                                     description: `Refreshing status for "${d.name}"...`,
@@ -748,7 +779,6 @@ export default function ZonesDoorsPage() {
                                           `Door "${d.name}" refreshed successfully!`,
                                       });
 
-                                      // Doors data UI refresh
                                       if (typeof fetchDoors === "function") {
                                         fetchDoors();
                                       }
@@ -781,90 +811,94 @@ export default function ZonesDoorsPage() {
                   >
                     <RotateCw className="w-4 h-4" />
                   </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isCooldown 
+                  ? `Refresh available after 20 mins (${remainingMinutes}m left)` 
+                  : "Refresh Door Status"}
+              </TooltipContent>
+            </Tooltip>
+
+            {/* 📱 ASSIGN HARDWARE */}
+            {canEdit && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDoorForMapping(d);
+                      setMappingDialog(true);
+                    }}
+                  >
+                    <MonitorSmartphone className="w-4 h-4" />
+                  </Button>
                 </TooltipTrigger>
-                <TooltipContent>Refresh Door Status</TooltipContent>
+                <TooltipContent>Assign Hardware</TooltipContent>
               </Tooltip>
+            )}
 
-              {/* 📱 ASSIGN HARDWARE */}
-              {canEdit && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedDoorForMapping(d);
-                        setMappingDialog(true);
-                      }}
-                    >
-                      <MonitorSmartphone className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Assign Hardware</TooltipContent>
-                </Tooltip>
-              )}
+            {/* ✏️ EDIT DOOR */}
+            {canEdit && !isMainGate && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingDoor(d);
+                      setDoorDialog(true);
+                    }}
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Edit Door</TooltipContent>
+              </Tooltip>
+            )}
 
-              {/* ✏️ EDIT DOOR (Hidden for Main Gate constant CODE) */}
-              {canEdit && !isMainGate && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingDoor(d);
-                        setDoorDialog(true);
-                      }}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Edit Door</TooltipContent>
-                </Tooltip>
-              )}
+            {/* 🗑️ DELETE DOOR */}
+            {canDelete && !isMainGate && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                    onClick={async (e) => {
+                      e.stopPropagation();
 
-              {/* 🗑️ DELETE DOOR (Hidden for Main Gate constant CODE) */}
-              {canDelete && !isMainGate && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      onClick={async (e) => {
-                        e.stopPropagation();
+                      if (window.confirm("Delete this door?")) {
+                        await doorCrud.remove(d.id);
 
-                        if (window.confirm("Delete this door?")) {
-                          await doorCrud.remove(d.id);
-
-                          setTimeout(async () => {
-                            await fetchDoors();
-                          }, 300);
-                        }
-                      }}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Delete Door</TooltipContent>
-                </Tooltip>
-              )}
-            </TooltipProvider>
-          </div>
-        );
-      },
+                        setTimeout(async () => {
+                          await fetchDoors();
+                        }, 300);
+                      }
+                    }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Delete Door</TooltipContent>
+              </Tooltip>
+            )}
+          </TooltipProvider>
+        </div>
+      );
     },
-  ].filter((col) => {
-    // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
-    if (col.key === "actions") {
-      return canEdit || canDelete;
-    }
-    return true;
-  });
+  },
+].filter((col) => {
+  if (col.key === "actions") {
+    return canEdit || canDelete;
+  }
+  return true;
+});
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -882,11 +916,11 @@ export default function ZonesDoorsPage() {
         <TabsContent value="doors">
           <div className="mb-4 flex justify-end items-center gap-2">
             <Button
-  variant="destructive"
-  onClick={() => setLocation("/pending-commands")} // 👈 Button click par naya page call hoga
->
-  Pending Commands ({totalPendingCount || 0})
-</Button>
+              variant="destructive"
+              onClick={() => setLocation("/pending-commands")} // 👈 Button click par naya page call hoga
+            >
+              Pending Commands ({totalPendingCount || 0})
+            </Button>
 
             {canAdd && (
               <Button
@@ -1144,12 +1178,12 @@ export default function ZonesDoorsPage() {
           initialData={
             editingDoor
               ? {
-                  ...editingDoor,
-                  locationId: editingDoor.locationId
-                    ? String(editingDoor.locationId)
-                    : "",
-                  zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "",
-                }
+                ...editingDoor,
+                locationId: editingDoor.locationId
+                  ? String(editingDoor.locationId)
+                  : "",
+                zoneId: editingDoor.zoneId ? String(editingDoor.zoneId) : "",
+              }
               : undefined
           }
           onSubmit={async (data) => {
@@ -1273,11 +1307,10 @@ export default function ZonesDoorsPage() {
                         return (
                           <div
                             key={device.msId}
-                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
-                              isSelected
-                                ? "bg-primary/5 text-primary"
-                                : "hover:bg-slate-50"
-                            }`}
+                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${isSelected
+                              ? "bg-primary/5 text-primary"
+                              : "hover:bg-slate-50"
+                              }`}
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleDevice(device.msId, "in");
@@ -1387,11 +1420,10 @@ export default function ZonesDoorsPage() {
                         return (
                           <div
                             key={device.msId}
-                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${
-                              isSelected
-                                ? "bg-primary/5 text-primary"
-                                : "hover:bg-slate-50"
-                            }`}
+                            className={`flex items-center justify-between p-2 rounded-md cursor-pointer transition-colors ${isSelected
+                              ? "bg-primary/5 text-primary"
+                              : "hover:bg-slate-50"
+                              }`}
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleDevice(device.msId, "out");
