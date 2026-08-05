@@ -71,6 +71,7 @@ export async function processAttendanceBatch(rawPunches: any[]) {
         .leftJoin(designations, eq(people.designationId, designations.id))
         .where(eq(people.employeeCode, msEmpCode))
         .limit(1);
+
       const isIncoming = device.deviceDirection === "IN";
 
       // 1. GET CURRENT STATE (Read from people table)
@@ -138,6 +139,14 @@ export async function processAttendanceBatch(rawPunches: any[]) {
       const doorName = mapping?.doorName || device.name || "Main Gate";
       const doorId = mapping?.doorId || device.id;
 
+      // Direct MS SQL Join Column Values:
+      const vCode =
+        punch.VerificationType !== undefined && punch.VerificationType !== null
+          ? String(punch.VerificationType)
+          : "N/A";
+      const vName =
+        punch.VerificationTypeName || punch.verificationtypename || "N/A";
+
       await db.transaction(async (tx) => {
         // 4. ACTIVITY LOG INSERT (Uses targetWorkDate to ensure single row merge)
         await tx
@@ -162,7 +171,8 @@ export async function processAttendanceBatch(rawPunches: any[]) {
             isProductive: !doorName.toLowerCase().includes("gate"),
             shiftName: detShiftName,
             shiftTime: detShiftTime,
-            // verificationType: punch.VerificationType || punch.verificationtype || "N/A",
+            verificationtype: vCode,           // Code (e.g., "1")
+            verificationTypeName: vName,       // Name (e.g., "Finger")
           })
           .onConflictDoNothing();
 

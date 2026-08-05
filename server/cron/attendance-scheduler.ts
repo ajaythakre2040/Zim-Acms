@@ -18,14 +18,19 @@ export async function runSyncTask() {
         const request = mssqlPool.request();
         request.input('lastId', lastId);
 
-        // Fetch logs with local date string conversion
+        // Fetch logs with VerificationType JOIN from MS SQL
         const result = await request.query(
             `SELECT TOP 1000 
-                DeviceLogId, DeviceId, EmployeeCode, 
-                CONVERT(varchar, LogDate, 120) as LogDate 
-            FROM DeviceLogs 
-            WHERE DeviceLogId > @lastId 
-            ORDER BY DeviceLogId ASC`
+        l.DeviceLogId, 
+        l.DeviceId, 
+        l.EmployeeCode, 
+        CONVERT(varchar, l.LogDate, 120) as LogDate,
+        l.VerificationType,
+        ISNULL(v.Name, 'N/A') AS VerificationTypeName
+    FROM DeviceLogs l
+    LEFT JOIN VerificationType v ON l.VerificationType = v.Code
+    WHERE l.DeviceLogId > @lastId 
+    ORDER BY l.DeviceLogId ASC`
         );
 
         const punches = result.recordset || [];
