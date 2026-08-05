@@ -167,48 +167,53 @@ export default function LiveLogsDashboard() {
                   <th className="px-4 py-3 font-semibold">Device Name</th>
                   <th className="px-4 py-3 font-semibold">Direction</th>
                   <th className="px-4 py-3 font-semibold">Log Date</th>
+                  <th className="px-4 py-3 font-semibold">verificationTypeName</th>
                 </tr>
               </thead>
 
               <tbody className="divide-y">
-                {isLoading
-                  ? Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i}>
-                        <td colSpan={6} className="p-2">
-                          <Skeleton className="h-12 w-full" />
-                        </td>
-                      </tr>
-                    ))
-                  : displayLogs.map((log: any, i: number) => (
-                      <tr
-                        key={i}
-                        className="hover:bg-muted/30 text-center transition-colors"
-                      >
-                        <td className="px-4 py-3 font-medium text-left">
-                          {log.employeeName}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {log.employeeCode}
-                        </td>
-                        <td className="px-4 py-3">{log.doorName}</td>
-                        <td className="px-4 py-3">{log.deviceName}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              log.direction === "IN"
-                                ? "bg-blue-100 text-blue-700"
-                                : "bg-orange-100 text-orange-700"
-                            }`}
-                          >
-                            {log.direction}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
-                          {log.logDate ? formatDateTime(log.logDate) : "-"}
-                        </td>
-                      </tr>
-                    ))}
-              </tbody>
+  {isLoading
+    ? Array.from({ length: 5 }).map((_, i) => (
+        <tr key={i}>
+          <td colSpan={7} className="p-2">
+            <Skeleton className="h-12 w-full" />
+          </td>
+        </tr>
+      ))
+    : displayLogs.map((log: any, i: number) => (
+        <tr
+          key={i}
+          className="hover:bg-muted/30 text-center transition-colors"
+        >
+          <td className="px-4 py-3 font-medium text-left">
+            {log.employeeName}
+          </td>
+          <td className="px-4 py-3 text-muted-foreground">
+            {log.employeeCode}
+          </td>
+          <td className="px-4 py-3">{log.doorName}</td>
+          <td className="px-4 py-3">{log.deviceName}</td>
+          <td className="px-4 py-3">
+            <span
+              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                log.direction === "IN"
+                  ? "bg-blue-100 text-blue-700"
+                  : "bg-orange-100 text-orange-700"
+              }`}
+            >
+              {log.direction}
+            </span>
+          </td>
+          <td className="px-4 py-3 text-xs font-mono text-muted-foreground">
+            {log.logDate ? formatDateTime(log.logDate) : "-"}
+          </td>
+          {/* Yahan verificationTypeName ka data add kar diya hai */}
+          <td className="px-4 py-3 text-xs">
+            {log.verificationTypeName || "-"}
+          </td>
+        </tr>
+      ))}
+</tbody>
             </table>
           </div>
 
