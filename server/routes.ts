@@ -2691,7 +2691,7 @@ export async function registerRoutes(
       }
     },
   );
-  app.get("/api/doors/pending-commands-count", async (req, res) => {
+ app.get("/api/doors/pending-commands-count", async (req, res) => {
   try {
     const { doorId, employeeCode, actionType, page, pageSize } = req.query;
 
@@ -2703,7 +2703,18 @@ export async function registerRoutes(
       pageSize as string
     );
 
-    res.json(result);
+    // Agar request me explicit `page` ya `pageSize` bheja gaya hai, toh Paginated Object return karo (Pending Table ke liye)
+    if (page || pageSize) {
+      return res.json(result);
+    }
+
+    // Agar `page` param nahi hai (jaisa /doors page request bhejta hai), toh result me se `doors` array ya fallback array return karo
+    if (result && Array.isArray(result.doors)) {
+      return res.json(result.doors);
+    }
+
+    // Fallback logic for pure Array return
+    return res.json(Array.isArray(result) ? result : result?.data || []);
   } catch (e: any) {
     res.status(500).json({ message: e.message });
   }
