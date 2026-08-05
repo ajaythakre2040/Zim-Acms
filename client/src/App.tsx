@@ -386,7 +386,7 @@ function AuthenticatedApp() {
                     Emergency Unblock
                   </Button>
                 )}
-                {canViewBlockNewDevice && (
+                {/* {canViewBlockNewDevice && (
                   <Button
                     variant="default"
                     size="sm"
@@ -401,7 +401,7 @@ function AuthenticatedApp() {
                     )}
                     Refresh Doors
                   </Button>
-                )}
+                )} */}
                 {/* Dark Red Logout Button with Icon on Right */}
                 <Button
                   variant="destructive"

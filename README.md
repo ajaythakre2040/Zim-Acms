@@ -1,5 +1,6 @@
 # Zim‑ACMS
-
+# npm install -D @vitejs/plugin-react@latest
+# npx tsx server/utils/encrypted.ts
 Enterprise Access Control Management System (ACMS) — full‑stack app with an Express + TypeScript backend, Drizzle ORM (Postgres) and a React + Vite + Tailwind frontend.
 
 **Tech stack:** Node, TypeScript, Express, Drizzle ORM, PostgreSQL, React, Vite, Tailwind, Zod
@@ -88,7 +89,7 @@ or run the server directly in PowerShell:
 $env:NODE_ENV = "development"
 npx tsx server/index.ts
 ```
-<!-- port alredy use erorr solve -->
+<!-- port alredy use erorr solve -- npx tsx server/utils/encrypted.ts>
 npx kill-port 5000
 
  <!-- jspdf jspdf-autotable insall -->

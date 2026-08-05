@@ -3654,25 +3654,25 @@ export class DatabaseStorage implements IStorage {
               if (!deviceSerial) {
                 continue;
               }
-              for (const emp of allPeople) {
-                const empCode = emp.employeeCode?.trim();
-                if (!empCode) continue;
-                try {
-                  const response = await esslService.syncUserBlockStatus(
-                    empCode,
-                    deviceSerial,
-                    false,
-                  );
-                  await db.insert(blockUnblockLogs).values({
-                    employeeCode: empCode,
-                    deviceId: currentMsId,
-                    type: "unblock",
-                    updatedAt: new Date(),
-                  });
-                } catch (err) {
-                  console.error(`FAILED -> ${empCode} ${deviceSerial}`, err);
-                }
-              }
+              // for (const emp of allPeople) {
+              //   const empCode = emp.employeeCode?.trim();
+              //   if (!empCode) continue;
+              //   try {
+              //     const response = await esslService.syncUserBlockStatus(
+              //       empCode,
+              //       deviceSerial,
+              //       false,
+              //     );
+              //     await db.insert(blockUnblockLogs).values({
+              //       employeeCode: empCode,
+              //       deviceId: currentMsId,
+              //       type: "unblock",
+              //       updatedAt: new Date(),
+              //     });
+              //   } catch (err) {
+              //     console.error(`FAILED -> ${empCode} ${deviceSerial}`, err);
+              //   }
+              // }
             }
           } else {
           }
@@ -4810,7 +4810,7 @@ async executeHardwareSync(
         })
       );
 
-      const logsToInsert: Array<{ employeeCode: string; deviceId: number; type: string; updatedAt: Date }> = [];
+      const logsToInsert: Array<{ employeeCode: string; deviceId: number; type: "block" | "unblock"; updatedAt: Date }> = [];
 
       results.forEach((result, index) => {
         const command = batch[index];
@@ -8119,9 +8119,9 @@ ${fromDate} || ' to ' || ${toDate}
         const deviceId = d.DeviceId || d.DeviceID;
         const deviceName = d.DeviceName || "Unnamed Device";
         if (!allowedSerials.has(cleanSerial)) {
-          console.warn(
-            `🚨 [BLOCKED] Unauthorized/Mismatched Device Blocked: ${rawSerial} (Name: ${deviceName})`,
-          );
+          // console.warn(
+          //   `🚨 [BLOCKED] Unauthorized/Mismatched Device Blocked: ${rawSerial} (Name: ${deviceName})`,
+          // );
           try {
             const validDeviceId =
               deviceId && !isNaN(Number(deviceId)) ? Number(deviceId) : null;
