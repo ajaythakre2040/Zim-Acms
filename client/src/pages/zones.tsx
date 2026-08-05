@@ -732,7 +732,7 @@ export default function ZonesDoorsPage() {
                                 <strong className="text-slate-900 dark:text-white font-semibold">
                                   "{d.name}"
                                 </strong>
-                                ? (Yeh saare doors par 20 minutes ka cooldown laga dega)
+                                
                               </span>
                             </div>
 
