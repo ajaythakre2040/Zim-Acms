@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-
+import { useLocation } from "wouter";
 import {
   Dialog,
   DialogContent,
@@ -45,7 +45,11 @@ import type { Zone, Door, Site } from "@shared/schema";
 import { useQueryClient } from "@tanstack/react-query";
 import { validateNoHtml } from "../lib/validation";
 import { usePermission } from "@/hooks/use-permission";
-import { MAIN_GATE_SYNC, MENU_CONFIG, UNIT_TYPE } from "../../../server/constant";
+import {
+  MAIN_GATE_SYNC,
+  MENU_CONFIG,
+  UNIT_TYPE,
+} from "../../../server/constant";
 import { PaginationSize } from "@/components/ui/pagination";
 type PaginatedResponse<T> = {
   data: T[];
@@ -63,6 +67,7 @@ export default function ZonesDoorsPage() {
       </div>
     );
   }
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [zoneDialog, setZoneDialog] = useState(false);
@@ -116,7 +121,6 @@ export default function ZonesDoorsPage() {
 
     setPagedDoors(data);
   };
-  
 
   // ==========================
   // INITIAL + PAGE CHANGE FETCH
@@ -157,7 +161,7 @@ export default function ZonesDoorsPage() {
   // ==========================
   const doorsWithPending = useMemo(() => {
     const pendingMap = new Map<number, number>(
-      (pendingData || []).map((item: any) => [item.doorId, item.pendingCount])
+      (pendingData || []).map((item: any) => [item.doorId, item.pendingCount]),
     );
 
     return doors.map((door: any) => ({
@@ -165,7 +169,10 @@ export default function ZonesDoorsPage() {
       pendingCount: pendingMap.get(door.id) || 0,
     }));
   }, [doors, pendingData]);
-
+  const totalPendingCount = (pendingData || []).reduce(
+    (acc: number, item: any) => acc + (item.pendingCount || 0),
+    0,
+  );
   useEffect(() => {
     if (mappingDialog && selectedDoorForMapping) {
       setPendingMapping({
@@ -543,7 +550,11 @@ export default function ZonesDoorsPage() {
         return (
           <Badge
             variant={count > 0 ? "destructive" : "secondary"}
-            className={count === 0 ? "bg-green-50 text-green-700 border-green-200 font-normal" : "font-normal"}
+            className={
+              count === 0
+                ? "bg-green-50 text-green-700 border-green-200 font-normal"
+                : "font-normal"
+            }
           >
             {count > 0 ? `${count} Pending` : "0 Pending"}
           </Badge>
@@ -551,277 +562,281 @@ export default function ZonesDoorsPage() {
       },
     },
     {
-  key: "actions",
-  label: "Actions",
-  headerClassName: "text-left",
-  className: "text-left",
-  render: (d: Door) => {
-    // 🔒 Check using the constant
-    const isMainGate = d.code === MAIN_GATE_SYNC.CODE;
+      key: "actions",
+      label: "Actions",
+      headerClassName: "text-left",
+      className: "text-left",
+      render: (d: Door) => {
+        // 🔒 Check using the constant
+        const isMainGate = d.code === MAIN_GATE_SYNC.CODE;
 
-    return (
-      <div className="flex gap-1 justify-start items-center">
-        <TooltipProvider delayDuration={300}>
-          {/* 🔓 EMERGENCY UNLOCK BUTTON */}
-          {canEdit && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
-                  onClick={(e) => {
-                    e.stopPropagation();
+        return (
+          <div className="flex gap-1 justify-start items-center">
+            <TooltipProvider delayDuration={300}>
+              {/* 🔓 EMERGENCY UNLOCK BUTTON */}
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                      onClick={(e) => {
+                        e.stopPropagation();
 
-                    const { dismiss } = toast({
-                      className:
-                        "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-slate-200 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
-                      description: (
-                        <div className="w-full flex flex-col gap-3">
-                          <div className="text-sm text-slate-800 dark:text-slate-200">
-                            <span className="font-bold text-slate-900 dark:text-white mr-1.5">
-                              Emergency Unlock:
-                            </span>
-                            <span>
-                              Are you sure you want to unlock{" "}
-                              <strong className="text-slate-900 dark:text-white font-semibold">
-                                "{d.name}"
-                              </strong>
-                              ?
-                            </span>
-                          </div>
+                        const { dismiss } = toast({
+                          className:
+                            "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-slate-200 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
+                          description: (
+                            <div className="w-full flex flex-col gap-3">
+                              <div className="text-sm text-slate-800 dark:text-slate-200">
+                                <span className="font-bold text-slate-900 dark:text-white mr-1.5">
+                                  Emergency Unlock:
+                                </span>
+                                <span>
+                                  Are you sure you want to unlock{" "}
+                                  <strong className="text-slate-900 dark:text-white font-semibold">
+                                    "{d.name}"
+                                  </strong>
+                                  ?
+                                </span>
+                              </div>
 
-                          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
-                              onClick={() => dismiss()}
-                            >
-                              Cancel
-                            </Button>
+                              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
+                                  onClick={() => dismiss()}
+                                >
+                                  Cancel
+                                </Button>
 
-                            <Button
-                              size="sm"
-                              className="h-8 px-4 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                              onClick={async () => {
-                                dismiss();
-                                try {
-                                  const response = await fetch(
-                                    `/api/doors/${d.id}/emergency-unlock`,
-                                    { method: "POST" }
-                                  );
-                                  const data = await response.json();
+                                <Button
+                                  size="sm"
+                                  className="h-8 px-4 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                  onClick={async () => {
+                                    dismiss();
+                                    try {
+                                      const response = await fetch(
+                                        `/api/doors/${d.id}/emergency-unlock`,
+                                        { method: "POST" },
+                                      );
+                                      const data = await response.json();
 
-                                  if (response.ok) {
+                                      if (response.ok) {
+                                        toast({
+                                          title: "Success",
+                                          description: `Door "${d.name}" unlocked successfully!`,
+                                        });
+                                      } else {
+                                        toast({
+                                          title: "Unlock Failed",
+                                          description:
+                                            data.message ||
+                                            "Failed to unlock door.",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    } catch (err) {
+                                      toast({
+                                        title: "Error",
+                                        description:
+                                          "Error sending unlock command.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                >
+                                  Unlock
+                                </Button>
+                              </div>
+                            </div>
+                          ),
+                        });
+                      }}
+                    >
+                      <LockOpen className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Emergency Unlock</TooltipContent>
+                </Tooltip>
+              )}
+              {/* 🔄 REFRESH DOOR BUTTON */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                    onClick={(e) => {
+                      e.stopPropagation();
+
+                      const { dismiss } = toast({
+                        className:
+                          "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-slate-200 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
+                        description: (
+                          <div className="w-full flex flex-col gap-3">
+                            <div className="text-sm text-slate-800 dark:text-slate-200">
+                              <span className="font-bold text-slate-900 dark:text-white mr-1.5">
+                                Refresh Door:
+                              </span>
+                              <span>
+                                Are you sure you want to refresh block rules for{" "}
+                                <strong className="text-slate-900 dark:text-white font-semibold">
+                                  "{d.name}"
+                                </strong>
+                                ?
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
+                                onClick={() => dismiss()}
+                              >
+                                Cancel
+                              </Button>
+
+                              <Button
+                                size="sm"
+                                className="h-8 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                                onClick={async () => {
+                                  dismiss();
+
+                                  // Loading indicator toast
+                                  toast({
+                                    title: "Processing...",
+                                    description: `Refreshing status for "${d.name}"...`,
+                                  });
+
+                                  try {
+                                    const response = await fetch(
+                                      `/api/doors/${d.id}/refresh`,
+                                      { method: "POST" },
+                                    );
+                                    const data = await response.json();
+
+                                    if (response.ok && data.success) {
+                                      toast({
+                                        title: "Success",
+                                        description:
+                                          data.message ||
+                                          `Door "${d.name}" refreshed successfully!`,
+                                      });
+
+                                      // Doors data UI refresh
+                                      if (typeof fetchDoors === "function") {
+                                        fetchDoors();
+                                      }
+                                    } else {
+                                      toast({
+                                        title: "Refresh Failed",
+                                        description:
+                                          data.message ||
+                                          "Failed to refresh door.",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  } catch (err) {
                                     toast({
-                                      title: "Success",
-                                      description: `Door "${d.name}" unlocked successfully!`,
-                                    });
-                                  } else {
-                                    toast({
-                                      title: "Unlock Failed",
+                                      title: "Error",
                                       description:
-                                        data.message ||
-                                        "Failed to unlock door.",
+                                        "Error sending door refresh command.",
                                       variant: "destructive",
                                     });
                                   }
-                                } catch (err) {
-                                  toast({
-                                    title: "Error",
-                                    description:
-                                      "Error sending unlock command.",
-                                    variant: "destructive",
-                                  });
-                                }
-                              }}
-                            >
-                              Unlock
-                            </Button>
+                                }}
+                              >
+                                Refresh
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                      ),
-                    });
-                  }}
-                >
-                  <LockOpen className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Emergency Unlock</TooltipContent>
-            </Tooltip>
-          )}
-          {/* 🔄 REFRESH DOOR BUTTON */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="icon"
-                variant="ghost"
-                className="h-8 w-8 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                onClick={(e) => {
-                  e.stopPropagation();
+                        ),
+                      });
+                    }}
+                  >
+                    <RotateCw className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Refresh Door Status</TooltipContent>
+              </Tooltip>
 
-                  const { dismiss } = toast({
-                    className:
-                      "fixed top-5 left-1/2 -translate-x-1/2 z-[9999] shadow-2xl border border-slate-200 bg-white dark:bg-slate-900 w-[92vw] max-w-md p-4 rounded-xl !flex !flex-col !items-stretch gap-3",
-                    description: (
-                      <div className="w-full flex flex-col gap-3">
-                        <div className="text-sm text-slate-800 dark:text-slate-200">
-                          <span className="font-bold text-slate-900 dark:text-white mr-1.5">
-                            Refresh Door:
-                          </span>
-                          <span>
-                            Are you sure you want to refresh block rules for{" "}
-                            <strong className="text-slate-900 dark:text-white font-semibold">
-                              "{d.name}"
-                            </strong>
-                            ?
-                          </span>
-                        </div>
+              {/* 📱 ASSIGN HARDWARE */}
+              {canEdit && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-blue-600 hover:bg-blue-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedDoorForMapping(d);
+                        setMappingDialog(true);
+                      }}
+                    >
+                      <MonitorSmartphone className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Assign Hardware</TooltipContent>
+                </Tooltip>
+              )}
 
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 px-3 text-xs font-medium text-slate-600 dark:text-slate-300 border-slate-200 hover:bg-slate-100"
-                            onClick={() => dismiss()}
-                          >
-                            Cancel
-                          </Button>
+              {/* ✏️ EDIT DOOR (Hidden for Main Gate constant CODE) */}
+              {canEdit && !isMainGate && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingDoor(d);
+                        setDoorDialog(true);
+                      }}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit Door</TooltipContent>
+                </Tooltip>
+              )}
 
-                          <Button
-                            size="sm"
-                            className="h-8 px-4 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                            onClick={async () => {
-                              dismiss();
-                              
-                              // Loading indicator toast
-                              toast({
-                                title: "Processing...",
-                                description: `Refreshing status for "${d.name}"...`,
-                              });
+              {/* 🗑️ DELETE DOOR (Hidden for Main Gate constant CODE) */}
+              {canDelete && !isMainGate && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                      onClick={async (e) => {
+                        e.stopPropagation();
 
-                              try {
-                                const response = await fetch(
-                                  `/api/doors/${d.id}/refresh`,
-                                  { method: "POST" }
-                                );
-                                const data = await response.json();
+                        if (window.confirm("Delete this door?")) {
+                          await doorCrud.remove(d.id);
 
-                                if (response.ok && data.success) {
-                                  toast({
-                                    title: "Success",
-                                    description: data.message || `Door "${d.name}" refreshed successfully!`,
-                                  });
-                                  
-                                  // Doors data UI refresh
-                                  if (typeof fetchDoors === "function") {
-                                    fetchDoors();
-                                  }
-                                } else {
-                                  toast({
-                                    title: "Refresh Failed",
-                                    description:
-                                      data.message || "Failed to refresh door.",
-                                    variant: "destructive",
-                                  });
-                                }
-                              } catch (err) {
-                                toast({
-                                  title: "Error",
-                                  description: "Error sending door refresh command.",
-                                  variant: "destructive",
-                                });
-                              }
-                            }}
-                          >
-                            Refresh
-                          </Button>
-                        </div>
-                      </div>
-                    ),
-                  });
-                }}
-              >
-                <RotateCw className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Refresh Door Status</TooltipContent>
-          </Tooltip>
-
-          {/* 📱 ASSIGN HARDWARE */}
-          {canEdit && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-blue-600 hover:bg-blue-50"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedDoorForMapping(d);
-                    setMappingDialog(true);
-                  }}
-                >
-                  <MonitorSmartphone className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Assign Hardware</TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* ✏️ EDIT DOOR (Hidden for Main Gate constant CODE) */}
-          {canEdit && !isMainGate && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingDoor(d);
-                    setDoorDialog(true);
-                  }}
-                >
-                  <Pencil className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Edit Door</TooltipContent>
-            </Tooltip>
-          )}
-
-          {/* 🗑️ DELETE DOOR (Hidden for Main Gate constant CODE) */}
-          {canDelete && !isMainGate && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                  onClick={async (e) => {
-                    e.stopPropagation();
-
-                    if (window.confirm("Delete this door?")) {
-                      await doorCrud.remove(d.id);
-
-                      setTimeout(async () => {
-                        await fetchDoors();
-                      }, 300);
-                    }
-                  }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Delete Door</TooltipContent>
-            </Tooltip>
-          )}
-        </TooltipProvider>
-      </div>
-    );
-  },
-},
+                          setTimeout(async () => {
+                            await fetchDoors();
+                          }, 300);
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Delete Door</TooltipContent>
+                </Tooltip>
+              )}
+            </TooltipProvider>
+          </div>
+        );
+      },
+    },
   ].filter((col) => {
     // AGER 'actions' column hai aur na edit ki permission hai na delete ki, toh column hata do
     if (col.key === "actions") {
@@ -844,7 +859,14 @@ export default function ZonesDoorsPage() {
         </TabsList>
 
         <TabsContent value="doors">
-          <div className="mb-4 flex justify-end">
+          <div className="mb-4 flex justify-end items-center gap-2">
+            <Button
+  variant="destructive"
+  onClick={() => setLocation("/pending-commands")} // 👈 Button click par naya page call hoga
+>
+  Pending Commands ({totalPendingCount || 0})
+</Button>
+
             {canAdd && (
               <Button
                 onClick={() => {

@@ -164,7 +164,7 @@ export const MENU_CONFIG = {
   CONTRACTORS: { title: "Contractors", code: "contr_01", icon: "Users" },
   AUDIT_TRAIL: { title: "Audit Trail", code: "audit_01", icon: "History" },
   NEW_DEVICE_BLOCK: { title: "New Device block All", code: "newDevice_block_01", icon: "Lock" },
-
+  
 } as const;
 
 

@@ -1127,15 +1127,30 @@ export class DatabaseStorage implements IStorage {
     await db.delete(doors).where(eq(doors.id, id));
   }
 
-  async getPendingDeviceCommandsCountByDoor() {
+  async getPendingDeviceCommandsCountByDoor(
+  doorId?: number | string,
+  employeeCode?: string,
+  actionType?: string,
+  page?: number | string,
+  pageSize?: number | string,
+) {
   // Step 1: Active Doors and Devices fetch karein
   const { activeDoors } = await getActiveDoorsWithDevices();
 
   if (activeDoors.length === 0) {
-    return [];
+    return withPagination(null, null, [], page, pageSize);
   }
 
-  const activeDoorIds = activeDoors.map((d) => d.id);
+  // Filter Active Doors if doorId is provided
+  const filteredActiveDoors = doorId && doorId !== "ALL"
+    ? activeDoors.filter((d) => Number(d.id) === Number(doorId))
+    : activeDoors;
+
+  if (filteredActiveDoors.length === 0) {
+    return withPagination(null, null, [], page, pageSize);
+  }
+
+  const activeDoorIds = filteredActiveDoors.map((d) => d.id);
 
   // Step 2: In active doors ki mappings fetch karein
   const activeMappings = await db
@@ -1175,7 +1190,7 @@ export class DatabaseStorage implements IStorage {
 
   // Edge case: Agar devices hi mapped nahi hain
   if (allDeviceMsIds.size === 0) {
-    return activeDoors.map((door) => ({
+    const emptyResult = filteredActiveDoors.map((door) => ({
       doorId: door.id,
       doorName: door.name,
       doorCode: door.code,
@@ -1183,29 +1198,43 @@ export class DatabaseStorage implements IStorage {
       deviceIds: [],
       pendingDetails: [],
     }));
+    return withPagination(null, null, emptyResult, page, pageSize);
   }
 
-  // Step 3: MSSQL se Pending Commands, Cleaned Employee Code, & Employee Name Join karke fetch karein
+  // Step 3: MSSQL Query with Dynamic Filters
   const deviceIdsArray = Array.from(allDeviceMsIds);
+
+  let mssqlWhereClause = `dc.Status = 'Pending' AND dc.DeviceID IN (${deviceIdsArray.join(",")})`;
+
+  // Optional MSSQL Filters
+  if (actionType && actionType !== "ALL") {
+    if (actionType.toLowerCase() === "unblock") {
+      mssqlWhereClause += ` AND dc.Title LIKE '%UnBlock User%'`;
+    } else if (actionType.toLowerCase() === "block") {
+      mssqlWhereClause += ` AND dc.Title LIKE '%Block User%' AND dc.Title NOT LIKE '%UnBlock User%'`;
+    }
+  }
 
   const mssqlResult = await mssqlPool
     .request()
     .query(`
       SELECT 
         dc.DeviceID,
+        dev.DeviceName,
         dc.DeviceCommandId,
         dc.Title,
         dc.Type,
         dc.CreationDate,
-        -- Extract Employee Code by removing 'Block User ' and 'UnBlock User '
         LTRIM(RTRIM(
           REPLACE(
             REPLACE(dc.Title, 'UnBlock User ', ''), 
             'Block User ', ''
           )
         )) AS ExtractedEmpCode,
-        e.EmployeeName -- Employees table se Name
+        e.EmployeeName
       FROM DeviceCommands dc
+      LEFT JOIN Devices dev 
+        ON dc.DeviceID = dev.DeviceID
       LEFT JOIN Employees e 
         ON LTRIM(RTRIM(
           REPLACE(
@@ -1213,21 +1242,25 @@ export class DatabaseStorage implements IStorage {
             'Block User ', ''
           )
         )) = LTRIM(RTRIM(e.EmployeeCode))
-      WHERE dc.Status = 'Pending'
-        AND dc.DeviceID IN (${deviceIdsArray.join(",")})
+      WHERE ${mssqlWhereClause}
       ORDER BY dc.CreationDate DESC
     `);
 
-  // DeviceID -> List of Pending Items mapping banao
-  const devicePendingMap = new Map<number, Array<{
-    commandId: number;
-    employeeCode: string;
-    employeeName: string | null;
-    actionType: string;
-    creationDate: string;
-  }>>();
+  // DeviceID -> List of Pending Items mapping
+  const devicePendingMap = new Map<number, Array<any>>();
 
   (mssqlResult.recordset || []).forEach((row: any) => {
+    const extractedCode = row.ExtractedEmpCode || "";
+    const empName = row.EmployeeName || "Unknown";
+
+    // Filter by Employee Code / Employee Name if passed
+    if (employeeCode && employeeCode.trim() !== "") {
+      const search = employeeCode.toLowerCase().trim();
+      const matchCode = extractedCode.toLowerCase().includes(search);
+      const matchName = empName.toLowerCase().includes(search);
+      if (!matchCode && !matchName) return;
+    }
+
     const devId = Number(row.DeviceID);
     if (!devicePendingMap.has(devId)) {
       devicePendingMap.set(devId, []);
@@ -1235,27 +1268,21 @@ export class DatabaseStorage implements IStorage {
 
     devicePendingMap.get(devId)!.push({
       commandId: row.DeviceCommandId,
-      employeeCode: row.ExtractedEmpCode,
-      employeeName: row.EmployeeName || "Unknown",
+      deviceName: row.DeviceName || "Unknown Device",
+      employeeCode: extractedCode,
+      employeeName: empName,
       actionType: row.Title?.toLowerCase().includes("unblock") ? "Unblock" : "Block",
       creationDate: row.CreationDate,
     });
   });
 
-  // Step 4: Final Door-wise Response Prepare Karein
-  return activeDoors.map((door) => {
+  // Step 4: Final Door-wise Aggregation
+  const finalResult = filteredActiveDoors.map((door) => {
     const associatedDeviceIds = Array.from(
       doorToDeviceMsIdsMap.get(door.id) || []
     );
 
-    const pendingDetails: Array<{
-      deviceId: number;
-      commandId: number;
-      employeeCode: string;
-      employeeName: string | null;
-      actionType: string;
-      creationDate: string;
-    }> = [];
+    const pendingDetails: Array<any> = [];
 
     associatedDeviceIds.forEach((devId) => {
       const items = devicePendingMap.get(devId) || [];
@@ -1273,9 +1300,12 @@ export class DatabaseStorage implements IStorage {
       doorCode: door.code,
       pendingCount: pendingDetails.length,
       deviceIds: associatedDeviceIds,
-      pendingDetails, // Employee-wise pending list
+      pendingDetails,
     };
   });
+
+  // Step 5: Return with Pagination (Same like getRangeReport)
+  return withPagination(null, null, finalResult, page, pageSize);
 }
   async createDevice(data: InsertDevice): Promise<Device> {
     let mssqlId: number | null = null;

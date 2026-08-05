@@ -79,7 +79,7 @@ import visitors from "./pages/visitor-details";
 import VisitorLogs from "./pages/VisitorLogs";
 import LiveVisitorLogsDashboard from "./pages/VisitorLiveLogs";
 import VisitorCards from "./pages/VisitorCards";
-
+import PendingCommandsPage from "@/pages/pending-commands";
 function StandardRouter() {
   return (
     <Switch>
@@ -129,6 +129,7 @@ function StandardRouter() {
       <Route path="/visitor-logs" component={LiveVisitorLogsDashboard} />
       <Route path="/visitor-cards" component={VisitorCards} />
       <Route path="/contractors/view/:id" component={ContractorView} />
+      <Route path="/pending-commands" component={PendingCommandsPage} />
       <Route component={NotFound} />
     </Switch>
   );

@@ -2693,7 +2693,17 @@ export async function registerRoutes(
   );
   app.get("/api/doors/pending-commands-count", async (req, res) => {
   try {
-    res.json(await storage.getPendingDeviceCommandsCountByDoor());
+    const { doorId, employeeCode, actionType, page, pageSize } = req.query;
+
+    const result = await storage.getPendingDeviceCommandsCountByDoor(
+      doorId as string,
+      employeeCode as string,
+      actionType as string,
+      page as string,
+      pageSize as string
+    );
+
+    res.json(result);
   } catch (e: any) {
     res.status(500).json({ message: e.message });
   }
