@@ -423,6 +423,9 @@ export class DatabaseStorage implements IStorage {
           designation_name: schema.employeeActivityLogs.designationName,
           door_name: schema.employeeActivityLogs.doorName,
           door_id: schema.employeeActivityLogs.doorId,
+          verificationtype: schema.employeeActivityLogs.verificationtype,
+          verification_type_name: schema.employeeActivityLogs.verificationTypeName,
+
         })
         .from(schema.employeeActivityLogs)
         .where(conditions.length ? and(...conditions) : undefined)
