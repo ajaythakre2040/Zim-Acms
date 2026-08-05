@@ -356,7 +356,7 @@ function ReportFilters({
                       variant="outline"
                       role="combobox"
                       className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground hover:bg-accent hover:text-accent-foreground cursor-pointer"
-  style={{ borderColor: 'hsl(var(--input))' }}
+                      style={{ borderColor: 'hsl(var(--input))' }}
                     >
 
                       <span className="truncate">
