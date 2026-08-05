@@ -1705,7 +1705,6 @@ export async function registerRoutes(
       200,
     ),
   );
-
   app.post(
     "/api/doors/:id/refresh",
     isAuthenticated,
@@ -1716,17 +1715,12 @@ export async function registerRoutes(
         const loginId = req.session?.userId;
         if (!loginId)
           throw new Error("User session not found. Please re-login.");
-
         const doorId = Number(req.params.id);
         if (isNaN(doorId)) {
           throw new Error("Invalid Door ID provided.");
         }
-
         const user = await storage.getUser(loginId.toString());
-
-        // Dedicated single door function call
         const result = await storage.executeSingleDoorBlock( doorId, loginId, user?.username || "Admin User", );
-
         if (result.status === "Empty" || result.status === "Skipped") {
           return {
             success: true,
@@ -1737,7 +1731,6 @@ export async function registerRoutes(
             },
           };
         }
-
         return {
           success: true,
           message: `Door refresh initiated successfully for ${result.processedCount} records.`,
@@ -1750,7 +1743,6 @@ export async function registerRoutes(
       200,
     ),
   );
-  
   app.get("/api/reports/door-count", requireAuth, async (req, res) => {
     try {
       const { dateFrom, dateTo, deviceId } = req.query;
@@ -2694,7 +2686,6 @@ export async function registerRoutes(
  app.get("/api/doors/pending-commands-count", async (req, res) => {
   try {
     const { doorId, employeeCode, actionType, page, pageSize } = req.query;
-
     const result = await storage.getPendingDeviceCommandsCountByDoor(
       doorId as string,
       employeeCode as string,
@@ -2702,18 +2693,12 @@ export async function registerRoutes(
       page as string,
       pageSize as string
     );
-
-    // Agar request me explicit `page` ya `pageSize` bheja gaya hai, toh Paginated Object return karo (Pending Table ke liye)
     if (page || pageSize) {
       return res.json(result);
     }
-
-    // Agar `page` param nahi hai (jaisa /doors page request bhejta hai), toh result me se `doors` array ya fallback array return karo
     if (result && Array.isArray(result.doors)) {
       return res.json(result.doors);
     }
-
-    // Fallback logic for pure Array return
     return res.json(Array.isArray(result) ? result : result?.data || []);
   } catch (e: any) {
     res.status(500).json({ message: e.message });
