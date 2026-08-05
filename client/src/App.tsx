@@ -442,7 +442,7 @@ function AuthenticatedApp() {
                       : "Emergency Unblock"}
                   </Button>
                 )}
-                {canViewBlockNewDevice && (
+                {/* {canViewBlockNewDevice && (
                   <Button
                     variant="default"
                     size="sm"
@@ -459,7 +459,7 @@ function AuthenticatedApp() {
                       ? `Refresh Doors (${Math.floor(refreshCooldown / 60)}:${String(refreshCooldown % 60).padStart(2, '0')})`
                       : "Refresh Doors"}
                   </Button>
-                )}
+                )} */}
                 {/* Dark Red Logout Button with Icon on Right */}
                 <Button
                   variant="destructive"

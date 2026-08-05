@@ -3512,8 +3512,10 @@ export class DatabaseStorage implements IStorage {
       })
       .from(doors)
       .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+
     // Dynamic pattern for MS SQL LIKE query (e.g. "zimvis%")
     const visitorPattern = `${VISITOR_PREFIX}%`;
+
     const msSqlData = await mssqlPool
       .request()
       .input("filterDate", date)
@@ -3525,34 +3527,93 @@ export class DatabaseStorage implements IStorage {
           l.DeviceId, 
           d.DeviceName,
           l.Direction, 
-          l.LogDate 
+          l.LogDate,
+          l.VerificationType,
+          v.Name AS VerificationTypeName
         FROM DeviceLogs l
         LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
         LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+        LEFT JOIN VerificationType v ON l.VerificationType = v.Code
         WHERE CAST(l.LogDate AS DATE) = @filterDate
           AND l.EmployeeCode NOT LIKE @visitorPrefix -- Uses dynamic VISITOR_PREFIX
         ORDER BY l.LogDate DESC
       `);
+
     const logs = msSqlData.recordset;
+
     const machineFeed = logs.map((log) => {
       const door = doorMappings.find(
         (m) =>
           (m.inIds || []).includes(log.DeviceId) ||
           (m.outIds || []).includes(log.DeviceId),
       );
+
       return {
         employeeName: log.EmployeeName || "Unknown",
         employeeCode: log.EmployeeCode,
         deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
         direction: log.Direction,
         logDate: log.LogDate,
+        verificationType: log.VerificationType,
+        verificationTypeName: log.VerificationTypeName || "Unknown",
         doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
       };
     });
+
     return {
       machineFeed,
     };
-  }
+}
+  // async getMachineAccessLogs(date: string) {
+  //   const doorMappings = await db
+  //     .select({
+  //       doorName: doors.name,
+  //       inIds: doorDevices.inDeviceIds,
+  //       outIds: doorDevices.outDeviceIds,
+  //     })
+  //     .from(doors)
+  //     .leftJoin(doorDevices, eq(doors.id, doorDevices.doorId));
+  //   // Dynamic pattern for MS SQL LIKE query (e.g. "zimvis%")
+  //   const visitorPattern = `${VISITOR_PREFIX}%`;
+  //   const msSqlData = await mssqlPool
+  //     .request()
+  //     .input("filterDate", date)
+  //     .input("visitorPrefix", visitorPattern) // Parameterized Input
+  //     .query(`
+  //       SELECT 
+  //         e.EmployeeName, 
+  //         l.EmployeeCode, 
+  //         l.DeviceId, 
+  //         d.DeviceName,
+  //         l.Direction, 
+  //         l.LogDate 
+  //       FROM DeviceLogs l
+  //       LEFT JOIN Employees e ON l.EmployeeCode = e.EmployeeCode
+  //       LEFT JOIN Devices d ON l.DeviceId = d.DeviceId
+  //       WHERE CAST(l.LogDate AS DATE) = @filterDate
+  //         AND l.EmployeeCode NOT LIKE @visitorPrefix -- Uses dynamic VISITOR_PREFIX
+  //       ORDER BY l.LogDate DESC
+  //     `);
+  //   const logs = msSqlData.recordset;
+  //   const machineFeed = logs.map((log) => {
+  //     const door = doorMappings.find(
+  //       (m) =>
+  //         (m.inIds || []).includes(log.DeviceId) ||
+  //         (m.outIds || []).includes(log.DeviceId),
+  //     );
+  //     return {
+  //       employeeName: log.EmployeeName || "Unknown",
+  //       employeeCode: log.EmployeeCode,
+  //       deviceName: log.DeviceName || `Machine ${log.DeviceId}`,
+  //       direction: log.Direction,
+  //       logDate: log.LogDate,
+  //       doorName: door ? door.doorName : log.DeviceName || "Unknown Door",
+  //     };
+  //   });
+  //   return {
+  //     machineFeed,
+  //   };
+  // }
   async getRoleEligibleDevices(): Promise<any[]> {
     try {
       const msDataRaw = await dbMsSql
