@@ -126,6 +126,7 @@ import {
   visitorMaster,
   InsertVisitorMaster,
   employeeDoorAssignments,
+  cabinLockouts,
 } from "@shared/schema";
 import * as schema from "@shared/schema";
 import { db, dbMsSql, mssqlPool, mapMsSqlToSchema } from "./db";
@@ -2492,51 +2493,112 @@ export class DatabaseStorage implements IStorage {
       }
     });
   }
+  // async outVisitor(id: number): Promise<Visitor> {
+  //   const [currentVisitor] = await db
+  //     .select()
+  //     .from(visitors)
+  //     .where(eq(visitors.id, id))
+  //     .limit(1);
+  //   if (!currentVisitor) {
+  //     throw new Error(
+  //       `Visitor checkout failed: Record with ID '${id}' not found.`,
+  //     );
+  //   }
+  //   const now = new Date();
+  //   const localISTISO = new Date(
+  //     now.getTime() - now.getTimezoneOffset() * 60000,
+  //   )
+  //     .toISOString()
+  //     .slice(0, 19);
+  //   return await db.transaction(async (tx) => {
+  //     try {
+  //       const [updated] = await tx
+  //         .update(visitors)
+  //         .set({
+  //           permissionDateTo: localISTISO,
+  //           updatedAt: new Date(),
+  //         })
+  //         .where(eq(visitors.id, id))
+  //         .returning();
+  //       if (currentVisitor.employeeCode) {
+  //         await tx
+  //           .update(visitorMaster)
+  //           .set({
+  //             isAssigned: false,
+  //             updatedAt: new Date(),
+  //           })
+  //           .where(eq(visitorMaster.employeeCode, currentVisitor.employeeCode));
+  //       }
+  //       return updated;
+  //     } catch (pgErr: any) {
+  //       tx.rollback();
+  //       throw new Error(
+  //         `Postgres checkout failed and rolled back: ${pgErr.message}`,
+  //       );
+  //     }
+  //   });
+  // }
+
   async outVisitor(id: number): Promise<Visitor> {
-    const [currentVisitor] = await db
-      .select()
-      .from(visitors)
-      .where(eq(visitors.id, id))
-      .limit(1);
-    if (!currentVisitor) {
-      throw new Error(
-        `Visitor checkout failed: Record with ID '${id}' not found.`,
-      );
-    }
-    const now = new Date();
-    const localISTISO = new Date(
-      now.getTime() - now.getTimezoneOffset() * 60000,
-    )
-      .toISOString()
-      .slice(0, 19);
-    return await db.transaction(async (tx) => {
-      try {
-        const [updated] = await tx
-          .update(visitors)
+  const [currentVisitor] = await db
+    .select()
+    .from(visitors)
+    .where(eq(visitors.id, id))
+    .limit(1);
+
+  if (!currentVisitor) {
+    throw new Error(
+      `Visitor checkout failed: Record with ID '${id}' not found.`,
+    );
+  }
+
+  const now = new Date();
+  const localISTISO = new Date(
+    now.getTime() - now.getTimezoneOffset() * 60000,
+  )
+    .toISOString()
+    .slice(0, 19);
+
+  return await db.transaction(async (tx) => {
+    try {
+      // 1. Visitors table update
+      const [updated] = await tx
+        .update(visitors)
+        .set({
+          permissionDateTo: localISTISO,
+          updatedAt: new Date(),
+        })
+        .where(eq(visitors.id, id))
+        .returning();
+
+      if (currentVisitor.employeeCode) {
+        // 2. Reset visitorMaster fields
+        await tx
+          .update(visitorMaster)
           .set({
-            permissionDateTo: localISTISO,
+            isAssigned: false,
+            ruleid: null,
+            lastPunchDoorId: null,
+            isLockoutEnabled: false,
             updatedAt: new Date(),
           })
-          .where(eq(visitors.id, id))
-          .returning();
-        if (currentVisitor.employeeCode) {
-          await tx
-            .update(visitorMaster)
-            .set({
-              isAssigned: false,
-              updatedAt: new Date(),
-            })
-            .where(eq(visitorMaster.employeeCode, currentVisitor.employeeCode));
-        }
-        return updated;
-      } catch (pgErr: any) {
-        tx.rollback();
-        throw new Error(
-          `Postgres checkout failed and rolled back: ${pgErr.message}`,
-        );
+          .where(eq(visitorMaster.employeeCode, currentVisitor.employeeCode));
+
+        // 3. Delete records from cabinLockouts using employeeCode
+        await tx
+          .delete(cabinLockouts)
+          .where(eq(cabinLockouts.employeeCode, currentVisitor.employeeCode));
       }
-    });
-  }
+
+      return updated;
+    } catch (pgErr: any) {
+      tx.rollback();
+      throw new Error(
+        `Postgres checkout failed and rolled back: ${pgErr.message}`,
+      );
+    }
+  });
+}
   async getVisits(status?: string): Promise<Visit[]> {
     if (status) {
       return await db
