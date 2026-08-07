@@ -299,17 +299,14 @@ export default function VisitorCardsPage() {
   // 2. Visitor Form Fields
   const visitorFields: FieldConfig[] = [
     { key: "nameOfVisitor", label: "Visitor Name", required: true },
-    {
-      key: "contactNo",
-      label: "Contact Number",
-      required: true,
-      onChange: (e: any) => {
-        const val = e.target?.value?.trim() || "";
-        if (/^\d{10}$/.test(val) && Number(val.charAt(0)) > 5) {
-          clearFieldError("contactNo");
-        }
-      },
-    },
+  {
+  key: "contactNo",
+  label: "Contact Number",
+  type: "text",
+  required: true,
+  maxLength: 10,
+  pattern: "^[0-9]*$", // Direct non-numeric entry block karega
+},
     {
       key: "emailAddress",
       label: "Email Address",
@@ -1035,53 +1032,53 @@ export default function VisitorCardsPage() {
               : undefined
         }
         onSubmit={async (data) => {
-          setErrors({});
+  setErrors({});
 
-          const validationErrors = validateNoHtml(data) || {};
+  const validationErrors = validateNoHtml(data) || {};
 
-          const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
-          const cleanedContact = String(data.contactNo || "").trim();
-          const cleanedEmail = String(data.emailAddress || "").trim();
+  const cleanedVisitorName = String(data.nameOfVisitor || "").trim();
+  const cleanedContact = String(data.contactNo || "").trim();
+  const cleanedEmail = String(data.emailAddress || "").trim();
 
-          const selectedWhomToMeet = String(data.whomToMeet || "").trim();
-          const selectedInTime = String(data.permissionDateFrom || "").trim();
+  const selectedWhomToMeet = String(data.whomToMeet || "").trim();
+  const selectedInTime = String(data.permissionDateFrom || "").trim();
 
-          // 1. Visitor Name Check
-          if (!cleanedVisitorName) {
-            validationErrors.nameOfVisitor = "Visitor name is required.";
-          }
+  // 1. Visitor Name Check
+  if (!cleanedVisitorName) {
+    validationErrors.nameOfVisitor = "Visitor name is required.";
+  }
 
-          // 2. Whom To Meet Validation
-          if (
-            !selectedWhomToMeet ||
-            selectedWhomToMeet === "undefined" ||
-            selectedWhomToMeet === "null"
-          ) {
-            validationErrors.whomToMeet = "Please select the employee to meet.";
-          }
+  // 2. Whom To Meet Validation
+  if (
+    !selectedWhomToMeet ||
+    selectedWhomToMeet === "undefined" ||
+    selectedWhomToMeet === "null"
+  ) {
+    validationErrors.whomToMeet = "Please select the employee to meet.";
+  }
 
-          // 3. In Time Validation
-          if (
-            !selectedInTime ||
-            selectedInTime === "undefined" ||
-            selectedInTime === "null"
-          ) {
-            validationErrors.permissionDateFrom = "Please select the In Time.";
-          }
+  // 3. In Time Validation
+  if (
+    !selectedInTime ||
+    selectedInTime === "undefined" ||
+    selectedInTime === "null"
+  ) {
+    validationErrors.permissionDateFrom = "Please select the In Time.";
+  }
 
-          // 4. Contact Number Format Checks
-          if (!cleanedContact) {
-            validationErrors.contactNo = "Contact number is required.";
-          } else if (!/^\d{10}$/.test(cleanedContact)) {
-            validationErrors.contactNo =
-              "Contact number must be exactly 10 digits.";
-          } else {
-            const firstDigit = Number(cleanedContact.charAt(0));
-            if (firstDigit <= 5) {
-              validationErrors.contactNo =
-                "Contact number must start with 6, 7, 8, or 9.";
-            }
-          }
+  // 4. Contact Number Check (Simplified using RegEx)
+  if (!cleanedContact) {
+    validationErrors.contactNo = "Contact number is required.";
+  } else if (!/^[6-9]\d{9}$/.test(cleanedContact)) {
+    validationErrors.contactNo =
+      "Enter a valid mobile number (must be 10 digits and start with 6, 7, 8, or 9).";
+  }
+
+  // Agar validationErrors me koi bhi keys hain to error state update karein
+  if (Object.keys(validationErrors).length > 0) {
+    setErrors(validationErrors);
+    return;
+  }
 
           // 5. Email Validation
           if (
