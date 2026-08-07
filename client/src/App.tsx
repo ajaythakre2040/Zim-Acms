@@ -127,7 +127,7 @@ function StandardRouter() {
       <Route path="/contractors/edit/:id" component={ContractorFormPage} />
       <Route path="/visitor-details" component={visitors} />
       <Route path="/visitor-logs" component={LiveVisitorLogsDashboard} />
-      <Route path="/visitor-cards" component={VisitorCards} />
+      <Route path="/visitor-cards-master" component={VisitorCards} />
       <Route path="/contractors/view/:id" component={ContractorView} />
       <Route path="/pending-commands" component={PendingCommandsPage} />
       <Route component={NotFound} />
