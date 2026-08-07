@@ -235,6 +235,7 @@ export async function runMasterAuthSync() {
                     empCode,
                     punchTime,
                     doorId: doorDetails.id,
+                    updatedLockoutFlag: updatedLockoutFlag,
                     ruleId: ruleIdToStore
                 });
             } else {
