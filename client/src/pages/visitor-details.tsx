@@ -485,7 +485,7 @@ export default function VisitorsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 w-full">
         <div className="relative max-w-sm w-full">
           <input
-            placeholder="Search registry by name, company, host..."
+            placeholder="Search visitors..."
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);

@@ -301,6 +301,7 @@ export default function MenuPage() {
             columns={columns}
             data={flattenedData}
             isLoading={isLoading}
+            pageSize={100}
           />
         </div>
       </div>
