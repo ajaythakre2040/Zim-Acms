@@ -1783,7 +1783,7 @@ export class DatabaseStorage implements IStorage {
   private async executeHardwareSyncBackground(employeeCode: string) {
     await new Promise((resolve) => setTimeout(resolve, 2000));
     try {
-      await this.executeHardwareSyncPeople(employeeCode, null, false);
+      await this.executeHardwareSyncPeople(employeeCode, null, true);
     } catch (err: any) {
       console.error(
         `❌ Background Hardware Sync Failed for ${employeeCode}:`,
