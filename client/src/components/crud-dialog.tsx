@@ -22,6 +22,7 @@ import { useState, useEffect } from "react";
 export interface FieldConfig {
   key: string;
   label: string;
+  maxLength?: number;
   type?:
   | "text"
   | "number"
@@ -44,7 +45,7 @@ export interface FieldConfig {
   onChange?: (
     value: any,
     currentForm: Record<string, any>,
-    setForm: (data: any) => void,
+    setForm: (data: any) => void, 
   ) => void;
 }
 
@@ -301,6 +302,7 @@ export function CrudDialog({
               ) : f.type === "textarea" ? (
                 <Textarea
                   id={f.key}
+                  maxLength={f.maxLength}
                   className={
                     errors?.[f.key]
                       ? "border-destructive focus-visible:ring-destructive bg-rose-50/50"
@@ -320,32 +322,39 @@ export function CrudDialog({
                 />
               ) : (
                 <Input
-                  id={f.key}
-                  type={f.type === "time" ? "time" : f.type || "text"}
-                  className={
-                    errors?.[f.key]
-                      ? "border-destructive focus-visible:ring-destructive bg-rose-50/50"
-                      : ""
-                  }
-                  // Safe value check for numbers/nulls
-                  value={
-                    form[f.key] === undefined || form[f.key] === null
-                      ? ""
-                      : form[f.key]
-                  }
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (f.pattern) {
-                      const regex = new RegExp(f.pattern);
-                      if (val !== "" && !regex.test(val)) return;
-                    }
-                    setForm((p) => ({ ...p, [f.key]: val }));
-                  }}
-                  required={f.required}
-                  placeholder={f.placeholder}
-                  readOnly={f.readOnly}
-                  disabled={f.disabled}
-                />
+  id={f.key}
+  type={f.type === "time" ? "time" : f.type || "text"}
+  maxLength={f.maxLength} // 👈 1. Pass maxLength prop
+  className={
+    errors?.[f.key]
+      ? "border-destructive focus-visible:ring-destructive bg-rose-50/50"
+      : ""
+  }
+  value={
+    form[f.key] === undefined || form[f.key] === null
+      ? ""
+      : form[f.key]
+  }
+  onChange={(e) => {
+    const val = e.target.value;
+    if (f.pattern) {
+      const regex = new RegExp(f.pattern);
+      if (val !== "" && !regex.test(val)) return;
+    }
+
+    const nextForm = { ...form, [f.key]: val };
+    setForm(nextForm);
+
+    // 👈 2. Custom onChange trigger karein
+    if (f.onChange) {
+      f.onChange(val, nextForm, setForm);
+    }
+  }}
+  required={f.required}
+  placeholder={f.placeholder}
+  readOnly={f.readOnly}
+  disabled={f.disabled}
+/>
               )}
               {errors?.[f.key] && (
                 <p className="text-[12px] font-medium text-destructive mt-1 animate-in fade-in slide-in-from-top-1">
