@@ -159,7 +159,7 @@ export const MENU_CONFIG = {
   EMERGENCY_UNBLOCK: { title: "Emergency Unblock All", code: "act_emg_01", icon: "RefreshCw" },
   VISITORS: { title: "Visitors", code: "visit_main", icon: "Users" },
   VISITORS_DETAILS: { title: "Visitor Details", code: "visit_details", icon: "Info" },
-  VISITOR_CARDS: { title: "Visitor Cards", code: "visit_cards", icon: "CreditCard" },
+  VISITOR_CARDS: { title: "Visitor Cards Master", code: "visit_cards", icon: "CreditCard" },
   VISITOR_LOGS: { title: "Visitor Logs", code: "visit_logs", icon: "FileText" },
   CONTRACTORS: { title: "Contractors", code: "contr_01", icon: "Users" },
   AUDIT_TRAIL: { title: "Audit Trail", code: "audit_01", icon: "History" },
