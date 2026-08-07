@@ -361,7 +361,7 @@ export default function VisitorCardsPage() {
     { key: "purpose", label: "Purpose of Visit" },
     {
       key: "permissionDateFrom",
-      label: "In Time *",
+      label: "Assign Time *",
       type: "datetime-local" as any,
       onChange: (e: any) => {
         const val = e.target?.value?.trim() || "";
