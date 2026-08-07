@@ -377,7 +377,7 @@ export default function VisitorsPage() {
     },
     {
       key: "permissionDateFrom",
-      label: "In Time",
+      label: "Assign Time",
       render: (v: any) => {
         if (!v.permissionDateFrom) return "-";
         const date = new Date(v.permissionDateFrom);
@@ -394,7 +394,7 @@ export default function VisitorsPage() {
     },
     {
       key: "permissionDateTo",
-      label: "Out Time",
+      label: "Check Out Time",
       render: (v: any) => {
         if (!v.permissionDateTo) return "-";
         const date = new Date(v.permissionDateTo);

@@ -394,20 +394,41 @@ export default function VisitorCardsPage() {
       label: "Card Number",
       render: (s: any) => <span className="font-medium">{s.rfidCardNo}</span>,
     },
+    // {
+    //   key: "is_lockout_enabled",
+    //   label: "Cabin Lockout",
+    //   hideOnMobile: true,
+    //   render: (s: any) => {
+    //     const isEnabled = s.isLockoutEnabled;
+    //     return (
+    //       <Badge
+    //         variant={isEnabled ? "destructive" : "outline"}
+    //         className={`text-xs font-bold ${
+    //           isEnabled
+    //             ? "bg-red-50 text-red-600 border-red-300"
+    //             : "bg-green-50 text-green-600 border-green-300"
+    //         }`}
+    //       >
+    //         {isEnabled ? "ACTIVE" : "INACTIVE"}
+    //       </Badge>
+    //     );
+    //   },
+    // },
     {
       key: "is_lockout_enabled",
       label: "Cabin Lockout",
       hideOnMobile: true,
       render: (s: any) => {
-        const isEnabled = s.isLockoutEnabled;
+        // isLockoutEnabled field se value pakdi (camelCase aur snake_case dono support ke sath)
+        const isEnabled = Boolean(s.isLockoutEnabled ?? s.is_lockout_enabled);
+
         return (
           <Badge
             variant={isEnabled ? "destructive" : "outline"}
-            className={`text-xs font-bold ${
-              isEnabled
-                ? "bg-red-50 text-red-600 border-red-300"
-                : "bg-green-50 text-green-600 border-green-300"
-            }`}
+            className={`text-xs font-bold ${isEnabled
+                ? "bg-red-50 text-red-600 border-red-300"     // Active = Red
+                : "bg-green-50 text-green-600 border-green-300" // Inactive = Green
+              }`}
           >
             {isEnabled ? "ACTIVE" : "INACTIVE"}
           </Badge>
