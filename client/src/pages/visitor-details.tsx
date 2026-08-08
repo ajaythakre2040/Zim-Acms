@@ -23,6 +23,7 @@ import { PaginationSize } from "@/components/ui/pagination";
 
 // Shadcn UI Components
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { formatDateTime } from "@/lib/utils";
 
 export default function VisitorsPage() {
   const confirm = useConfirm();
@@ -846,31 +847,13 @@ export default function VisitorsPage() {
                           <strong className="text-emerald-600 font-medium">
                             Assign Time :{" "}
                           </strong>
-                          {viewingVisitor.permissionDateFrom
-                            ? (() => {
-                                const d = new Date(
-                                  viewingVisitor.permissionDateFrom,
-                                );
-                                return isNaN(d.getTime())
-                                  ? viewingVisitor.permissionDateFrom
-                                  : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-                              })()
-                            : "-"}
+                          {formatDateTime(viewingVisitor.permissionDateFrom)}
                         </div>
                         <div>
                           <strong className="text-rose-600 font-medium">
                             Check Out :{" "}
                           </strong>
-                          {viewingVisitor.permissionDateTo
-                            ? (() => {
-                                const d = new Date(
-                                  viewingVisitor.permissionDateTo,
-                                );
-                                return isNaN(d.getTime())
-                                  ? viewingVisitor.permissionDateTo
-                                  : `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
-                              })()
-                            : "-"}
+                          {formatDateTime(viewingVisitor.permissionDateTo)}
                         </div>
                       </span>
                     </div>
@@ -880,6 +863,24 @@ export default function VisitorsPage() {
                       </span>
                       <span className="font-medium text-foreground">
                         {viewingVisitor.remark || "-"}
+                      </span>
+                    </div>
+
+                    {/* Main In Punch & Main Out Punch Fields */}
+                    <div>
+                      <span className="text-muted-foreground block text-xs">
+                        Main In Punch
+                      </span>
+                      <span className="font-medium text-slate-800 text-xs mt-1 block">
+                        {formatDateTime(viewingVisitor.mainGateInTime)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground block text-xs">
+                        Main Out Punch
+                      </span>
+                      <span className="font-medium text-slate-800 text-xs mt-1 block">
+                        {formatDateTime(viewingVisitor.mainGateOutTime)}
                       </span>
                     </div>
                   </div>
