@@ -773,7 +773,7 @@ export default function VisitorsPage() {
                         Whom To Meet
                       </span>
                       <span className="font-medium text-foreground">
-                        {viewingVisitor.whomToMeet || "-"}
+                        {viewingVisitor.employeeName || "-"}
                       </span>
                     </div>
                     <div>

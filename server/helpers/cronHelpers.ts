@@ -116,6 +116,7 @@ export interface VisitorPunchSyncParams {
     punchTime: Date;
     doorId: number;
     ruleId: number;
+    updatedLockoutFlag: boolean;
 }
 
 /**
@@ -138,11 +139,12 @@ export async function getPunchingVisitors(codes: string[]) {
 /**
  * 3. Visitor Table (`visitorMaster`) me details Update karega
  */
-export async function handleVisitorPunchUpdate({ empCode, punchTime, doorId, ruleId }: VisitorPunchSyncParams): Promise<void> {
+export async function handleVisitorPunchUpdate({ empCode, punchTime, updatedLockoutFlag, doorId, ruleId }: VisitorPunchSyncParams): Promise<void> {
     await db.update(visitorMaster).set({
         lastSeenTime: punchTime,
         lastPunchDoorId: doorId,
         ruleid: ruleId,
+        isLockoutEnabled: updatedLockoutFlag,
         updatedAt: new Date()
     }).where(eq(visitorMaster.employeeCode, empCode));
 }
