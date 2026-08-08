@@ -236,7 +236,9 @@ export async function runMasterAuthSync() {
                     punchTime,
                     doorId: doorDetails.id,
                     updatedLockoutFlag: updatedLockoutFlag,
-                    ruleId: ruleIdToStore
+                    ruleId: ruleIdToStore,
+                    isMainGateDoor: isMainGateDoor, // Main Gate check
+                    isEntry: isEntry
                 });
             } else {
                 // 👈 Agar Employee hai to same purana people table update hoga

@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { people, blockUnblockLogs, visitorMaster } from "@shared/schema";
+import { people, blockUnblockLogs, visitorMaster, visitors } from "@shared/schema";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { esslService } from "../services/essl-service";
 import { UNIT_TYPE, VISITOR_PREFIX, ZONES } from "../constant";
@@ -139,7 +139,50 @@ export async function getPunchingVisitors(codes: string[]) {
 /**
  * 3. Visitor Table (`visitorMaster`) me details Update karega
  */
-export async function handleVisitorPunchUpdate({ empCode, punchTime, updatedLockoutFlag, doorId, ruleId }: VisitorPunchSyncParams): Promise<void> {
+// export async function handleVisitorPunchUpdate({ empCode, punchTime, updatedLockoutFlag, doorId, ruleId }: VisitorPunchSyncParams): Promise<void> {
+//     await db.update(visitorMaster).set({
+//         lastSeenTime: punchTime,
+//         lastPunchDoorId: doorId,
+//         ruleid: ruleId,
+//         isLockoutEnabled: updatedLockoutFlag,
+//         updatedAt: new Date()
+//     }).where(eq(visitorMaster.employeeCode, empCode));
+
+// }
+export interface VisitorPunchSyncParams {
+    empCode: string;
+    punchTime: Date;
+    doorId: number;
+    ruleId: number;
+    updatedLockoutFlag: boolean;
+    isMainGateDoor?: boolean;
+    isEntry?: boolean;
+}
+
+/**
+ * Both 'visitorMaster' and 'visitors' tables update logic
+ */
+export interface VisitorPunchSyncParams {
+    empCode: string;
+    punchTime: Date;
+    doorId: number;
+    ruleId: number;
+    updatedLockoutFlag: boolean;
+    isMainGateDoor?: boolean;
+    isEntry?: boolean;
+}
+
+export async function handleVisitorPunchUpdate({
+    empCode,
+    punchTime,
+    updatedLockoutFlag,
+    doorId,
+    ruleId,
+    isMainGateDoor = false,
+    isEntry = false
+}: VisitorPunchSyncParams): Promise<void> {
+
+    // 1. visitorMaster table ko status updates ke sath update karein
     await db.update(visitorMaster).set({
         lastSeenTime: punchTime,
         lastPunchDoorId: doorId,
@@ -147,4 +190,12 @@ export async function handleVisitorPunchUpdate({ empCode, punchTime, updatedLock
         isLockoutEnabled: updatedLockoutFlag,
         updatedAt: new Date()
     }).where(eq(visitorMaster.employeeCode, empCode));
+
+    // 2. Main Gate Punch hone par 'visitors' table me mainGateInTime / mainGateOutTime update karein
+    if (isMainGateDoor) {
+        await db.update(visitors).set({
+            ...(isEntry ? { mainGateInTime: punchTime } : { mainGateOutTime: punchTime }),
+            updatedAt: new Date()
+        }).where(eq(visitors.employeeCode, empCode));
+    }
 }

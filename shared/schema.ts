@@ -413,6 +413,8 @@ export const visitors = pgTable("visitors", {
   purpose: text("purpose"),
   permissionDateFrom: text("permission_date_from"),
   permissionDateTo: text("permission_date_to"),
+  mainGateInTime:  timestamp("mainGate_in_time"),
+  mainGateOutTime: timestamp("mainGate_out_time"),
 
   locationId: integer("location_id"),
   visitorCardId: integer("visitor_card_id"),
