@@ -844,7 +844,7 @@ export default function VisitorsPage() {
                       <span className="font-medium text-slate-800 text-xs flex flex-col gap-1 mt-1">
                         <div>
                           <strong className="text-emerald-600 font-medium">
-                            In:{" "}
+                            Assign Time :{" "}
                           </strong>
                           {viewingVisitor.permissionDateFrom
                             ? (() => {
@@ -859,7 +859,7 @@ export default function VisitorsPage() {
                         </div>
                         <div>
                           <strong className="text-rose-600 font-medium">
-                            Out:{" "}
+                            Check Out :{" "}
                           </strong>
                           {viewingVisitor.permissionDateTo
                             ? (() => {
